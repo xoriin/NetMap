@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NetMap — Docker Hub image compose example
+#
+# Quick start:
+#   1. Edit the environment values below.
+#   2. docker compose -f docker-compose.example.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  netmap:
+    image: xoriin/netmap:latest
+    container_name: netmap
+    environment:
+      APP_ENV: production
+      DATABASE_URL: sqlite:////app/data/netmap.db
+      DATA_DIR: /app/data
+
+      # Required: replace these before first start.
+      SECRET_KEY: replace-with-a-long-random-secret
+      MASTER_KEY: replace-with-a-fernet-key
+
+      # Simplest default for self-hosted installs where the URL may be localhost,
+      # a LAN IP, or a reverse proxy hostname. For public deployments, replace
+      # this with exact hostnames such as ["netmap.example.com"].
+      TRUSTED_HOSTS: '["*"]'
+
+      # Set true only when served behind a TLS-terminating reverse proxy.
+      SECURE_HSTS_ENABLED: "false"
+      TRUSTED_PROXY_IPS: '["127.0.0.1"]'
+
+      LOG_LEVEL: info
+      EVENT_RETENTION_DAYS: "7"
+      FIREWALL_LOG_RETENTION_DAYS: "7"
+
+      SYSLOG_ENABLED: "true"
+      SYSLOG_UDP_ENABLED: "true"
+      SYSLOG_TCP_ENABLED: "true"
+      SYSLOG_HOST: 0.0.0.0
+      SYSLOG_UDP_PORT: "1514"
+      SYSLOG_TCP_PORT: "1514"
+      # SYSLOG_SENDER_ALLOWLIST: '["192.168.1.1","10.0.0.0/8"]'
+    volumes:
+      - /mnt/change/this/netmap:/app/data
+    ports:
+      - "8080:8080"      # Web UI + API
+      - "5514:1514/udp"  # Syslog UDP
+      - "5514:1514/tcp"  # Syslog TCP
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

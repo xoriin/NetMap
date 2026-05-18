@@ -1,0 +1,28 @@
+{
+  "icons": [
+    {
+      "value": "router",
+      "label": "Router",
+      "symbol": "⇆",
+      "path": "<path d=\"M10 16h28\"/><path d=\"M10 32h28\"/><path d=\"M18 12l-8 4 8 4\"/><path d=\"M30 28l8 4-8 4\"/>"
+    },
+    {
+      "value": "switch",
+      "label": "Switch",
+      "symbol": "▤",
+      "path": "<rect x=\"8\" y=\"14\" width=\"32\" height=\"20\" rx=\"3\"/><path d=\"M14 24h3M20 24h3M26 24h3M32 24h3\"/>"
+    },
+    {
+      "value": "server",
+      "label": "Server",
+      "symbol": "🖳",
+      "path": "<rect x=\"12\" y=\"8\" width=\"24\" height=\"32\" rx=\"3\"/><path d=\"M16 15h16M16 23h16M16 31h9\"/>"
+    },
+    {
+      "value": "cloud",
+      "label": "Cloud",
+      "symbol": "☁",
+      "path": "<path d=\"M15 35h19a8 8 0 0 0 1-16 12 12 0 0 0-23 4 6 6 0 0 0 3 12z\"/>"
+    }
+  ]
+}

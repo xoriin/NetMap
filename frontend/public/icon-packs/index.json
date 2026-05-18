@@ -1,0 +1,9 @@
+{
+  "packs": [
+    {
+      "id": "outline-plus",
+      "name": "Outline Plus",
+      "file": "outline-plus.json"
+    }
+  ]
+}

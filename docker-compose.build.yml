@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NetMap — maintainer build-from-source compose file
+#
+# This is for local image development from this repository. End users should use
+# docker-compose.yml, which pulls the published Docker Hub image.
+#
+# Quick start:
+#   1. Copy .env.example to .env and fill in all required values.
+#   2. docker compose -f docker-compose.build.yml up --build -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  netmap:
+    build:
+      context: .
+      dockerfile: docker/aio.Dockerfile
+    image: netmap:local-aio
+    user: "${NETMAP_UID:-1000}:${NETMAP_GID:-1000}"
+    environment:
+      APP_ENV: production
+      DATABASE_URL: sqlite:////app/data/netmap.db
+      SECRET_KEY: "${SECRET_KEY:?set SECRET_KEY}"
+      MASTER_KEY: "${MASTER_KEY:?set MASTER_KEY}"
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:8080"]}'
+      DATA_DIR: /app/data
+      EVENT_RETENTION_DAYS: "7"
+      FIREWALL_LOG_RETENTION_DAYS: "7"
+      SYSLOG_HOST: 0.0.0.0
+      SYSLOG_UDP_PORT: "1514"
+      SYSLOG_TCP_PORT: "1514"
+      TRUSTED_PROXY_IPS: '["127.0.0.1"]'
+      TRUSTED_HOSTS: '${TRUSTED_HOSTS:-["localhost","127.0.0.1"]}'
+      SECURE_HSTS_ENABLED: "false"
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8080:8080"
+      - "5514:1514/udp"
+      - "5514:1514/tcp"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
