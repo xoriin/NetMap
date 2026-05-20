@@ -97,6 +97,7 @@ def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost
     nmap_path = require_command("nmap", "Nmap discovery")
 
     command = [
+        "sudo",
         nmap_path,
         "-n",
         "-oX",

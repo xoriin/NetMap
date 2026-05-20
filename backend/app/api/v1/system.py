@@ -43,7 +43,7 @@ def _fetch_latest_version() -> str | None:
 
 @router.get("/version")
 def get_version() -> dict:
-    current = settings.app_version
+    current = settings.app_version.lstrip("v")
     latest = _fetch_latest_version()
     up_to_date = latest is None or latest == current
     return {

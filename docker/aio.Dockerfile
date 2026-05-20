@@ -8,6 +8,9 @@ RUN npm run build
 
 FROM python:3.12-slim AS runtime
 
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV APP_ENV=production
@@ -25,13 +28,14 @@ RUN apt-get update \
        gettext-base \
        gosu \
        iputils-ping \
-       libcap2-bin \
        nginx \
        nmap \
+       sudo \
        tini \
        traceroute \
   && rm -rf /var/lib/apt/lists/* \
-  && setcap cap_net_raw,cap_net_admin+eip /usr/bin/nmap
+  && echo "netmap ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/netmap-nmap \
+  && chmod 440 /etc/sudoers.d/netmap-nmap
 
 RUN addgroup --system netmap && adduser --system --ingroup netmap netmap
 
