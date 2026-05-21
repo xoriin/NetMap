@@ -521,9 +521,11 @@ function App() {
   useEffect(() => {
     document.body.classList.toggle("route-topology", currentRoute === "/topology");
     document.body.classList.toggle("route-security", currentRoute === "/security");
+    document.body.classList.toggle("route-inventory", currentRoute === "/inventory");
     return () => {
       document.body.classList.remove("route-topology");
       document.body.classList.remove("route-security");
+      document.body.classList.remove("route-inventory");
     };
   }, [currentRoute]);
 
@@ -1993,7 +1995,7 @@ function SecurityWorkspace({
           )}
         </div>
         <div className="security-live-controls">
-          <button className="icon-button" type="button" onClick={() => setLiveTail((current) => !current)}>
+          <button className="toolbar-btn" type="button" onClick={() => setLiveTail((current) => !current)}>
             {liveTail ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
             {liveTail ? "Pause" : "Resume"}
           </button>
@@ -2818,158 +2820,101 @@ function ExportsWorkspace({
       {error && <div className="form-error">{error}</div>}
       {message && <div className="success-banner">{message}</div>}
       <div className="tools-grid exports-grid">
-        <section className="tool-card">
-          <div className="tool-card-header">
-            <h3>Device Inventory</h3>
+
+        <div className="dash-panel">
+          <div className="dash-panel-header">
+            <span className="dash-panel-title">Device Inventory</span>
             <span className={`tool-badge ${canExportInventory ? "active" : "locked"}`}>
               {canExportInventory ? "Allowed" : "Restricted"}
             </span>
           </div>
-          <div className="tool-form">
-            <label>
-              Format
-              <select
-                disabled={!canExportInventory}
-                value={inventoryFormat}
-                onChange={(event) => setInventoryFormat(event.target.value as "csv" | "json")}
-              >
-                <option value="csv">CSV</option>
-                <option value="json">JSON</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              disabled={!canExportInventory || busyKey === "inventory"}
-              onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}
-            >
-              {busyKey === "inventory" ? "Preparing..." : "Download inventory"}
-            </button>
+          <div className="dash-panel-body" style={{ padding: "14px 18px" }}>
+            <div className="ipam-subnet-form">
+              <div className="ipam-form-row">
+                <label className="ipam-form-label">Format
+                  <select className="ipam-form-input" disabled={!canExportInventory} value={inventoryFormat} onChange={(event) => setInventoryFormat(event.target.value as "csv" | "json")}>
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                  </select>
+                </label>
+              </div>
+              {!canExportInventory && <p className="tool-note" style={{ margin: 0 }}>Only NetworkAdmin and SuperAdmin can export inventory data.</p>}
+              <div className="ipam-form-actions">
+                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
+                  {busyKey === "inventory" ? "Preparing…" : "Download inventory"}
+                </button>
+              </div>
+            </div>
           </div>
-          {!canExportInventory && <p className="tool-note">Only NetworkAdmin and SuperAdmin can export inventory data.</p>}
-        </section>
+        </div>
 
-        <section className="tool-card">
-          <div className="tool-card-header">
-            <h3>Firewall Events</h3>
+        <div className="dash-panel">
+          <div className="dash-panel-header">
+            <span className="dash-panel-title">Firewall Events</span>
             <span className={`tool-badge ${canExportFirewall ? "active" : "locked"}`}>
               {canExportFirewall ? "Allowed" : "Restricted"}
             </span>
           </div>
-          <div className="tool-form">
-            <label>
-              Format
-              <select
-                disabled={!canExportFirewall}
-                value={firewallFormat}
-                onChange={(event) => setFirewallFormat(event.target.value as "csv" | "json")}
-              >
-                <option value="csv">CSV</option>
-                <option value="json">JSON</option>
-              </select>
-            </label>
-            <div className="tool-form-grid">
-              <label>
-                Search
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.q}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, q: event.target.value }))}
-                />
-              </label>
-              <label>
-                Source IP
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.src_ip}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, src_ip: event.target.value }))}
-                />
-              </label>
-              <label>
-                Destination IP
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.dst_ip}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, dst_ip: event.target.value }))}
-                />
-              </label>
-              <label>
-                Action
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.action}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, action: event.target.value }))}
-                />
-              </label>
-              <label>
-                Protocol
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.protocol}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, protocol: event.target.value }))}
-                />
-              </label>
-              <label>
-                Interface
-                <input
-                  disabled={!canExportFirewall}
-                  value={firewallFilters.interface}
-                  onChange={(event) => setFirewallFilters((current) => ({ ...current, interface: event.target.value }))}
-                />
-              </label>
+          <div className="dash-panel-body" style={{ padding: "14px 18px" }}>
+            <div className="ipam-subnet-form">
+              <div className="vlan-form-grid">
+                <label className="ipam-form-label">Format
+                  <select className="ipam-form-input" disabled={!canExportFirewall} value={firewallFormat} onChange={(event) => setFirewallFormat(event.target.value as "csv" | "json")}>
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                  </select>
+                </label>
+                <label className="ipam-form-label">Row limit
+                  <input className="ipam-form-input" min={1} max={10000} type="number" disabled={!canExportFirewall} value={firewallFilters.limit} onChange={(event) => setFirewallFilters((current) => ({ ...current, limit: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Search
+                  <input className="ipam-form-input" disabled={!canExportFirewall} value={firewallFilters.q} onChange={(event) => setFirewallFilters((current) => ({ ...current, q: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Source IP
+                  <input className="ipam-form-input ipam-form-input--mono" disabled={!canExportFirewall} value={firewallFilters.src_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, src_ip: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Destination IP
+                  <input className="ipam-form-input ipam-form-input--mono" disabled={!canExportFirewall} value={firewallFilters.dst_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, dst_ip: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Action
+                  <input className="ipam-form-input" disabled={!canExportFirewall} value={firewallFilters.action} onChange={(event) => setFirewallFilters((current) => ({ ...current, action: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Protocol
+                  <input className="ipam-form-input" disabled={!canExportFirewall} value={firewallFilters.protocol} onChange={(event) => setFirewallFilters((current) => ({ ...current, protocol: event.target.value }))} />
+                </label>
+                <label className="ipam-form-label">Interface
+                  <input className="ipam-form-input" disabled={!canExportFirewall} value={firewallFilters.interface} onChange={(event) => setFirewallFilters((current) => ({ ...current, interface: event.target.value }))} />
+                </label>
+              </div>
+              {!canExportFirewall && <p className="tool-note" style={{ margin: 0 }}>Viewer cannot export firewall data.</p>}
+              <div className="ipam-form-actions">
+                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportFirewall || busyKey === "firewall"} onClick={() => runDownload("firewall", () => api.downloadFirewallExport(accessToken, { format: firewallFormat, q: firewallFilters.q, src_ip: firewallFilters.src_ip, dst_ip: firewallFilters.dst_ip, action: firewallFilters.action, protocol: firewallFilters.protocol, interface: firewallFilters.interface, limit: Number(firewallFilters.limit) || 5000 }))}>
+                  {busyKey === "firewall" ? "Preparing…" : "Download firewall export"}
+                </button>
+              </div>
             </div>
-            <label>
-              Row limit
-              <input
-                min={1}
-                max={10000}
-                type="number"
-                disabled={!canExportFirewall}
-                value={firewallFilters.limit}
-                onChange={(event) => setFirewallFilters((current) => ({ ...current, limit: event.target.value }))}
-              />
-            </label>
-            <button
-              type="button"
-              disabled={!canExportFirewall || busyKey === "firewall"}
-              onClick={() =>
-                runDownload("firewall", () =>
-                  api.downloadFirewallExport(accessToken, {
-                    format: firewallFormat,
-                    q: firewallFilters.q,
-                    src_ip: firewallFilters.src_ip,
-                    dst_ip: firewallFilters.dst_ip,
-                    action: firewallFilters.action,
-                    protocol: firewallFilters.protocol,
-                    interface: firewallFilters.interface,
-                    limit: Number(firewallFilters.limit) || 5000,
-                  }),
-                )
-              }
-            >
-              {busyKey === "firewall" ? "Preparing..." : "Download firewall export"}
-            </button>
           </div>
-          {!canExportFirewall && <p className="tool-note">Viewer cannot export firewall data.</p>}
-        </section>
+        </div>
 
-        <section className="tool-card">
-          <div className="tool-card-header">
-            <h3>Network Report</h3>
+        <div className="dash-panel">
+          <div className="dash-panel-header">
+            <span className="dash-panel-title">Network Report</span>
             <span className={`tool-badge ${canExportInventory ? "active" : "locked"}`}>
               {canExportInventory ? "Allowed" : "Restricted"}
             </span>
           </div>
-          <p className="tool-note">
-            Generates a simple PDF with topology summary, inventory snapshot, subnet summary, and blocked traffic leaders.
-          </p>
-          <button
-            type="button"
-            disabled={!canExportInventory || busyKey === "report"}
-            onClick={() => runDownload("report", () => api.downloadReport(accessToken))}
-          >
-            {busyKey === "report" ? "Preparing..." : "Download PDF report"}
-          </button>
-        </section>
+          <div className="dash-panel-body" style={{ padding: "14px 18px" }}>
+            <div className="ipam-subnet-form">
+              <p className="tool-note" style={{ margin: 0 }}>Generates a PDF with topology summary, inventory snapshot, subnet summary, and blocked traffic leaders.</p>
+              {!canExportInventory && <p className="tool-note" style={{ margin: 0 }}>Only NetworkAdmin and SuperAdmin can generate reports.</p>}
+              <div className="ipam-form-actions">
+                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportInventory || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
+                  {busyKey === "report" ? "Preparing…" : "Download PDF report"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
       </div>
     </section>
@@ -3846,7 +3791,7 @@ function AdminWorkspace({
           <section className="panel admin-panel">
             <div className="admin-panel-header">
               <h2>Users</h2>
-              <button type="button" onClick={() => void loadAdminData()}>Refresh</button>
+              <button type="button" className="ipam-btn" onClick={() => void loadAdminData()}>Refresh</button>
             </div>
             <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
             {loading ? <p>Loading…</p> : (
@@ -3952,8 +3897,8 @@ function AdminWorkspace({
                   <input required minLength={12} type="password" value={resetPasswordForm.password} onChange={(e) => setResetPasswordForm((c) => ({ ...c, password: e.target.value }))} />
                 </label>
                 <div className="admin-reset-actions">
-                  <button type="submit" disabled={busyUserId === resetPasswordForm.userId}>Save</button>
-                  <button type="button" onClick={() => setResetPasswordForm({ userId: null, password: "" })}>Cancel</button>
+                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busyUserId === resetPasswordForm.userId}>Save</button>
+                  <button type="button" className="ipam-btn" onClick={() => setResetPasswordForm({ userId: null, password: "" })}>Cancel</button>
                 </div>
               </form>
             )}
@@ -3978,7 +3923,7 @@ function AdminWorkspace({
                 </label>
               </div>
               <label className="inline-toggle"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
-              <button type="submit">Create user</button>
+              <button type="submit" className="ipam-btn ipam-btn--primary">Create user</button>
             </form>
           </section>
         </div>
@@ -3990,8 +3935,8 @@ function AdminWorkspace({
             <div className="admin-panel-header">
               <h2>{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : "Login & Audit History"}</h2>
               <div className="admin-panel-actions">
-                {auditUserFilter && <button type="button" onClick={() => void loadAuditLogs(0, null)}>All users</button>}
-                <button type="button" onClick={() => void loadAuditLogs(auditOffset, auditUserFilter)}>Refresh</button>
+                {auditUserFilter && <button type="button" className="ipam-btn" onClick={() => void loadAuditLogs(0, null)}>All users</button>}
+                <button type="button" className="ipam-btn" onClick={() => void loadAuditLogs(auditOffset, auditUserFilter)}>Refresh</button>
               </div>
             </div>
             <div className="audit-log-table">
@@ -4029,9 +3974,9 @@ function AdminWorkspace({
               })}
             </div>
             <div className="audit-pagination">
-              <button type="button" disabled={auditOffset === 0} onClick={() => void loadAuditLogs(Math.max(0, auditOffset - 50), auditUserFilter)}>← Prev</button>
+              <button type="button" className="ipam-btn" disabled={auditOffset === 0} onClick={() => void loadAuditLogs(Math.max(0, auditOffset - 50), auditUserFilter)}>← Prev</button>
               <span>{auditOffset + 1}–{Math.min(auditOffset + 50, auditLogsTotal)} of {auditLogsTotal}</span>
-              <button type="button" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => void loadAuditLogs(auditOffset + 50, auditUserFilter)}>Next →</button>
+              <button type="button" className="ipam-btn" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => void loadAuditLogs(auditOffset + 50, auditUserFilter)}>Next →</button>
             </div>
           </section>
         </div>
@@ -4108,7 +4053,7 @@ function AdminWorkspace({
                       );
                     })()}
                   </label>
-                  <button type="submit" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); return isNaN(n) || n < 1 || n > 480; })()}>
+                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); return isNaN(n) || n < 1 || n > 480; })()}>
                     {settingsBusy ? "Saving…" : "Save settings"}
                   </button>
                 </form>
@@ -4117,7 +4062,7 @@ function AdminWorkspace({
                 <h2>Database backup &amp; restore</h2>
                 <p className="tool-note">SuperAdmin only. Operates directly on the SQLite database file.</p>
                 <div className="tool-form">
-                  <button type="button" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
                     {backupBusy === "backup" ? "Preparing…" : "Download backup"}
                   </button>
                   <label>
@@ -4125,7 +4070,7 @@ function AdminWorkspace({
                     <input accept=".db,application/octet-stream" type="file" disabled={backupBusy === "restore"} onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} />
                   </label>
                   {restoreFile && (
-                    <button type="button" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
+                    <button type="button" className="ipam-btn ipam-btn--primary" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
                       {backupBusy === "restore" ? "Restoring…" : `Restore ${restoreFile.name}`}
                     </button>
                   )}
@@ -4165,7 +4110,7 @@ function AdminWorkspace({
                       {" · "}{allRuntimePacks.length} pack{allRuntimePacks.length !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <button type="button" className="system-icon-manage-btn" onClick={() => setIconModalOpen(true)}>
+                  <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => setIconModalOpen(true)}>
                     Manage icons →
                   </button>
                 </div>
@@ -4218,8 +4163,8 @@ function AdminWorkspace({
                   <input type="password" placeholder="tk_…" value={notifSettings.ntfy_token} onChange={(e) => setNotifSettings((c) => ({ ...c, ntfy_token: e.target.value }))} />
                 </label>
                 <div className="notif-actions">
-                  <button type="button" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
-                  <button type="button" className="notif-test-btn" onClick={() => void testNotif("ntfy")}>Send test</button>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
+                  <button type="button" className="ipam-btn" onClick={() => void testNotif("ntfy")}>Send test</button>
                   {notifTestResult.ntfy && <span className={`notif-result${notifTestResult.ntfy === "Sent successfully" ? " ok" : " err"}`}>{notifTestResult.ntfy}</span>}
                 </div>
               </div>
@@ -4236,8 +4181,8 @@ function AdminWorkspace({
                   <input placeholder="-100123456789" value={notifSettings.telegram_chat_id} onChange={(e) => setNotifSettings((c) => ({ ...c, telegram_chat_id: e.target.value }))} />
                 </label>
                 <div className="notif-actions">
-                  <button type="button" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
-                  <button type="button" className="notif-test-btn" onClick={() => void testNotif("telegram")}>Send test</button>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
+                  <button type="button" className="ipam-btn" onClick={() => void testNotif("telegram")}>Send test</button>
                   {notifTestResult.telegram && <span className={`notif-result${notifTestResult.telegram === "Sent successfully" ? " ok" : " err"}`}>{notifTestResult.telegram}</span>}
                 </div>
               </div>
@@ -4257,8 +4202,8 @@ function AdminWorkspace({
                   <input placeholder="+447700000001" value={notifSettings.signal_recipient} onChange={(e) => setNotifSettings((c) => ({ ...c, signal_recipient: e.target.value }))} />
                 </label>
                 <div className="notif-actions">
-                  <button type="button" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
-                  <button type="button" className="notif-test-btn" onClick={() => void testNotif("signal")}>Send test</button>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
+                  <button type="button" className="ipam-btn" onClick={() => void testNotif("signal")}>Send test</button>
                   {notifTestResult.signal && <span className={`notif-result${notifTestResult.signal === "Sent successfully" ? " ok" : " err"}`}>{notifTestResult.signal}</span>}
                 </div>
               </div>
@@ -4291,8 +4236,8 @@ function AdminWorkspace({
                   Use STARTTLS
                 </label>
                 <div className="notif-actions">
-                  <button type="button" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
-                  <button type="button" className="notif-test-btn" onClick={() => void testNotif("smtp")}>Send test</button>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={notifBusy} onClick={() => void saveNotifSettings()}>{notifBusy ? "Saving…" : "Save"}</button>
+                  <button type="button" className="ipam-btn" onClick={() => void testNotif("smtp")}>Send test</button>
                   {notifTestResult.smtp && <span className={`notif-result${notifTestResult.smtp === "Sent successfully" ? " ok" : " err"}`}>{notifTestResult.smtp}</span>}
                 </div>
               </div>
@@ -4308,7 +4253,7 @@ function AdminWorkspace({
             <div className="admin-panel-header">
               <h2>Alert Rules</h2>
               <div className="admin-panel-actions">
-                <button type="button" className="action-btn" onClick={() => {
+                <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => {
                   setEditingAlertRule(null);
                   setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, channels: [], cooldown_minutes: 30 });
                   setShowAlertForm(true);
@@ -4366,11 +4311,11 @@ function AdminWorkspace({
                   <input type="checkbox" checked={alertForm.enabled} onChange={(e) => setAlertForm(f => ({...f, enabled: e.target.checked}))} />
                   Enabled
                 </label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0} onClick={() => void saveAlertRule()}>
+                <div className="ipam-form-actions">
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0} onClick={() => void saveAlertRule()}>
                     {alertRulesBusy ? "Saving…" : editingAlertRule ? "Update rule" : "Create rule"}
                   </button>
-                  <button type="button" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
+                  <button type="button" className="ipam-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
                 </div>
               </div>
             )}
@@ -4455,10 +4400,10 @@ function AdminWorkspace({
             <div className="admin-panel-header">
               <h2>Role Permissions</h2>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="action-btn" onClick={() => { setShowNewGroupForm((v) => !v); setNewGroupName(""); }}>
+                <button type="button" className="ipam-btn" onClick={() => { setShowNewGroupForm((v) => !v); setNewGroupName(""); }}>
                   {showNewGroupForm ? "Cancel" : "+ New group"}
                 </button>
-                <button type="button" className="action-btn" disabled={groupsBusy} onClick={() => void saveRolePermissions()}>
+                <button type="button" className="ipam-btn ipam-btn--primary" disabled={groupsBusy} onClick={() => void saveRolePermissions()}>
                   {groupsBusy ? "Saving…" : "Save changes"}
                 </button>
               </div>
@@ -4479,7 +4424,7 @@ function AdminWorkspace({
                 />
                 <button
                   type="button"
-                  className="action-btn"
+                  className="ipam-btn ipam-btn--primary"
                   disabled={groupsBusy || !newGroupName.trim() || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(newGroupName.trim())}
                   onClick={() => void createGroup(newGroupName)}
                 >
@@ -4617,6 +4562,8 @@ function TopologyWorkspace({
   const cyRef = useRef<Core | null>(null);
   const layoutPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const fitOnNextRenderRef = useRef(true);
+  const skipPersistOnNextRenderRef = useRef(false);
+  const knownGroupIdsRef = useRef<Set<string>>(new Set());
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<number | null>(null);
   const [expandedEntitySection, setExpandedEntitySection] = useState<"devices" | "relationships" | "groups" | null>(null);
@@ -5202,7 +5149,10 @@ function TopologyWorkspace({
       return;
     }
     const hadVisibleElements = cy.$("node.device").length > 0;
-    persistCurrentTopologyLayout(cy, userId, layoutPositionsRef);
+    if (!skipPersistOnNextRenderRef.current) {
+      persistCurrentTopologyLayout(cy, userId, layoutPositionsRef);
+    }
+    skipPersistOnNextRenderRef.current = false;
     const layout = buildDiagramLayout(filteredGraph, layoutPositionsRef.current, {
       groupOptions: Object.fromEntries(
         Object.entries(groupDisplayPrefs).map(([groupName, prefs]) => [
@@ -5281,6 +5231,11 @@ function TopologyWorkspace({
     ]);
     cy.layout({ name: "preset", fit: false, padding: 36 }).run();
     refreshOverlayNodes();
+    const currentGroupIds = new Set(layout.groups.map((g) => g.id));
+    if (knownGroupIdsRef.current.size > 0 && layout.groups.some((g) => !knownGroupIdsRef.current.has(g.id))) {
+      fitOnNextRenderRef.current = true;
+    }
+    knownGroupIdsRef.current = currentGroupIds;
     if (fitOnNextRenderRef.current || !hadVisibleElements) {
       cy.fit(undefined, 36);
       fitOnNextRenderRef.current = false;
@@ -5594,6 +5549,7 @@ function TopologyWorkspace({
     clearSavedTopologyLayout(userId);
     layoutPositionsRef.current = {};
     fitOnNextRenderRef.current = true;
+    skipPersistOnNextRenderRef.current = true;
     setActiveSavedLayoutId(null);
     setLayoutRevision((current) => current + 1);
   }
@@ -5858,7 +5814,7 @@ function TopologyWorkspace({
         <div className="toolbar-group">
           <div className="toolbar-group-controls">
             <button type="button" className="toolbar-btn" onClick={fitTopology}>Fit</button>
-            <button type="button" className="toolbar-btn" onClick={resetLayout}>Reset</button>
+            <button type="button" className="toolbar-btn" onClick={() => { if (window.confirm("Reset layout? This will clear all saved positions and re-organise the canvas. This cannot be undone.")) resetLayout(); }}>Reset</button>
             {canWrite && (
               <>
                 <button type="button" className="toolbar-btn" onClick={exportTopologyPng}>PNG</button>
@@ -6709,7 +6665,7 @@ function InventoryWorkspace({
             {canWrite ? (
               <>
               <label>
-                Group
+                VLAN / Group
                 <select value={bulkGroupId} onChange={(event) => setBulkGroupId(event.target.value)}>
                   <option value="">— No change —</option>
                   <option value="0">Remove from group</option>
@@ -6719,7 +6675,7 @@ function InventoryWorkspace({
                 </select>
               </label>
               <label>
-                Type
+                Device Type
                 <select value={bulkDeviceType} onChange={(event) => setBulkDeviceType(event.target.value)}>
                   <option value="">— No change —</option>
                   {deviceTypeOptions.map((t) => (
@@ -6762,7 +6718,7 @@ function InventoryWorkspace({
             <div className="inventory-table-header">
               <span>Select</span>
               {["device", "ip", "type", "status", "latency", "group", "location"].map((key, i) => {
-                const labels = ["Device", "IP", "Type", "Live status", "Latency", "Group", "Location"];
+                const labels = ["Device", "IP", "Device Type", "Live status", "Latency", "VLAN / Group", "Location"];
                 const active = inventorySortKey === key;
                 return (
                   <button
@@ -7051,13 +7007,8 @@ function VlanWorkspace({
     });
   }, [mergedRows, vlanSearch, vlanSortKey, vlanSortDir, deviceCountByGroup]);
 
-  const normalizedFormName = normalizeGroupName(form.name);
   const effectiveEditingGroup =
-    (editingId !== null ? groups.find((group) => group.id === editingId) : undefined) ??
-    (normalizedFormName
-      ? groups.find((group) => groupMatchesLabel(group, normalizedFormName))
-      : undefined) ??
-    null;
+    editingId !== null ? (groups.find((group) => group.id === editingId) ?? null) : null;
 
   async function loadGroups() {
     setError(null);
@@ -7161,6 +7112,33 @@ function VlanWorkspace({
     { key: 'devices', label: 'Devices', sortable: true },
   ];
 
+  const vlanFormFields = (
+    <div className="vlan-form-grid">
+      <label className="ipam-form-label">Name *
+        <input className="ipam-form-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Display name
+        <input className="ipam-form-input" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">VLAN ID
+        <input className="ipam-form-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Subnet (CIDR)
+        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.10.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Gateway
+        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.10.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">DNS servers
+        <input className="ipam-form-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label vlan-form-grid__full">Description
+        <input className="ipam-form-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
+      </label>
+      {error && <p className="form-error vlan-form-grid__full">{error}</p>}
+    </div>
+  );
+
   return (
     <section className="dash-layout">
       <div className="dash-header">
@@ -7182,82 +7160,34 @@ function VlanWorkspace({
         </div>
       </div>
 
-      {error && <div className="form-error" style={{ margin: '0 0 8px' }}>{error}</div>}
-
       <div className="topology-content" style={{ gap: 12 }}>
-        {showForm && (
-          <div className="vlan-form-panel panel">
-            <div className="vlan-form-heading">
-              <h3>{effectiveEditingGroup ? 'Edit group' : 'New group'}</h3>
-              <button type="button" className="vlan-form-close" onClick={closeForm} aria-label="Close">✕</button>
+        {showForm && !effectiveEditingGroup && (
+          <div className="dash-panel" style={{ marginBottom: 14 }}>
+            <div className="dash-panel-header">
+              <span className="dash-panel-title">New group</span>
+              <button type="button" className="dash-panel-link" onClick={closeForm} aria-label="Close"><X size={14} /></button>
             </div>
-            <form className="modal-form" onSubmit={(e) => void handleFormSubmit(e)}>
-              <label>
-                Name *
-                <input
-                  required
-                  value={form.name}
-                  onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))}
-                />
-              </label>
-              <label>
-                Display name
-                <input
-                  value={form.display_name}
-                  onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))}
-                />
-              </label>
-              <div className="vlan-form-row">
-                <label>
-                  VLAN ID
-                  <input
-                    placeholder="e.g. 10"
-                    value={form.vlan_id}
-                    onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Subnet (CIDR)
-                  <input
-                    placeholder="192.168.10.0/24"
-                    value={form.ip_range}
-                    onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="vlan-form-row">
-                <label>
-                  Gateway
-                  <input
-                    placeholder="192.168.10.1"
-                    value={form.gateway}
-                    onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  DNS servers
-                  <input
-                    placeholder="8.8.8.8, 1.1.1.1"
-                    value={form.dns_servers}
-                    onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <label>
-                Description
-                <input
-                  value={form.description}
-                  onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))}
-                />
-              </label>
-              <div className="detail-actions">
-                <button type="submit" disabled={busy}>
-                  {effectiveEditingGroup ? 'Save changes' : 'Create group'}
-                </button>
-                <button type="button" disabled={busy} onClick={closeForm}>Cancel</button>
+            <div className="dash-panel-body" style={{ padding: "14px 18px" }}>
+              <form className="ipam-subnet-form" onSubmit={(e) => void handleFormSubmit(e)}>
+                {vlanFormFields}
+                <div className="ipam-form-actions">
+                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Create group</button>
+                  <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {showForm && effectiveEditingGroup && (
+          <Modal title="Edit group" onCancel={closeForm}>
+            <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
+              {vlanFormFields}
+              <div className="modal-actions" style={{ paddingTop: 6 }}>
+                <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+                <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Save changes</button>
               </div>
             </form>
-          </div>
+          </Modal>
         )}
 
         <div className="panel" style={{ flex: '1 1 auto', padding: 0, overflow: 'auto', minWidth: 0 }}>
@@ -7539,7 +7469,7 @@ function DiscoveryModal({
             </label>
             <button
               type="button"
-              className="scan-new-group-btn"
+              className="toolbar-btn"
               title="Create a new VLAN / group"
               onClick={() => { setShowNewGroup((v) => !v); setNewGroupName(""); }}
             >
@@ -7554,7 +7484,7 @@ function DiscoveryModal({
                 onChange={(e) => setNewGroupName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void createNewGroup(); } }}
               />
-              <button type="button" disabled={!newGroupName.trim() || newGroupBusy} onClick={() => void createNewGroup()}>
+              <button type="button" className="ipam-btn ipam-btn--primary" disabled={!newGroupName.trim() || newGroupBusy} onClick={() => void createNewGroup()}>
                 {newGroupBusy ? "Creating…" : "Create"}
               </button>
             </div>
@@ -7571,7 +7501,7 @@ function DiscoveryModal({
             </label>
             <button
               type="button"
-              className="scan-new-group-btn"
+              className="toolbar-btn"
               title="Create a new location"
               onClick={() => { setShowNewSite((v) => !v); setNewSiteName(""); }}
             >
@@ -7586,7 +7516,7 @@ function DiscoveryModal({
                 onChange={(e) => setNewSiteName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void createNewSite(); } }}
               />
-              <button type="button" disabled={!newSiteName.trim() || newSiteBusy} onClick={() => void createNewSite()}>
+              <button type="button" className="ipam-btn ipam-btn--primary" disabled={!newSiteName.trim() || newSiteBusy} onClick={() => void createNewSite()}>
                 {newSiteBusy ? "Creating…" : "Create"}
               </button>
             </div>
@@ -7611,10 +7541,10 @@ function DiscoveryModal({
         {busy && <ScanProgress scanType={scanType} />}
         {error && <div className="form-error">{error}</div>}
         <div className="modal-actions">
-          <button type="button" onClick={onCancel}>
+          <button type="button" className="ipam-btn" onClick={onCancel}>
             Close
           </button>
-          <button type="submit" disabled={!canStartScan}>
+          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={!canStartScan}>
             {busy ? "Scanning..." : "Start scan"}
           </button>
         </div>
@@ -7654,7 +7584,7 @@ function DiscoveryModal({
                 ))}
               </div>
               <div className="modal-actions scan-import-actions">
-                <button type="button" disabled={busy || selectedIps.size === 0} onClick={importSelected}>
+                <button type="button" className="ipam-btn ipam-btn--primary" disabled={busy || selectedIps.size === 0} onClick={importSelected}>
                   Import selected
                 </button>
               </div>
@@ -7864,6 +7794,31 @@ function LocationsWorkspace({
     { key: 'devices', label: 'Devices', sortable: true },
   ];
 
+  const locationFormFields = (
+    <div className="vlan-form-grid">
+      <label className="ipam-form-label">Name *
+        <input className="ipam-form-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Display name
+        <input className="ipam-form-input" placeholder="e.g. London HQ" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label vlan-form-grid__full">Address
+        <input className="ipam-form-input" placeholder="e.g. 123 Main St, London, UK" value={form.address} onChange={(event) => setForm((c) => ({ ...c, address: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Description
+        <input className="ipam-form-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
+      </label>
+      <label className="ipam-form-label">Colour
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <input type="color" value={form.color || '#6366f1'} style={{ width: 44, height: 34, padding: 2, cursor: 'pointer', borderRadius: 6, border: '1px solid var(--border)' }} onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
+          <span style={{ fontFamily: 'monospace', fontSize: 12, opacity: 0.7 }}>{form.color || '#6366f1'}</span>
+          {form.color && <button type="button" className="ipam-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
+        </div>
+      </label>
+      {error && <p className="form-error vlan-form-grid__full">{error}</p>}
+    </div>
+  );
+
   return (
     <section className="dash-layout">
       <div className="dash-header">
@@ -7976,7 +7931,7 @@ function LocationsWorkspace({
             <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(80vh - 60px)' }}>
               {canWrite && (
                 <div className="detail-actions" style={{ marginBottom: 14 }}>
-                  <button type="button" onClick={() => openEditForm(detailSite)}>Edit location</button>
+                  <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => openEditForm(detailSite)}>Edit location</button>
                 </div>
               )}
               <dl style={{ margin: '0 0 14px', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 14px', fontSize: '0.875em', alignItems: 'baseline' }}>
@@ -8011,38 +7966,19 @@ function LocationsWorkspace({
         </div>
       )}
 
-      {/* Create / edit form modal */}
+      {/* Create / edit form */}
       {showForm && (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
-          <div className="modal" style={{ width: 'min(100%, 480px)' }}>
-            <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(209,220,230,0.6)' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{editingId !== null ? 'Edit location' : 'New location'}</h3>
-              <button type="button" className="ipam-modal-close" onClick={closeForm} aria-label="Close">✕</button>
+        <Modal title={editingId !== null ? 'Edit location' : 'New location'} onCancel={closeForm}>
+          <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
+            {locationFormFields}
+            <div className="modal-actions" style={{ paddingTop: 6 }}>
+              <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>
+                {editingId !== null ? 'Save changes' : 'Create location'}
+              </button>
             </div>
-            <div style={{ padding: '16px 20px' }}>
-              <form className="modal-form" onSubmit={(e) => void handleFormSubmit(e)}>
-                <label>Name *<input required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} /></label>
-                <label>Display name<input placeholder="e.g. London HQ" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} /></label>
-                <label>Address<input placeholder="e.g. 123 Main St, London, UK" value={form.address} onChange={(event) => setForm((c) => ({ ...c, address: event.target.value }))} /></label>
-                <div className="vlan-form-row">
-                  <label>
-                    Colour
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <input type="color" value={form.color || '#6366f1'} style={{ width: 44, height: 36, padding: 2, cursor: 'pointer', borderRadius: 6 }} onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, opacity: 0.7 }}>{form.color || '#6366f1'}</span>
-                      {form.color && <button type="button" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
-                    </div>
-                  </label>
-                </div>
-                <label>Description<input value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} /></label>
-                <div className="detail-actions">
-                  <button type="submit" disabled={busy}>{editingId !== null ? 'Save changes' : 'Create location'}</button>
-                  <button type="button" disabled={busy} onClick={closeForm}>Cancel</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
     </section>
   );
@@ -8222,7 +8158,7 @@ function ProfileWorkspace({
             {profileSuccess && <div className="success-banner">Profile saved.</div>}
 
             <div className="profile-form-actions">
-              <button type="submit" disabled={profileBusy}>
+              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={profileBusy}>
                 {profileBusy ? "Saving…" : "Save profile"}
               </button>
             </div>
@@ -8273,7 +8209,7 @@ function ProfileWorkspace({
             {pwSuccess && <div className="success-banner">Password changed successfully.</div>}
 
             <div className="profile-form-actions">
-              <button type="submit" disabled={pwBusy}>
+              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={pwBusy}>
                 {pwBusy ? "Updating…" : "Change password"}
               </button>
             </div>
@@ -8824,126 +8760,103 @@ function DeviceForm({
       headerSubmitFormId={device ? formId : undefined}
       headerSubmitDisabled={busy}
     >
-      <form id={formId} className="modal-form" onSubmit={submit}>
-        <label>
-          Display name
-          <input value={form.display_name} onChange={(event) => update("display_name", event.target.value)} />
-        </label>
-        <div className="modal-form-row">
+      <form id={formId} className="modal-form device-form" onSubmit={submit}>
+        <div className="device-form-section">
+          <span className="device-form-section-title">Identity</span>
           <label>
-            Hostname
-            <input value={form.hostname} onChange={(event) => update("hostname", event.target.value)} />
+            Display name
+            <input value={form.display_name} onChange={(event) => update("display_name", event.target.value)} />
           </label>
-          <label>
-            IP address
-            <input value={form.ip_address} onChange={(event) => update("ip_address", event.target.value)} />
-          </label>
-        </div>
-        <div className="modal-form-row">
-          <label>
-            MAC address
-            <input value={form.mac_address} onChange={(event) => update("mac_address", event.target.value)} />
-          </label>
-          <label>
-            Vendor
-            <input value={form.vendor} onChange={(event) => update("vendor", event.target.value)} />
-          </label>
-        </div>
-        <div className="modal-form-row">
-          <label>
-            Device type
-            <select value={form.device_type} onChange={(event) => update("device_type", event.target.value)}>
-              {deviceTypeOptions.map((type) => (
-                <option key={type} value={type}>
-                  {formatDeviceTypeLabel(type)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select value={form.status} onChange={(event) => update("status", event.target.value)}>
-              <option value="unknown">Unknown</option>
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-              <option value="warning">Warning</option>
-            </select>
-          </label>
-        </div>
-        <label>
-          Color
-          <div className="color-picker">
-            {deviceColors.map((color) => (
-              <button
-                aria-label={color.label}
-                className={form.color === color.value ? "selected" : ""}
-                key={color.value}
-                style={{ background: color.value }}
-                title={color.label}
-                type="button"
-                onClick={() => update("color", color.value)}
-              />
-            ))}
-            <button
-              className={!form.color ? "selected clear-color" : "clear-color"}
-              type="button"
-              onClick={() => update("color", "")}
-            >
-              Auto
-            </button>
-            <label className="custom-color-picker" title="Custom color">
-              <input
-                type="color"
-                value={form.color || "#3276b1"}
-                onChange={(event) => update("color", event.target.value)}
-              />
-              Custom
+          <div className="modal-form-row">
+            <label>
+              Hostname
+              <input value={form.hostname} onChange={(event) => update("hostname", event.target.value)} />
+            </label>
+            <label>
+              IP address
+              <input value={form.ip_address} onChange={(event) => update("ip_address", event.target.value)} />
             </label>
           </div>
-        </label>
-        <div className="modal-form-row">
+          <div className="modal-form-row">
+            <label>
+              MAC address
+              <input value={form.mac_address} onChange={(event) => update("mac_address", event.target.value)} />
+            </label>
+            <label>
+              Vendor
+              <input value={form.vendor} onChange={(event) => update("vendor", event.target.value)} />
+            </label>
+          </div>
+        </div>
+
+        <div className="device-form-section">
+          <span className="device-form-section-title">Classification</span>
+          <div className="modal-form-row">
+            <label>
+              Device type
+              <select value={form.device_type} onChange={(event) => update("device_type", event.target.value)}>
+                {deviceTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {formatDeviceTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={form.status} onChange={(event) => update("status", event.target.value)}>
+                <option value="unknown">Unknown</option>
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
+                <option value="warning">Warning</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="device-form-section">
+          <span className="device-form-section-title">Network &amp; Organisation</span>
+          <div className="modal-form-row">
+            <label>
+              Subnet
+              <input placeholder="192.168.10.0/24" value={form.subnet} onChange={(event) => update("subnet", event.target.value)} />
+            </label>
+            <label>
+              VLAN / Group
+              <select value={form.topology_group_id} onChange={(event) => update("topology_group_id", event.target.value)}>
+                <option value="">— None —</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={String(group.id)}>
+                    {group.display_name || group.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <label>
-            Subnet
-            <input
-              placeholder="192.168.10.0/24"
-              value={form.subnet}
-              onChange={(event) => update("subnet", event.target.value)}
-            />
-          </label>
-          <label>
-            Group (VLAN/zone)
-            <select value={form.topology_group_id} onChange={(event) => update("topology_group_id", event.target.value)}>
+            Location
+            <select value={form.site_id} onChange={(event) => update("site_id", event.target.value)}>
               <option value="">— None —</option>
-              {groups.map((group) => (
-                <option key={group.id} value={String(group.id)}>
-                  {group.display_name || group.name}
+              {sites.map((site) => (
+                <option key={site.id} value={String(site.id)}>
+                  {site.display_name ?? site.name}
                 </option>
               ))}
             </select>
           </label>
+          <label>
+            Tags
+            <input placeholder="comma-separated" value={form.tags} onChange={(event) => update("tags", event.target.value)} />
+          </label>
+          <label>
+            Notes
+            <textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
+          </label>
         </div>
-        <label>
-          Location
-          <select value={form.site_id} onChange={(event) => update("site_id", event.target.value)}>
-            <option value="">— None —</option>
-            {sites.map((site) => (
-              <option key={site.id} value={String(site.id)}>
-                {site.display_name ?? site.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Tags
-          <input placeholder="comma-separated" value={form.tags} onChange={(event) => update("tags", event.target.value)} />
-        </label>
-        <label>
-          Notes
-          <textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
-        </label>
-        <div className="modal-actions">
-          <button type="button" onClick={onCancel}>Cancel</button>
-          <button type="submit" disabled={busy}>Save</button>
+
+        <div className="modal-actions device-form-actions">
+          <button type="button" className="ipam-btn" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Save</button>
         </div>
       </form>
     </Modal>
@@ -9328,10 +9241,10 @@ function RelationshipForm({
         </label>
         {formError && <div className="form-error">{formError}</div>}
         <div className="modal-actions">
-          <button type="button" onClick={onCancel}>
+          <button type="button" className="ipam-btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" disabled={busy || sourceEndpoint.length === 0 || targetEndpoint.length === 0}>
+          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy || sourceEndpoint.length === 0 || targetEndpoint.length === 0}>
             Save
           </button>
         </div>
@@ -9375,12 +9288,12 @@ function Modal({
           <h3>{title}</h3>
           <div className="modal-header-actions">
             {headerSubmitLabel && headerSubmitFormId && (
-              <button type="submit" form={headerSubmitFormId} disabled={headerSubmitDisabled}>
+              <button type="submit" className="ipam-btn ipam-btn--primary" form={headerSubmitFormId} disabled={headerSubmitDisabled}>
                 {headerSubmitLabel}
               </button>
             )}
-            <button type="button" onClick={onCancel} title="Close">
-              Close
+            <button type="button" className="modal-close-btn" onClick={onCancel} aria-label="Close">
+              <X size={18} />
             </button>
           </div>
         </div>

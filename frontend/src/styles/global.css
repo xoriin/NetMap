@@ -260,11 +260,10 @@ textarea {
 }
 
 .sidebar-link.active {
-  background: rgba(29, 154, 176, 0.18);
-  border-left-color: transparent;
+  background: linear-gradient(90deg, rgba(29, 154, 176, 0.28) 0%, rgba(29, 154, 176, 0.06) 65%, transparent 100%);
+  border-left-color: #1d9ab0;
   color: #6ddbe8;
   font-weight: 650;
-  box-shadow: inset 0 0 0 1px rgba(29, 154, 176, 0.28), 0 1px 6px rgba(29, 154, 176, 0.12);
 }
 
 .workspace {
@@ -290,6 +289,10 @@ body.route-topology .workspace {
 body.route-security .app-shell {
   height: 100dvh;
   overflow: hidden;
+}
+
+body.route-inventory .workspace {
+  padding: 0;
 }
 
 body.route-security .workspace {
@@ -2823,6 +2826,8 @@ body.theme-dark .topology-overlay-label {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(209, 220, 230, 0.6);
 }
 
 .notif-provider-heading {
@@ -3092,11 +3097,86 @@ body.theme-dark .topology-overlay-label {
   font-weight: 750;
   cursor: pointer;
 }
+.tool-form button.ipam-btn {
+  min-height: unset;
+  border: 1px solid rgba(29, 100, 114, 0.25);
+  border-radius: 7px;
+  padding: 5px 14px;
+  background: transparent;
+  color: #1d6472;
+  font-weight: 600;
+}
+.tool-form button.ipam-btn.ipam-btn--primary {
+  background: #1d9ab0;
+  color: #fff;
+  border-color: #1d9ab0;
+}
 
 .modal-header-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.modal-header button.modal-close-btn {
+  background: rgba(78, 104, 120, 0.10);
+  border: none;
+  border-radius: 6px;
+  color: #5a7a90;
+  cursor: pointer;
+  line-height: 1;
+  padding: 6px;
+  min-height: unset;
+  height: auto;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.13s, background 0.13s;
+}
+.modal-header button.modal-close-btn:hover {
+  background: rgba(78, 104, 120, 0.22);
+  color: #1a2c38;
+}
+body.theme-dark .modal-header button.modal-close-btn {
+  background: rgba(90, 122, 149, 0.18);
+  color: #8ab4cc;
+}
+body.theme-dark .modal-header button.modal-close-btn:hover {
+  background: rgba(90, 122, 149, 0.30);
+  color: #c8dff0;
+}
+
+.modal-header button.ipam-btn,
+.modal-actions button.ipam-btn {
+  min-height: unset;
+  border: 1px solid rgba(29, 100, 114, 0.25);
+  border-radius: 7px;
+  padding: 6px 16px;
+  background: transparent;
+  color: #1d6472;
+  font-weight: 600;
+  box-shadow: none;
+}
+.modal-header button.ipam-btn.ipam-btn--primary,
+.modal-actions button.ipam-btn.ipam-btn--primary {
+  background: #1d9ab0;
+  color: #fff;
+  border-color: #1d9ab0;
+}
+.modal-header button.ipam-btn:hover:not(:disabled),
+.modal-actions button.ipam-btn:hover:not(:disabled) {
+  background: rgba(29, 100, 114, 0.06);
+  border-color: rgba(29, 100, 114, 0.4);
+}
+.modal-header button.ipam-btn.ipam-btn--primary:hover:not(:disabled),
+.modal-actions button.ipam-btn.ipam-btn--primary:hover:not(:disabled) {
+  background: #1a8ea2;
+}
+.modal-header button.ipam-btn:disabled,
+.modal-actions button.ipam-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .tool-target-strip button {
@@ -3921,8 +4001,7 @@ textarea.details-inline-input {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(10, 18, 28, 0.55);
-  backdrop-filter: blur(4px);
+  background: rgba(10, 18, 28, 0.68);
 }
 
 .modal {
@@ -3961,7 +4040,7 @@ textarea.details-inline-input {
 
 .scan-form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -4351,10 +4430,9 @@ body.theme-dark .sidebar-link:hover {
 }
 
 body.theme-dark .sidebar-link.active {
-  background: rgba(29, 154, 176, 0.2);
-  border-left-color: transparent;
+  background: linear-gradient(90deg, rgba(29, 154, 176, 0.3) 0%, rgba(29, 154, 176, 0.07) 65%, transparent 100%);
+  border-left-color: #1d9ab0;
   color: #6ddbe8;
-  box-shadow: inset 0 0 0 1px rgba(29, 154, 176, 0.32), 0 1px 8px rgba(29, 154, 176, 0.15);
 }
 
 body.theme-dark .sidebar-theme-toggle,
@@ -4935,6 +5013,7 @@ body.theme-dark .security-toolbar p { color: #7a9ab8; }
 body.theme-dark .tool-card h3 { color: #c8dae8; }
 body.theme-dark .admin-panel h2,
 body.theme-dark .admin-panel h3 { color: #c8dae8; }
+body.theme-dark .admin-panel-header { border-bottom-color: rgba(255, 255, 255, 0.07); }
 body.theme-dark .panel h2 { color: #c8dae8; }
 body.theme-dark .export-section-title,
 body.theme-dark .exports-layout h2,
@@ -5234,12 +5313,36 @@ body.theme-dark .topology-toolbar:not(.topology-toolbar--ribbon) {
 }
 
 body.theme-dark .topology-toolbar--ribbon {
-  background: #091420;
-  border-bottom-color: #040d18;
+  background: #111c28;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+body.theme-dark .toolbar-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #8ab0c8;
+}
+body.theme-dark .toolbar-btn:hover:not(:disabled) {
+  background: rgba(29, 154, 176, 0.12);
+  border-color: rgba(29, 154, 176, 0.3);
+  color: #b8d8ec;
+}
+body.theme-dark .toolbar-select {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #8ab0c8;
+  color-scheme: dark;
+}
+body.theme-dark .toolbar-select option {
+  background: #1a2736;
+  color: #8ab0c8;
+}
+body.theme-dark .toolbar-label {
+  color: #4e7a94;
 }
 
 body.theme-dark .admin-tabs {
-  border-bottom-color: #1e2e3c;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 body.theme-dark .admin-tab-btn {
@@ -5248,12 +5351,13 @@ body.theme-dark .admin-tab-btn {
 
 body.theme-dark .admin-tab-btn:hover {
   color: #8ab0c8;
-  background: rgba(29, 154, 176, 0.06);
+  background: rgba(29, 154, 176, 0.08);
 }
 
 body.theme-dark .admin-tab-btn.active {
-  color: #5bc8da;
-  border-bottom-color: #1d9ab0;
+  color: #c8dae8;
+  background: rgba(29, 154, 176, 0.16);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(29, 154, 176, 0.22);
 }
 
 body.theme-dark .topology-toolbar p,
@@ -5329,9 +5433,9 @@ body.theme-dark .topology-toolbar-right button:hover {
   }
 
   .sidebar-link.active {
-    background: rgba(29, 154, 176, 0.18);
-    border-left-color: transparent;
-    border-bottom-color: #1d9ab0;
+    background: linear-gradient(90deg, rgba(29, 154, 176, 0.28) 0%, rgba(29, 154, 176, 0.06) 65%, transparent 100%);
+    border-left-color: #1d9ab0;
+    border-bottom-color: transparent;
     padding-left: 8px;
     color: #5bc8da;
   }
@@ -5373,6 +5477,7 @@ body.theme-dark .topology-toolbar-right button:hover {
     overflow-x: auto;
     scrollbar-width: none;
     flex-wrap: nowrap;
+    width: 100%;
     -webkit-overflow-scrolling: touch;
   }
   .admin-tabs::-webkit-scrollbar { display: none; }
@@ -5555,10 +5660,10 @@ body.theme-dark .topology-toolbar-right button:hover {
   }
 
   .sidebar-link.active {
-    background: rgba(29, 154, 176, 0.15);
-    border-left-color: transparent;
+    background: linear-gradient(90deg, rgba(29, 154, 176, 0.24) 0%, rgba(29, 154, 176, 0.06) 65%, transparent 100%);
+    border-left-color: #1d9ab0;
     border-bottom-color: transparent;
-    border-top-color: #1d9ab0;
+    border-top-color: transparent;
     color: #5bc8da;
     padding-left: 6px;
   }
@@ -5659,12 +5764,13 @@ body.theme-dark .topology-toolbar-right button:hover {
     overflow-x: auto;
     scrollbar-width: none;
     flex-wrap: nowrap;
+    width: 100%;
     -webkit-overflow-scrolling: touch;
   }
   .admin-tabs::-webkit-scrollbar { display: none; }
   .admin-tab-btn {
     white-space: nowrap;
-    padding: 8px 12px;
+    padding: 6px 12px;
     font-size: 13px;
   }
 
@@ -5692,25 +5798,35 @@ body.theme-dark .topology-toolbar-right button:hover {
 /* Admin tabs */
 .admin-tabs {
   display: flex;
-  gap: 2px;
-  margin-bottom: 22px;
-  border-bottom: 2px solid #dce6ed;
+  gap: 3px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: rgba(23, 38, 52, 0.05);
+  border-radius: 10px;
+  border-bottom: none;
+  width: fit-content;
 }
 .admin-tab-btn {
   background: none;
   border: none;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  padding: 8px 20px;
-  font-size: 13.5px;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding: 6px 18px;
+  font-size: 13px;
   font-weight: 600;
   color: #6a8699;
   cursor: pointer;
-  border-radius: 6px 6px 0 0;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  border-radius: 7px;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
 }
-.admin-tab-btn:hover { color: #1a4a68; background: rgba(29, 100, 114, 0.04); }
-.admin-tab-btn.active { color: #1a4a68; border-bottom-color: #1d8a9d; font-weight: 700; }
+.admin-tab-btn:hover { color: #1a4a68; background: rgba(29, 100, 114, 0.07); }
+.admin-tab-btn.active {
+  color: #1a3a52;
+  background: #fff;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
 .admin-tab-content { padding-top: 4px; }
 .admin-search {
   width: 100%;
@@ -6446,9 +6562,10 @@ body.theme-dark .admin-action-btn--danger:hover { background: rgba(180,60,60,0.1
 }
 /* ── Ribbon toolbar (topology graph view) ── */
 .topology-toolbar--ribbon {
-  background: #111d2c;
-  border-bottom-color: #0a1420;
-  min-height: 68px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(209, 220, 230, 0.7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  min-height: 52px;
   padding: 0;
   align-items: stretch;
   flex-wrap: nowrap;
@@ -6480,7 +6597,7 @@ body.theme-dark .admin-action-btn--danger:hover { background: rgba(180,60,60,0.1
 .toolbar-label {
   font-size: 9.5px;
   font-weight: 700;
-  color: #3a5570;
+  color: #7a96a8;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   white-space: nowrap;
@@ -6490,43 +6607,45 @@ body.theme-dark .admin-action-btn--danger:hover { background: rgba(180,60,60,0.1
 
 .toolbar-select {
   font-size: 12px;
-  padding: 6px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #90b4c8;
+  padding: 5px 9px;
+  border: 1px solid rgba(209, 220, 230, 0.9);
+  border-radius: 7px;
+  background: #f6f9fc;
+  color: #2a4258;
   max-width: 140px;
   transition: border-color 0.15s, background 0.15s;
-  color-scheme: dark;
 }
 
 .toolbar-select option {
-  background: #1a2736;
-  color: #90b4c8;
+  background: #ffffff;
+  color: #2a4258;
 }
 
 .toolbar-select:focus {
   outline: none;
   border-color: rgba(29, 154, 176, 0.5);
-  background: rgba(255, 255, 255, 0.08);
+  background: #ffffff;
 }
 
 .toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  padding: 6px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #88aec4;
+  padding: 5px 13px;
+  border: 1px solid rgba(209, 220, 230, 0.9);
+  border-radius: 7px;
+  background: #f6f9fc;
+  color: #2a4258;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: #c2ddf0;
+  background: rgba(29, 100, 114, 0.07);
+  border-color: rgba(29, 100, 114, 0.3);
+  color: #1a3a52;
 }
 
 .toolbar-btn:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -7907,6 +8026,15 @@ body.theme-dark .mon-anomaly--anomalous { color: #f87171; background: rgba(248,1
 /* Subnet form */
 .ipam-subnet-form { display: flex; flex-direction: column; gap: 10px; }
 .ipam-form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.vlan-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vlan-form-grid__full { grid-column: 1 / -1; }
+
+/* DeviceForm sectioned layout */
+.device-form { padding: 0; gap: 0; }
+.device-form-section { display: grid; gap: 12px; padding: 16px 20px; }
+.device-form-section + .device-form-section { border-top: 1px solid rgba(209,220,230,0.6); }
+.device-form-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9db8c8; }
+.device-form-actions { padding: 14px 20px; border-top: 1px solid rgba(209,220,230,0.6); background: rgba(240,244,248,0.5); }
 .ipam-form-label {
   display: flex;
   flex-direction: column;
@@ -8156,6 +8284,9 @@ body.theme-dark .ipam-tooltip-header { border-color: #2d3d52; }
 body.theme-dark .ipam-tooltip-ip { color: #d8eaf5; }
 body.theme-dark .ipam-tooltip-row { color: #9bbdd4; }
 body.theme-dark .ipam-tooltip-row span:first-child { color: #5a7a95; }
+body.theme-dark .device-form-section + .device-form-section { border-top-color: rgba(255,255,255,0.06); }
+body.theme-dark .device-form-section-title { color: #3d5a6e; }
+body.theme-dark .device-form-actions { border-top-color: rgba(255,255,255,0.06); background: rgba(0,0,0,0.1); }
 
 /* ── IPAM subnet detail modal ────────────────────────────────────────────── */
 
