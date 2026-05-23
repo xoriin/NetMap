@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Moon, Network, Sun } from "lucide-react";
 import {
-  type DashboardSummary, type SystemSettings, type TokenPair,
+  type DashboardSummary, type Device, type SystemSettings, type TokenPair,
   type TopologyGraph, type User, type VersionInfo, api,
 } from "./api/client";
 import { themeStorageKey, iconPackStorageKey } from "./constants";
@@ -305,6 +305,30 @@ export function App() {
     setGraph(topology);
   }
 
+  function upsertGraphDevice(device: Device) {
+    setGraph((current) => {
+      const exists = current.devices.some((row) => row.id === device.id);
+      return {
+        ...current,
+        devices: exists
+          ? current.devices.map((row) => (row.id === device.id ? device : row))
+          : [...current.devices, device],
+      };
+    });
+  }
+
+  function removeGraphDevices(deviceIds: number[]) {
+    const removeSet = new Set(deviceIds);
+    setGraph((current) => ({
+      devices: current.devices.filter((device) => !removeSet.has(device.id)),
+      relationships: current.relationships.filter(
+        (relationship) =>
+          !removeSet.has(relationship.source_device_id) &&
+          !removeSet.has(relationship.target_device_id),
+      ),
+    }));
+  }
+
   useEffect(() => {
     if (screen !== "dashboard" || !user) {
       if (window.location.pathname !== "/") {
@@ -420,6 +444,8 @@ export function App() {
             graph={graph}
             livePingEnabled={appSettings?.live_ping_enabled !== false}
             onGraphChange={refreshTopology}
+            onDeviceChange={upsertGraphDevice}
+            onDevicesRemove={removeGraphDevices}
             onNavigate={(route) => {
               navigateToRoute(route);
               setCurrentRoute(route);

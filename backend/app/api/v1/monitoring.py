@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -42,29 +42,37 @@ def fleet_summary(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> FleetSummary:
-    # All non-disabled devices — same set seen by inventory/topology
-    devices = db.scalars(select(Device).where(Device.status != "disabled")).all()
+    status_rows = db.execute(
+        select(Device.monitor_status, func.count())
+        .where(Device.status != "disabled")
+        .group_by(Device.monitor_status)
+    ).all()
+    total = 0
+    online = 0
+    offline = 0
+    for status, count in status_rows:
+        total += count
+        if status == "online":
+            online = count
+        elif status == "offline":
+            offline = count
+    unknown = total - online - offline
 
-    online = sum(1 for d in devices if d.monitor_status == "online")
-    offline = sum(1 for d in devices if d.monitor_status == "offline")
-    unknown = len(devices) - online - offline
-
-    # RTT average and last-checked timestamp still come from history
     last_checked_row = db.scalar(select(func.max(DeviceMonitorHistory.checked_at)))
     since = datetime.now(timezone.utc) - timedelta(hours=1)
-    rtt_rows = db.scalars(
-        select(DeviceMonitorHistory.rtt_ms).where(
+    avg_rtt = db.scalar(
+        select(func.avg(DeviceMonitorHistory.rtt_ms)).where(
             DeviceMonitorHistory.checked_at >= since,
             DeviceMonitorHistory.rtt_ms.isnot(None),
         )
-    ).all()
+    )
 
     return FleetSummary(
-        total=len(devices),
+        total=total,
         online=online,
         offline=offline,
         unknown=unknown,
-        avg_rtt_ms=sum(rtt_rows) / len(rtt_rows) if rtt_rows else None,
+        avg_rtt_ms=float(avg_rtt) if avg_rtt is not None else None,
         last_checked=last_checked_row,
     )
 
@@ -80,27 +88,43 @@ def list_device_summaries(
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
 
+    device_ids = [device.id for device in devices]
+    history_by_device: dict[int, list[DeviceMonitorHistory]] = {device_id: [] for device_id in device_ids}
+    uptime_7d_by_device: dict[int, tuple[int, int]] = {}
+
+    if device_ids:
+        history_rows = db.scalars(
+            select(DeviceMonitorHistory)
+            .where(
+                DeviceMonitorHistory.device_id.in_(device_ids),
+                DeviceMonitorHistory.checked_at >= since_24h,
+            )
+            .order_by(DeviceMonitorHistory.device_id.asc(), DeviceMonitorHistory.checked_at.desc())
+        ).all()
+        for row in history_rows:
+            history_by_device.setdefault(row.device_id, []).append(row)
+
+        uptime_rows = db.execute(
+            select(
+                DeviceMonitorHistory.device_id,
+                func.count().label("total"),
+                func.sum(case((DeviceMonitorHistory.status == "online", 1), else_=0)).label("online"),
+            )
+            .where(
+                DeviceMonitorHistory.device_id.in_(device_ids),
+                DeviceMonitorHistory.checked_at >= since_7d,
+            )
+            .group_by(DeviceMonitorHistory.device_id)
+        ).all()
+        uptime_7d_by_device = {
+            row.device_id: (int(row.total or 0), int(row.online or 0))
+            for row in uptime_rows
+        }
+
     results: list[DeviceMonitorSummary] = []
     for device in devices:
-        history_24h = db.scalars(
-            select(DeviceMonitorHistory)
-            .where(DeviceMonitorHistory.device_id == device.id, DeviceMonitorHistory.checked_at >= since_24h)
-            .order_by(DeviceMonitorHistory.checked_at.desc())
-        ).all()
-
-        history_7d_count = db.scalar(
-            select(func.count())
-            .where(DeviceMonitorHistory.device_id == device.id, DeviceMonitorHistory.checked_at >= since_7d)
-        ) or 0
-        online_7d = db.scalar(
-            select(func.count())
-            .where(
-                DeviceMonitorHistory.device_id == device.id,
-                DeviceMonitorHistory.checked_at >= since_7d,
-                DeviceMonitorHistory.status == "online",
-            )
-        ) or 0
-
+        history_24h = history_by_device.get(device.id, [])
+        history_7d_count, online_7d = uptime_7d_by_device.get(device.id, (0, 0))
         last_record = history_24h[0] if history_24h else None
         online_24h = sum(1 for h in history_24h if h.status == "online")
         rtts = [h.rtt_ms for h in history_24h if h.rtt_ms is not None]

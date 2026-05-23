@@ -27,12 +27,24 @@ def subnet_utilization(
     except ValueError:
         return {"total_hosts": 0, "used": 0, "free": 0, "utilization": 0.0, "valid": False}
 
-    host_ips = {str(ip) for ip in net.hosts()}
-    used = host_ips & (device_ips | dhcp_ips | (reserved_ips or set()))
-    if gateway and gateway in host_ips:
-        used.add(gateway)
+    used: set[str] = set()
+    for ip in device_ips | dhcp_ips | (reserved_ips or set()):
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if ip_obj in net and ip_obj not in (net.network_address, net.broadcast_address):
+            used.add(str(ip_obj))
 
-    total = len(host_ips)
+    if gateway:
+        try:
+            gateway_obj = ipaddress.ip_address(gateway)
+        except ValueError:
+            gateway_obj = None
+        if gateway_obj and gateway_obj in net and gateway_obj not in (net.network_address, net.broadcast_address):
+            used.add(str(gateway_obj))
+
+    total = max(net.num_addresses - 2, 0) if net.version == 4 else max(net.num_addresses - 2, 0)
     used_count = len(used)
     return {
         "total_hosts": total,

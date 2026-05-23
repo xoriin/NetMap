@@ -114,19 +114,26 @@ class AlertMonitorService:
 
         # Persist history and update device monitor_status
         with SessionLocal() as db:
+            history_rows = []
+            device_updates = []
             for device in devices:
                 status = current.get(device.id, "unknown")
-                db.add(DeviceMonitorHistory(
-                    device_id=device.id,
-                    checked_at=checked_at,
-                    status=status,
-                    rtt_ms=rtt_map.get(device.id),
-                    port_results=json.dumps(port_map.get(device.id, [])),
-                ))
-                db_device = db.get(Device, device.id)
-                if db_device:
-                    db_device.monitor_status = status
-                    db_device.last_monitored_at = checked_at
+                history_rows.append({
+                    "device_id": device.id,
+                    "checked_at": checked_at,
+                    "status": status,
+                    "rtt_ms": rtt_map.get(device.id),
+                    "port_results": json.dumps(port_map.get(device.id, [])),
+                })
+                device_updates.append({
+                    "id": device.id,
+                    "monitor_status": status,
+                    "last_monitored_at": checked_at,
+                })
+            if history_rows:
+                db.bulk_insert_mappings(DeviceMonitorHistory, history_rows)
+            if device_updates:
+                db.bulk_update_mappings(Device, device_updates)
             db.commit()
 
         self._prune_history()

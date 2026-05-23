@@ -115,6 +115,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0023_ip_reservations", _migrate_ip_reservations)
         _run_migration(conn, inspector, "0024_subnet_dhcp_range", _migrate_subnet_dhcp_range)
         _run_migration(conn, inspector, "0025_topology_group_dhcp_range", _migrate_topology_group_dhcp_range)
+        _run_migration(conn, inspector, "0026_backend_hot_path_indexes", _migrate_backend_hot_path_indexes)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -573,3 +574,40 @@ def _migrate_topology_group_dhcp_range(conn, inspector) -> None:
         conn.execute(text("ALTER TABLE topology_groups ADD COLUMN dhcp_start VARCHAR(64)"))
     if "dhcp_end" not in existing:
         conn.execute(text("ALTER TABLE topology_groups ADD COLUMN dhcp_end VARCHAR(64)"))
+
+
+def _migrate_backend_hot_path_indexes(conn, inspector) -> None:
+    tables = set(inspector.get_table_names())
+    if "device_monitor_history" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_at "
+            "ON device_monitor_history (device_id, checked_at)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_monitor_history_checked_at_rtt "
+            "ON device_monitor_history (checked_at, rtt_ms)"
+        ))
+    if "alert_events" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_alert_events_device_fired_at "
+            "ON alert_events (device_id, fired_at)"
+        ))
+    if "devices" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_devices_status_monitor_status "
+            "ON devices (status, monitor_status)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_devices_site_group_favourite_ip "
+            "ON devices (site_id, topology_group_id, is_favourite, ip_address)"
+        ))
+    if "dhcp_leases" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_dhcp_leases_active_ip "
+            "ON dhcp_leases (is_active, ip_address)"
+        ))
+    if "ip_reservations" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ip_reservations_subnet_ip "
+            "ON ip_reservations (subnet_id, ip_address)"
+        ))

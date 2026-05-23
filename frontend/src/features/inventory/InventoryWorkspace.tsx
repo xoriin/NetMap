@@ -28,6 +28,8 @@ export function InventoryWorkspace({
   canWrite,
   graph,
   livePingEnabled,
+  onDeviceChange,
+  onDevicesRemove,
   onGraphChange,
 }: {
   accessToken: string;
@@ -35,6 +37,8 @@ export function InventoryWorkspace({
   canWrite: boolean;
   graph: TopologyGraph;
   livePingEnabled: boolean;
+  onDeviceChange: (device: Device) => void;
+  onDevicesRemove: (deviceIds: number[]) => void;
   onGraphChange: () => Promise<void>;
 }) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(graph.devices[0]?.id ?? null);
@@ -272,8 +276,8 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await Promise.all([...selectedDeviceIds].map((id) => api.updateDevice(accessToken, id, patch)));
-      await onGraphChange();
+      const updatedDevices = await Promise.all([...selectedDeviceIds].map((id) => api.updateDevice(accessToken, id, patch)));
+      updatedDevices.forEach(onDeviceChange);
       setSelectedDeviceIds(new Set());
       setBulkGroupId('');
       setBulkDeviceType('');
@@ -312,9 +316,10 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await Promise.all([...selectedDeviceIds].map((deviceId) => api.deleteDevice(accessToken, deviceId)));
+      const deletedIds = [...selectedDeviceIds];
+      await Promise.all(deletedIds.map((deviceId) => api.deleteDevice(accessToken, deviceId)));
+      onDevicesRemove(deletedIds);
       setSelectedDeviceIds(new Set());
-      await onGraphChange();
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : 'Unable to delete selected devices');
     } finally {
@@ -329,8 +334,8 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await Promise.all([...selectedDeviceIds].map((deviceId) => api.updateDevice(accessToken, deviceId, { status })));
-      await onGraphChange();
+      const updatedDevices = await Promise.all([...selectedDeviceIds].map((deviceId) => api.updateDevice(accessToken, deviceId, { status })));
+      updatedDevices.forEach(onDeviceChange);
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : 'Unable to update selected devices');
     } finally {
@@ -345,10 +350,10 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await api.updateDevice(accessToken, deviceId, {
+      const updated = await api.updateDevice(accessToken, deviceId, {
         topology_group_id: groupId ? Number(groupId) : null,
       });
-      await onGraphChange();
+      onDeviceChange(updated);
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : "Unable to update device group");
     } finally {
@@ -361,8 +366,8 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await api.updateDevice(accessToken, deviceId, { site_id: siteIdStr ? Number(siteIdStr) : null });
-      await onGraphChange();
+      const updated = await api.updateDevice(accessToken, deviceId, { site_id: siteIdStr ? Number(siteIdStr) : null });
+      onDeviceChange(updated);
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : 'Unable to update device location');
     } finally {
@@ -374,8 +379,8 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await api.updateDevice(accessToken, deviceId, payload);
-      await onGraphChange();
+      const updated = await api.updateDevice(accessToken, deviceId, payload);
+      onDeviceChange(updated);
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : 'Unable to save device');
     } finally {
@@ -385,8 +390,8 @@ export function InventoryWorkspace({
 
   async function toggleFav(deviceId: number) {
     try {
-      await api.toggleFavourite(accessToken, deviceId);
-      await onGraphChange();
+      const updated = await api.toggleFavourite(accessToken, deviceId);
+      onDeviceChange(updated);
     } catch { /* ignore */ }
   }
 
@@ -394,9 +399,9 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      await api.createDevice(accessToken, payload);
+      const created = await api.createDevice(accessToken, payload);
+      onDeviceChange(created);
       setShowDeviceForm(false);
-      await onGraphChange();
     } catch (err) {
       setInventoryError(err instanceof Error ? err.message : 'Unable to create device');
     } finally {
