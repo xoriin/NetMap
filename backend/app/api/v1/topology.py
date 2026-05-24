@@ -19,6 +19,7 @@ from app.models.subnet import Subnet
 from app.models.topology_group import TopologyGroup
 from app.models.topology_layout import TopologyLayout
 from app.models.user import User
+from app.models.user_device_favourite import UserDeviceFavourite
 from app.schemas.group import (
     DeviceBulkUpdateRequest,
     DeviceBulkUpdateResult,
@@ -735,6 +736,17 @@ def import_devices(
     return DeviceBulkImportResult(created=created, updated=updated, errors=errors)
 
 
+@router.get("/devices/favourites", response_model=list[int])
+def list_favourites(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[int]:
+    return list(db.scalars(
+        select(UserDeviceFavourite.device_id)
+        .where(UserDeviceFavourite.user_id == current_user.id)
+    ).all())
+
+
 @router.get("/devices/{device_id}", response_model=DeviceRead)
 def get_device(
     device_id: int,
@@ -802,16 +814,23 @@ def update_device(
 @router.patch("/devices/{device_id}/favourite", response_model=DeviceRead)
 def toggle_favourite(
     device_id: int,
-    _current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeviceRead:
     device = db.get(Device, device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
-    device.is_favourite = not bool(device.is_favourite)
+    fav = db.get(UserDeviceFavourite, (current_user.id, device_id))
+    if fav:
+        db.delete(fav)
+        is_fav = False
+    else:
+        db.add(UserDeviceFavourite(user_id=current_user.id, device_id=device_id))
+        is_fav = True
     db.commit()
-    db.refresh(device)
-    return DeviceRead(**device_to_dict(device))
+    result = DeviceRead(**device_to_dict(device))
+    result.is_favourite = is_fav
+    return result
 
 
 @router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)

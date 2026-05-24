@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  type User, type TopologyGraph, type DashboardSummary, type Device, type VersionInfo,
+  api, type User, type TopologyGraph, type DashboardSummary, type Device, type VersionInfo,
 } from "../api/client";
 import { type AppRoute } from "../routes";
 import { type IconPack } from "../icons";
@@ -66,6 +66,30 @@ export function DashboardView({
   const canViewSecurity = user.role === "SuperAdmin" || user.role === "NetworkAdmin" || user.role === "SecurityAnalyst";
   const [jumpTarget, setJumpTarget] = useState<{ deviceId: number; token: number } | null>(null);
   const [selectedTopologyDevice, setSelectedTopologyDevice] = useState<Device | null>(null);
+  const [favouriteIds, setFavouriteIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!accessToken) return;
+    void api.getFavourites(accessToken).then((ids) => setFavouriteIds(new Set(ids))).catch(() => {});
+  }, [accessToken]);
+
+  const onToggleFavourite = useCallback(async (deviceId: number) => {
+    if (!accessToken) return;
+    setFavouriteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(deviceId)) next.delete(deviceId); else next.add(deviceId);
+      return next;
+    });
+    try {
+      await api.toggleFavourite(accessToken, deviceId);
+    } catch {
+      setFavouriteIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(deviceId)) next.delete(deviceId); else next.add(deviceId);
+        return next;
+      });
+    }
+  }, [accessToken]);
 
   function jumpToTopologyDevice(deviceId: number) {
     setJumpTarget({ deviceId, token: Date.now() });
@@ -77,8 +101,10 @@ export function DashboardView({
       {currentRoute === "/overview" && (
         <OverviewWorkspace
           accessToken={accessToken}
+          favouriteIds={favouriteIds}
           graph={graph}
           onNavigate={onNavigate}
+          onToggleFavourite={onToggleFavourite}
           summary={summary}
           user={user}
         />
@@ -103,10 +129,12 @@ export function DashboardView({
           accessToken={accessToken}
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
+          favouriteIds={favouriteIds}
           graph={graph}
           onDeviceChange={onDeviceChange}
           onDevicesRemove={onDevicesRemove}
           onGraphChange={onGraphChange}
+          onToggleFavourite={onToggleFavourite}
           livePingEnabled={livePingEnabled}
         />
       )}
@@ -117,7 +145,7 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} userRole={user.role} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
       )}
       {currentRoute === "/ipam" && accessToken && (
         <IpamWorkspace accessToken={accessToken} canWrite={canWrite} />

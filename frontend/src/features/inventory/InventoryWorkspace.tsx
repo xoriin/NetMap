@@ -26,20 +26,24 @@ export function InventoryWorkspace({
   accessToken,
   canViewSecurity,
   canWrite,
+  favouriteIds,
   graph,
   livePingEnabled,
   onDeviceChange,
   onDevicesRemove,
   onGraphChange,
+  onToggleFavourite,
 }: {
   accessToken: string;
   canViewSecurity: boolean;
   canWrite: boolean;
+  favouriteIds: Set<number>;
   graph: TopologyGraph;
   livePingEnabled: boolean;
   onDeviceChange: (device: Device) => void;
   onDevicesRemove: (deviceIds: number[]) => void;
   onGraphChange: () => Promise<void>;
+  onToggleFavourite: (deviceId: number) => void;
 }) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(graph.devices[0]?.id ?? null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
@@ -92,7 +96,7 @@ export function InventoryWorkspace({
       });
     }
     if (favouriteFilter) {
-      devs = devs.filter((d) => d.is_favourite);
+      devs = devs.filter((d) => favouriteIds.has(d.id));
     }
     if (inventorySearch.trim()) {
       const q = inventorySearch.trim().toLowerCase();
@@ -105,7 +109,7 @@ export function InventoryWorkspace({
       );
     }
     return devs;
-  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, statusFilter, favouriteFilter, inventorySearch, liveStatusByDeviceId]);
+  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, statusFilter, favouriteFilter, favouriteIds, inventorySearch, liveStatusByDeviceId]);
 
   const sortedDevices = useMemo(() => {
     return filteredDevices.slice().sort((a, b) => {
@@ -388,11 +392,8 @@ export function InventoryWorkspace({
     }
   }
 
-  async function toggleFav(deviceId: number) {
-    try {
-      const updated = await api.toggleFavourite(accessToken, deviceId);
-      onDeviceChange(updated);
-    } catch { /* ignore */ }
+  function toggleFav(deviceId: number) {
+    onToggleFavourite(deviceId);
   }
 
   async function submitNewDevice(payload: DevicePayload) {
@@ -600,11 +601,11 @@ export function InventoryWorkspace({
                       />
                       <button
                         type="button"
-                        className={`fav-btn${device.is_favourite ? " fav-btn--active" : ""}`}
-                        title={device.is_favourite ? "Remove from favourites" : "Add to favourites"}
-                        onClick={(event) => { event.stopPropagation(); void toggleFav(device.id); }}
+                        className={`fav-btn${favouriteIds.has(device.id) ? " fav-btn--active" : ""}`}
+                        title={favouriteIds.has(device.id) ? "Remove from favourites" : "Add to favourites"}
+                        onClick={(event) => { event.stopPropagation(); toggleFav(device.id); }}
                       >
-                        <Star size={13} fill={device.is_favourite ? "currentColor" : "none"} />
+                        <Star size={13} fill={favouriteIds.has(device.id) ? "currentColor" : "none"} />
                       </button>
                     </span>
                     <span className="inventory-row-device">

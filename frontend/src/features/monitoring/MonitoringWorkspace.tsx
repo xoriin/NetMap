@@ -17,10 +17,14 @@ import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 
 export function MonitoringWorkspace({
   accessToken,
+  favouriteIds,
+  onToggleFavourite,
   userRole,
 }: {
   accessToken: string;
   canWrite: boolean;
+  favouriteIds: Set<number>;
+  onToggleFavourite: (deviceId: number) => void;
   userRole: string;
 }) {
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
@@ -188,12 +192,6 @@ export function MonitoringWorkspace({
     return () => clearInterval(id);
   }, [selectedId, historyHours, loadHistory]);
 
-  async function toggleFav(deviceId: number) {
-    try {
-      await api.toggleFavourite(accessToken, deviceId);
-      setDevices((prev) => prev.map((d) => d.device_id === deviceId ? { ...d, is_favourite: !d.is_favourite } : d));
-    } catch { /* ignore */ }
-  }
 
   useEffect(() => {
     if (selectedId === null) { setDeviceAlertEvents([]); setAnalysis(null); return; }
@@ -514,11 +512,11 @@ export function MonitoringWorkspace({
                       <td>
                         <button
                           type="button"
-                          className={`fav-btn${d.is_favourite ? " fav-btn--active" : ""}`}
-                          title={d.is_favourite ? "Remove from favourites" : "Add to favourites"}
-                          onClick={(e) => { e.stopPropagation(); void toggleFav(d.device_id); }}
+                          className={`fav-btn${favouriteIds.has(d.device_id) ? " fav-btn--active" : ""}`}
+                          title={favouriteIds.has(d.device_id) ? "Remove from favourites" : "Add to favourites"}
+                          onClick={(e) => { e.stopPropagation(); onToggleFavourite(d.device_id); }}
                         >
-                          <Star size={13} fill={d.is_favourite ? "currentColor" : "none"} />
+                          <Star size={13} fill={favouriteIds.has(d.device_id) ? "currentColor" : "none"} />
                         </button>
                       </td>
                     </tr>

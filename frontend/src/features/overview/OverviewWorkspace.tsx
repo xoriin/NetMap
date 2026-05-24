@@ -14,14 +14,18 @@ import { HeartbeatBar } from "../../components/HeartbeatBar";
 
 export function OverviewWorkspace({
   accessToken,
+  favouriteIds,
   graph,
   onNavigate,
+  onToggleFavourite,
   summary,
   user,
 }: {
   accessToken: string | null;
+  favouriteIds: Set<number>;
   graph: TopologyGraph;
   onNavigate: (route: AppRoute) => void;
+  onToggleFavourite: (deviceId: number) => void;
   summary: DashboardSummary | null;
   user: User;
 }) {
@@ -98,8 +102,8 @@ export function OverviewWorkspace({
   const onlinePct = total > 0 ? Math.round((statusCounts.online / total) * 100) : 0;
 
   const favouriteDevices = useMemo(
-    () => monDevices.filter((d) => d.is_favourite),
-    [monDevices],
+    () => monDevices.filter((d) => favouriteIds.has(d.device_id)),
+    [monDevices, favouriteIds],
   );
 
   const visibleFavouriteDevices = useMemo(() => {
@@ -112,14 +116,6 @@ export function OverviewWorkspace({
       d.status,
     ].some((value) => (value ?? "").toLowerCase().includes(q)));
   }, [favouriteDevices, favouriteSearch]);
-
-  async function toggleFav(deviceId: number) {
-    if (!accessToken) return;
-    try {
-      await api.toggleFavourite(accessToken, deviceId);
-      setMonDevices((prev) => prev.map((d) => d.device_id === deviceId ? { ...d, is_favourite: !d.is_favourite } : d));
-    } catch { /* ignore */ }
-  }
 
   return (
     <section className="dash-layout">
@@ -386,7 +382,7 @@ export function OverviewWorkspace({
                       className="fav-btn fav-btn--active"
                       aria-label="Remove from favourites"
                       title="Remove from favourites"
-                      onClick={() => void toggleFav(d.device_id)}
+                      onClick={() => onToggleFavourite(d.device_id)}
                     >
                       <Star size={15} fill="currentColor" />
                     </button>

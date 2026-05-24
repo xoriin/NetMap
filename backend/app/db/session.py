@@ -45,7 +45,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, auth_session, audit_log, device, dhcp_lease, discovery, ip_reservation, monitor_history, password_reset_token, port_target, relationship, site, subnet, system_setting, topology_group, topology_layout, user  # noqa: F401
+    from app.models import alert_rule, auth_session, audit_log, device, dhcp_lease, discovery, ip_reservation, monitor_history, password_reset_token, port_target, relationship, site, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -116,6 +116,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0024_subnet_dhcp_range", _migrate_subnet_dhcp_range)
         _run_migration(conn, inspector, "0025_topology_group_dhcp_range", _migrate_topology_group_dhcp_range)
         _run_migration(conn, inspector, "0026_backend_hot_path_indexes", _migrate_backend_hot_path_indexes)
+        _run_migration(conn, inspector, "0027_user_device_favourites", _migrate_user_device_favourites)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -610,4 +611,22 @@ def _migrate_backend_hot_path_indexes(conn, inspector) -> None:
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_ip_reservations_subnet_ip "
             "ON ip_reservations (subnet_id, ip_address)"
+        ))
+
+
+def _migrate_user_device_favourites(conn, inspector) -> None:
+    tables = set(inspector.get_table_names())
+    if "user_device_favourites" not in tables:
+        conn.execute(text(
+            """
+            CREATE TABLE user_device_favourites (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, device_id)
+            )
+            """
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_user_device_favourites_user_id "
+            "ON user_device_favourites (user_id)"
         ))
