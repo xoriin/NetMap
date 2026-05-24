@@ -268,6 +268,20 @@ export function App() {
     }
   }
 
+  // Proactive token refresh — fires 3 min before the 60-min access token expiry.
+  useEffect(() => {
+    if (screen !== "dashboard" || !tokens?.access_token) return;
+    const intervalId = window.setInterval(async () => {
+      try {
+        const refreshed = await api.refresh();
+        setTokens(refreshed);
+      } catch {
+        void handleLogout("idle");
+      }
+    }, 57 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [screen, tokens?.access_token]);
+
   useEffect(() => {
     if (screen !== "dashboard" || !tokens?.access_token) {
       return;

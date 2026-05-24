@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     syslog_max_line_bytes: int = Field(default=8192, alias="SYSLOG_MAX_LINE_BYTES")
     syslog_max_tcp_connections: int = Field(default=50, alias="SYSLOG_MAX_TCP_CONNECTIONS")
     syslog_ws_max_connections: int = Field(default=50, alias="SYSLOG_WS_MAX_CONNECTIONS")
-    access_token_minutes: int = Field(default=15, alias="ACCESS_TOKEN_MINUTES")
+    access_token_minutes: int = Field(default=60, alias="ACCESS_TOKEN_MINUTES")
     idle_timeout_minutes: int = Field(default=15, alias="IDLE_TIMEOUT_MINUTES")
     refresh_token_days: int = Field(default=7, alias="REFRESH_TOKEN_DAYS")
     auth_max_failed_attempts: int = Field(default=5, alias="AUTH_MAX_FAILED_ATTEMPTS")

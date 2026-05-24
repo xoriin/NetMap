@@ -1307,10 +1307,21 @@ export function TopologyWorkspace({
 
   function resetSelectedGroup() {
     if (!selectedGroupForDisplay) return;
+    const cy = cyRef.current;
     const groupDevices = filteredGraph.devices.filter(
       (device) => device.topology_group === selectedGroupForDisplay,
     );
     const nextPositions = { ...layoutPositionsRef.current };
+    // Preserve the group box's current canvas position as an anchor so reset
+    // only re-flows the icons inside the box, not the box itself.
+    if (cy) {
+      const gId = groupId(selectedGroupForDisplay);
+      const groupNode = cy.$id(gId);
+      if (groupNode.length > 0) {
+        const bb = groupNode.boundingBox({});
+        nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+      }
+    }
     for (const device of groupDevices) {
       delete nextPositions[`device-${device.id}`];
     }
@@ -1589,12 +1600,46 @@ export function TopologyWorkspace({
                   <label>
                     Spacing <span>{activeGroupDisplay.spacingScalePercent}%</span>
                     <input type="range" min={80} max={220} step={10} value={activeGroupDisplay.spacingScalePercent}
-                      onChange={(e) => setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: Number(e.target.value) } }))} />
+                      onChange={(e) => {
+                        const cy = cyRef.current;
+                        const gId = groupId(selectedGroupForDisplay);
+                        const nextPositions = { ...layoutPositionsRef.current };
+                        if (cy) {
+                          const groupNode = cy.$id(gId);
+                          if (groupNode.length > 0) {
+                            const bb = groupNode.boundingBox({});
+                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+                          }
+                        }
+                        filteredGraph.devices
+                          .filter((d) => d.topology_group === selectedGroupForDisplay)
+                          .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
+                        layoutPositionsRef.current = nextPositions;
+                        skipPersistOnNextRenderRef.current = true;
+                        setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: Number(e.target.value) } }));
+                      }} />
                   </label>
                   <label>
                     Per row <span>{activeGroupDisplay.maxDevicesPerRow}</span>
                     <input type="range" min={3} max={8} step={1} value={activeGroupDisplay.maxDevicesPerRow}
-                      onChange={(e) => setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxDevicesPerRow: Number(e.target.value) } }))} />
+                      onChange={(e) => {
+                        const cy = cyRef.current;
+                        const gId = groupId(selectedGroupForDisplay);
+                        const nextPositions = { ...layoutPositionsRef.current };
+                        if (cy) {
+                          const groupNode = cy.$id(gId);
+                          if (groupNode.length > 0) {
+                            const bb = groupNode.boundingBox({});
+                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+                          }
+                        }
+                        filteredGraph.devices
+                          .filter((d) => d.topology_group === selectedGroupForDisplay)
+                          .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
+                        layoutPositionsRef.current = nextPositions;
+                        skipPersistOnNextRenderRef.current = true;
+                        setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxDevicesPerRow: Number(e.target.value) } }));
+                      }} />
                   </label>
                   <label>
                     Background <span>{groupZoneOpacityPercent}%</span>

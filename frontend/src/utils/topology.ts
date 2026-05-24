@@ -106,12 +106,15 @@ export function buildDiagramLayout(
     const savedInGroup = layoutGroup.devices
       .map((d) => savedPositions[`device-${d.id}`])
       .filter((p): p is { x: number; y: number } => Boolean(p));
+    const savedGroupCenter = savedPositions[groupId(layoutGroup.group)];
     const newAnchorX = savedInGroup.length > 0
       ? savedInGroup.reduce((s, p) => s + p.x, 0) / savedInGroup.length
-      : columnX;
+      : savedGroupCenter?.x ?? columnX;
     const newAnchorBaseY = savedInGroup.length > 0
       ? Math.max(...savedInGroup.map((p) => p.y))
-      : rowBaseY - layoutGroup.nodeGapY;
+      : savedGroupCenter != null
+        ? savedGroupCenter.y - layoutGroup.nodeGapY
+        : rowBaseY - layoutGroup.nodeGapY;
 
     let newOnlyRowIndex = 0;
 
