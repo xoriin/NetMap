@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.device import Device
@@ -27,6 +27,41 @@ def correlation_window_start(window_hours: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(hours=bounded_hours)
 
 
+def _apply_aggregate(
+    stats: _Counter,
+    action: str | None,
+    cnt: int,
+    last_seen: datetime | None,
+) -> None:
+    stats.event_count += cnt
+    action_lower = (action or "").strip().lower()
+    if action_lower in BLOCKED_ACTIONS:
+        stats.blocked_count += cnt
+    elif action_lower in PASSED_ACTIONS:
+        stats.passed_count += cnt
+    if last_seen is not None and (
+        stats.last_seen_event_time is None or last_seen > stats.last_seen_event_time
+    ):
+        stats.last_seen_event_time = last_seen
+
+
+def _build_event_count_result(
+    devices: list[Device], counts: dict[int, _Counter]
+) -> dict[int, DeviceEventCount]:
+    return {
+        device.id: DeviceEventCount(
+            device_id=device.id,
+            ip_address=device.ip_address,
+            hostname=device.hostname,
+            event_count=counts[device.id].event_count,
+            blocked_count=counts[device.id].blocked_count,
+            passed_count=counts[device.id].passed_count,
+            last_seen_event_time=counts[device.id].last_seen_event_time,
+        )
+        for device in devices
+    }
+
+
 def build_device_event_counts(
     firewall_db: Session,
     devices: list[Device],
@@ -42,66 +77,39 @@ def build_device_event_counts(
 
     counts: dict[int, _Counter] = {device.id: _Counter() for device in devices}
     if not ip_to_device_ids:
-        return {
-            device.id: DeviceEventCount(
-                device_id=device.id,
-                ip_address=device.ip_address,
-                hostname=device.hostname,
-                event_count=0,
-                blocked_count=0,
-                passed_count=0,
-                last_seen_event_time=None,
-            )
-            for device in devices
-        }
+        return _build_event_count_result(devices, counts)
 
     ips = list(ip_to_device_ids.keys())
-    query = (
+
+    # Aggregate by src_ip — one row per (ip, action) instead of one row per event
+    for row in firewall_db.execute(
         select(
-            FirewallEvent.id,
-            FirewallEvent.received_at,
             FirewallEvent.src_ip,
+            FirewallEvent.action,
+            func.count().label("cnt"),
+            func.max(FirewallEvent.received_at).label("last_seen"),
+        )
+        .where(FirewallEvent.received_at >= window_start, FirewallEvent.src_ip.in_(ips))
+        .group_by(FirewallEvent.src_ip, FirewallEvent.action)
+    ):
+        for device_id in ip_to_device_ids.get(row.src_ip or "", set()):
+            _apply_aggregate(counts[device_id], row.action, row.cnt, row.last_seen)
+
+    # Aggregate by dst_ip
+    for row in firewall_db.execute(
+        select(
             FirewallEvent.dst_ip,
             FirewallEvent.action,
+            func.count().label("cnt"),
+            func.max(FirewallEvent.received_at).label("last_seen"),
         )
-        .where(FirewallEvent.received_at >= window_start)
-        .where(or_(FirewallEvent.src_ip.in_(ips), FirewallEvent.dst_ip.in_(ips)))
-        .order_by(FirewallEvent.received_at.desc())
-    )
+        .where(FirewallEvent.received_at >= window_start, FirewallEvent.dst_ip.in_(ips))
+        .group_by(FirewallEvent.dst_ip, FirewallEvent.action)
+    ):
+        for device_id in ip_to_device_ids.get(row.dst_ip or "", set()):
+            _apply_aggregate(counts[device_id], row.action, row.cnt, row.last_seen)
 
-    for event_id, received_at, src_ip, dst_ip, action in firewall_db.execute(query):
-        _ = event_id
-        matched_ids: set[int] = set()
-        if src_ip:
-            matched_ids.update(ip_to_device_ids.get(src_ip.strip(), set()))
-        if dst_ip:
-            matched_ids.update(ip_to_device_ids.get(dst_ip.strip(), set()))
-        if not matched_ids:
-            continue
-
-        action_value = (action or "").strip().lower()
-        for device_id in matched_ids:
-            stats = counts[device_id]
-            stats.event_count += 1
-            if action_value in BLOCKED_ACTIONS:
-                stats.blocked_count += 1
-            elif action_value in PASSED_ACTIONS:
-                stats.passed_count += 1
-            if stats.last_seen_event_time is None or received_at > stats.last_seen_event_time:
-                stats.last_seen_event_time = received_at
-
-    return {
-        device.id: DeviceEventCount(
-            device_id=device.id,
-            ip_address=device.ip_address,
-            hostname=device.hostname,
-            event_count=counts[device.id].event_count,
-            blocked_count=counts[device.id].blocked_count,
-            passed_count=counts[device.id].passed_count,
-            last_seen_event_time=counts[device.id].last_seen_event_time,
-        )
-        for device in devices
-    }
+    return _build_event_count_result(devices, counts)
 
 
 def list_recent_device_events(

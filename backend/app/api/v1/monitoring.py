@@ -109,20 +109,54 @@ def list_device_summaries(
 
     device_ids = [device.id for device in devices]
     history_by_device: dict[int, list[DeviceMonitorHistory]] = {device_id: [] for device_id in device_ids}
+    uptime_24h_by_device: dict[int, tuple[int, int, float | None]] = {}
     uptime_7d_by_device: dict[int, tuple[int, int]] = {}
 
     if device_ids:
-        history_rows = db.scalars(
-            select(DeviceMonitorHistory)
+        # Latest 50 checks per device via window function — avoids fetching entire 24h history
+        heartbeat_subq = (
+            select(
+                DeviceMonitorHistory.id,
+                func.row_number().over(
+                    partition_by=DeviceMonitorHistory.device_id,
+                    order_by=DeviceMonitorHistory.checked_at.desc(),
+                ).label("rn"),
+            )
             .where(
                 DeviceMonitorHistory.device_id.in_(device_ids),
                 DeviceMonitorHistory.checked_at >= since_24h,
             )
+            .subquery()
+        )
+        history_rows = db.scalars(
+            select(DeviceMonitorHistory)
+            .join(heartbeat_subq, DeviceMonitorHistory.id == heartbeat_subq.c.id)
+            .where(heartbeat_subq.c.rn <= 50)
             .order_by(DeviceMonitorHistory.device_id.asc(), DeviceMonitorHistory.checked_at.desc())
         ).all()
         for row in history_rows:
-            history_by_device.setdefault(row.device_id, []).append(row)
+            history_by_device[row.device_id].append(row)
 
+        # 24h uptime counts + avg RTT via aggregate (full window, not limited to 50 rows)
+        uptime_24h_rows = db.execute(
+            select(
+                DeviceMonitorHistory.device_id,
+                func.count().label("total"),
+                func.sum(case((DeviceMonitorHistory.status == "online", 1), else_=0)).label("online"),
+                func.avg(DeviceMonitorHistory.rtt_ms).label("avg_rtt"),
+            )
+            .where(
+                DeviceMonitorHistory.device_id.in_(device_ids),
+                DeviceMonitorHistory.checked_at >= since_24h,
+            )
+            .group_by(DeviceMonitorHistory.device_id)
+        ).all()
+        uptime_24h_by_device = {
+            row.device_id: (int(row.total or 0), int(row.online or 0), row.avg_rtt)
+            for row in uptime_24h_rows
+        }
+
+        # 7d uptime counts
         uptime_rows = db.execute(
             select(
                 DeviceMonitorHistory.device_id,
@@ -142,13 +176,11 @@ def list_device_summaries(
 
     results: list[DeviceMonitorSummary] = []
     for device in devices:
-        history_24h = history_by_device.get(device.id, [])
+        history_recent = history_by_device.get(device.id, [])
+        total_24h, online_24h, avg_rtt_24h = uptime_24h_by_device.get(device.id, (0, 0, None))
         history_7d_count, online_7d = uptime_7d_by_device.get(device.id, (0, 0))
-        last_record = history_24h[0] if history_24h else None
-        online_24h = sum(1 for h in history_24h if h.status == "online")
-        rtts = [h.rtt_ms for h in history_24h if h.rtt_ms is not None]
-
-        heartbeat = [h.status for h in reversed(history_24h[:50])]
+        last_record = history_recent[0] if history_recent else None
+        heartbeat = [h.status for h in reversed(history_recent)]
 
         results.append(
             DeviceMonitorSummary(
@@ -162,9 +194,9 @@ def list_device_summaries(
                 site_name=site_map.get(device.site_id) if device.site_id else None,
                 vlan_id=device.vlan_id or None,
                 last_checked=last_record.checked_at if last_record else None,
-                uptime_24h=online_24h / len(history_24h) if history_24h else None,
+                uptime_24h=online_24h / total_24h if total_24h > 0 else None,
                 uptime_7d=online_7d / history_7d_count if history_7d_count > 0 else None,
-                avg_rtt_24h=sum(rtts) / len(rtts) if rtts else None,
+                avg_rtt_24h=float(avg_rtt_24h) if avg_rtt_24h is not None else None,
                 latest_port_results=_parse_port_results(last_record.port_results) if last_record else [],
                 heartbeat=heartbeat,
                 is_favourite=bool(device.is_favourite),

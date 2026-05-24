@@ -58,30 +58,42 @@ def _reserved_ips(db: Session) -> set[str]:
     return set(db.scalars(select(IpReservation.ip_address)).all())
 
 
-def _enrich_subnet(subnet: Subnet, device_ips: set[str], dhcp_ips: set[str], reserved_ips: set[str] | None = None) -> SubnetOut:
+def _parse_ip_set(ips: set[str]) -> frozenset:
+    result = set()
+    for ip in ips:
+        try:
+            result.add(ipaddress.ip_address(ip))
+        except ValueError:
+            pass
+    return frozenset(result)
+
+
+def _enrich_subnet(
+    subnet: Subnet,
+    device_ips: set[str],
+    dhcp_ips: set[str],
+    reserved_ips: set[str] | None = None,
+    _parsed_device: frozenset | None = None,
+    _parsed_dhcp: frozenset | None = None,
+    _parsed_res: frozenset | None = None,
+) -> SubnetOut:
     stats = subnet_utilization(subnet.cidr, device_ips, dhcp_ips, subnet.gateway, reserved_ips or set())
     out = SubnetOut.model_validate(subnet)
     out.total_hosts = stats["total_hosts"]
     out.used = stats["used"]
     out.free = stats["free"]
     out.utilization = stats["utilization"]
-    import ipaddress
     try:
         net = ipaddress.ip_network(subnet.cidr, strict=False)
-        out.device_count = sum(1 for ip in device_ips if _in_net(ip, net))
-        out.dhcp_count = sum(1 for ip in dhcp_ips if _in_net(ip, net))
-        out.reservation_count = sum(1 for ip in (reserved_ips or set()) if _in_net(ip, net))
+        d = _parsed_device if _parsed_device is not None else _parse_ip_set(device_ips)
+        h = _parsed_dhcp if _parsed_dhcp is not None else _parse_ip_set(dhcp_ips)
+        r = _parsed_res if _parsed_res is not None else _parse_ip_set(reserved_ips or set())
+        out.device_count = sum(1 for addr in d if addr in net)
+        out.dhcp_count = sum(1 for addr in h if addr in net)
+        out.reservation_count = sum(1 for addr in r if addr in net)
     except ValueError:
         pass
     return out
-
-
-def _in_net(ip: str, net) -> bool:  # type: ignore[no-untyped-def]
-    import ipaddress
-    try:
-        return ipaddress.ip_address(ip) in net
-    except ValueError:
-        return False
 
 
 def _is_valid_cidr(cidr: str) -> bool:
@@ -173,7 +185,10 @@ def list_subnets(
     device_ips = _device_ips(db)
     dhcp_ips = _dhcp_ips(db)
     res_ips = _reserved_ips(db)
-    return [_enrich_subnet(s, device_ips, dhcp_ips, res_ips) for s in subnets]
+    parsed_device = _parse_ip_set(device_ips)
+    parsed_dhcp = _parse_ip_set(dhcp_ips)
+    parsed_res = _parse_ip_set(res_ips)
+    return [_enrich_subnet(s, device_ips, dhcp_ips, res_ips, parsed_device, parsed_dhcp, parsed_res) for s in subnets]
 
 
 @router.post("/subnets", response_model=SubnetOut, status_code=201)
