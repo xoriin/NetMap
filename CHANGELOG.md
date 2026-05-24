@@ -5,9 +5,32 @@
 ### Topology
 - Fixed per-user topology layout persistence for public Docker image upgrades: saved layouts now accept both device positions and group anchors, invalid saved coordinates are ignored instead of breaking the topology page, and migration `0028_topology_layouts` ensures the layout table exists on upgraded SQLite installs.
 
+### Docker / Runtime
+- Moved the AIO image entrypoint to `/usr/local/bin/netmap-aio-entrypoint` and nginx template to `/etc/netmap/aio-nginx.conf.template`; the image build now verifies both files exist to prevent startup failures from a missing `/app/docker/aio-entrypoint.sh`.
+
+### Security / Session
+- Notification delivery failures no longer expose upstream HTTP bodies, exception details, stack trace fragments, or server-side paths in API responses; detailed diagnostics are logged server-side only.
+
+### Network Tools
+- Hardened ping/traceroute subprocess invocation for CodeQL: targets are resolved to normalized IP arguments, option-like values are rejected at the subprocess boundary, and `--` is inserted before the target.
+
+---
+
+## [1.2.0] - 2026-05-24
+
+### Favourites
+- Favourites are now per-user rather than global; each account maintains its own starred device set stored in a new `user_device_favourites` table.
+- Favourite state is fetched once per session and overlaid in the frontend, keeping the global monitoring cache intact.
+
 ### Admin
 - Added SuperAdmin login-lockout unlock controls for user accounts.
-- Added a System diagnostics panel in Admin with database sizes, WAL sizes, monitoring cache/status data, syslog retention details, process PID, and manual refresh.
+- Added a System diagnostics panel with database sizes, WAL sizes, monitoring cache/status counters, syslog retention details, process PID, and manual refresh.
+- App name setting now correctly updates the brand name displayed on the login screen (was previously hardcoded to "NetMap").
+
+### Monitoring / Performance
+- Heartbeat queries use `ROW_NUMBER()` window function for more efficient per-device latest-event retrieval.
+- Monitoring poll uses a `changed_since` cursor so only devices with status changes are returned on subsequent polls, reducing payload size.
+- Device status event aggregation and IP pre-parsing moved to SQL, reducing Python-side processing.
 
 ### Backend / Performance
 - Discovery scans now support private IPv4 and IPv6 `start-end` ranges by converting validated ranges to nmap-safe CIDR targets while preserving the displayed input.
@@ -15,17 +38,15 @@
 - Firewall `raw_log` search now uses SQLite FTS5 with startup-created sync triggers and existing-row rebuild support.
 - Added SuperAdmin-only `/api/v1/system/diagnostics` for lightweight runtime diagnostics.
 
-### Docker / Runtime
-- Moved the AIO image entrypoint to `/usr/local/bin/netmap-aio-entrypoint` and nginx template to `/etc/netmap/aio-nginx.conf.template`; the image build now verifies both files exist to prevent startup failures from a missing `/app/docker/aio-entrypoint.sh`.
-
 ### Security / Session
 - Logout and idle cleanup can revoke sessions via the refresh cookie without requiring a still-valid access token.
 - CSRF cleanup clears the root-path cookie used by the SPA.
-- Notification delivery failures no longer expose upstream HTTP bodies, exception details, stack trace fragments, or server-side paths in API responses; detailed diagnostics are logged server-side only.
 
 ### Network Tools
 - Bounded DNS, ping, traceroute, hostname resolution, and active tool subprocess timeouts to avoid tying up backend workers.
-- Hardened ping/traceroute subprocess invocation for CodeQL: targets are resolved to normalized IP arguments, option-like values are rejected at the subprocess boundary, and `--` is inserted before the target.
+
+### Topology
+- Group boxes no longer drift downward on the map when the spacing or per-row slider is dragged.
 
 ---
 
