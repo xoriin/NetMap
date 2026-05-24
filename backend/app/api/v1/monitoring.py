@@ -6,8 +6,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, func, select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -90,18 +90,10 @@ def fleet_summary(
     return result
 
 
-@router.get("/devices", response_model=list[DeviceMonitorSummary])
-def list_device_summaries(
-    _current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[Session, Depends(get_db)],
+def _build_device_summaries(
+    db: Session,
+    devices: list[Device],
 ) -> list[DeviceMonitorSummary]:
-    global _device_summaries_cache
-    now_mono = time.monotonic()
-    cached = _device_summaries_cache
-    if cached is not None and now_mono - cached[0] < _MONITORING_CACHE_TTL:
-        return cached[1]
-
-    devices = db.scalars(select(Device).where(Device.status != "disabled")).all()
     site_map = {s.id: (s.display_name or s.name) for s in db.scalars(select(Site)).all()}
     now = datetime.now(timezone.utc)
     since_24h = now - timedelta(hours=24)
@@ -113,7 +105,6 @@ def list_device_summaries(
     uptime_7d_by_device: dict[int, tuple[int, int]] = {}
 
     if device_ids:
-        # Latest 50 checks per device via window function — avoids fetching entire 24h history
         heartbeat_subq = (
             select(
                 DeviceMonitorHistory.id,
@@ -137,7 +128,6 @@ def list_device_summaries(
         for row in history_rows:
             history_by_device[row.device_id].append(row)
 
-        # 24h uptime counts + avg RTT via aggregate (full window, not limited to 50 rows)
         uptime_24h_rows = db.execute(
             select(
                 DeviceMonitorHistory.device_id,
@@ -156,7 +146,6 @@ def list_device_summaries(
             for row in uptime_24h_rows
         }
 
-        # 7d uptime counts
         uptime_rows = db.execute(
             select(
                 DeviceMonitorHistory.device_id,
@@ -203,6 +192,45 @@ def list_device_summaries(
             )
         )
 
+    return results
+
+
+def _changed_device_filter(changed_since: datetime):
+    since_utc = changed_since if changed_since.tzinfo else changed_since.replace(tzinfo=timezone.utc)
+    return or_(
+        Device.last_monitored_at > since_utc,
+        Device.updated_at > since_utc,
+    )
+
+
+@router.get("/devices", response_model=list[DeviceMonitorSummary])
+def list_device_summaries(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    changed_since: Annotated[datetime | None, Query()] = None,
+) -> list[DeviceMonitorSummary]:
+    # Delta path: skip cache, return devices with monitor or metadata changes since the cursor.
+    # Deletions and disabled-device removals are reconciled by periodic full refreshes.
+    if changed_since is not None:
+        devices = db.scalars(
+            select(Device).where(
+                Device.status != "disabled",
+                _changed_device_filter(changed_since),
+            )
+        ).all()
+        if not devices:
+            return []
+        return _build_device_summaries(db, list(devices))
+
+    # Full path: use TTL cache
+    global _device_summaries_cache
+    now_mono = time.monotonic()
+    cached = _device_summaries_cache
+    if cached is not None and now_mono - cached[0] < _MONITORING_CACHE_TTL:
+        return cached[1]
+
+    devices = db.scalars(select(Device).where(Device.status != "disabled")).all()
+    results = _build_device_summaries(db, list(devices))
     _device_summaries_cache = (now_mono, results)
     return results
 

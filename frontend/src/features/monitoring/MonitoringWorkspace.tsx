@@ -26,6 +26,9 @@ export function MonitoringWorkspace({
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
   const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
+  const monitorCursorRef = useRef<string | null>(null);
+  const deltaPollsRef = useRef(0);
+  const FULL_REFRESH_POLLS = 5; // full reload every 5 × 60s to reconcile deletes/disabled devices
 
   function startColResize(colIdx: number, e: React.MouseEvent) {
     e.preventDefault();
@@ -98,7 +101,7 @@ export function MonitoringWorkspace({
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterSite, setFilterSite] = useState("all");
 
-  const load = useCallback(async (showSpinner = false) => {
+  const loadAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
       const [f, d, p] = await Promise.all([
@@ -109,12 +112,36 @@ export function MonitoringWorkspace({
       setFleet(f);
       setDevices(d);
       setPortTargets(p);
+      monitorCursorRef.current = f.last_checked;
+      deltaPollsRef.current = 0;
       setError(null);
     } catch {
       setError("Failed to load monitoring data");
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }, [accessToken]);
+
+  const loadDelta = useCallback(async () => {
+    const since = monitorCursorRef.current;
+    if (!since) return;
+    try {
+      const [f, delta] = await Promise.all([
+        api.getMonitoringSummary(accessToken),
+        api.listMonitoringDevices(accessToken, since),
+      ]);
+      setFleet(f);
+      if (delta.length > 0) {
+        setDevices((prev) => {
+          const map = new Map(prev.map((d) => [d.device_id, d]));
+          for (const d of delta) map.set(d.device_id, d);
+          return Array.from(map.values());
+        });
+      }
+      monitorCursorRef.current = f.last_checked ?? since;
+    } catch {
+      // silently skip failed delta polls; next full refresh will reconcile
     }
   }, [accessToken]);
 
@@ -126,11 +153,18 @@ export function MonitoringWorkspace({
   }, [fleet, setTopbarNote]);
   useEffect(() => () => setTopbarNote(""), [setTopbarNote]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadAll(); }, [loadAll]);
   useEffect(() => {
-    const id = setInterval(() => { void load(); }, 60_000);
+    const id = setInterval(() => {
+      deltaPollsRef.current += 1;
+      if (deltaPollsRef.current >= FULL_REFRESH_POLLS) {
+        void loadAll();
+      } else {
+        void loadDelta();
+      }
+    }, 60_000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [loadAll, loadDelta]);
 
   const loadHistory = useCallback(async (deviceId: number, hours: number) => {
     setHistoryLoading(true);

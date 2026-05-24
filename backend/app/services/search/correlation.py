@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.device import Device
@@ -81,7 +81,8 @@ def build_device_event_counts(
 
     ips = list(ip_to_device_ids.keys())
 
-    # Aggregate by src_ip — one row per (ip, action) instead of one row per event
+    # Count each event once per device. When a device IP appears as both source and destination,
+    # the source aggregate owns the count and the destination aggregate ignores that event.
     for row in firewall_db.execute(
         select(
             FirewallEvent.src_ip,
@@ -95,7 +96,7 @@ def build_device_event_counts(
         for device_id in ip_to_device_ids.get(row.src_ip or "", set()):
             _apply_aggregate(counts[device_id], row.action, row.cnt, row.last_seen)
 
-    # Aggregate by dst_ip
+    # Aggregate by dst_ip, excluding same-IP source/destination rows already counted above.
     for row in firewall_db.execute(
         select(
             FirewallEvent.dst_ip,
@@ -103,7 +104,11 @@ def build_device_event_counts(
             func.count().label("cnt"),
             func.max(FirewallEvent.received_at).label("last_seen"),
         )
-        .where(FirewallEvent.received_at >= window_start, FirewallEvent.dst_ip.in_(ips))
+        .where(
+            FirewallEvent.received_at >= window_start,
+            FirewallEvent.dst_ip.in_(ips),
+            case((FirewallEvent.src_ip.is_(None), ""), else_=FirewallEvent.src_ip) != FirewallEvent.dst_ip,
+        )
         .group_by(FirewallEvent.dst_ip, FirewallEvent.action)
     ):
         for device_id in ip_to_device_ids.get(row.dst_ip or "", set()):

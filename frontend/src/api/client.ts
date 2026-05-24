@@ -1139,8 +1139,13 @@ export const api = {
   // Monitoring
   getMonitoringSummary: (token: string) =>
     request<FleetSummary>("/api/v1/monitoring/summary", { token }),
-  listMonitoringDevices: (token: string) =>
-    request<DeviceMonitorSummary[]>("/api/v1/monitoring/devices", { token }),
+  listMonitoringDevices: (token: string, changedSince?: string) =>
+    request<DeviceMonitorSummary[]>(
+      changedSince
+        ? `/api/v1/monitoring/devices?changed_since=${encodeURIComponent(changedSince)}`
+        : "/api/v1/monitoring/devices",
+      { token },
+    ),
   getDeviceHistory: (token: string, deviceId: number, hours = 24) =>
     request<MonitorHistoryPoint[]>(`/api/v1/monitoring/devices/${deviceId}/history?hours=${hours}`, { token }),
   getDeviceAnalysis: (token: string, deviceId: number) =>
