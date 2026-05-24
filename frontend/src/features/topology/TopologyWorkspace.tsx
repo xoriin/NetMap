@@ -1319,7 +1319,12 @@ export function TopologyWorkspace({
       const groupNode = cy.$id(gId);
       if (groupNode.length > 0) {
         const bb = groupNode.boundingBox({});
-        nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+        const devYs = groupDevices
+          .map((d) => cy.$id(`device-${d.id}`))
+          .filter((n) => n.length > 0)
+          .map((n) => n.position().y);
+        const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
+        nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
       }
     }
     for (const device of groupDevices) {
@@ -1608,7 +1613,13 @@ export function TopologyWorkspace({
                           const groupNode = cy.$id(gId);
                           if (groupNode.length > 0) {
                             const bb = groupNode.boundingBox({});
-                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+                            const devYs = filteredGraph.devices
+                              .filter((d) => d.topology_group === selectedGroupForDisplay)
+                              .map((d) => cy.$id(`device-${d.id}`))
+                              .filter((n) => n.length > 0)
+                              .map((n) => n.position().y);
+                            const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
+                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
                           }
                         }
                         filteredGraph.devices
@@ -1630,7 +1641,13 @@ export function TopologyWorkspace({
                           const groupNode = cy.$id(gId);
                           if (groupNode.length > 0) {
                             const bb = groupNode.boundingBox({});
-                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: (bb.y1 + bb.y2) / 2 };
+                            const devYs = filteredGraph.devices
+                              .filter((d) => d.topology_group === selectedGroupForDisplay)
+                              .map((d) => cy.$id(`device-${d.id}`))
+                              .filter((n) => n.length > 0)
+                              .map((n) => n.position().y);
+                            const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
+                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
                           }
                         }
                         filteredGraph.devices
