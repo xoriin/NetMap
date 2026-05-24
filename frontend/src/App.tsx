@@ -248,14 +248,12 @@ export function App() {
     setCurrentRoute("/overview");
   }
 
-  async function handleLogout(reason: "user" | "idle" = "user") {
+  async function handleLogout(reason: "user" | "idle" | "expired" = "user") {
     const token = tokens?.access_token;
-    if (token) {
-      try {
-        await api.logout(token);
-      } catch {
-        // Session cleanup must proceed even when logout revoke fails.
-      }
+    try {
+      await api.logout(token);
+    } catch {
+      // Session cleanup must proceed even when server-side revoke fails.
     }
     storeTokens(null);
     setTokens(null);
@@ -264,7 +262,9 @@ export function App() {
     window.history.replaceState(null, "", "/");
     setCurrentRoute("/overview");
     if (reason === "idle") {
-      setError("Session timed out after 15 minutes of inactivity");
+      setError(`Session timed out after ${Math.round(idleTimeoutMs / 60_000)} minutes of inactivity.`);
+    } else if (reason === "expired") {
+      setError("Session expired. Sign in again.");
     }
   }
 
@@ -276,7 +276,7 @@ export function App() {
         const refreshed = await api.refresh();
         setTokens(refreshed);
       } catch {
-        void handleLogout("idle");
+        void handleLogout("expired");
       }
     }, 57 * 60 * 1000);
     return () => window.clearInterval(intervalId);

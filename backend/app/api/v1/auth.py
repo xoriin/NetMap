@@ -130,6 +130,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(key="netmap_access", path="/api/")
     response.delete_cookie(key="netmap_refresh", path="/api/v1/auth/")
+    response.delete_cookie(key=CSRF_COOKIE_NAME, path="/")
     response.delete_cookie(key=CSRF_COOKIE_NAME, path="/api/")
 
 
@@ -267,22 +268,27 @@ def logout(
     payload: LogoutRequest,
     request: Request,
     response: Response,
-    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     refresh_token_value = (payload.refresh_token if payload else None) or request.cookies.get("netmap_refresh")
+    current_user: User | None = None
     if refresh_token_value:
         try:
+            claims = validate_refresh_claims(refresh_token_value)
+            current_user = db.get(User, int(claims["sub"]))
+            if current_user is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
             token_state = validate_refresh_token_state(db, user=current_user, refresh_token=refresh_token_value)
             revoke_refresh_token_state(token_state, reason="logout")
         except HTTPException:
             pass
-    write_audit(
-        db,
-        action="auth.logout",
-        actor_user_id=current_user.id,
-        target=f"user:{current_user.username}",
-    )
+    if current_user is not None:
+        write_audit(
+            db,
+            action="auth.logout",
+            actor_user_id=current_user.id,
+            target=f"user:{current_user.username}",
+        )
     db.commit()
     _clear_auth_cookies(response)
 

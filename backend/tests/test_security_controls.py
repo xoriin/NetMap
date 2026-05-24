@@ -6,6 +6,7 @@ import anyio
 
 from app.middleware.csrf import CsrfProtectionMiddleware
 from app.services.tools.service import ensure_active_target_allowed
+from app.api.v1.auth import _clear_auth_cookies
 
 
 async def _ok_app(scope, receive, send):
@@ -52,6 +53,17 @@ def test_csrf_allows_bearer_authenticated_request() -> None:
     status = anyio.run(_csrf_response_status, {"authorization": "Bearer access-token"})
 
     assert status == 204
+
+
+def test_logout_clears_csrf_cookie_root_path() -> None:
+    from starlette.responses import Response
+
+    response = Response()
+
+    _clear_auth_cookies(response)
+
+    set_cookie_headers = response.headers.getlist("set-cookie")
+    assert any("netmap_csrf=" in header and "Path=/" in header for header in set_cookie_headers)
 
 
 def test_active_tool_blocks_public_ip_targets_by_default() -> None:

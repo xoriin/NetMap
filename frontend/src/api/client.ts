@@ -755,10 +755,10 @@ export const api = {
     }
     return _pendingRefresh;
   },
-  logout: (token: string) =>
+  logout: (token?: string | null) =>
     request<void>("/api/v1/auth/logout", {
       method: "POST",
-      token,
+      token: token ?? null,
       body: JSON.stringify({}),
     }),
   me: (token: string) => request<User>("/api/v1/auth/me", { token }),
