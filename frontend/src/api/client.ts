@@ -613,6 +613,38 @@ export type VersionInfo = {
   release_url: string;
 };
 
+type DiagCacheEntry = {
+  cached: boolean;
+  age_seconds: number | null;
+  hits: number;
+  misses: number;
+};
+
+export type SystemDiagnostics = {
+  generated_at: string;
+  database: {
+    main: { exists: boolean; bytes: number; wal_bytes: number; shm_bytes: number; total_bytes: number };
+    firewall: { exists: boolean; bytes: number; wal_bytes: number; shm_bytes: number; total_bytes: number };
+  };
+  monitoring: {
+    last_checked_at: string | null;
+    device_status_counts: Record<string, number>;
+    cache: {
+      ttl_seconds: number;
+      fleet_summary: DiagCacheEntry;
+      device_summaries: DiagCacheEntry;
+    };
+  };
+  syslog: {
+    total_events: number;
+    retention_last_run_at: string | null;
+    retention_last_deleted: number;
+    retention_last_error: string | null;
+    last_event_received_at: string | null;
+  };
+  process: { pid: number };
+};
+
 type RequestOptions = RequestInit & {
   token?: string | null;
 };
@@ -894,6 +926,8 @@ export const api = {
       token,
       body: JSON.stringify(payload),
     }),
+  getFavourites: (token: string) =>
+    request<number[]>("/api/v1/topology/devices/favourites", { token }),
   toggleFavourite: (token: string, id: number) =>
     request<Device>(`/api/v1/topology/devices/${id}/favourite`, {
       method: "PATCH",
@@ -1107,6 +1141,12 @@ export const api = {
       token,
       body: JSON.stringify({ new_password: newPassword }),
     }),
+  unlockUserLogin: (token: string, userId: number) =>
+    request<void>(`/api/v1/auth/users/${userId}/unlock-login`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({}),
+    }),
   requestPasswordReset: (usernameOrEmail: string) =>
     request<void>("/api/v1/auth/forgot-password", {
       method: "POST",
@@ -1194,4 +1234,5 @@ export const api = {
   deleteReservation: (token: string, id: number) =>
     request<void>(`/api/v1/ipam/reservations/${id}`, { method: "DELETE", token }),
   getVersion: (token: string) => request<VersionInfo>("/api/v1/system/version", { token }),
+  getSystemDiagnostics: (token: string) => request<SystemDiagnostics>("/api/v1/system/diagnostics", { token }),
 };

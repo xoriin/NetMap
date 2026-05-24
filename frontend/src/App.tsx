@@ -400,7 +400,7 @@ export function App() {
             {error && <div className="error-banner">{error}</div>}
             {screen === "loading" && <LoadingView />}
             {screen === "setup" && <SetupView onSubmit={handleSetup} />}
-            {screen === "login" && <LoginView onSubmit={handleLogin} loginMessage={appSettings?.login_message} />}
+            {screen === "login" && <LoginView onSubmit={handleLogin} appName={appSettings?.app_name} loginMessage={appSettings?.login_message} />}
             {screen === "reset-password" && (
               <ResetPasswordView
                 resetToken={resetToken!}

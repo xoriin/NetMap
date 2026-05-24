@@ -2,18 +2,25 @@ import { useState, useEffect, useMemo, type FormEvent } from "react";
 import { Settings, Shield, Check, X, Pencil, UserCircle } from "lucide-react";
 import {
   IconUsers, IconShieldCheck, IconCloud, IconAlertCircle,
-  IconDatabase, IconDeviceDesktop, IconBolt, IconPalette,
+  IconDatabase, IconDeviceDesktop, IconBolt, IconPalette, IconServer,
 } from "@tabler/icons-react";
 import {
   api,
   type User, type SyslogStatus, type SystemSettings, type NotificationSettings,
   type AlertRule, type AlertRulePayload, type AlertRuleEventType,
-  type RolePermissions, type VersionInfo, type DashboardSummary, type TopologyGraph, type AuditLog,
+  type RolePermissions, type VersionInfo, type SystemDiagnostics,
+  type DashboardSummary, type TopologyGraph, type AuditLog,
 } from "../../api/client";
 import { builtInIconPack, allRuntimePacks, type IconPack } from "../../icons";
 import { userInitials, formatEventTime } from "../../utils/format";
 import { triggerDownload } from "../../utils/download";
 import { IconManagerModal } from "../../components/IconManagerModal";
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export function AdminWorkspace({
   accessToken,
@@ -92,6 +99,8 @@ export function AdminWorkspace({
   const [groupsBusy, setGroupsBusy] = useState(false);
   const [showNewGroupForm, setShowNewGroupForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
 
   async function loadAdminData() {
     setLoading(true);
@@ -327,6 +336,18 @@ export function AdminWorkspace({
     } finally { setBusyUserId(null); }
   }
 
+  async function unlockLogin(userId: number) {
+    setBusyUserId(userId);
+    setError(null); setSuccess(null);
+    try {
+      await api.unlockUserLogin(accessToken, userId);
+      const user = users.find((u) => u.id === userId);
+      setSuccess(`Login lockout cleared for ${user?.username ?? "user"}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to unlock login");
+    } finally { setBusyUserId(null); }
+  }
+
   async function createUser(event: FormEvent) {
     event.preventDefault();
     setError(null); setSuccess(null);
@@ -377,6 +398,18 @@ export function AdminWorkspace({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Restore failed");
     } finally { setBackupBusy(null); }
+  }
+
+  async function loadDiagnostics() {
+    setDiagBusy(true);
+    try {
+      const data = await api.getSystemDiagnostics(accessToken);
+      setDiagnostics(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load diagnostics");
+    } finally {
+      setDiagBusy(false);
+    }
   }
 
   const filteredUsers = useMemo(
@@ -502,6 +535,7 @@ export function AdminWorkspace({
                     </div>
                     <div className="admin-row-actions">
                       <button type="button" className="admin-action-btn" disabled={busyUserId === row.id} onClick={() => setResetPasswordForm({ userId: row.id, password: "" })}>Reset PW</button>
+                      <button type="button" className="admin-action-btn" disabled={busyUserId === row.id} onClick={() => void unlockLogin(row.id)}>Unlock</button>
                       <button type="button" className="admin-action-btn admin-action-btn--danger" disabled={busyUserId === row.id} onClick={() => void forceLogout(row.id)}>Logout</button>
                       <button type="button" className="admin-action-btn" onClick={() => { setActiveTab("security"); void loadAuditLogs(0, row.id); }}>Audit</button>
                     </div>
@@ -761,6 +795,52 @@ export function AdminWorkspace({
                     <dt>Last event</dt><dd>{syslogStatus.last_event_received_at ? new Date(syslogStatus.last_event_received_at).toLocaleString() : "n/a"}</dd>
                   </dl>
                 ) : <p>Loading…</p>}
+              </section>
+              <section className="panel admin-panel">
+                <div className="system-icon-header">
+                  <h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2>
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={diagBusy} onClick={() => void loadDiagnostics()}>
+                    {diagBusy ? "Loading…" : diagnostics ? "Refresh" : "Load"}
+                  </button>
+                </div>
+                {diagnostics ? (
+                  <dl className="admin-config-grid">
+                    <dt>Main DB</dt>
+                    <dd>{fmtBytes(diagnostics.database.main.total_bytes)}{diagnostics.database.main.wal_bytes > 0 ? ` (WAL: ${fmtBytes(diagnostics.database.main.wal_bytes)})` : ""}</dd>
+                    <dt>Firewall DB</dt>
+                    <dd>{fmtBytes(diagnostics.database.firewall.total_bytes)}{diagnostics.database.firewall.wal_bytes > 0 ? ` (WAL: ${fmtBytes(diagnostics.database.firewall.wal_bytes)})` : ""}</dd>
+                    <dt>Last monitor check</dt>
+                    <dd>{diagnostics.monitoring.last_checked_at ? new Date(diagnostics.monitoring.last_checked_at).toLocaleString() : "n/a"}</dd>
+                    <dt>Device statuses</dt>
+                    <dd>{Object.entries(diagnostics.monitoring.device_status_counts).map(([s, n]) => `${s}: ${n}`).join(", ") || "—"}</dd>
+                    <dt>Cache — fleet</dt>
+                    <dd>{diagnostics.monitoring.cache.fleet_summary.cached
+                      ? `hit · ${diagnostics.monitoring.cache.fleet_summary.age_seconds?.toFixed(0) ?? "?"}s old · ${diagnostics.monitoring.cache.fleet_summary.hits}h/${diagnostics.monitoring.cache.fleet_summary.misses}m`
+                      : "cold"}</dd>
+                    <dt>Cache — devices</dt>
+                    <dd>{diagnostics.monitoring.cache.device_summaries.cached
+                      ? `hit · ${diagnostics.monitoring.cache.device_summaries.age_seconds?.toFixed(0) ?? "?"}s old · ${diagnostics.monitoring.cache.device_summaries.hits}h/${diagnostics.monitoring.cache.device_summaries.misses}m`
+                      : "cold"}</dd>
+                    <dt>Syslog events</dt>
+                    <dd>{diagnostics.syslog.total_events.toLocaleString()}</dd>
+                    <dt>Last syslog event</dt>
+                    <dd>{diagnostics.syslog.last_event_received_at ? new Date(diagnostics.syslog.last_event_received_at).toLocaleString() : "n/a"}</dd>
+                    <dt>Retention last run</dt>
+                    <dd>{diagnostics.syslog.retention_last_run_at ? new Date(diagnostics.syslog.retention_last_run_at).toLocaleString() : "n/a"}</dd>
+                    {diagnostics.syslog.retention_last_error && (
+                      <>
+                        <dt>Retention error</dt>
+                        <dd style={{ color: "var(--dash-red)" }}>{diagnostics.syslog.retention_last_error}</dd>
+                      </>
+                    )}
+                    <dt>Process PID</dt>
+                    <dd>{diagnostics.process.pid}</dd>
+                    <dt>Generated</dt>
+                    <dd style={{ opacity: 0.7 }}>{new Date(diagnostics.generated_at).toLocaleString()}</dd>
+                  </dl>
+                ) : (
+                  <p className="tool-note">Click Load to fetch current runtime diagnostics.</p>
+                )}
               </section>
             </div>
           </div>

@@ -4,10 +4,12 @@ import { api } from "../../api/client";
 
 function LoginForm({
   onSubmit,
+  appName,
   loginMessage,
   onForgotPassword,
 }: {
   onSubmit: (username: string, password: string) => Promise<void>;
+  appName?: string;
   loginMessage?: string;
   onForgotPassword: () => void;
 }) {
@@ -37,7 +39,7 @@ function LoginForm({
             <div className="auth-brand-icon">
               <Network size={20} />
             </div>
-            <span className="auth-brand-name">NetMap</span>
+            <span className="auth-brand-name">{appName || "NetMap"}</span>
           </div>
           <p className="auth-slogan">{loginMessage || "The Blueprint for Your Infrastructure"}</p>
         </div>
@@ -73,7 +75,7 @@ function LoginForm({
   );
 }
 
-function ForgotPasswordView({ onBack }: { onBack: () => void }) {
+function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?: string }) {
   const [identifier, setIdentifier] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -99,7 +101,7 @@ function ForgotPasswordView({ onBack }: { onBack: () => void }) {
         <div className="auth-brand">
           <div className="auth-brand-row">
             <div className="auth-brand-icon"><Network size={20} /></div>
-            <span className="auth-brand-name">NetMap</span>
+            <span className="auth-brand-name">{appName || "NetMap"}</span>
           </div>
         </div>
         {submitted ? (
@@ -139,12 +141,12 @@ function ForgotPasswordView({ onBack }: { onBack: () => void }) {
   );
 }
 
-export function LoginView({ onSubmit, loginMessage }: { onSubmit: (username: string, password: string) => Promise<void>; loginMessage?: string }) {
+export function LoginView({ onSubmit, appName, loginMessage }: { onSubmit: (username: string, password: string) => Promise<void>; appName?: string; loginMessage?: string }) {
   const [view, setView] = useState<"login" | "forgot">("login");
 
   if (view === "forgot") {
-    return <ForgotPasswordView onBack={() => setView("login")} />;
+    return <ForgotPasswordView onBack={() => setView("login")} appName={appName} />;
   }
 
-  return <LoginForm onSubmit={onSubmit} loginMessage={loginMessage} onForgotPassword={() => setView("forgot")} />;
+  return <LoginForm onSubmit={onSubmit} appName={appName} loginMessage={loginMessage} onForgotPassword={() => setView("forgot")} />;
 }
