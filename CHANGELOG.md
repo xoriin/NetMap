@@ -1,5 +1,43 @@
 # Changelog
 
+## [Unreleased]
+
+---
+
+## [1.2.0] - 2026-05-24
+
+### Favourites
+- Favourites are now per-user rather than global; each account maintains its own starred device set stored in a new `user_device_favourites` table.
+- Favourite state is fetched once per session and overlaid in the frontend, keeping the global monitoring cache intact.
+
+### Admin
+- Added SuperAdmin login-lockout unlock controls for user accounts.
+- Added a System diagnostics panel with database sizes, WAL sizes, monitoring cache/status counters, syslog retention details, process PID, and manual refresh.
+- App name setting now correctly updates the brand name displayed on the login screen (was previously hardcoded to "NetMap").
+
+### Monitoring / Performance
+- Heartbeat queries use `ROW_NUMBER()` window function for more efficient per-device latest-event retrieval.
+- Monitoring poll uses a `changed_since` cursor so only devices with status changes are returned on subsequent polls, reducing payload size.
+- Device status event aggregation and IP pre-parsing moved to SQL, reducing Python-side processing.
+
+### Backend / Performance
+- Discovery scans now support private IPv4 and IPv6 `start-end` ranges by converting validated ranges to nmap-safe CIDR targets while preserving the displayed input.
+- IPAM subnet utilization now uses per-request numeric IP indexes and binary-search counts instead of repeatedly scanning all known IPs per subnet.
+- Firewall `raw_log` search now uses SQLite FTS5 with startup-created sync triggers and existing-row rebuild support.
+- Added SuperAdmin-only `/api/v1/system/diagnostics` for lightweight runtime diagnostics.
+
+### Security / Session
+- Logout and idle cleanup can revoke sessions via the refresh cookie without requiring a still-valid access token.
+- CSRF cleanup clears the root-path cookie used by the SPA.
+
+### Network Tools
+- Bounded DNS, ping, traceroute, hostname resolution, and active tool subprocess timeouts to avoid tying up backend workers.
+
+### Topology
+- Group boxes no longer drift downward on the map when the spacing or per-row slider is dragged.
+
+---
+
 ## [1.1.0] - 2026-05-23
 
 ### Inventory
