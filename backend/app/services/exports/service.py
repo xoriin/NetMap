@@ -15,8 +15,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from sqlalchemy import desc, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, desc, func, or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.db.session import engine
@@ -29,7 +29,7 @@ PASS_ACTIONS = ("pass", "allow", "accept")
 
 
 def build_inventory_export(db: Session, export_format: str) -> tuple[str, str, bytes]:
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
+    devices = db.scalars(select(Device).options(selectinload(Device.group)).order_by(Device.hostname, Device.ip_address)).all()
     rows = [serialize_device_export(device) for device in devices]
     timestamp = utc_timestamp()
     if export_format == "json":
@@ -123,36 +123,18 @@ def build_firewall_export(
 
 
 def build_network_report_pdf(db: Session, firewall_db: Session) -> bytes:
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
+    devices = db.scalars(select(Device).options(selectinload(Device.group)).order_by(Device.hostname, Device.ip_address)).all()
     last_24_hours = datetime.now(timezone.utc) - timedelta(hours=24)
-    total_events = int(
-        firewall_db.scalar(
-            select(func.count()).select_from(FirewallEvent).where(FirewallEvent.received_at >= last_24_hours),
-        )
-        or 0
-    )
-    blocked_events = int(
-        firewall_db.scalar(
-            select(func.count())
-            .select_from(FirewallEvent)
-            .where(
-                FirewallEvent.received_at >= last_24_hours,
-                FirewallEvent.action.in_(BLOCK_ACTIONS),
-            ),
-        )
-        or 0
-    )
-    passed_events = int(
-        firewall_db.scalar(
-            select(func.count())
-            .select_from(FirewallEvent)
-            .where(
-                FirewallEvent.received_at >= last_24_hours,
-                FirewallEvent.action.in_(PASS_ACTIONS),
-            ),
-        )
-        or 0
-    )
+    event_counts_row = firewall_db.execute(
+        select(
+            func.count().label("total"),
+            func.sum(case((FirewallEvent.action.in_(BLOCK_ACTIONS), 1), else_=0)).label("blocked"),
+            func.sum(case((FirewallEvent.action.in_(PASS_ACTIONS), 1), else_=0)).label("passed"),
+        ).where(FirewallEvent.received_at >= last_24_hours)
+    ).one()
+    total_events = int(event_counts_row.total or 0)
+    blocked_events = int(event_counts_row.blocked or 0)
+    passed_events = int(event_counts_row.passed or 0)
 
     blocked_sources = top_blocked_dimension(firewall_db, FirewallEvent.src_ip)
     blocked_destinations = top_blocked_dimension(firewall_db, FirewallEvent.dst_ip)

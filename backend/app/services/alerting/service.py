@@ -30,6 +30,7 @@ class AlertMonitorService:
         self._stop = threading.Event()
         self._known: dict[int, str] = {}
         self._initialized = False
+        self._last_pruned_at: datetime | None = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -148,11 +149,11 @@ class AlertMonitorService:
             self._known = current
             return
 
-        with SessionLocal() as db:
-            notif_settings = load_notification_settings(db)
-
         device_map = {d.id: d for d in devices}
         now = checked_at
+
+        rule_updates: list[tuple[int, datetime]] = []
+        new_events: list[AlertEvent] = []
 
         for device_id, new_status in current.items():
             old_status = self._known.get(device_id, "unknown")
@@ -177,39 +178,43 @@ class AlertMonitorService:
                     result = send_notification(channel, message, notif_settings)
                     logger.info("Alert '%s' fired via %s: %s", rule.name, channel, result)
 
-                with SessionLocal() as db:
-                    db_rule = db.get(AlertRule, rule.id)
-                    if db_rule:
-                        db_rule.last_triggered_at = now
-                        db.commit()
+                rule_updates.append((rule.id, now))
+                new_events.append(AlertEvent(
+                    alert_rule_id=rule.id,
+                    alert_rule_name=rule.name,
+                    device_id=device_id,
+                    event_type=rule.event_type,
+                    fired_at=now,
+                    message=message,
+                ))
 
-                with SessionLocal() as db:
-                    db.add(AlertEvent(
-                        alert_rule_id=rule.id,
-                        alert_rule_name=rule.name,
-                        device_id=device_id,
-                        event_type=rule.event_type,
-                        fired_at=now,
-                        message=message,
-                    ))
-                    db.commit()
+        if rule_updates or new_events:
+            with SessionLocal() as db:
+                for rule_id, triggered_at in rule_updates:
+                    db_rule = db.get(AlertRule, rule_id)
+                    if db_rule:
+                        db_rule.last_triggered_at = triggered_at
+                for event in new_events:
+                    db.add(event)
+                db.commit()
 
         self._known = current
 
     def _prune_history(self) -> None:
+        now = datetime.now(timezone.utc)
+        if self._last_pruned_at is not None and (now - self._last_pruned_at).total_seconds() < 86400:
+            return
         try:
             from sqlalchemy import text
-            cutoff = datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
             from datetime import timedelta
-            cutoff = cutoff - timedelta(days=HISTORY_RETAIN_DAYS)
+            cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=HISTORY_RETAIN_DAYS)
             with SessionLocal() as db:
                 db.execute(
                     text("DELETE FROM device_monitor_history WHERE checked_at < :cutoff"),
                     {"cutoff": cutoff.isoformat()},
                 )
                 db.commit()
+            self._last_pruned_at = now
         except Exception:
             logger.exception("Failed to prune monitor history")
 

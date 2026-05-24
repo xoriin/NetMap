@@ -477,9 +477,10 @@ def import_dhcp_leases(
         raise HTTPException(status_code=422, detail="Could not parse lease file. Supported formats: ISC dhcpd, dnsmasq.")
 
     now = datetime.now(timezone.utc)
+    existing_map = {row.ip_address: row for row in db.scalars(select(DhcpLease)).all()}
     imported = 0
     for entry in parsed:
-        existing = db.scalar(select(DhcpLease).where(DhcpLease.ip_address == entry["ip_address"]))
+        existing = existing_map.get(entry["ip_address"])
         if existing:
             for k, v in entry.items():
                 setattr(existing, k, v)

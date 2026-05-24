@@ -22,6 +22,7 @@ class RetentionStatus:
     last_deleted: int = 0
     last_error: str | None = None
     last_event_received_at: datetime | None = None
+    event_count: int | None = None  # None = not yet initialised; lazily populated on first call
 
 
 _retention_status = RetentionStatus()
@@ -38,6 +39,9 @@ def store_syslog_line(raw_line: bytes | str, sender_host: str | None = None) -> 
         db.commit()
         db.refresh(event)
         update_last_event_received(event.received_at)
+        with _retention_status_lock:
+            if _retention_status.event_count is not None:
+                _retention_status.event_count += 1
         firewall_event_broadcaster.publish(serialize_event(event))
         return event.id
 
@@ -76,12 +80,21 @@ def cleanup_expired_events() -> int:
     update_retention_status(started_at, deleted, None)
     if deleted:
         logger.info("Deleted %s firewall events older than %s days", deleted, retention_days)
+        with _retention_status_lock:
+            if _retention_status.event_count is not None:
+                _retention_status.event_count = max(0, _retention_status.event_count - deleted)
     return deleted
 
 
 def count_events() -> int:
+    with _retention_status_lock:
+        if _retention_status.event_count is not None:
+            return _retention_status.event_count
     with SessionLocal() as db:
-        return int(db.scalar(select(func.count()).select_from(FirewallEvent)) or 0)
+        count = int(db.scalar(select(func.count()).select_from(FirewallEvent)) or 0)
+    with _retention_status_lock:
+        _retention_status.event_count = count
+    return count
 
 
 def get_retention_status() -> RetentionStatus:

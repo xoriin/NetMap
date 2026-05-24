@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func, select
@@ -28,6 +29,10 @@ from app.schemas.monitoring import (
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
+_MONITORING_CACHE_TTL = 10.0  # seconds — monitoring data updates every 5 min; 10s is plenty
+_fleet_summary_cache: tuple[float, Any] | None = None
+_device_summaries_cache: tuple[float, Any] | None = None
+
 
 def _parse_port_results(raw: str) -> list[PortResult]:
     try:
@@ -42,6 +47,12 @@ def fleet_summary(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> FleetSummary:
+    global _fleet_summary_cache
+    now_mono = time.monotonic()
+    cached = _fleet_summary_cache
+    if cached is not None and now_mono - cached[0] < _MONITORING_CACHE_TTL:
+        return cached[1]
+
     status_rows = db.execute(
         select(Device.monitor_status, func.count())
         .where(Device.status != "disabled")
@@ -67,7 +78,7 @@ def fleet_summary(
         )
     )
 
-    return FleetSummary(
+    result = FleetSummary(
         total=total,
         online=online,
         offline=offline,
@@ -75,6 +86,8 @@ def fleet_summary(
         avg_rtt_ms=float(avg_rtt) if avg_rtt is not None else None,
         last_checked=last_checked_row,
     )
+    _fleet_summary_cache = (now_mono, result)
+    return result
 
 
 @router.get("/devices", response_model=list[DeviceMonitorSummary])
@@ -82,6 +95,12 @@ def list_device_summaries(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DeviceMonitorSummary]:
+    global _device_summaries_cache
+    now_mono = time.monotonic()
+    cached = _device_summaries_cache
+    if cached is not None and now_mono - cached[0] < _MONITORING_CACHE_TTL:
+        return cached[1]
+
     devices = db.scalars(select(Device).where(Device.status != "disabled")).all()
     site_map = {s.id: (s.display_name or s.name) for s in db.scalars(select(Site)).all()}
     now = datetime.now(timezone.utc)
@@ -152,6 +171,7 @@ def list_device_summaries(
             )
         )
 
+    _device_summaries_cache = (now_mono, results)
     return results
 
 

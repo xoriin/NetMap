@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, require_security_view, require_topology_write
 from app.db.firewall_session import get_firewall_db
@@ -62,16 +62,27 @@ def _sync_group_ipam_subnet(
     previous_cidr: str | None = None,
     previous_vlan: str | None = None,
 ) -> None:
-    matches: list[Subnet] = []
+    cidr_values = []
+    vlan_values = []
     if group.ip_range:
-        matches.extend(db.scalars(select(Subnet).where(Subnet.cidr == group.ip_range)).all())
+        cidr_values.append(group.ip_range)
     if previous_cidr and previous_cidr != group.ip_range:
-        matches.extend(db.scalars(select(Subnet).where(Subnet.cidr == previous_cidr)).all())
+        cidr_values.append(previous_cidr)
     if group.vlan_id:
-        matches.extend(db.scalars(select(Subnet).where(Subnet.vlan_id == group.vlan_id)).all())
+        vlan_values.append(group.vlan_id)
     if previous_vlan and previous_vlan != group.vlan_id:
-        matches.extend(db.scalars(select(Subnet).where(Subnet.vlan_id == previous_vlan)).all())
+        vlan_values.append(previous_vlan)
 
+    if not cidr_values and not vlan_values:
+        return
+
+    conditions = []
+    if cidr_values:
+        conditions.append(Subnet.cidr.in_(cidr_values))
+    if vlan_values:
+        conditions.append(Subnet.vlan_id.in_(vlan_values))
+
+    matches = db.scalars(select(Subnet).where(or_(*conditions))).all()
     seen: set[int] = set()
     for subnet in matches:
         if subnet.id in seen:
@@ -108,7 +119,7 @@ def topology_graph(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TopologyGraph:
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
+    devices = db.scalars(select(Device).options(selectinload(Device.group)).order_by(Device.hostname, Device.ip_address)).all()
     relationships = db.scalars(select(DeviceRelationship).order_by(DeviceRelationship.id)).all()
     return TopologyGraph(
         devices=[DeviceRead(**device_to_dict(device)) for device in devices],
@@ -121,7 +132,7 @@ def list_devices(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DeviceRead]:
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
+    devices = db.scalars(select(Device).options(selectinload(Device.group)).order_by(Device.hostname, Device.ip_address)).all()
     return [DeviceRead(**device_to_dict(device)) for device in devices]
 
 
@@ -164,6 +175,7 @@ def bulk_update_devices(
         detail=f"group={group.name if group is not None else payload.topology_group or 'inferred'}",
     )
     db.commit()
+    sync_topology_group_entities(db)
     return DeviceBulkUpdateResult(updated=len(devices))
 
 
@@ -194,7 +206,6 @@ def list_topology_groups(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[TopologyGroup]:
-    sync_topology_group_entities(db)
     return db.scalars(select(TopologyGroup).order_by(TopologyGroup.name.asc())).all()
 
 
@@ -651,6 +662,7 @@ def create_device(
     )
     db.commit()
     db.refresh(device)
+    sync_topology_group_entities(db)
     return DeviceRead(**device_to_dict(device))
 
 
@@ -719,6 +731,7 @@ def import_devices(
         detail=f"created={created} updated={updated} errors={len(errors)}",
     )
     db.commit()
+    sync_topology_group_entities(db)
     return DeviceBulkImportResult(created=created, updated=updated, errors=errors)
 
 
@@ -746,6 +759,7 @@ def update_device(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
 
     updates = payload.model_dump(exclude_unset=True)
+    group_changed = "topology_group_id" in updates or "topology_group" in updates
     if "topology_group_id" in updates:
         group_id = updates["topology_group_id"]
         if group_id is None:
@@ -780,6 +794,8 @@ def update_device(
     )
     db.commit()
     db.refresh(device)
+    if group_changed:
+        sync_topology_group_entities(db)
     return DeviceRead(**device_to_dict(device))
 
 
