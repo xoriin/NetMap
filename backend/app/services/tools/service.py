@@ -5,6 +5,7 @@ import socket
 import subprocess
 import shutil
 import time
+from contextlib import contextmanager
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -35,6 +36,11 @@ from app.schemas.tools import (
 TOOL_WINDOW = max(1, settings.tool_rate_limit_window_seconds)
 TOOL_LIMIT = max(1, settings.tool_rate_limit_max_calls)
 TOOL_RATE_LOG: dict[int, deque[float]] = defaultdict(deque)
+DNS_LOOKUP_TIMEOUT_SECONDS = 4.0
+DNS_RESOLVER_TIMEOUT_SECONDS = 2.0
+HOST_RESOLUTION_TIMEOUT_SECONDS = 3.0
+MAX_PING_PROCESS_TIMEOUT_SECONDS = 45
+MAX_TRACEROUTE_PROCESS_TIMEOUT_SECONDS = 180
 PRIVATE_ACTIVE_TARGET_NETWORKS = [
     ip_network("10.0.0.0/8"),
     ip_network("172.16.0.0/12"),
@@ -66,8 +72,8 @@ def enforce_rate_limit(user_id: int) -> None:
 
 def dns_lookup(payload: DnsLookupRequest) -> DnsLookupResult:
     resolver = dns.resolver.Resolver()
-    resolver.lifetime = 4.0
-    resolver.timeout = 2.0
+    resolver.lifetime = DNS_LOOKUP_TIMEOUT_SECONDS
+    resolver.timeout = DNS_RESOLVER_TIMEOUT_SECONDS
     started = time.perf_counter()
     try:
         answers = resolver.resolve(payload.name, payload.record_type, raise_on_no_answer=False)
@@ -91,8 +97,8 @@ def dns_lookup(payload: DnsLookupRequest) -> DnsLookupResult:
 
 def reverse_dns(payload: ReverseDnsRequest) -> ReverseDnsResult:
     resolver = dns.resolver.Resolver()
-    resolver.lifetime = 4.0
-    resolver.timeout = 2.0
+    resolver.lifetime = DNS_LOOKUP_TIMEOUT_SECONDS
+    resolver.timeout = DNS_RESOLVER_TIMEOUT_SECONDS
     started = time.perf_counter()
     reverse_name = dns.reversename.from_address(payload.ip_address)
     try:
@@ -122,7 +128,8 @@ def ping_host(payload: PingRequest, *, allow_public_targets: bool | None = None)
         payload.host,
     ]
     started = time.perf_counter()
-    completed = subprocess.run(command, capture_output=True, text=True, timeout=payload.timeout_seconds + 3)
+    process_timeout = min(MAX_PING_PROCESS_TIMEOUT_SECONDS, payload.timeout_seconds + 3)
+    completed = _run_tool_command(command, timeout_seconds=process_timeout, timeout_label="Ping")
     duration_ms = int((time.perf_counter() - started) * 1000)
     output = completed.stdout + "\n" + completed.stderr
     if completed.returncode not in {0, 1} and raw_networking_error(output):
@@ -156,7 +163,11 @@ def traceroute_host(payload: TracerouteRequest, *, allow_public_targets: bool | 
         payload.host,
     ]
     started = time.perf_counter()
-    completed = subprocess.run(command, capture_output=True, text=True, timeout=payload.max_hops * payload.timeout_seconds + 10)
+    process_timeout = min(
+        MAX_TRACEROUTE_PROCESS_TIMEOUT_SECONDS,
+        payload.max_hops * payload.timeout_seconds + 10,
+    )
+    completed = _run_tool_command(command, timeout_seconds=process_timeout, timeout_label="Traceroute")
     duration_ms = int((time.perf_counter() - started) * 1000)
     hops = parse_traceroute_output(completed.stdout)
     return TracerouteResult(
@@ -238,9 +249,11 @@ def _all_resolved_addresses_private(host: str) -> bool:
         addresses = [ip_address(host)]
     except ValueError:
         try:
-            infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+            infos = _resolve_host(host)
         except socket.gaierror as exc:
             raise ValueError(f"Unable to resolve target host: {host}") from exc
+        except TimeoutError as exc:
+            raise ValueError(f"Timed out resolving target host: {host}") from exc
         addresses = []
         for info in infos:
             try:
@@ -250,6 +263,33 @@ def _all_resolved_addresses_private(host: str) -> bool:
         if not addresses:
             raise ValueError(f"Unable to resolve target host: {host}")
     return all(any(address in network for network in PRIVATE_ACTIVE_TARGET_NETWORKS) for address in addresses)
+
+
+def _run_tool_command(
+    command: list[str],
+    *,
+    timeout_seconds: int | float,
+    timeout_label: str,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(command, capture_output=True, text=True, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError(f"{timeout_label} timed out after {timeout_seconds:g} seconds") from exc
+
+
+def _resolve_host(host: str):
+    with _default_socket_timeout(HOST_RESOLUTION_TIMEOUT_SECONDS):
+        return socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+
+
+@contextmanager
+def _default_socket_timeout(timeout_seconds: float):
+    previous = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(timeout_seconds)
+    try:
+        yield
+    finally:
+        socket.setdefaulttimeout(previous)
 
 
 def parse_ping_summary(output: str) -> tuple[int | None, int | None, float | None]:

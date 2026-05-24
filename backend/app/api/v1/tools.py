@@ -55,7 +55,10 @@ def lookup_dns(
     db: Annotated[Session, Depends(get_db)],
 ) -> DnsLookupResult:
     _enforce_tool_rate_limit(current_user.id)
-    return dns_lookup(payload)
+    try:
+        return dns_lookup(payload)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
 
 
 @router.post("/reverse-dns", response_model=ReverseDnsResult)
@@ -65,7 +68,10 @@ def lookup_reverse_dns(
     db: Annotated[Session, Depends(get_db)],
 ) -> ReverseDnsResult:
     _enforce_tool_rate_limit(current_user.id)
-    return reverse_dns(payload)
+    try:
+        return reverse_dns(payload)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
 
 
 @router.post("/ping", response_model=PingResult)
