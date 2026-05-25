@@ -4,6 +4,13 @@
 
 ---
 
+## [1.2.3] - 2026-05-25
+
+### Security / Session
+- Firewall raw-log search index recovery now rebuilds malformed FTS state before running index health checks, preventing damaged search indexes from blocking application startup.
+
+---
+
 ## [1.2.2] - 2026-05-25
 
 ### Docker / Runtime

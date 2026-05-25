@@ -55,22 +55,26 @@ def init_firewall_db() -> None:
 
 
 def init_firewall_fts() -> None:
-    with firewall_engine.begin() as conn:
-        setup_firewall_fts(conn)
-
-
-def setup_firewall_fts(conn) -> None:
-    existed = _firewall_fts_exists(conn)
-    _create_firewall_fts_objects(conn)
+    malformed = False
     try:
-        _sync_firewall_fts(conn, force_rebuild=not existed)
+        with firewall_engine.begin() as conn:
+            existed = _firewall_fts_exists(conn)
+            _create_firewall_fts_objects(conn)
+            _sync_firewall_fts(conn, force_rebuild=not existed)
     except DatabaseError as exc:
         if not _is_malformed_fts_error(exc):
             raise
-        logger.warning("Firewall FTS index is malformed; rebuilding derived search index", exc_info=True)
-        _drop_firewall_fts_objects(conn)
-        _create_firewall_fts_objects(conn)
-        _sync_firewall_fts(conn, force_rebuild=True)
+        malformed = True
+        logger.warning("Firewall FTS index is malformed; rebuilding from scratch", exc_info=True)
+
+    if malformed:
+        # SQLite marks a connection corrupt after SQLITE_CORRUPT — dispose the pool so
+        # recovery uses a fresh connection with a clean page cache.
+        firewall_engine.dispose()
+        with firewall_engine.begin() as conn:
+            _drop_firewall_fts_objects(conn)
+            _create_firewall_fts_objects(conn)
+            _sync_firewall_fts(conn, force_rebuild=True)
 
 
 def _create_firewall_fts_objects(conn) -> None:
@@ -120,6 +124,10 @@ def _create_firewall_fts_objects(conn) -> None:
 
 
 def _sync_firewall_fts(conn, *, force_rebuild: bool = False) -> None:
+    if force_rebuild:
+        conn.execute(text("INSERT INTO firewall_events_fts(firewall_events_fts) VALUES ('rebuild')"))
+        return
+
     conn.execute(
         text("SELECT rowid FROM firewall_events_fts WHERE firewall_events_fts MATCH :probe LIMIT 1"),
         {"probe": "netmapftsprobe"},
