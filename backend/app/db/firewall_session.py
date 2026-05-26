@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import DatabaseError
@@ -15,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 def _firewall_db_url() -> str:
     return f"sqlite:///{settings.data_dir}/firewall.db"
+
+
+def _firewall_db_path() -> Path:
+    return Path(settings.data_dir) / "firewall.db"
 
 
 firewall_engine = create_engine(
@@ -50,7 +55,26 @@ def get_firewall_db() -> Generator[Session, None, None]:
 
 def init_firewall_db() -> None:
     from app.models.firewall_event import FirewallEvent  # noqa: F401
-    FirewallBase.metadata.create_all(bind=firewall_engine)
+    schema_corrupt = False
+    try:
+        FirewallBase.metadata.create_all(bind=firewall_engine)
+    except DatabaseError as exc:
+        if not _is_corrupt_db_error(exc):
+            raise
+        schema_corrupt = True
+        logger.warning(
+            "firewall.db is corrupt and cannot be opened; deleting and recreating (syslog history lost)",
+            exc_info=True,
+        )
+
+    if schema_corrupt:
+        # Close all pooled connections before touching the file.
+        firewall_engine.dispose()
+        db_path = _firewall_db_path()
+        for path in (db_path, Path(str(db_path) + "-wal"), Path(str(db_path) + "-shm")):
+            path.unlink(missing_ok=True)
+        FirewallBase.metadata.create_all(bind=firewall_engine)
+
     init_firewall_fts()
 
 
@@ -58,9 +82,7 @@ def init_firewall_fts() -> None:
     malformed = False
     try:
         with firewall_engine.begin() as conn:
-            existed = _firewall_fts_exists(conn)
-            _create_firewall_fts_objects(conn)
-            _sync_firewall_fts(conn, force_rebuild=not existed)
+            setup_firewall_fts(conn)
     except DatabaseError as exc:
         if not _is_malformed_fts_error(exc):
             raise
@@ -75,6 +97,19 @@ def init_firewall_fts() -> None:
             _drop_firewall_fts_objects(conn)
             _create_firewall_fts_objects(conn)
             _sync_firewall_fts(conn, force_rebuild=True)
+
+
+def setup_firewall_fts(conn) -> None:
+    existed = _firewall_fts_exists(conn)
+    try:
+        _create_firewall_fts_objects(conn)
+        _sync_firewall_fts(conn, force_rebuild=not existed)
+    except DatabaseError as exc:
+        if not _is_malformed_fts_error(exc):
+            raise
+        _drop_firewall_fts_objects(conn)
+        _create_firewall_fts_objects(conn)
+        _sync_firewall_fts(conn, force_rebuild=True)
 
 
 def _create_firewall_fts_objects(conn) -> None:
@@ -154,6 +189,11 @@ def _drop_firewall_fts_objects(conn) -> None:
 
 def _is_malformed_fts_error(exc: DatabaseError) -> bool:
     return "database disk image is malformed" in str(exc).lower()
+
+
+def _is_corrupt_db_error(exc: DatabaseError) -> bool:
+    msg = str(exc).lower()
+    return "malformed database schema" in msg or "database disk image is malformed" in msg
 
 
 def _firewall_fts_exists(conn) -> bool:

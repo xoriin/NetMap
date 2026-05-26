@@ -56,6 +56,7 @@ from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
 
 router = APIRouter(prefix="/topology", tags=["topology"])
+TOPOLOGY_AUTOSAVE_LAYOUT_NAME = "__autosave__"
 
 
 def _sync_group_ipam_subnet(
@@ -476,7 +477,12 @@ def list_topology_layouts(
 ) -> list[TopologyLayoutRead]:
     layouts = db.scalars(
         select(TopologyLayout)
-        .where(TopologyLayout.owner_user_id == current_user.id)
+        .where(
+            or_(
+                TopologyLayout.owner_user_id == current_user.id,
+                TopologyLayout.name == TOPOLOGY_AUTOSAVE_LAYOUT_NAME,
+            )
+        )
         .order_by(TopologyLayout.updated_at.desc(), TopologyLayout.name.asc()),
     ).all()
     return [serialize_topology_layout(layout) for layout in layouts]
