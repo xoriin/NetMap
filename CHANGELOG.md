@@ -3,20 +3,17 @@
 ## [Unreleased]
 
 ### Topology
-- Topology layout and all display preferences (node size, spacing, per-row, zone opacity/borders, hidden groups, device/link label sizes, icon and text visibility) are now saved server-side per user. Opening the map on any device restores the exact state from the last session.
-- Layout saving is fully automatic — positions save immediately on every drag and display preferences save within two seconds of any change. The manual Save and Load buttons have been removed.
-- Fixed: saved node positions were being silently overwritten by stale canvas state every time the layout loaded, causing the map to revert to its previous arrangement on every page open.
-- Link creation form now uses a searchable picker instead of a plain scroll-list — filter devices by IP address, hostname, or display name.
-- Node label default size increased from 9 px to 11 px; link label default size increased from 11 px to 13 px.
-- Device node labels now scale with zoom: hidden below 35% zoom, single-line truncated between 35–60%, full labels above 60%. Prevents label overlap on dense graphs at low zoom.
-- Link click targets widened: edges now have an invisible 12 px padding zone around them, making narrow links easier to select in dense areas.
-- Hovered device nodes now render above selected links in Cytoscape hit-testing, so an icon is always clickable even when a selected link passes through it.
+- Topology layouts and display preferences now autosave per user and sync across devices.
+- Fixed layout reloads overwriting saved node positions with stale canvas state.
+- Link creation now uses a searchable endpoint picker.
+- Map labels and link selection are easier to use on dense topology views.
+- Firewall activity is no longer aggregated across all devices when the topology page opens; selected-device activity loads on demand.
 
 ### Performance
-- All workspaces (Inventory, Topology, IPAM, Monitoring, Security, Admin, and others) are now loaded on demand rather than bundled into the initial page load. Cytoscape (the topology map library) is only downloaded when the Topology page is opened.
+- Workspaces now load on demand, so heavier pages like Topology are not bundled into the initial app load.
 
 ### Docker / Runtime
-- Application now recovers automatically from a corrupt `firewall.db` on startup: if the SQLite schema table is malformed (e.g. after an unclean shutdown), the database file and its WAL/SHM sidecars are deleted and recreated. Only syslog/firewall event history is lost; all device, user, and configuration data is unaffected.
+- Corrupt `firewall.db` startup state is recovered automatically by recreating only the firewall/syslog event database.
 
 ---
 

@@ -38,7 +38,6 @@ from app.schemas.site import SiteCreate, SiteRead, SiteUpdate
 from app.schemas.topology import (
     DeviceBulkImportRequest,
     DeviceBulkImportResult,
-    DeviceEventCountList,
     DeviceCreate,
     DeviceLiveStatus,
     DeviceLiveStatusList,
@@ -596,47 +595,6 @@ def list_device_security_events(
         last_seen_event_time=event_counts.last_seen_event_time,
         events=events,
     )
-
-
-@router.get("/security/event-counts", response_model=DeviceEventCountList)
-def list_device_event_counts(
-    _current_user: Annotated[User, Depends(require_security_view)],
-    db: Annotated[Session, Depends(get_db)],
-    firewall_db: Annotated[Session, Depends(get_firewall_db)],
-    window_hours: int = 24,
-    with_events_only: bool = False,
-) -> DeviceEventCountList:
-    bounded_window = min(max(window_hours, 1), 24 * 7)
-    window_start = correlation_window_start(bounded_window)
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
-    event_counts = build_device_event_counts(firewall_db, devices, window_start=window_start)
-    rows = [event_counts[device.id] for device in devices]
-    if with_events_only:
-        rows = [row for row in rows if row.event_count > 0]
-    return DeviceEventCountList(window_hours=bounded_window, devices=rows)
-
-
-@router.get("/security/top-affected", response_model=DeviceEventCountList)
-def list_top_affected_devices(
-    _current_user: Annotated[User, Depends(require_security_view)],
-    db: Annotated[Session, Depends(get_db)],
-    firewall_db: Annotated[Session, Depends(get_firewall_db)],
-    window_hours: int = 24,
-    limit: int = 10,
-) -> DeviceEventCountList:
-    bounded_window = min(max(window_hours, 1), 24 * 7)
-    bounded_limit = min(max(limit, 1), 50)
-    window_start = correlation_window_start(bounded_window)
-    devices = db.scalars(select(Device).order_by(Device.hostname, Device.ip_address)).all()
-    event_counts = build_device_event_counts(firewall_db, devices, window_start=window_start)
-    _epoch = datetime.min.replace(tzinfo=timezone.utc)
-    rows = sorted(
-        event_counts.values(),
-        key=lambda row: (row.event_count, row.last_seen_event_time is not None, row.last_seen_event_time or _epoch),
-        reverse=True,
-    )
-    filtered = [row for row in rows if row.event_count > 0][:bounded_limit]
-    return DeviceEventCountList(window_hours=bounded_window, devices=filtered)
 
 
 @router.post("/devices", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)

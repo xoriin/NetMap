@@ -234,21 +234,6 @@ export type DeviceSecurityEventSummary = {
   events: CorrelatedFirewallEvent[];
 };
 
-export type DeviceEventCount = {
-  device_id: number;
-  ip_address: string;
-  hostname: string | null;
-  event_count: number;
-  blocked_count: number;
-  passed_count: number;
-  last_seen_event_time: string | null;
-};
-
-export type DeviceEventCountList = {
-  window_hours: number;
-  devices: DeviceEventCount[];
-};
-
 export type FirewallEventList = {
   retention_days: number;
   total: number;
@@ -1011,33 +996,6 @@ export const api = {
       `/api/v1/topology/devices/${deviceId}/security-events${query ? `?${query}` : ""}`,
       { token },
     );
-  },
-  topologyDeviceEventCounts: (
-    token: string,
-    params: { window_hours?: number; with_events_only?: boolean } = {},
-  ) => {
-    const search = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && !(typeof value === "string" && value === "")) {
-        search.set(key, String(value));
-      }
-    });
-    const query = search.toString();
-    return request<DeviceEventCountList>(`/api/v1/topology/security/event-counts${query ? `?${query}` : ""}`, {
-      token,
-    });
-  },
-  topAffectedDevices: (token: string, params: { window_hours?: number; limit?: number } = {}) => {
-    const search = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && !(typeof value === "string" && value === "")) {
-        search.set(key, String(value));
-      }
-    });
-    const query = search.toString();
-    return request<DeviceEventCountList>(`/api/v1/topology/security/top-affected${query ? `?${query}` : ""}`, {
-      token,
-    });
   },
   dnsLookup: (token: string, payload: { name: string; record_type: DnsRecordType }) =>
     request<DnsLookupResult>("/api/v1/tools/dns", {

@@ -218,7 +218,7 @@ def test_device_security_events_returns_404_for_missing_device():
 
 
 # ---------------------------------------------------------------------------
-# 4. Broad topology-level endpoint correctness (not called by topology page)
+# 4. Correlation helper window correctness
 # ---------------------------------------------------------------------------
 
 def test_list_device_event_counts_is_bounded_by_window():
