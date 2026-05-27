@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.5] - 2026-05-27
+
+### Docker / Runtime
+- Fixed startup 502s where nginx could not reach `/tmp/uvicorn.sock` while firewall search-index maintenance ran during FastAPI startup.
+
+---
+
 ## [1.2.4] - 2026-05-27
 
 ### Topology

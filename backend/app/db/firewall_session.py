@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from collections.abc import Generator
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+_fts_rebuild_needed = False
+_fts_rebuild_lock = threading.Lock()
 
 
 def _firewall_db_url() -> str:
@@ -79,6 +82,7 @@ def init_firewall_db() -> None:
 
 
 def init_firewall_fts() -> None:
+    global _fts_rebuild_needed
     malformed = False
     try:
         with firewall_engine.begin() as conn:
@@ -96,20 +100,27 @@ def init_firewall_fts() -> None:
         with firewall_engine.begin() as conn:
             _drop_firewall_fts_objects(conn)
             _create_firewall_fts_objects(conn)
-            _sync_firewall_fts(conn, force_rebuild=True)
+        with _fts_rebuild_lock:
+            _fts_rebuild_needed = True
 
 
 def setup_firewall_fts(conn) -> None:
+    global _fts_rebuild_needed
     existed = _firewall_fts_exists(conn)
     try:
         _create_firewall_fts_objects(conn)
-        _sync_firewall_fts(conn, force_rebuild=not existed)
+        if existed:
+            _probe_firewall_fts(conn)
+        else:
+            with _fts_rebuild_lock:
+                _fts_rebuild_needed = True
     except DatabaseError as exc:
         if not _is_malformed_fts_error(exc):
             raise
         _drop_firewall_fts_objects(conn)
         _create_firewall_fts_objects(conn)
-        _sync_firewall_fts(conn, force_rebuild=True)
+        with _fts_rebuild_lock:
+            _fts_rebuild_needed = True
 
 
 def _create_firewall_fts_objects(conn) -> None:
@@ -158,15 +169,32 @@ def _create_firewall_fts_objects(conn) -> None:
     )
 
 
+def _probe_firewall_fts(conn) -> None:
+    conn.execute(
+        text("SELECT rowid FROM firewall_events_fts WHERE firewall_events_fts MATCH :probe LIMIT 1"),
+        {"probe": "netmapftsprobe"},
+    ).fetchall()
+
+
+def rebuild_firewall_fts_if_needed() -> None:
+    global _fts_rebuild_needed
+    with _fts_rebuild_lock:
+        if not _fts_rebuild_needed:
+            return
+    logger.info("Rebuilding firewall raw-log search index in the background")
+    with firewall_engine.begin() as conn:
+        _sync_firewall_fts(conn, force_rebuild=True)
+    with _fts_rebuild_lock:
+        _fts_rebuild_needed = False
+    logger.info("Firewall raw-log search index rebuild complete")
+
+
 def _sync_firewall_fts(conn, *, force_rebuild: bool = False) -> None:
     if force_rebuild:
         conn.execute(text("INSERT INTO firewall_events_fts(firewall_events_fts) VALUES ('rebuild')"))
         return
 
-    conn.execute(
-        text("SELECT rowid FROM firewall_events_fts WHERE firewall_events_fts MATCH :probe LIMIT 1"),
-        {"probe": "netmapftsprobe"},
-    ).fetchall()
+    _probe_firewall_fts(conn)
     indexed = int(conn.execute(text("SELECT count(*) FROM firewall_events_fts")).scalar() or 0)
     events = int(conn.execute(text("SELECT count(*) FROM firewall_events")).scalar() or 0)
     if force_rebuild or indexed != events:

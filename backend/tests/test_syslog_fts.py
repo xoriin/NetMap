@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1.syslog import apply_event_filters
-from app.db.firewall_session import FirewallBase, _sync_firewall_fts, setup_firewall_fts
+from app.db.firewall_session import (
+    FirewallBase,
+    _sync_firewall_fts,
+    setup_firewall_fts,
+)
 from app.models.firewall_event import FirewallEvent
 
 
@@ -76,6 +80,7 @@ def test_firewall_fts_setup_recovers_from_malformed_index():
     with engine.begin() as conn:
         conn.exec_driver_sql("DROP TABLE firewall_events_fts_data")
         setup_firewall_fts(conn)
+        _sync_firewall_fts(conn, force_rebuild=True)
 
     with Session(engine) as db:
         query = apply_event_filters(
@@ -114,3 +119,30 @@ def test_firewall_fts_force_rebuild_does_not_query_damaged_index():
     _sync_firewall_fts(conn, force_rebuild=True)
 
     assert conn.statements == ["INSERT INTO firewall_events_fts(firewall_events_fts) VALUES ('rebuild')"]
+
+
+def test_firewall_fts_setup_does_not_count_existing_large_indexes():
+    class Conn:
+        def __init__(self):
+            self.statements: list[str] = []
+
+        def execute(self, statement, _params=None):
+            sql = str(statement)
+            self.statements.append(sql)
+            if "SELECT count(*) FROM firewall_events_fts" in sql:
+                raise AssertionError("startup setup must not count existing FTS rows")
+            if "SELECT count(*) FROM firewall_events" in sql:
+                raise AssertionError("startup setup must not count firewall events")
+            return self
+
+        def fetchone(self):
+            return (1,)
+
+        def fetchall(self):
+            return []
+
+    conn = Conn()
+
+    setup_firewall_fts(conn)
+
+    assert not any("SELECT count(*)" in statement for statement in conn.statements)

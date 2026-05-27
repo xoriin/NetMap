@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import logging
+import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,12 +10,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.startup import validate_runtime_configuration
-from app.db.firewall_session import init_firewall_db
+from app.db.firewall_session import init_firewall_db, rebuild_firewall_fts_if_needed
 from app.db.session import SessionLocal, init_db
 from app.middleware.csrf import CsrfProtectionMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.services.syslog.server import syslog_service
 from app.services.syslog.storage import cleanup_expired_events
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -51,7 +55,6 @@ def create_app() -> FastAPI:
         validate_runtime_configuration()
         init_db()
         init_firewall_db()
-        cleanup_expired_events()
         _cleanup_stuck_scans()
         with SessionLocal() as db:
             setting = db.get(SystemSetting, "role_permissions")
@@ -59,6 +62,7 @@ def create_app() -> FastAPI:
                 load_from_db(setting.value)
         syslog_service.start()
         alert_monitor.start()
+        _start_firewall_startup_maintenance()
 
     @app.on_event("shutdown")
     def on_shutdown() -> None:
@@ -67,6 +71,26 @@ def create_app() -> FastAPI:
         alert_monitor.stop()
 
     return app
+
+
+def _start_firewall_startup_maintenance() -> None:
+    thread = threading.Thread(
+        target=_run_firewall_startup_maintenance,
+        name="firewall-startup-maintenance",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _run_firewall_startup_maintenance() -> None:
+    try:
+        rebuild_firewall_fts_if_needed()
+    except Exception:
+        logger.exception("Firewall FTS startup maintenance failed")
+    try:
+        cleanup_expired_events()
+    except Exception:
+        logger.exception("Firewall retention startup maintenance failed")
 
 
 def _cleanup_stuck_scans() -> None:
