@@ -25,6 +25,7 @@ class DeviceBase(BaseModel):
     topology_group_id: int | None = None
     topology_group: str | None = Field(default=None, max_length=120)
     site_id: int | None = None
+    snmp_profile_id: int | None = None
     tags: list[str] = Field(default_factory=list, max_length=20)
     notes: str | None = Field(default=None, max_length=4000)
 
@@ -119,6 +120,7 @@ class DeviceUpdate(BaseModel):
     topology_group_id: int | None = None
     topology_group: str | None = Field(default=None, max_length=120)
     site_id: int | None = None
+    snmp_profile_id: int | None = None
     tags: list[str] | None = Field(default=None, max_length=20)
     notes: str | None = Field(default=None, max_length=4000)
 
@@ -194,6 +196,30 @@ class DeviceRead(DeviceBase):
     is_favourite: bool = False
     created_at: datetime
     updated_at: datetime
+
+
+class DeviceSnmpEnrichmentChange(BaseModel):
+    device_id: int
+    ip_address: str
+    field: str
+    current: str | None = None
+    suggested: str
+    source: str
+
+
+class DeviceSnmpEnrichmentPreview(BaseModel):
+    source_device_id: int
+    source_profile_id: int
+    changes: list[DeviceSnmpEnrichmentChange] = Field(default_factory=list)
+
+
+class DeviceSnmpEnrichmentApply(BaseModel):
+    apply_all: bool = True
+    device_ids: list[int] = Field(default_factory=list)
+
+
+class DeviceSnmpEnrichmentApplyResult(BaseModel):
+    updated: int
 
 
 class RelationshipBase(BaseModel):

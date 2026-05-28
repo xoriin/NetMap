@@ -4,6 +4,7 @@ import {
   type DevicePayload,
   type DeviceStatus,
   type DeviceIcon,
+  type SnmpProfile,
   type TopologyGroup,
   type Site,
 } from "../../api/client";
@@ -17,6 +18,7 @@ export function DeviceForm({
   cloneSource,
   device,
   groups,
+  snmpProfiles,
   sites,
   onCancel,
   onSubmit,
@@ -25,6 +27,7 @@ export function DeviceForm({
   cloneSource: Device | null;
   device: Device | null;
   groups: TopologyGroup[];
+  snmpProfiles: SnmpProfile[];
   sites: Site[];
   onCancel: () => void;
   onSubmit: (payload: DevicePayload) => Promise<void>;
@@ -44,6 +47,7 @@ export function DeviceForm({
     subnet: device?.subnet ?? cloneSource?.subnet ?? "",
     topology_group_id: String(device?.topology_group_id ?? cloneSource?.topology_group_id ?? ""),
     site_id: String(device?.site_id ?? cloneSource?.site_id ?? ""),
+    snmp_profile_id: String(device?.snmp_profile_id ?? cloneSource?.snmp_profile_id ?? ""),
     tags: (device?.tags ?? cloneSource?.tags ?? []).join(", "),
     notes: device?.notes ?? cloneSource?.notes ?? "",
   });
@@ -76,6 +80,7 @@ export function DeviceForm({
       topology_group_id: form.topology_group_id ? Number(form.topology_group_id) : null,
       topology_group: null,
       site_id: form.site_id ? Number(form.site_id) : null,
+      snmp_profile_id: form.snmp_profile_id ? Number(form.snmp_profile_id) : null,
       tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       notes: blankToNull(form.notes),
     });
@@ -174,6 +179,17 @@ export function DeviceForm({
                   {sites.map((site) => (
                     <option key={site.id} value={String(site.id)}>
                       {site.display_name ?? site.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                SNMP profile
+                <select value={form.snmp_profile_id} onChange={(event) => update("snmp_profile_id", event.target.value)}>
+                  <option value="">— None —</option>
+                  {snmpProfiles.map((profile) => (
+                    <option key={profile.id} value={String(profile.id)}>
+                      {profile.name}
                     </option>
                   ))}
                 </select>

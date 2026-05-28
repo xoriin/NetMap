@@ -17,6 +17,7 @@ export function buildDevicePayload(device: Device, overrides: Partial<DevicePayl
     topology_group_id: device.topology_group_id,
     topology_group: null,
     site_id: device.site_id,
+    snmp_profile_id: device.snmp_profile_id,
     tags: device.tags,
     notes: device.notes,
   };

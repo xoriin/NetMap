@@ -45,7 +45,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, auth_session, audit_log, device, dhcp_lease, discovery, ip_reservation, monitor_history, password_reset_token, port_target, relationship, site, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
+    from app.models import alert_rule, auth_session, audit_log, device, dhcp_lease, discovery, ip_reservation, monitor_history, password_reset_token, port_target, relationship, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -119,6 +119,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0027_user_device_favourites", _migrate_user_device_favourites)
         _run_migration(conn, inspector, "0028_topology_layouts", _migrate_topology_layouts)
         _run_migration(conn, inspector, "0029_topology_layout_display_prefs", _migrate_topology_layout_display_prefs)
+        _run_migration(conn, inspector, "0030_snmp_profiles", _migrate_snmp_profiles)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -660,3 +661,28 @@ def _migrate_topology_layouts(conn, inspector) -> None:
         ))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_topology_layouts_id ON topology_layouts (id)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_topology_layouts_owner_user_id ON topology_layouts (owner_user_id)"))
+
+
+def _migrate_snmp_profiles(conn, inspector) -> None:
+    tables = set(inspector.get_table_names())
+    if "snmp_profiles" not in tables:
+        conn.execute(text(
+            """
+            CREATE TABLE snmp_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR(120) NOT NULL UNIQUE,
+                version VARCHAR(16) NOT NULL DEFAULT 'v2c',
+                community_encrypted TEXT NOT NULL,
+                port INTEGER NOT NULL DEFAULT 161,
+                timeout_seconds INTEGER NOT NULL DEFAULT 3,
+                retries INTEGER NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_snmp_profiles_id ON snmp_profiles (id)"))
+    existing = {col["name"] for col in inspector.get_columns("devices")}
+    if "snmp_profile_id" not in existing:
+        conn.execute(text("ALTER TABLE devices ADD COLUMN snmp_profile_id INTEGER REFERENCES snmp_profiles(id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_devices_snmp_profile_id ON devices (snmp_profile_id)"))

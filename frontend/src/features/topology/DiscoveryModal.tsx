@@ -3,6 +3,7 @@ import {
   type DiscoveryScan,
   type DiscoveryScanType,
   type DiscoveryHost,
+  type SnmpProfile,
   type TopologyGroup,
   type Site,
   api,
@@ -33,6 +34,13 @@ export function DiscoveryModal({
   const [newSiteName, setNewSiteName] = useState("");
   const [newSiteBusy, setNewSiteBusy] = useState(false);
   const [confirmLargeScan, setConfirmLargeScan] = useState(false);
+  const [snmpEnabled, setSnmpEnabled] = useState(false);
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
+  const [snmpProfileId, setSnmpProfileId] = useState("");
+  const [snmpTargets, setSnmpTargets] = useState("");
+  const [snmpCommunity, setSnmpCommunity] = useState("public");
+  const [snmpPort, setSnmpPort] = useState("161");
+  const [snmpTimeout, setSnmpTimeout] = useState("3");
   const [scan, setScan] = useState<DiscoveryScan | null>(null);
   const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -40,11 +48,13 @@ export function DiscoveryModal({
   const targetEstimate = estimateScanTarget(target);
   const requiresConfirmation = targetEstimate.hostCount > 256;
   const canStartScan = !busy && target.trim().length > 0 && (!requiresConfirmation || confirmLargeScan);
+  const selectedGroup = groups.find((group) => String(group.id) === selectedGroupId) ?? null;
 
   useEffect(() => {
     if (!accessToken) return;
     api.topologyGroups(accessToken).then(setGroups).catch(() => {});
     api.sites(accessToken).then(setSites).catch(() => {});
+    api.listSnmpProfiles(accessToken).then(setSnmpProfiles).catch(() => {});
   }, [accessToken]);
 
   async function createNewGroup() {
@@ -103,6 +113,14 @@ export function DiscoveryModal({
         target,
         scan_type: scanType,
         confirm_large_scan: confirmLargeScan,
+        topology_group_id: selectedGroupId ? Number(selectedGroupId) : null,
+        snmp_community: snmpEnabled && !snmpProfileId ? snmpCommunity : null,
+        snmp_profile_id: snmpEnabled && snmpProfileId ? Number(snmpProfileId) : null,
+        snmp_targets: snmpEnabled
+          ? (snmpTargets.trim() || selectedGroup?.gateway || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
+          : [],
+        snmp_port: Number(snmpPort),
+        snmp_timeout_seconds: Number(snmpTimeout),
       });
       setScan(nextScan);
       setSelectedIps(new Set(nextScan.results.map((host) => host.ip_address)));
@@ -229,6 +247,56 @@ export function DiscoveryModal({
                 {newSiteBusy ? "Creating…" : "Create"}
               </button>
             </div>
+          )}
+          <label className="scan-confirm-check">
+            <input
+              checked={snmpEnabled}
+              type="checkbox"
+              onChange={(event) => setSnmpEnabled(event.target.checked)}
+            />
+            Enrich MAC/vendor from SNMP ARP table
+          </label>
+          {snmpEnabled && (
+            <>
+              <label>
+                SNMP profile
+                <select value={snmpProfileId} onChange={(event) => setSnmpProfileId(event.target.value)}>
+                  <option value="">Manual community</option>
+                  {snmpProfiles.map((profile) => (
+                    <option key={profile.id} value={String(profile.id)}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                SNMP router / L3 switch IPs
+                <input
+                  placeholder={selectedGroup?.gateway ? `Using VLAN gateway ${selectedGroup.gateway} if left blank` : "192.168.1.1, 10.30.20.1"}
+                  value={snmpTargets}
+                  onChange={(event) => setSnmpTargets(event.target.value)}
+                />
+              </label>
+              {selectedGroup?.gateway && (
+                <span className="tool-note" style={{ margin: 0 }}>
+                  Leave blank to use the selected VLAN/group gateway: {selectedGroup.gateway}
+                </span>
+              )}
+              <div className="tool-form-grid">
+                {!snmpProfileId && <label>
+                  Community
+                  <input required={snmpEnabled} value={snmpCommunity} onChange={(event) => setSnmpCommunity(event.target.value)} />
+                </label>}
+                {!snmpProfileId && <label>
+                  Port
+                  <input min={1} max={65535} required={snmpEnabled} type="number" value={snmpPort} onChange={(event) => setSnmpPort(event.target.value)} />
+                </label>}
+                {!snmpProfileId && <label>
+                  Timeout
+                  <input min={1} max={15} required={snmpEnabled} type="number" value={snmpTimeout} onChange={(event) => setSnmpTimeout(event.target.value)} />
+                </label>}
+              </div>
+            </>
           )}
         </div>
         <div className="scan-target-info">

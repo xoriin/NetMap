@@ -6,7 +6,7 @@ import {
   api,
   type Device, type Relationship, type RelationshipPayload, type DevicePayload,
   type DeviceLiveStatus, type TopologyGraph, type TopologyGroup, type Site,
-  type DeviceSecurityEventSummary, type TopologyLayout, type DeviceIcon,
+  type DeviceSecurityEventSummary, type TopologyLayout, type DeviceIcon, type SnmpProfile,
 } from "../../api/client";
 import { type DiagramLayout, type DiagramLayoutOptions } from "../../types";
 import {
@@ -77,6 +77,7 @@ export function TopologyWorkspace({
   const [savedLayouts, setSavedLayouts] = useState<TopologyLayout[]>([]);
   const [groups, setGroups] = useState<TopologyGroup[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [layoutBusy, setLayoutBusy] = useState(false);
   const [activeSavedLayoutId, setActiveSavedLayoutId] = useState<number | null>(null);
@@ -313,9 +314,20 @@ export function TopologyWorkspace({
         // topology remains functional without site metadata
       }
     }
+    async function loadSnmpProfiles() {
+      try {
+        const rows = await api.listSnmpProfiles(token);
+        if (!cancelled) {
+          setSnmpProfiles(rows);
+        }
+      } catch {
+        // SNMP controls remain optional
+      }
+    }
     loadSavedLayouts();
     void loadGroups();
     void loadSites();
+    void loadSnmpProfiles();
     return () => {
       cancelled = true;
     };
@@ -1787,10 +1799,13 @@ export function TopologyWorkspace({
               <DeviceDetails
                 canViewSecurity={canViewSecurity}
                 canWrite={canWrite}
+                accessToken={accessToken || ""}
                 device={selectedDevice}
                 disabled={busy}
                 groups={groups}
+                snmpProfiles={snmpProfiles}
                 sites={sites}
+                onGraphChange={onGraphChange}
                 liveStatus={liveStatusByDeviceId.get(selectedDevice.id) ?? null}
                 onDelete={deleteSelectedDevice}
                 onClone={() => {
@@ -1820,6 +1835,7 @@ export function TopologyWorkspace({
           device={null}
           cloneSource={cloningDevice}
           groups={groups}
+          snmpProfiles={snmpProfiles}
           sites={sites}
           onCancel={() => {
             setShowDeviceForm(false);

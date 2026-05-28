@@ -1,8 +1,12 @@
 import json
 import math
+import re
+import shutil
 import subprocess
 from dataclasses import dataclass
+from functools import lru_cache
 from ipaddress import ip_address, ip_network, summarize_address_range
+from pathlib import Path
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
@@ -37,6 +41,12 @@ PRIVATE_SCAN_NETWORKS = [
     ip_network("fe80::/10"),
     ip_network("::1/128"),
 ]
+
+MAC_PREFIX_FILES = (
+    Path("/usr/share/nmap/nmap-mac-prefixes"),
+    Path("/usr/local/share/nmap/nmap-mac-prefixes"),
+)
+MAC_NORMALIZE_RE = re.compile(r"[^0-9A-Fa-f]")
 
 
 def validate_target(raw_target: str, confirm_large_scan: bool) -> DiscoveryTarget:
@@ -171,7 +181,7 @@ def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost
         if raw_networking_error(output):
             raise ActiveNetworkToolUnavailable(RAW_NETWORKING_UNAVAILABLE)
         raise RuntimeError(completed.stderr.strip() or "Nmap scan failed")
-    return parse_nmap_xml(completed.stdout)
+    return enrich_hosts_from_neighbor_table(parse_nmap_xml(completed.stdout))
 
 
 def ping_host_timeout_seconds(target: DiscoveryTarget) -> int:
@@ -235,6 +245,155 @@ def parse_nmap_xml(xml_output: str) -> list[DiscoveryHost]:
             )
         )
     return hosts
+
+
+def enrich_hosts_from_neighbor_table(hosts: list[DiscoveryHost]) -> list[DiscoveryHost]:
+    if not any(host.mac_address is None for host in hosts):
+        return [host_with_vendor(host) for host in hosts]
+
+    neighbors = read_neighbor_table()
+    if not neighbors:
+        return [host_with_vendor(host) for host in hosts]
+
+    enriched: list[DiscoveryHost] = []
+    for host in hosts:
+        mac_address = host.mac_address or neighbors.get(host.ip_address)
+        enriched.append(
+            host.model_copy(
+                update={
+                    "mac_address": mac_address,
+                    "vendor": host.vendor or vendor_for_mac(mac_address),
+                }
+            )
+        )
+    return enriched
+
+
+def enrich_hosts_from_snmp_arp(
+    hosts: list[DiscoveryHost],
+    snmp_targets: list[str],
+    community: str,
+    *,
+    port: int = 161,
+    timeout_seconds: int = 3,
+    retries: int = 1,
+) -> list[DiscoveryHost]:
+    if not hosts or not snmp_targets:
+        return hosts
+
+    from app.services.snmp import snmp_arp_map
+
+    arp_entries = snmp_arp_map(
+        snmp_targets,
+        community,
+        port=port,
+        timeout_seconds=timeout_seconds,
+        retries=retries,
+    )
+    if not arp_entries:
+        return hosts
+
+    enriched: list[DiscoveryHost] = []
+    for host in hosts:
+        entry = arp_entries.get(host.ip_address)
+        if entry is None or host.mac_address:
+            enriched.append(host_with_vendor(host))
+            continue
+        enriched.append(
+            host.model_copy(
+                update={
+                    "mac_address": entry.mac_address,
+                    "vendor": host.vendor or entry.vendor or vendor_for_mac(entry.mac_address),
+                }
+            )
+        )
+    return enriched
+
+
+def read_neighbor_table() -> dict[str, str]:
+    ip_path = shutil.which("ip")
+    if ip_path is None:
+        return {}
+
+    try:
+        completed = subprocess.run(
+            [ip_path, "-j", "neigh", "show"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if completed.returncode != 0:
+        return {}
+
+    try:
+        rows = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(rows, list):
+        return {}
+
+    neighbors: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        destination = row.get("dst")
+        mac_address = row.get("lladdr")
+        state = row.get("state")
+        if not isinstance(destination, str) or not isinstance(mac_address, str):
+            continue
+        if neighbor_state_is_unusable(state):
+            continue
+        neighbors[destination] = mac_address.upper()
+    return neighbors
+
+
+def neighbor_state_is_unusable(state) -> bool:
+    if isinstance(state, str):
+        return state in {"FAILED", "INCOMPLETE"}
+    if isinstance(state, list):
+        return any(item in {"FAILED", "INCOMPLETE"} for item in state if isinstance(item, str))
+    return False
+
+
+def host_with_vendor(host: DiscoveryHost) -> DiscoveryHost:
+    if host.vendor or not host.mac_address:
+        return host
+    return host.model_copy(update={"vendor": vendor_for_mac(host.mac_address)})
+
+
+def vendor_for_mac(mac_address: str | None) -> str | None:
+    if not mac_address:
+        return None
+    prefix = MAC_NORMALIZE_RE.sub("", mac_address).upper()[:6]
+    if len(prefix) != 6:
+        return None
+    return mac_prefixes().get(prefix)
+
+
+@lru_cache(maxsize=1)
+def mac_prefixes() -> dict[str, str]:
+    for path in MAC_PREFIX_FILES:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        prefixes: dict[str, str] = {}
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(maxsplit=1)
+            if len(parts) != 2:
+                continue
+            prefix, vendor = parts
+            normalized = MAC_NORMALIZE_RE.sub("", prefix).upper()
+            if len(normalized) == 6 and vendor:
+                prefixes[normalized] = vendor.strip()
+        return prefixes
+    return {}
 
 
 def find_address(host: Element, address_type: str) -> str | None:

@@ -4,6 +4,10 @@ from unittest.mock import patch
 
 from app.services.discovery.scanner import (
     DiscoveryTarget,
+    enrich_hosts_from_neighbor_table,
+    mac_prefixes,
+    read_neighbor_table,
+    parse_nmap_xml,
     discovery_process_timeout_seconds,
     ping_host_timeout_seconds,
     port_scan_host_timeout_seconds,
@@ -139,6 +143,67 @@ class DiscoveryScannerTests(unittest.TestCase):
             run_nmap_scan(DiscoveryTarget(nmap_target="10.30.20.0/24", host_count=256), "ping")
 
         self.assertIn("timed out after 190 seconds", str(exc.exception))
+
+    def test_parse_nmap_xml_derives_vendor_from_mac_prefix_database(self) -> None:
+        mac_prefixes.cache_clear()
+        xml = """
+        <nmaprun>
+          <host>
+            <status state="up"/>
+            <address addr="192.168.1.10" addrtype="ipv4"/>
+            <address addr="AA:BB:CC:00:11:22" addrtype="mac"/>
+          </host>
+        </nmaprun>
+        """
+
+        with patch("app.services.discovery.scanner.MAC_PREFIX_FILES", ()):
+            with patch("app.services.discovery.scanner.mac_prefixes", return_value={"AABBCC": "ExampleVendor"}):
+                hosts = enrich_hosts_from_neighbor_table(parse_nmap_xml(xml))
+
+        self.assertEqual(hosts[0].vendor, "ExampleVendor")
+
+    @patch("app.services.discovery.scanner.read_neighbor_table", return_value={"192.168.1.10": "AA:BB:CC:00:11:22"})
+    def test_enrich_hosts_from_neighbor_table_fills_missing_mac(self, _mock_neighbors) -> None:
+        xml = """
+        <nmaprun>
+          <host>
+            <status state="up"/>
+            <address addr="192.168.1.10" addrtype="ipv4"/>
+          </host>
+        </nmaprun>
+        """
+
+        with patch("app.services.discovery.scanner.mac_prefixes", return_value={"AABBCC": "ExampleVendor"}):
+            hosts = enrich_hosts_from_neighbor_table(parse_nmap_xml(xml))
+
+        self.assertEqual(hosts[0].mac_address, "AA:BB:CC:00:11:22")
+        self.assertEqual(hosts[0].vendor, "ExampleVendor")
+
+    @patch("app.services.discovery.scanner.shutil.which", return_value="/usr/sbin/ip")
+    @patch("app.services.discovery.scanner.subprocess.run")
+    def test_read_neighbor_table_accepts_list_state_from_ip_json(self, mock_run, _mock_which) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='[{"dst":"192.168.1.10","lladdr":"aa:bb:cc:00:11:22","state":["REACHABLE"]}]',
+            stderr="",
+        )
+
+        neighbors = read_neighbor_table()
+
+        self.assertEqual(neighbors["192.168.1.10"], "AA:BB:CC:00:11:22")
+
+    @patch("app.services.discovery.scanner.shutil.which", return_value="/usr/sbin/ip")
+    @patch("app.services.discovery.scanner.subprocess.run")
+    def test_read_neighbor_table_skips_failed_list_state_from_ip_json(self, mock_run, _mock_which) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='[{"dst":"192.168.1.10","lladdr":"aa:bb:cc:00:11:22","state":["FAILED"]}]',
+            stderr="",
+        )
+
+        self.assertEqual(read_neighbor_table(), {})
 
 
 if __name__ == "__main__":

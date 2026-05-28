@@ -9,6 +9,7 @@ from app.models.firewall_event import FirewallEvent
 from app.models.ip_reservation import IpReservation
 from app.models.password_reset_token import PasswordResetToken
 from app.models.relationship import DeviceRelationship
+from app.models.snmp_profile import SnmpProfile
 from app.models.topology_layout import TopologyLayout
 from app.models.topology_group import TopologyGroup
 from app.models.user import User, UserRole
@@ -25,6 +26,7 @@ __all__ = [
     "DeviceStatus",
     "DiscoveryScan",
     "FirewallEvent",
+    "SnmpProfile",
     "TopologyLayout",
     "TopologyGroup",
     "User",

@@ -74,6 +74,19 @@ class SubnetCalculatorRequest(BaseModel):
         return normalize_cidr(cidr)
 
 
+class SnmpProbeRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    community: str | None = Field(default=None, min_length=1, max_length=128)
+    profile_id: int | None = None
+    port: int = Field(default=161, ge=1, le=65535)
+    timeout_seconds: int = Field(default=3, ge=1, le=15)
+
+    @field_validator("host")
+    @classmethod
+    def validate_host(cls, host: str) -> str:
+        return normalize_host(host)
+
+
 class DnsRecord(BaseModel):
     value: str
 
@@ -139,6 +152,55 @@ class SubnetCalculatorResult(BaseModel):
     version: int
     prefix_length: int
     calculated_at: datetime
+
+
+class SnmpInterfaceResult(BaseModel):
+    index: int
+    name: str | None = None
+    oper_status: str | None = None
+
+
+class SnmpArpEntryResult(BaseModel):
+    ip_address: str
+    mac_address: str
+    vendor: str | None = None
+    interface_index: int | None = None
+
+
+class SnmpProbeResult(BaseModel):
+    host: str
+    sys_name: str | None = None
+    sys_descr: str | None = None
+    sys_uptime_seconds: float | None = None
+    interfaces: list[SnmpInterfaceResult] = Field(default_factory=list)
+    arp_entries: list[SnmpArpEntryResult] = Field(default_factory=list)
+    duration_ms: int
+
+
+class SnmpProfileBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    port: int = Field(default=161, ge=1, le=65535)
+    timeout_seconds: int = Field(default=3, ge=1, le=15)
+    retries: int = Field(default=1, ge=0, le=3)
+
+
+class SnmpProfileCreate(SnmpProfileBase):
+    community: str = Field(min_length=1, max_length=128)
+
+
+class SnmpProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    community: str | None = Field(default=None, min_length=1, max_length=128)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    timeout_seconds: int | None = Field(default=None, ge=1, le=15)
+    retries: int | None = Field(default=None, ge=0, le=3)
+
+
+class SnmpProfileRead(SnmpProfileBase):
+    id: int
+    version: str
+    created_at: datetime
+    updated_at: datetime
 
 
 def normalize_host(value: str) -> str:

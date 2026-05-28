@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 ENV DATA_DIR=/app/data
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends nmap iputils-ping traceroute libcap2-bin \
+  && apt-get install -y --no-install-recommends nmap iproute2 iputils-ping traceroute libcap2-bin \
   && rm -rf /var/lib/apt/lists/* \
   && setcap cap_net_raw+eip /usr/bin/nmap
 RUN addgroup --system netmap && adduser --system --ingroup netmap netmap

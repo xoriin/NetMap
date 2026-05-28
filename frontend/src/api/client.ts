@@ -44,6 +44,7 @@ export type Device = {
   topology_group_id: number | null;
   topology_group: string;
   site_id: number | null;
+  snmp_profile_id: number | null;
   tags: string[];
   notes: string | null;
   created_at: string;
@@ -76,6 +77,7 @@ export type DevicePayload = {
   topology_group_id: number | null;
   topology_group: string | null;
   site_id: number | null;
+  snmp_profile_id: number | null;
   tags: string[];
   notes: string | null;
 };
@@ -186,6 +188,55 @@ export type DiscoveryScan = {
 export type DiscoveryImportResult = {
   created: number;
   updated: number;
+};
+
+export type SnmpInterfaceResult = {
+  index: number;
+  name: string | null;
+  oper_status: string | null;
+};
+
+export type SnmpArpEntryResult = {
+  ip_address: string;
+  mac_address: string;
+  vendor: string | null;
+  interface_index: number | null;
+};
+
+export type SnmpProbeResult = {
+  host: string;
+  sys_name: string | null;
+  sys_descr: string | null;
+  sys_uptime_seconds: number | null;
+  interfaces: SnmpInterfaceResult[];
+  arp_entries: SnmpArpEntryResult[];
+  duration_ms: number;
+};
+
+export type SnmpProfile = {
+  id: number;
+  name: string;
+  version: string;
+  port: number;
+  timeout_seconds: number;
+  retries: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SnmpEnrichmentChange = {
+  device_id: number;
+  ip_address: string;
+  field: string;
+  current: string | null;
+  suggested: string;
+  source: string;
+};
+
+export type SnmpEnrichmentPreview = {
+  source_device_id: number;
+  source_profile_id: number;
+  changes: SnmpEnrichmentChange[];
 };
 
 export type FirewallEvent = {
@@ -954,7 +1005,17 @@ export const api = {
     }),
   startDiscoveryScan: (
     token: string,
-    payload: { target: string; scan_type: DiscoveryScanType; confirm_large_scan: boolean },
+    payload: {
+      target: string;
+      scan_type: DiscoveryScanType;
+      confirm_large_scan: boolean;
+      topology_group_id?: number | null;
+      snmp_community?: string | null;
+      snmp_profile_id?: number | null;
+      snmp_targets?: string[];
+      snmp_port?: number;
+      snmp_timeout_seconds?: number;
+    },
   ) =>
     request<DiscoveryScan>("/api/v1/discovery/scans", {
       method: "POST",
@@ -1032,6 +1093,48 @@ export const api = {
       method: "POST",
       token,
       body: JSON.stringify(payload),
+    }),
+  snmpProbe: (
+    token: string,
+    payload: { host: string; community?: string | null; profile_id?: number | null; port: number; timeout_seconds: number },
+  ) =>
+    request<SnmpProbeResult>("/api/v1/tools/snmp/probe", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  listSnmpProfiles: (token: string) => request<SnmpProfile[]>("/api/v1/tools/snmp/profiles", { token }),
+  createSnmpProfile: (
+    token: string,
+    payload: { name: string; community: string; port: number; timeout_seconds: number; retries: number },
+  ) =>
+    request<SnmpProfile>("/api/v1/tools/snmp/profiles", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  updateSnmpProfile: (
+    token: string,
+    profileId: number,
+    payload: Partial<{ name: string; community: string; port: number; timeout_seconds: number; retries: number }>,
+  ) =>
+    request<SnmpProfile>(`/api/v1/tools/snmp/profiles/${profileId}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  deleteSnmpProfile: (token: string, profileId: number) =>
+    request<void>(`/api/v1/tools/snmp/profiles/${profileId}`, {
+      method: "DELETE",
+      token,
+    }),
+  previewSnmpArpEnrichment: (token: string, deviceId: number) =>
+    request<SnmpEnrichmentPreview>(`/api/v1/topology/devices/${deviceId}/snmp/arp-enrichment`, { token }),
+  applySnmpArpEnrichment: (token: string, deviceId: number, deviceIds?: number[]) =>
+    request<{ updated: number }>(`/api/v1/topology/devices/${deviceId}/snmp/arp-enrichment/apply`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ apply_all: !deviceIds, device_ids: deviceIds ?? [] }),
     }),
   downloadInventory: (token: string, format: "csv" | "json") =>
     requestBlob(`/api/v1/exports/inventory?format=${format}`, { token }),

@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.models.device import Device
 from app.models.relationship import DeviceRelationship
 from app.models.site import Site
+from app.models.snmp_profile import SnmpProfile
 from app.models.subnet import Subnet
 from app.models.topology_group import TopologyGroup
 from app.models.topology_layout import TopologyLayout
@@ -43,6 +44,10 @@ from app.schemas.topology import (
     DeviceLiveStatusList,
     DeviceLiveStatusRequest,
     DeviceRead,
+    DeviceSnmpEnrichmentApply,
+    DeviceSnmpEnrichmentApplyResult,
+    DeviceSnmpEnrichmentChange,
+    DeviceSnmpEnrichmentPreview,
     DeviceSecurityEventSummary,
     DeviceUpdate,
     RelationshipCreate,
@@ -57,6 +62,8 @@ from app.services.search import build_device_event_counts, correlation_window_st
 from app.services.audit.service import write_audit
 from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
+from app.services.snmp import SnmpError, read_snmp_arp_table, SnmpClient
+from app.services.snmp_profiles import decrypt_profile_community
 
 router = APIRouter(prefix="/topology", tags=["topology"])
 TOPOLOGY_AUTOSAVE_LAYOUT_NAME = "__autosave__"
@@ -630,6 +637,8 @@ def create_device(
     site_id = payload.site_id
     if site_id is not None and db.get(Site, site_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+    if payload.snmp_profile_id is not None and db.get(SnmpProfile, payload.snmp_profile_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SNMP profile not found")
 
     device = Device(
         display_name=payload.display_name,
@@ -646,6 +655,7 @@ def create_device(
         topology_group_id=group_id,
         topology_group=group_name,
         site_id=site_id,
+        snmp_profile_id=payload.snmp_profile_id,
         tags=serialize_tags(payload.tags),
         notes=payload.notes,
     )
@@ -787,6 +797,11 @@ def update_device(
         if site_id_val is not None and db.get(Site, site_id_val) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
         device.site_id = site_id_val
+    if "snmp_profile_id" in updates:
+        profile_id_val = updates.pop("snmp_profile_id")
+        if profile_id_val is not None and db.get(SnmpProfile, profile_id_val) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SNMP profile not found")
+        device.snmp_profile_id = profile_id_val
     if "tags" in updates:
         device.tags = serialize_tags(updates.pop("tags"))
     if "ip_address" in updates and updates["ip_address"] is None:
@@ -806,6 +821,108 @@ def update_device(
     if group_changed:
         sync_topology_group_entities(db)
     return DeviceRead(**device_to_dict(device))
+
+
+def _snmp_arp_enrichment_preview(db: Session, source_device: Device) -> DeviceSnmpEnrichmentPreview:
+    if source_device.snmp_profile_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Device has no SNMP profile assigned")
+    profile = db.get(SnmpProfile, source_device.snmp_profile_id)
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SNMP profile not found")
+    try:
+        client = SnmpClient(
+            source_device.ip_address,
+            decrypt_profile_community(profile),
+            port=profile.port,
+            timeout_seconds=profile.timeout_seconds,
+            retries=profile.retries,
+        )
+        arp_entries = read_snmp_arp_table(client)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)) from exc
+    except (SnmpError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    devices_by_ip = {
+        device.ip_address: device
+        for device in db.scalars(select(Device).where(Device.ip_address != source_device.ip_address)).all()
+    }
+    changes: list[DeviceSnmpEnrichmentChange] = []
+    for entry in arp_entries:
+        device = devices_by_ip.get(entry.ip_address)
+        if device is None:
+            continue
+        if entry.mac_address and device.mac_address != entry.mac_address:
+            changes.append(
+                DeviceSnmpEnrichmentChange(
+                    device_id=device.id,
+                    ip_address=device.ip_address,
+                    field="mac_address",
+                    current=device.mac_address,
+                    suggested=entry.mac_address,
+                    source=f"snmp:{source_device.ip_address}",
+                )
+            )
+        if entry.vendor and device.vendor != entry.vendor:
+            changes.append(
+                DeviceSnmpEnrichmentChange(
+                    device_id=device.id,
+                    ip_address=device.ip_address,
+                    field="vendor",
+                    current=device.vendor,
+                    suggested=entry.vendor,
+                    source=f"snmp:{source_device.ip_address}",
+                )
+            )
+    return DeviceSnmpEnrichmentPreview(
+        source_device_id=source_device.id,
+        source_profile_id=profile.id,
+        changes=changes,
+    )
+
+
+@router.get("/devices/{device_id}/snmp/arp-enrichment", response_model=DeviceSnmpEnrichmentPreview)
+def preview_device_snmp_arp_enrichment(
+    device_id: int,
+    _current_user: Annotated[User, Depends(require_topology_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> DeviceSnmpEnrichmentPreview:
+    device = db.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    return _snmp_arp_enrichment_preview(db, device)
+
+
+@router.post("/devices/{device_id}/snmp/arp-enrichment/apply", response_model=DeviceSnmpEnrichmentApplyResult)
+def apply_device_snmp_arp_enrichment(
+    device_id: int,
+    payload: DeviceSnmpEnrichmentApply,
+    current_user: Annotated[User, Depends(require_topology_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> DeviceSnmpEnrichmentApplyResult:
+    source_device = db.get(Device, device_id)
+    if source_device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    preview = _snmp_arp_enrichment_preview(db, source_device)
+    allowed_ids = None if payload.apply_all else set(payload.device_ids)
+    updated_ids: set[int] = set()
+    for change in preview.changes:
+        if allowed_ids is not None and change.device_id not in allowed_ids:
+            continue
+        target = db.get(Device, change.device_id)
+        if target is None:
+            continue
+        setattr(target, change.field, change.suggested)
+        updated_ids.add(target.id)
+    write_audit(
+        db,
+        action="topology.device_snmp_enrichment_applied",
+        actor_user_id=current_user.id,
+        target=f"device:{source_device.id}",
+        detail=f"updated={len(updated_ids)}",
+    )
+    db.commit()
+    return DeviceSnmpEnrichmentApplyResult(updated=len(updated_ids))
 
 
 @router.patch("/devices/{device_id}/favourite", response_model=DeviceRead)

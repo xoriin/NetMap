@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from ipaddress import ip_address
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,6 +11,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.discovery import DiscoveryScan
+from app.models.snmp_profile import SnmpProfile
 from app.models.topology_group import TopologyGroup
 from app.models.user import User
 from app.schemas.discovery import (
@@ -22,10 +24,14 @@ from app.schemas.discovery import (
 from app.services.audit.service import write_audit
 from app.services.discovery.scanner import (
     deserialize_results,
+    enrich_hosts_from_snmp_arp,
+    ensure_private_address,
     run_nmap_scan,
     serialize_results,
     validate_target,
 )
+from app.services.snmp import SnmpError
+from app.services.snmp_profiles import decrypt_profile_community
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 last_scan_by_user: dict[int, datetime] = {}
@@ -70,6 +76,13 @@ def start_scan(
 ) -> DiscoveryScanRead:
     try:
         target = validate_target(payload.target, payload.confirm_large_scan)
+        snmp_targets = list(payload.snmp_targets)
+        if not snmp_targets and payload.topology_group_id is not None:
+            group = db.get(TopologyGroup, payload.topology_group_id)
+            if group is not None and group.gateway:
+                snmp_targets = [group.gateway]
+        for snmp_target in snmp_targets:
+            ensure_private_address(ip_address(snmp_target))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     enforce_rate_limit(current_user.id)
@@ -95,6 +108,30 @@ def start_scan(
 
     try:
         results = run_nmap_scan(target, payload.scan_type)
+        snmp_community = payload.snmp_community
+        snmp_port = payload.snmp_port
+        snmp_timeout = payload.snmp_timeout_seconds
+        snmp_retries = 1
+        if payload.snmp_profile_id is not None:
+            profile = db.get(SnmpProfile, payload.snmp_profile_id)
+            if profile is None:
+                raise ValueError("SNMP profile not found")
+            snmp_community = decrypt_profile_community(profile)
+            snmp_port = profile.port
+            snmp_timeout = profile.timeout_seconds
+            snmp_retries = profile.retries
+        if snmp_community and snmp_targets:
+            try:
+                results = enrich_hosts_from_snmp_arp(
+                    results,
+                    snmp_targets,
+                    snmp_community,
+                    port=snmp_port,
+                    timeout_seconds=snmp_timeout,
+                    retries=snmp_retries,
+                )
+            except (TimeoutError, SnmpError, OSError):
+                pass
         scan.status = "completed"
         scan.result_count = len(results)
         scan.results_json = serialize_results(results)

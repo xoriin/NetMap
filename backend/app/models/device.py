@@ -39,6 +39,7 @@ class Device(Base):
     group = relationship("TopologyGroup", back_populates="devices")
     site_id: Mapped[int | None] = mapped_column(ForeignKey("sites.id"), nullable=True, index=True)
     site = relationship("Site", back_populates="devices")
+    snmp_profile_id: Mapped[int | None] = mapped_column(ForeignKey("snmp_profiles.id"), nullable=True, index=True)
     tags: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

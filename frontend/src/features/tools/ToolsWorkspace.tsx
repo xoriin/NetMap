@@ -1,11 +1,11 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { Search, Network } from "lucide-react";
-import { IconWifi, IconServer, IconWorld, IconLayoutDashboard } from "@tabler/icons-react";
+import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter } from "@tabler/icons-react";
 import {
   api,
   type DnsRecordType, type DnsLookupResult, type ReverseDnsResult,
   type PingResult, type TracerouteResult, type TcpPortCheckResult,
-  type SubnetCalculatorResult, type Device, type TopologyGraph, type User,
+  type SubnetCalculatorResult, type SnmpProbeResult, type SnmpProfile, type Device, type TopologyGraph, type User,
 } from "../../api/client";
 import { SUBNET_REF } from "../../constants";
 import { deviceLabel, formatMs } from "../../utils/format";
@@ -56,6 +56,15 @@ export function ToolsWorkspace({
   const [subnetResult, setSubnetResult] = useState<SubnetCalculatorResult | null>(null);
   const [subnetError, setSubnetError] = useState<string | null>(null);
   const [subnetLoading, setSubnetLoading] = useState(false);
+  const [snmpHost, setSnmpHost] = useState("");
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
+  const [snmpProfileId, setSnmpProfileId] = useState("");
+  const [snmpCommunity, setSnmpCommunity] = useState("public");
+  const [snmpPort, setSnmpPort] = useState("161");
+  const [snmpTimeout, setSnmpTimeout] = useState("3");
+  const [snmpResult, setSnmpResult] = useState<SnmpProbeResult | null>(null);
+  const [snmpError, setSnmpError] = useState<string | null>(null);
+  const [snmpLoading, setSnmpLoading] = useState(false);
 
   const activeTarget = selectedDevice?.ip_address ?? "";
   const [activeTool, setActiveTool] = useState("dns");
@@ -69,6 +78,7 @@ export function ToolsWorkspace({
     setPingHostValue((current) => current || ip);
     setTracerouteHostValue((current) => current || ip);
     setTcpHostValue((current) => current || ip);
+    setSnmpHost((current) => current || ip);
     if (selectedDevice.subnet) {
       const parts = selectedDevice.subnet.split("/");
       setSubnetIp(parts[0]);
@@ -77,6 +87,10 @@ export function ToolsWorkspace({
       setSubnetIp((cur) => cur || selectedDevice.ip_address || "");
     }
   }, [selectedDevice]);
+
+  useEffect(() => {
+    api.listSnmpProfiles(accessToken).then(setSnmpProfiles).catch(() => {});
+  }, [accessToken]);
 
   async function runDnsLookup(event: FormEvent) {
     event.preventDefault();
@@ -184,6 +198,30 @@ export function ToolsWorkspace({
     }
   }
 
+  async function runSnmpProbe(event: FormEvent) {
+    event.preventDefault();
+    if (!canRunActiveTools) {
+      return;
+    }
+    setSnmpLoading(true);
+    setSnmpError(null);
+    try {
+      setSnmpResult(
+        await api.snmpProbe(accessToken, {
+          host: snmpHost,
+          community: snmpProfileId ? null : snmpCommunity,
+          profile_id: snmpProfileId ? Number(snmpProfileId) : null,
+          port: Number(snmpPort),
+          timeout_seconds: Number(snmpTimeout),
+        }),
+      );
+    } catch (err) {
+      setSnmpError(err instanceof Error ? err.message : "SNMP probe failed");
+    } finally {
+      setSnmpLoading(false);
+    }
+  }
+
   function applySelectedDevice() {
     if (!selectedDevice) {
       return;
@@ -193,6 +231,7 @@ export function ToolsWorkspace({
     setPingHostValue(ip);
     setTracerouteHostValue(ip);
     setTcpHostValue(ip);
+    setSnmpHost(ip);
     if (selectedDevice.subnet) {
       const parts = selectedDevice.subnet.split("/");
       setSubnetIp(parts[0]);
@@ -220,6 +259,7 @@ export function ToolsWorkspace({
             { id: "traceroute",  label: "Traceroute",        Icon: Network,               passive: false },
             { id: "tcp",         label: "TCP Port Check",    Icon: IconServer,            passive: false },
             { id: "subnet",      label: "Subnet Calculator", Icon: IconLayoutDashboard,   passive: true  },
+            { id: "snmp",        label: "SNMP Probe",        Icon: IconRouter,            passive: false },
           ] as const).map(({ id, label, Icon, passive }) => {
             const available = passive || canRunActiveTools;
             return (
@@ -612,6 +652,110 @@ export function ToolsWorkspace({
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </section>}
+
+          {activeTool === "snmp" && <section className="tool-card">
+            <div className="tool-card-header">
+              <h3>SNMP probe</h3>
+              <span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>
+                {canRunActiveTools ? "Active" : "Restricted"}
+              </span>
+            </div>
+            <form className="tool-form" onSubmit={runSnmpProbe}>
+              <label>
+                Profile
+                <select disabled={!canRunActiveTools} value={snmpProfileId} onChange={(event) => setSnmpProfileId(event.target.value)}>
+                  <option value="">Manual community</option>
+                  {snmpProfiles.map((profile) => (
+                    <option key={profile.id} value={String(profile.id)}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Host
+                <input required disabled={!canRunActiveTools} value={snmpHost} onChange={(event) => setSnmpHost(event.target.value)} />
+              </label>
+              {!snmpProfileId && <label>
+                Community
+                <input required disabled={!canRunActiveTools} value={snmpCommunity} onChange={(event) => setSnmpCommunity(event.target.value)} />
+              </label>}
+              <div className="tool-form-grid">
+                {!snmpProfileId && <label>
+                  Port
+                  <input
+                    min={1}
+                    max={65535}
+                    required
+                    type="number"
+                    disabled={!canRunActiveTools}
+                    value={snmpPort}
+                    onChange={(event) => setSnmpPort(event.target.value)}
+                  />
+                </label>}
+                {!snmpProfileId && <label>
+                  Timeout
+                  <input
+                    min={1}
+                    max={15}
+                    required
+                    type="number"
+                    disabled={!canRunActiveTools}
+                    value={snmpTimeout}
+                    onChange={(event) => setSnmpTimeout(event.target.value)}
+                  />
+                </label>}
+              </div>
+              <div className="tool-form-actions">
+                <button type="submit" disabled={snmpLoading || !canRunActiveTools}>
+                  {snmpLoading ? "Running..." : "Probe"}
+                </button>
+              </div>
+            </form>
+            {!canRunActiveTools && <p className="tool-note">Active tools are disabled for this role.</p>}
+            {snmpError && <div className="form-error">{snmpError}</div>}
+            {snmpResult && (
+              <div className="tool-result">
+                <div className="tool-result-meta">
+                  <span>{snmpResult.host}</span>
+                  <span>{snmpResult.duration_ms} ms</span>
+                </div>
+                <dl className="tool-result-pairs">
+                  <dt>System name</dt>
+                  <dd>{snmpResult.sys_name || "-"}</dd>
+                  <dt>Uptime</dt>
+                  <dd>{snmpResult.sys_uptime_seconds !== null ? formatMs(snmpResult.sys_uptime_seconds * 1000) : "-"}</dd>
+                  <dt>Interfaces</dt>
+                  <dd>{snmpResult.interfaces.length}</dd>
+                  <dt>ARP rows</dt>
+                  <dd>{snmpResult.arp_entries.length}</dd>
+                </dl>
+                {snmpResult.sys_descr && <p className="tool-note">{snmpResult.sys_descr}</p>}
+                {snmpResult.interfaces.length > 0 && (
+                  <div className="tool-hop-list">
+                    {snmpResult.interfaces.slice(0, 12).map((item) => (
+                      <div className="tool-hop-row" key={`if-${item.index}`}>
+                        <span>{`if${item.index}`}</span>
+                        <span>{item.name || "-"}</span>
+                        <span>{item.oper_status || "-"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {snmpResult.arp_entries.length > 0 && (
+                  <div className="tool-hop-list">
+                    {snmpResult.arp_entries.slice(0, 20).map((item) => (
+                      <div className="tool-hop-row" key={`${item.ip_address}-${item.mac_address}`}>
+                        <span>{item.ip_address}</span>
+                        <span>{item.mac_address}</span>
+                        <span>{item.vendor || `if${item.interface_index ?? "-"}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </section>}

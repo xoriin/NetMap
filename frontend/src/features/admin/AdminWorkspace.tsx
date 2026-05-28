@@ -9,7 +9,7 @@ import {
   type User, type SyslogStatus, type SystemSettings, type NotificationSettings,
   type AlertRule, type AlertRulePayload, type AlertRuleEventType,
   type RolePermissions, type VersionInfo, type SystemDiagnostics,
-  type DashboardSummary, type TopologyGraph, type AuditLog,
+  type DashboardSummary, type TopologyGraph, type AuditLog, type SnmpProfile,
 } from "../../api/client";
 import { builtInIconPack, allRuntimePacks, type IconPack } from "../../icons";
 import { userInitials, formatEventTime } from "../../utils/format";
@@ -49,7 +49,7 @@ export function AdminWorkspace({
   onRemoveLocalIconPack: (packId: string) => void;
   versionInfo: VersionInfo | null;
 }) {
-  const [activeTab, setActiveTab] = useState<"system" | "users" | "security" | "notifications" | "alerts" | "groups">("system");
+  const [activeTab, setActiveTab] = useState<"system" | "users" | "security" | "notifications" | "alerts" | "groups" | "credentials">("system");
   const [users, setUsers] = useState<User[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [syslogStatus, setSyslogStatus] = useState<SyslogStatus | null>(null);
@@ -101,6 +101,9 @@ export function AdminWorkspace({
   const [newGroupName, setNewGroupName] = useState("");
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
+  const [snmpProfileForm, setSnmpProfileForm] = useState({ name: "", community: "", port: "161", timeout_seconds: "3", retries: "1" });
+  const [snmpProfilesBusy, setSnmpProfilesBusy] = useState(false);
 
   async function loadAdminData() {
     setLoading(true);
@@ -150,6 +153,54 @@ export function AdminWorkspace({
       setLocalRolePerms(data.roles);
     }).catch(() => {});
   }, [activeTab, accessToken]);
+  useEffect(() => { if (activeTab === "credentials") void loadSnmpProfiles(); }, [activeTab]);
+
+  async function loadSnmpProfiles() {
+    setSnmpProfilesBusy(true);
+    try {
+      setSnmpProfiles(await api.listSnmpProfiles(accessToken));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load SNMP profiles");
+    } finally {
+      setSnmpProfilesBusy(false);
+    }
+  }
+
+  async function createSnmpProfile(event: FormEvent) {
+    event.preventDefault();
+    setSnmpProfilesBusy(true);
+    setError(null); setSuccess(null);
+    try {
+      const created = await api.createSnmpProfile(accessToken, {
+        name: snmpProfileForm.name.trim(),
+        community: snmpProfileForm.community,
+        port: Number(snmpProfileForm.port),
+        timeout_seconds: Number(snmpProfileForm.timeout_seconds),
+        retries: Number(snmpProfileForm.retries),
+      });
+      setSnmpProfiles((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setSnmpProfileForm({ name: "", community: "", port: "161", timeout_seconds: "3", retries: "1" });
+      setSuccess(`SNMP profile "${created.name}" created.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create SNMP profile");
+    } finally {
+      setSnmpProfilesBusy(false);
+    }
+  }
+
+  async function deleteSnmpProfile(profile: SnmpProfile) {
+    setSnmpProfilesBusy(true);
+    setError(null); setSuccess(null);
+    try {
+      await api.deleteSnmpProfile(accessToken, profile.id);
+      setSnmpProfiles((current) => current.filter((item) => item.id !== profile.id));
+      setSuccess(`SNMP profile "${profile.name}" deleted.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete SNMP profile");
+    } finally {
+      setSnmpProfilesBusy(false);
+    }
+  }
 
   async function saveRolePermissions() {
     setGroupsBusy(true);
@@ -420,6 +471,7 @@ export function AdminWorkspace({
     { id: "system", label: "System", Icon: Settings },
     { id: "users", label: "Users", Icon: IconUsers },
     { id: "groups", label: "Groups", Icon: IconShieldCheck },
+    { id: "credentials", label: "Credentials", Icon: IconServer },
     { id: "notifications", label: "Notifications", Icon: IconCloud },
     { id: "alerts", label: "Alerts", Icon: IconAlertCircle },
     { id: "security", label: "Security", Icon: Shield },
@@ -857,6 +909,75 @@ export function AdminWorkspace({
               onClose={() => setIconModalOpen(false)}
             />
           )}
+        </div>
+      )}
+
+      {activeTab === "credentials" && (
+        <div className="admin-tab-content">
+          <section className="panel admin-panel">
+            <div className="admin-panel-header">
+              <h2 className="admin-section-title"><IconServer size={16} />SNMP profiles</h2>
+              <button type="button" className="ipam-btn" disabled={snmpProfilesBusy} onClick={() => void loadSnmpProfiles()}>
+                Refresh
+              </button>
+            </div>
+            <p className="tool-note">
+              SNMPv2c profiles store reusable community strings for probes, discovery ARP enrichment, and assigned router/L3-switch devices.
+            </p>
+            <form className="tool-form admin-create-form" onSubmit={createSnmpProfile}>
+              <h3>Add SNMP profile</h3>
+              <div className="tool-form-grid">
+                <label>
+                  Name
+                  <input required maxLength={120} placeholder="Core network SNMP" value={snmpProfileForm.name} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, name: e.target.value }))} />
+                </label>
+                <label>
+                  Community
+                  <input required maxLength={128} type="password" value={snmpProfileForm.community} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, community: e.target.value }))} />
+                </label>
+              </div>
+              <div className="tool-form-grid">
+                <label>
+                  Port
+                  <input required min={1} max={65535} type="number" value={snmpProfileForm.port} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, port: e.target.value }))} />
+                </label>
+                <label>
+                  Timeout
+                  <input required min={1} max={15} type="number" value={snmpProfileForm.timeout_seconds} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, timeout_seconds: e.target.value }))} />
+                </label>
+                <label>
+                  Retries
+                  <input required min={0} max={3} type="number" value={snmpProfileForm.retries} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, retries: e.target.value }))} />
+                </label>
+              </div>
+              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={snmpProfilesBusy}>
+                {snmpProfilesBusy ? "Saving..." : "Create profile"}
+              </button>
+            </form>
+            <div className="admin-users-table">
+              <div className="admin-users-header">
+                <span>Profile</span>
+                <span className="admin-col-center">Version</span>
+                <span className="admin-col-center">Connection</span>
+                <span className="admin-col-center">Actions</span>
+              </div>
+              {snmpProfiles.map((profile) => (
+                <div className="admin-users-row" key={profile.id}>
+                  <div className="admin-user-identity">
+                    <span className="admin-user-name">{profile.name}</span>
+                  </div>
+                  <span className="admin-col-center">{profile.version}</span>
+                  <span className="admin-col-center">:{profile.port} · {profile.timeout_seconds}s · {profile.retries} retries</span>
+                  <div className="admin-row-actions">
+                    <button type="button" className="admin-action-btn admin-action-btn--danger" disabled={snmpProfilesBusy} onClick={() => void deleteSnmpProfile(profile)}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {snmpProfiles.length === 0 && <p className="audit-empty">No SNMP profiles configured.</p>}
+            </div>
+          </section>
         </div>
       )}
 

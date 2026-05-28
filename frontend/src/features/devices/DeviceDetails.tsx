@@ -17,9 +17,12 @@ import {
   type DevicePayload,
   type DeviceStatus,
   type DeviceIcon,
+  type SnmpEnrichmentPreview,
+  type SnmpProfile,
   type TopologyGroup,
   type Site,
   type DeviceSecurityEventSummary,
+  api,
 } from "../../api/client";
 import { deviceLabel, statusColor, formatDeviceTypeLabel, deviceVlanDisplay, formatEventTime } from "../../utils/format";
 import { buildDevicePayload } from "../../utils/device";
@@ -33,8 +36,11 @@ export function DeviceDetails({
   device,
   disabled,
   groups,
+  accessToken,
   hideHeading,
+  snmpProfiles,
   sites,
+  onGraphChange,
   liveStatus,
   onDelete,
   onClone,
@@ -47,24 +53,32 @@ export function DeviceDetails({
   device: Device;
   disabled: boolean;
   groups: TopologyGroup[];
+  accessToken: string;
   hideHeading?: boolean;
+  snmpProfiles: SnmpProfile[];
   sites: Site[];
   liveStatus: DeviceLiveStatus | null;
   onDelete?: () => void;
   onClone?: () => void;
   onSubmit: (payload: DevicePayload) => Promise<void>;
+  onGraphChange: () => Promise<void>;
   securityLoading: boolean;
   securitySummary: DeviceSecurityEventSummary | null;
 }) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [fieldDraft, setFieldDraft] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"details" | "activity">("details");
+  const [snmpPreview, setSnmpPreview] = useState<SnmpEnrichmentPreview | null>(null);
+  const [snmpBusy, setSnmpBusy] = useState(false);
+  const [snmpError, setSnmpError] = useState<string | null>(null);
   const committingRef = useRef(false);
 
   useEffect(() => {
     setEditingField(null);
     setFieldDraft("");
     setActiveTab("details");
+    setSnmpPreview(null);
+    setSnmpError(null);
     committingRef.current = false;
   }, [device.id]);
 
@@ -93,6 +107,34 @@ export function DeviceDetails({
 
   const editHint = canWrite && !disabled;
   const dotStatus = liveStatus?.status ?? device.monitor_status ?? device.status;
+  const assignedSnmpProfile = snmpProfiles.find((profile) => profile.id === device.snmp_profile_id) ?? null;
+
+  async function previewSnmpEnrichment() {
+    setSnmpBusy(true);
+    setSnmpError(null);
+    try {
+      setSnmpPreview(await api.previewSnmpArpEnrichment(accessToken, device.id));
+    } catch (err) {
+      setSnmpError(err instanceof Error ? err.message : "SNMP enrichment failed");
+    } finally {
+      setSnmpBusy(false);
+    }
+  }
+
+  async function applySnmpEnrichment() {
+    setSnmpBusy(true);
+    setSnmpError(null);
+    try {
+      const result = await api.applySnmpArpEnrichment(accessToken, device.id);
+      setSnmpPreview(null);
+      await onGraphChange();
+      setSnmpError(`Applied SNMP updates to ${result.updated} device${result.updated === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setSnmpError(err instanceof Error ? err.message : "SNMP enrichment failed");
+    } finally {
+      setSnmpBusy(false);
+    }
+  }
 
   return (
     <div>
@@ -347,6 +389,30 @@ export function DeviceDetails({
               : "—"
           )}
         </dd>
+        <dt><span className="details-field-icon"><IconRoute size={12} /></span>SNMP profile</dt>
+        <dd
+          className={editHint ? "editable-dd" : undefined}
+          onDoubleClick={editHint ? () => startEdit("snmp_profile_id", String(device.snmp_profile_id ?? "")) : undefined}
+        >
+          {editingField === "snmp_profile_id" ? (
+            <select
+              autoFocus
+              className="details-inline-input"
+              value={fieldDraft}
+              onChange={(e) => {
+                const value = e.target.value;
+                void commitField({ snmp_profile_id: value ? Number(value) : null });
+              }}
+              onBlur={cancelEdit}
+              onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }}
+            >
+              <option value="">— None —</option>
+              {snmpProfiles.map((profile) => (
+                <option key={profile.id} value={String(profile.id)}>{profile.name}</option>
+              ))}
+            </select>
+          ) : (assignedSnmpProfile?.name || "—")}
+        </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>Subnet</dt>
         <dd
           className={editHint ? "editable-dd" : undefined}
@@ -407,10 +473,35 @@ export function DeviceDetails({
           ) : (device.notes || "None")}
         </dd>
       </dl>
-      {canWrite && (onClone || onDelete) && (
+      {canWrite && (assignedSnmpProfile || onClone || onDelete) && (
         <div className="detail-actions detail-actions--device">
+          {assignedSnmpProfile && (
+            <button type="button" className="vlan-action-btn" disabled={disabled || snmpBusy} onClick={() => void previewSnmpEnrichment()}>
+              {snmpBusy ? "Checking..." : "SNMP ARP preview"}
+            </button>
+          )}
           {onClone && <button type="button" className="vlan-action-btn" disabled={disabled} onClick={onClone}>Clone</button>}
           {onDelete && <button type="button" className="vlan-action-btn vlan-action-btn--danger" disabled={disabled} onClick={onDelete}>Delete</button>}
+        </div>
+      )}
+      {snmpError && <p className="details-edit-hint">{snmpError}</p>}
+      {snmpPreview && (
+        <div className="device-security-panel">
+          <p className="dash-empty">{snmpPreview.changes.length} SNMP ARP change{snmpPreview.changes.length === 1 ? "" : "s"} found.</p>
+          {snmpPreview.changes.slice(0, 12).map((change) => (
+            <div className="device-event-row" key={`${change.device_id}-${change.field}`}>
+              <span>{change.ip_address}</span>
+              <span>{change.field}</span>
+              <span>{change.current || "empty"} → {change.suggested}</span>
+            </div>
+          ))}
+          {snmpPreview.changes.length > 0 && (
+            <div className="detail-actions detail-actions--device">
+              <button type="button" className="vlan-action-btn vlan-action-btn--primary" disabled={snmpBusy} onClick={() => void applySnmpEnrichment()}>
+                Apply updates
+              </button>
+            </div>
+          )}
         </div>
       )}
       {editHint && <p className="details-edit-hint">Double-click any field to edit</p>}

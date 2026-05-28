@@ -5,7 +5,7 @@ import {
   api,
   type Device, type DevicePayload, type DeviceStatus, type DeviceLiveStatus,
   type TopologyGraph, type TopologyGroup, type Site, type DeviceIcon,
-  type DeviceSecurityEventSummary,
+  type DeviceSecurityEventSummary, type SnmpProfile,
 } from "../../api/client";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap, iconLabel } from "../../icons";
@@ -56,6 +56,7 @@ export function InventoryWorkspace({
   const [bulkSiteId, setBulkSiteId] = useState('');
   const [groups, setGroups] = useState<TopologyGroup[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
   const [liveStatusBusy, setLiveStatusBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -174,8 +175,17 @@ export function InventoryWorkspace({
         // inventory remains functional without site metadata
       }
     }
+    async function loadSnmpProfiles() {
+      try {
+        const rows = await api.listSnmpProfiles(accessToken);
+        if (!cancelled) setSnmpProfiles(rows);
+      } catch {
+        // SNMP controls remain optional
+      }
+    }
     void loadGroups();
     void loadSites();
+    void loadSnmpProfiles();
     return () => {
       cancelled = true;
     };
@@ -695,10 +705,13 @@ export function InventoryWorkspace({
             <DeviceDetails
               canViewSecurity={canViewSecurity}
               canWrite={canWrite}
+              accessToken={accessToken}
               device={selectedDevice}
               disabled={busy}
               groups={groups}
+              snmpProfiles={snmpProfiles}
               sites={sites}
+              onGraphChange={onGraphChange}
               liveStatus={selectedDeviceLive}
               onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
               securityLoading={deviceSecurityLoading}
@@ -709,7 +722,7 @@ export function InventoryWorkspace({
       </div>
 
       {showDeviceForm && (
-        <DeviceForm busy={busy} device={null} cloneSource={null} groups={groups} sites={sites}
+        <DeviceForm busy={busy} device={null} cloneSource={null} groups={groups} snmpProfiles={snmpProfiles} sites={sites}
           onCancel={() => setShowDeviceForm(false)} onSubmit={submitNewDevice} />
       )}
       {showScanModal && (

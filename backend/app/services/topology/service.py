@@ -37,6 +37,7 @@ def device_to_dict(device: Device) -> dict:
         "topology_group_id": device.topology_group_id,
         "topology_group": topology_group(device),
         "site_id": device.site_id,
+        "snmp_profile_id": device.snmp_profile_id,
         "tags": deserialize_tags(device.tags),
         "notes": device.notes,
         "monitor_status": device.monitor_status,

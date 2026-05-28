@@ -13,6 +13,17 @@ class DiscoveryStart(BaseModel):
     target: str = Field(min_length=1, max_length=255)
     scan_type: ScanType = "ping"
     confirm_large_scan: bool = False
+    topology_group_id: int | None = None
+    snmp_community: str | None = Field(default=None, min_length=1, max_length=128)
+    snmp_profile_id: int | None = None
+    snmp_targets: list[str] = Field(default_factory=list, max_length=8)
+    snmp_port: int = Field(default=161, ge=1, le=65535)
+    snmp_timeout_seconds: int = Field(default=3, ge=1, le=15)
+
+    @field_validator("snmp_targets")
+    @classmethod
+    def validate_snmp_targets(cls, targets: list[str]) -> list[str]:
+        return [normalize_ip(target) for target in targets if target.strip()]
 
 
 class DiscoveryHost(BaseModel):

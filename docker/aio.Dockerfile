@@ -27,6 +27,7 @@ RUN apt-get update \
        ca-certificates \
        gettext-base \
        gosu \
+       iproute2 \
        iputils-ping \
        nginx \
        nmap \
