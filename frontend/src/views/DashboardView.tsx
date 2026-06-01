@@ -52,6 +52,7 @@ export function DashboardView({
   onDevicesRemove,
   onNavigate,
   onUserUpdate,
+  onSettingsChange,
   theme,
   user,
   summary,
@@ -74,6 +75,7 @@ export function DashboardView({
   onDevicesRemove: (deviceIds: number[]) => void;
   onNavigate: (route: AppRoute) => void;
   onUserUpdate: (user: User) => void;
+  onSettingsChange: (settings: import("../api/client").SystemSettings) => void;
   theme: "light" | "dark";
   user: User;
   summary: DashboardSummary | null;
@@ -170,7 +172,7 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} livePingEnabled={livePingEnabled} onToggleFavourite={onToggleFavourite} userRole={user.role} />
       )}
       {currentRoute === "/ipam" && accessToken && (
         <IpamWorkspace accessToken={accessToken} canWrite={canWrite} />
@@ -206,6 +208,7 @@ export function DashboardView({
           onSelectIconPack={onSelectIconPack}
           onAddLocalIconPack={onAddLocalIconPack}
           onRemoveLocalIconPack={onRemoveLocalIconPack}
+          onSettingsChange={onSettingsChange}
           versionInfo={versionInfo}
         />
       )}

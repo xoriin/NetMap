@@ -11,19 +11,21 @@ import { type Incident } from "../../types";
 import { MON_COL_WIDTHS_KEY, MON_COL_COUNT, computeIncidents, loadMonColWidths } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
 import {
-  AnomalyBadge, MonStat, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge,
+  AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge,
 } from "../../components/MonitorBadges";
 import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 
 export function MonitoringWorkspace({
   accessToken,
   favouriteIds,
+  livePingEnabled,
   onToggleFavourite,
   userRole,
 }: {
   accessToken: string;
   canWrite: boolean;
   favouriteIds: Set<number>;
+  livePingEnabled: boolean;
   onToggleFavourite: (deviceId: number) => void;
   userRole: string;
 }) {
@@ -152,10 +154,12 @@ export function MonitoringWorkspace({
 
   const setTopbarNote = useContext(TopbarNoteCtx);
   useEffect(() => {
-    setTopbarNote(fleet?.last_checked
+    setTopbarNote(!livePingEnabled
+      ? "Live ping polling disabled"
+      : fleet?.last_checked
       ? `Last poll ${new Date(fleet.last_checked).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · every 5 min`
       : "");
-  }, [fleet, setTopbarNote]);
+  }, [fleet, livePingEnabled, setTopbarNote]);
   useEffect(() => () => setTopbarNote(""), [setTopbarNote]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
@@ -342,6 +346,13 @@ export function MonitoringWorkspace({
           accent="teal"
         />
         <DashStat
+          label="Live ping"
+          value={livePingEnabled ? "On" : "Off"}
+          sub={livePingEnabled ? "polling enabled" : "polling disabled"}
+          icon={<Activity size={20} />}
+          accent={livePingEnabled ? "green" : "red"}
+        />
+        <DashStat
           label="Online"
           value={fleet?.online ?? 0}
           sub="reachable"
@@ -362,14 +373,14 @@ export function MonitoringWorkspace({
           icon={<IconAlertCircle size={20} />}
           accent="purple"
         />
-        <MonStat
-          label="Avg RTT"
-          value={fleet?.avg_rtt_ms != null ? `${fleet.avg_rtt_ms.toFixed(1)} ms` : "—"}
-          sub="online devices"
-          icon={<Activity size={20} />}
-          accent="blue"
-        />
       </div>
+
+      {!livePingEnabled && (
+        <div className="dash-alert dash-alert--danger">
+          <IconAlertCircle size={15} />
+          <span><strong>Live ping polling is disabled.</strong> Status and latency values may be stale until it is re-enabled in Admin.</span>
+        </div>
+      )}
 
       {/* Offline alert */}
       {offlineDevices.length > 0 && (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, Star, ChevronUp, ChevronDown } from "lucide-react";
-import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
+import { IconAlertCircle, IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
   type Device, type DevicePayload, type DeviceStatus, type DeviceLiveStatus,
@@ -421,14 +421,14 @@ export function InventoryWorkspace({
   }
 
   const groupCount = new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size;
-  const invOnlineCount = liveStatuses.length > 0
+  const invOnlineCount = livePingEnabled && liveStatuses.length > 0
     ? liveStatuses.filter((s) => s.status === "online").length
     : graph.devices.filter((d) => (d.monitor_status ?? d.status) === "online").length;
-  const invOfflineCount = liveStatuses.length > 0
+  const invOfflineCount = livePingEnabled && liveStatuses.length > 0
     ? liveStatuses.filter((s) => s.status === "offline").length
     : graph.devices.filter((d) => (d.monitor_status ?? d.status) === "offline").length;
 
-  const selectedDeviceLive = selectedDevice ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
+  const selectedDeviceLive = selectedDevice && livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
 
   return (
     <section className="topology-layout inventory-layout">
@@ -440,6 +440,12 @@ export function InventoryWorkspace({
       </div>
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
+      {!livePingEnabled && (
+        <div className="inventory-live-banner" role="status">
+          <IconAlertCircle size={15} />
+          <span><strong>Live ping polling is disabled.</strong> Device status pills show polling off until it is re-enabled in Admin.</span>
+        </div>
+      )}
 
       {/* ── Table + details panel ──────────────────────────────────────── */}
       <div className={selectedDevice ? "topology-content details-open" : "topology-content"}>
@@ -592,8 +598,8 @@ export function InventoryWorkspace({
               <div className="inventory-empty">No devices match the current filters.</div>
             ) : (
               paginatedDevices.map((device) => {
-                const liveStatus = liveStatusByDeviceId.get(device.id) ?? null;
-                const status = device.status === 'disabled' ? 'disabled' : (liveStatus?.status ?? device.monitor_status ?? device.status);
+                const liveStatus = livePingEnabled ? (liveStatusByDeviceId.get(device.id) ?? null) : null;
+                const status = device.status === 'disabled' ? 'disabled' : livePingEnabled ? (liveStatus?.status ?? device.monitor_status ?? device.status) : "paused";
                 return (
                   <button key={device.id} className={device.id === selectedDeviceId ? 'inventory-row active' : 'inventory-row'} type="button" onClick={() => setSelectedDeviceId(device.id)}>
                     <span className="inventory-row-check">
@@ -627,8 +633,8 @@ export function InventoryWorkspace({
                       <DeviceTypeIcon type={device.device_type} size={13} />
                       {device.device_type ? formatDeviceTypeLabel(device.device_type) : iconLabel(device.icon)}
                     </span>
-                    <span className={`status-pill ${status}`}>{status}</span>
-                    <span>{liveStatus?.latency_ms != null ? `${liveStatus.latency_ms.toFixed(1)} ms` : '—'}</span>
+                    <span className={`status-pill ${status}`}>{status === "paused" ? "polling off" : status}</span>
+                    <span>{livePingEnabled && liveStatus?.latency_ms != null ? `${liveStatus.latency_ms.toFixed(1)} ms` : '—'}</span>
                     <span>
                       {canWrite ? (
                         <select

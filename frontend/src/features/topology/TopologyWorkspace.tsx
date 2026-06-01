@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import cytoscape, { type Core } from "cytoscape";
 import { Network, EyeOff, Eye, ChevronDown, ChevronUp } from "lucide-react";
-import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
+import { IconAlertCircle, IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
   type Device, type Relationship, type RelationshipPayload, type DevicePayload,
@@ -603,6 +603,12 @@ export function TopologyWorkspace({
             },
           },
           {
+            selector: "node.device.status-paused",
+            style: {
+              "text-background-color": "#fdecec",
+            },
+          },
+          {
             selector: "node.device.status-warning",
             style: {
               "text-background-color": "#fff8ea",
@@ -807,7 +813,7 @@ export function TopologyWorkspace({
         },
       })),
       ...filteredGraph.devices.map((device) => {
-        const liveStatus = liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? "unknown";
+        const liveStatus = livePingEnabled ? (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? "unknown") : "paused";
         const nodeScale = (groupDisplayPrefs[device.topology_group]?.nodeScalePercent ?? 140) / 100;
         const iconSize = Math.round(30 * Math.max(0.7, Math.min(2.2, nodeScale)));
         const hitSize = Math.max(36, iconSize + 14);
@@ -1454,8 +1460,8 @@ export function TopologyWorkspace({
               filteredGraph.devices.length === 0
                 ? <p className="topo-entity-empty">No devices</p>
                 : filteredGraph.devices.map((device) => {
-                    const liveStatus = liveStatusByDeviceId.get(device.id);
-                    const dotStatus = device.status === "disabled" ? "disabled" : (liveStatus?.status ?? device.monitor_status ?? device.status);
+                    const liveStatus = livePingEnabled ? liveStatusByDeviceId.get(device.id) : null;
+                    const dotStatus = device.status === "disabled" ? "disabled" : livePingEnabled ? (liveStatus?.status ?? device.monitor_status ?? device.status) : "paused";
                     return (
                       <button
                         key={device.id}
@@ -1760,6 +1766,12 @@ export function TopologyWorkspace({
       {topologyError && <div className="form-error">{topologyError}</div>}
       <div className={showDetailsPanel ? "topology-content details-open" : "topology-content"}>
         <div className="graph-surface">
+          {!livePingEnabled && (
+            <div className="topology-live-banner" role="status">
+              <IconAlertCircle size={15} />
+              <span><strong>Live ping polling is disabled.</strong> Markers show polling off.</span>
+            </div>
+          )}
           <div className="graph-canvas" ref={containerRef} />
           <div className="topology-overlay-layer">
             {overlayNodes.map((node) => (
@@ -1806,7 +1818,7 @@ export function TopologyWorkspace({
                 snmpProfiles={snmpProfiles}
                 sites={sites}
                 onGraphChange={onGraphChange}
-                liveStatus={liveStatusByDeviceId.get(selectedDevice.id) ?? null}
+                liveStatus={livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null}
                 onDelete={deleteSelectedDevice}
                 onClone={() => {
                   setCloningDevice(selectedDevice);

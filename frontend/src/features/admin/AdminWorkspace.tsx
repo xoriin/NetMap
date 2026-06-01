@@ -34,6 +34,7 @@ export function AdminWorkspace({
   onSelectIconPack,
   onAddLocalIconPack,
   onRemoveLocalIconPack,
+  onSettingsChange,
   versionInfo,
 }: {
   accessToken: string;
@@ -47,6 +48,7 @@ export function AdminWorkspace({
   onSelectIconPack: (packId: string) => void;
   onAddLocalIconPack: (pack: IconPack) => void;
   onRemoveLocalIconPack: (packId: string) => void;
+  onSettingsChange: (settings: SystemSettings) => void;
   versionInfo: VersionInfo | null;
 }) {
   const [activeTab, setActiveTab] = useState<"system" | "users" | "security" | "notifications" | "alerts" | "groups" | "credentials">("system");
@@ -420,6 +422,7 @@ export function AdminWorkspace({
       const updated = await api.updateAdminSettings(accessToken, settingsForm);
       setSettingsForm(updated);
       setIdleTimeoutRaw(String(updated.idle_timeout_minutes));
+      onSettingsChange(updated);
       setSuccess("Settings saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save settings");
@@ -801,7 +804,7 @@ export function AdminWorkspace({
                   <h2 className="admin-section-title"><IconCloud size={16} />Version</h2>
                   <dl className="admin-config-grid">
                     <dt>Installed</dt>
-                    <dd>v{versionInfo.current}</dd>
+                    <dd>{versionInfo.channel ? `${versionInfo.channel}: ` : "v"}{versionInfo.current}</dd>
                     <dt>Latest</dt>
                     <dd>
                       {versionInfo.latest ? (
