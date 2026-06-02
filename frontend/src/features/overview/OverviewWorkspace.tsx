@@ -349,7 +349,7 @@ export function OverviewWorkspace({
               <div className="dash-empty-state">
                 <div className="dash-empty-icon"><IconWifi size={22} /></div>
                 <div className="dash-empty-title">No monitoring data yet</div>
-                <div className="dash-empty-desc">The background monitor polls every 5 minutes.</div>
+                <div className="dash-empty-desc">The background monitor polls on the configured live ping interval.</div>
               </div>
             ) : favouriteDevices.length === 0 ? (
               <div className="dash-empty-state">

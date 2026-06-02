@@ -49,6 +49,7 @@ DEFAULTS: dict[str, str] = {
     "login_message": "",
     "announcement": "",
     "live_ping_enabled": "true",
+    "monitor_interval_seconds": "300",
     "idle_timeout_minutes": "15",
     "active_network_public_targets_enabled": str(settings.active_network_public_targets_enabled).lower(),
 }

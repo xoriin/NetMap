@@ -29,7 +29,7 @@ from app.schemas.monitoring import (
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
-_MONITORING_CACHE_TTL = 10.0  # seconds — monitoring data updates every 5 min; 10s is plenty
+_MONITORING_CACHE_TTL = 10.0  # seconds — short enough for configurable monitor intervals
 _fleet_summary_cache: tuple[float, Any] | None = None
 _device_summaries_cache: tuple[float, Any] | None = None
 _fleet_summary_cache_hits = 0

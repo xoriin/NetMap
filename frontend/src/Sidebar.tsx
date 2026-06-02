@@ -130,12 +130,7 @@ export function AppTopbar({ currentRoute, user, note }: { currentRoute: AppRoute
         </div>
       </div>
       <div className="app-topbar-account">
-        {currentRoute === "/monitoring" && (
-          <div className="app-topbar-mon-status">
-            <span className="app-topbar-status"><span aria-hidden="true" />Live</span>
-            {note && <span className="app-topbar-note">{note}</span>}
-          </div>
-        )}
+        {currentRoute === "/monitoring" && note}
         {currentRoute === "/ipam" && note && <span className="app-topbar-note">{note}</span>}
         {currentRoute === "/locations" && note}
         {currentRoute === "/security" && note}

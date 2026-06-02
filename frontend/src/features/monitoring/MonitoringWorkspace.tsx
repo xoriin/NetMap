@@ -19,6 +19,7 @@ export function MonitoringWorkspace({
   accessToken,
   favouriteIds,
   livePingEnabled,
+  monitorIntervalSeconds,
   onToggleFavourite,
   userRole,
 }: {
@@ -26,6 +27,7 @@ export function MonitoringWorkspace({
   canWrite: boolean;
   favouriteIds: Set<number>;
   livePingEnabled: boolean;
+  monitorIntervalSeconds: number;
   onToggleFavourite: (deviceId: number) => void;
   userRole: string;
 }) {
@@ -34,7 +36,12 @@ export function MonitoringWorkspace({
   const tableRef = useRef<HTMLTableElement | null>(null);
   const monitorCursorRef = useRef<string | null>(null);
   const deltaPollsRef = useRef(0);
-  const FULL_REFRESH_POLLS = 5; // full reload every 5 × 60s to reconcile deletes/disabled devices
+  const boundedMonitorIntervalSeconds = Math.min(3600, Math.max(30, monitorIntervalSeconds || 300));
+  const monitoringPollMs = Math.min(60_000, Math.max(30_000, boundedMonitorIntervalSeconds * 1000));
+  const fullRefreshPolls = Math.max(1, Math.ceil(300_000 / monitoringPollMs));
+  const monitorIntervalLabel = boundedMonitorIntervalSeconds >= 60 && boundedMonitorIntervalSeconds % 60 === 0
+    ? `${boundedMonitorIntervalSeconds / 60} min`
+    : `${boundedMonitorIntervalSeconds} sec`;
 
   function startColResize(colIdx: number, e: React.MouseEvent) {
     e.preventDefault();
@@ -154,26 +161,33 @@ export function MonitoringWorkspace({
 
   const setTopbarNote = useContext(TopbarNoteCtx);
   useEffect(() => {
-    setTopbarNote(!livePingEnabled
-      ? "Live ping polling disabled"
-      : fleet?.last_checked
-      ? `Last poll ${new Date(fleet.last_checked).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · every 5 min`
-      : "");
-  }, [fleet, livePingEnabled, setTopbarNote]);
+    if (!livePingEnabled) {
+      setTopbarNote(<span className="app-topbar-status app-topbar-status--paused"><span aria-hidden="true" />Paused</span>);
+    } else if (fleet?.last_checked) {
+      setTopbarNote(
+        <div className="app-topbar-mon-status">
+          <span className="app-topbar-status"><span aria-hidden="true" />Live</span>
+          <span className="app-topbar-note">Last poll {new Date(fleet.last_checked).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · every {monitorIntervalLabel}</span>
+        </div>
+      );
+    } else {
+      setTopbarNote(<span className="app-topbar-status"><span aria-hidden="true" />Live</span>);
+    }
+  }, [fleet, livePingEnabled, monitorIntervalLabel, setTopbarNote]);
   useEffect(() => () => setTopbarNote(""), [setTopbarNote]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
   useEffect(() => {
     const id = setInterval(() => {
       deltaPollsRef.current += 1;
-      if (deltaPollsRef.current >= FULL_REFRESH_POLLS) {
+      if (deltaPollsRef.current >= fullRefreshPolls) {
         void loadAll();
       } else {
         void loadDelta();
       }
-    }, 60_000);
+    }, monitoringPollMs);
     return () => clearInterval(id);
-  }, [loadAll, loadDelta]);
+  }, [fullRefreshPolls, loadAll, loadDelta, monitoringPollMs]);
 
   const loadHistory = useCallback(async (deviceId: number, hours: number) => {
     setHistoryLoading(true);
@@ -193,9 +207,9 @@ export function MonitoringWorkspace({
   // Keep the heartbeat timeline live — refresh history at the same cadence as the monitor
   useEffect(() => {
     if (selectedId === null) return;
-    const id = setInterval(() => void loadHistory(selectedId, historyHours), 30_000);
+    const id = setInterval(() => void loadHistory(selectedId, historyHours), monitoringPollMs);
     return () => clearInterval(id);
-  }, [selectedId, historyHours, loadHistory]);
+  }, [selectedId, historyHours, loadHistory, monitoringPollMs]);
 
 
   useEffect(() => {
@@ -375,12 +389,6 @@ export function MonitoringWorkspace({
         />
       </div>
 
-      {!livePingEnabled && (
-        <div className="dash-alert dash-alert--danger">
-          <IconAlertCircle size={15} />
-          <span><strong>Live ping polling is disabled.</strong> Status and latency values may be stale until it is re-enabled in Admin.</span>
-        </div>
-      )}
 
       {/* Offline alert */}
       {offlineDevices.length > 0 && (
@@ -436,7 +444,7 @@ export function MonitoringWorkspace({
             {filteredDevices.length === 0 ? (
               <p className="dash-empty">
                 {devices.length === 0
-                  ? "No data yet — the monitor polls every 5 minutes."
+                  ? `No data yet — the monitor polls every ${monitorIntervalLabel}.`
                   : "No devices match your filter."}
               </p>
             ) : (

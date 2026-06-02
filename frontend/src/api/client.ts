@@ -329,6 +329,19 @@ export type SyslogStatus = {
   retention_last_deleted: number;
   retention_last_error: string | null;
   last_event_received_at: string | null;
+  received_packets: number;
+  stored_events: number;
+  dropped_unparsed: number;
+  denied_senders: number;
+  last_packet_at: string | null;
+  last_packet_sender: string | null;
+  last_stored_at: string | null;
+  last_stored_sender: string | null;
+  last_drop_at: string | null;
+  last_drop_sender: string | null;
+  last_drop_raw: string | null;
+  last_denied_at: string | null;
+  last_denied_sender: string | null;
 };
 
 export type DnsRecordType = "A" | "AAAA" | "MX" | "TXT" | "NS" | "CNAME";
@@ -421,6 +434,7 @@ export type SystemSettings = {
   login_message: string;
   announcement: string;
   live_ping_enabled: boolean;
+  monitor_interval_seconds: number;
   idle_timeout_minutes: number;
   active_network_public_targets_enabled: boolean;
 };

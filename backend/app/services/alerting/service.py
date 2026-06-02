@@ -13,6 +13,7 @@ from app.models.alert_rule import AlertRule
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.port_target import DevicePortTarget
+from app.models.system_setting import SystemSetting
 from app.schemas.tools import PingRequest
 from app.services.monitoring.port_checker import check_port
 from app.services.notifications import load_notification_settings, send_notification
@@ -47,21 +48,31 @@ class AlertMonitorService:
 
     def _get_interval(self) -> int:
         try:
-            from app.models.system_setting import SystemSetting
             with SessionLocal() as db:
                 row = db.scalar(select(SystemSetting).where(SystemSetting.key == "monitor_interval_seconds"))
                 if row:
-                    return max(30, int(row.value))
+                    return min(3600, max(30, int(row.value)))
         except Exception:
             pass
         return DEFAULT_INTERVAL_SECONDS
+
+    def _live_ping_enabled(self) -> bool:
+        try:
+            with SessionLocal() as db:
+                row = db.scalar(select(SystemSetting).where(SystemSetting.key == "live_ping_enabled"))
+                if row:
+                    return str(row.value).lower() not in ("false", "0", "")
+        except Exception:
+            pass
+        return True
 
     def _run(self) -> None:
         if self._stop.wait(30):
             return
         while True:
             try:
-                self._check()
+                if self._live_ping_enabled():
+                    self._check()
             except Exception:
                 logger.exception("Alert monitor check failed")
             interval = self._get_interval()

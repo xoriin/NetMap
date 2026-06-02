@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -136,6 +137,8 @@ def export_database_backup(
         filename, payload = backup_database_bytes()
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except (OSError, sqlite3.Error, DBAPIError) as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database backup failed") from exc
     write_audit(
         db,
         action="backup.database_exported",

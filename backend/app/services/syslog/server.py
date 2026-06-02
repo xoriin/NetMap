@@ -8,7 +8,7 @@ import threading
 from collections.abc import Callable
 
 from app.core.config import settings
-from app.services.syslog.storage import cleanup_expired_events, store_syslog_line
+from app.services.syslog.storage import cleanup_expired_events, mark_denied_sender, store_syslog_line
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,8 @@ class SyslogIngestionService:
                 break
             sender_host = address[0]
             if not sender_allowed(sender_host):
+                mark_denied_sender(sender_host)
+                logger.debug("Denied UDP syslog packet from %s by SYSLOG_SENDER_ALLOWLIST", sender_host)
                 continue
             try:
                 store_syslog_line(packet, sender_host)
@@ -110,6 +112,8 @@ class SyslogIngestionService:
                 break
             sender_host = address[0]
             if not sender_allowed(sender_host):
+                mark_denied_sender(sender_host)
+                logger.debug("Denied %s syslog connection from %s by SYSLOG_SENDER_ALLOWLIST", label, sender_host)
                 client.close()
                 continue
             if not self._tcp_semaphore.acquire(blocking=False):

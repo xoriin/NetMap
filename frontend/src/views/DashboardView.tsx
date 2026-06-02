@@ -47,6 +47,7 @@ export function DashboardView({
   currentRoute,
   graph,
   livePingEnabled,
+  monitorIntervalSeconds,
   onGraphChange,
   onDeviceChange,
   onDevicesRemove,
@@ -70,6 +71,7 @@ export function DashboardView({
   currentRoute: AppRoute;
   graph: TopologyGraph;
   livePingEnabled: boolean;
+  monitorIntervalSeconds: number;
   onGraphChange: () => Promise<void>;
   onDeviceChange: (device: Device) => void;
   onDevicesRemove: (deviceIds: number[]) => void;
@@ -172,7 +174,7 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} livePingEnabled={livePingEnabled} onToggleFavourite={onToggleFavourite} userRole={user.role} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
       )}
       {currentRoute === "/ipam" && accessToken && (
         <IpamWorkspace accessToken={accessToken} canWrite={canWrite} />

@@ -452,6 +452,16 @@ textarea {
   font-weight: 500;
 }
 
+.app-topbar-status--paused {
+  border-color: rgba(224, 80, 80, 0.28);
+  color: #8a2020;
+  background: rgba(224, 80, 80, 0.08);
+}
+.app-topbar-status--paused span {
+  background: #e05050;
+  box-shadow: 0 0 0 3px rgba(224, 80, 80, 0.12);
+}
+
 .security-topbar-meta {
   display: flex;
   align-items: center;
@@ -6277,6 +6287,11 @@ body.theme-dark .app-topbar-status {
   border-color: rgba(34, 160, 107, 0.24);
   color: #7ad6ad;
   background: rgba(34, 160, 107, 0.1);
+}
+body.theme-dark .app-topbar-status--paused {
+  border-color: rgba(224, 80, 80, 0.3);
+  color: #f08080;
+  background: rgba(224, 80, 80, 0.1);
 }
 
 body.theme-dark .app-topbar-user {

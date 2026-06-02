@@ -4,12 +4,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.v1.admin import get_public_settings, update_settings
 from app.api.v1.monitoring import _build_device_summaries, list_device_summaries
 from app.db.session import Base
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.site import Site
+from app.models.system_setting import SystemSetting
 from app.models.topology_group import TopologyGroup
+from app.schemas.admin import SystemSettingsUpdate
+from app.services.alerting import service as alerting_service
 
 
 def _session():
@@ -25,6 +29,7 @@ def _session():
             TopologyGroup.__table__,
             Device.__table__,
             DeviceMonitorHistory.__table__,
+            SystemSetting.__table__,
         ],
     )
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)()
@@ -157,3 +162,40 @@ def test_monitoring_service_results_parse_legacy_and_rich_history_rows():
     assert rich_result.target_id == 7
     assert rich_result.label == "Admin UI"
     assert rich_result.status == "closed"
+
+
+def test_alert_monitor_reads_interval_and_live_ping_settings(monkeypatch):
+    db = _session()
+    db.add_all([
+        SystemSetting(key="monitor_interval_seconds", value="10"),
+        SystemSetting(key="live_ping_enabled", value="false"),
+    ])
+    db.commit()
+
+    factory = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
+    monkeypatch.setattr(alerting_service, "SessionLocal", factory)
+
+    monitor = alerting_service.AlertMonitorService()
+
+    assert monitor._get_interval() == 30
+    assert monitor._live_ping_enabled() is False
+
+    db.get(SystemSetting, "monitor_interval_seconds").value = "7200"  # type: ignore[union-attr]
+    db.get(SystemSetting, "live_ping_enabled").value = "true"  # type: ignore[union-attr]
+    db.commit()
+
+    assert monitor._get_interval() == 3600
+    assert monitor._live_ping_enabled() is True
+
+
+def test_admin_settings_persist_monitor_interval_seconds():
+    db = _session()
+
+    updated = update_settings(
+        SystemSettingsUpdate(monitor_interval_seconds=45),
+        None,  # type: ignore[arg-type]
+        db,
+    )
+
+    assert updated.monitor_interval_seconds == 45
+    assert get_public_settings(db).monitor_interval_seconds == 45

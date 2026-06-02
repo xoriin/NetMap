@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import cytoscape, { type Core } from "cytoscape";
 import { Network, EyeOff, Eye, ChevronDown, ChevronUp } from "lucide-react";
-import { IconAlertCircle, IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
+import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
   type Device, type Relationship, type RelationshipPayload, type DevicePayload,
@@ -133,7 +133,7 @@ export function TopologyWorkspace({
     userIdRef.current = userId;
   }, [userId]);
 
-  // Keep these callbacks fresh with the latest state every render
+// Keep these callbacks fresh with the latest state every render
   setGroupForDisplayRef.current = (group: string) => {
     setSelectedGroupForDisplay(group);
   };
@@ -1762,16 +1762,16 @@ export function TopologyWorkspace({
             )}
           </div>
         </div>
+        <span
+          className={`app-topbar-status${livePingEnabled ? "" : " app-topbar-status--paused"}`}
+          style={{ marginLeft: "auto", flexShrink: 0 }}
+        >
+          <span aria-hidden="true" />{livePingEnabled ? "Live" : "Paused"}
+        </span>
       </div>
       {topologyError && <div className="form-error">{topologyError}</div>}
       <div className={showDetailsPanel ? "topology-content details-open" : "topology-content"}>
         <div className="graph-surface">
-          {!livePingEnabled && (
-            <div className="topology-live-banner" role="status">
-              <IconAlertCircle size={15} />
-              <span><strong>Live ping polling is disabled.</strong> Markers show polling off.</span>
-            </div>
-          )}
           <div className="graph-canvas" ref={containerRef} />
           <div className="topology-overlay-layer">
             {overlayNodes.map((node) => (

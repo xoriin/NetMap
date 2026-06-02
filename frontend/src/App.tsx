@@ -457,6 +457,7 @@ export function App() {
             currentRoute={currentRoute}
             graph={graph}
             livePingEnabled={appSettings?.live_ping_enabled !== false}
+            monitorIntervalSeconds={appSettings?.monitor_interval_seconds ?? 300}
             onGraphChange={refreshTopology}
             onDeviceChange={upsertGraphDevice}
             onDevicesRemove={removeGraphDevices}

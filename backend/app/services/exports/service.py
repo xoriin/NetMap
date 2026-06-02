@@ -223,8 +223,9 @@ _SIG_SUFFIX = b"\n"
 _SIG_TRAILER_LEN = len(_SIG_PREFIX) + 64 + len(_SIG_SUFFIX)
 
 _EXPECTED_TABLES = frozenset({
-    "users", "system_settings", "devices", "links",
+    "users", "system_settings", "devices",
 })
+_RELATIONSHIP_TABLES = frozenset({"device_relationships", "links"})
 
 
 def _sign_backup(db_bytes: bytes, secret: str) -> bytes:
@@ -256,22 +257,30 @@ def _validate_backup_schema(db_path: Path) -> None:
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     missing = _EXPECTED_TABLES - tables
+    if not tables.intersection(_RELATIONSHIP_TABLES):
+        missing = missing | {"device_relationships"}
     if missing:
         raise ValueError(f"Backup is missing expected tables: {', '.join(sorted(missing))}")
 
 
 def backup_database_bytes() -> tuple[str, bytes]:
     from app.core.secrets import signing_secret
-    database_path = sqlite_database_path()
+    if not settings.database_url.startswith("sqlite"):
+        raise RuntimeError("Database backup is only implemented for SQLite")
     timestamp = utc_timestamp()
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as handle:
         temp_path = Path(handle.name)
+    source = engine.raw_connection()
     try:
-        with sqlite3.connect(database_path) as source, sqlite3.connect(temp_path) as destination:
-            source.backup(destination)
+        source_connection = source.driver_connection
+        if not isinstance(source_connection, sqlite3.Connection):
+            raise RuntimeError("Database backup is only implemented for SQLite")
+        with sqlite3.connect(temp_path) as destination:
+            source_connection.backup(destination)
         raw = temp_path.read_bytes()
         return f"netmap-backup-{timestamp}.db", _sign_backup(raw, signing_secret())
     finally:
+        source.close()
         temp_path.unlink(missing_ok=True)
 
 

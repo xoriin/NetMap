@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, Star, ChevronUp, ChevronDown } from "lucide-react";
-import { IconAlertCircle, IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
+import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
   type Device, type DevicePayload, type DeviceStatus, type DeviceLiveStatus,
@@ -440,13 +440,6 @@ export function InventoryWorkspace({
       </div>
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
-      {!livePingEnabled && (
-        <div className="inventory-live-banner" role="status">
-          <IconAlertCircle size={15} />
-          <span><strong>Live ping polling is disabled.</strong> Device status pills show polling off until it is re-enabled in Admin.</span>
-        </div>
-      )}
-
       {/* ── Table + details panel ──────────────────────────────────────── */}
       <div className={selectedDevice ? "topology-content details-open" : "topology-content"}>
         <div className="inventory-surface">
@@ -574,6 +567,9 @@ export function InventoryWorkspace({
                 onChange={(e) => setInventorySearch(e.target.value)}
               />
             </div>
+            <span className={`app-topbar-status${livePingEnabled ? "" : " app-topbar-status--paused"}`} style={{ flexShrink: 0 }}>
+              <span aria-hidden="true" />{livePingEnabled ? "Live" : "Paused"}
+            </span>
           </div>
           <div className="inventory-table">
             <div className="inventory-table-header">

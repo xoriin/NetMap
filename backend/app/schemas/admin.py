@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class AdminPasswordResetRequest(BaseModel):
@@ -10,6 +10,7 @@ class SystemSettingsRead(BaseModel):
     login_message: str
     announcement: str
     live_ping_enabled: bool = True
+    monitor_interval_seconds: int = 300
     idle_timeout_minutes: int = 15
     active_network_public_targets_enabled: bool = False
 
@@ -20,13 +21,14 @@ class SystemSettingsRead(BaseModel):
             return v
         return str(v).lower() not in ("false", "0", "")
 
-    @field_validator("idle_timeout_minutes", mode="before")
+    @field_validator("idle_timeout_minutes", "monitor_interval_seconds", mode="before")
     @classmethod
-    def _coerce_int(cls, v: object) -> int:
+    def _coerce_int(cls, v: object, info: ValidationInfo) -> int:
+        fallback = 300 if info.field_name == "monitor_interval_seconds" else 15
         try:
             return max(1, int(v))
         except (TypeError, ValueError):
-            return 15
+            return fallback
 
 
 class SystemSettingsUpdate(BaseModel):
@@ -34,6 +36,7 @@ class SystemSettingsUpdate(BaseModel):
     login_message: str | None = Field(None, max_length=300)
     announcement: str | None = Field(None, max_length=500)
     live_ping_enabled: bool | None = None
+    monitor_interval_seconds: int | None = Field(None, ge=30, le=3600)
     idle_timeout_minutes: int | None = Field(None, ge=1, le=480)
     active_network_public_targets_enabled: bool | None = None
 

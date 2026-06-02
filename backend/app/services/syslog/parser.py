@@ -27,7 +27,11 @@ RFC5424_RE = re.compile(
     r"(?P<message>.*)$"
 )
 FILTERLOG_PREFIX_RE = re.compile(r"(?:^|\s)filterlog(?:\[\d+\])?:\s*(?P<body>.+)$")
-KEY_VALUE_RE = re.compile(r"\b(?P<key>src|dst|spt|dpt|proto|action|in|out)=('([^']*)'|\"([^\"]*)\"|[^\s]+)")
+KEY_VALUE_RE = re.compile(
+    r"\b(?P<key>src|dst|spt|dpt|proto|action|in|out)=('([^']*)'|\"([^\"]*)\"|[^\s]+)",
+    re.IGNORECASE,
+)
+ACTION_TOKEN_RE = re.compile(r"(?:^|\s)(?P<action>DROP|ACCEPT|REJECT|ALLOW|DENY|BLOCK|PASS)(?:\s|:|$)", re.IGNORECASE)
 
 MAX_TEXT_LENGTH = 255
 
@@ -191,16 +195,21 @@ def parse_key_value_message(message: str) -> dict[str, Any] | None:
     values: dict[str, str] = {}
     for match in KEY_VALUE_RE.finditer(message):
         value = match.group(3) or match.group(4) or match.group(2)
-        values[match.group("key")] = value.strip("'\"")
+        values[match.group("key").lower()] = value.strip("'\"")
     if not values:
         return None
+    action = values.get("action")
+    if action is None:
+        action_match = ACTION_TOKEN_RE.search(message)
+        if action_match:
+            action = action_match.group("action")
     return {
         "src_ip": clean_ip(values.get("src")),
         "dst_ip": clean_ip(values.get("dst")),
         "src_port": clean_port(values.get("spt")),
         "dst_port": clean_port(values.get("dpt")),
         "protocol": clean_protocol(values.get("proto")),
-        "action": clean_text(values.get("action")),
+        "action": clean_text(action.lower() if action else None),
         "interface": clean_text(values.get("in") or values.get("out")),
         "direction": "in" if values.get("in") else "out" if values.get("out") else None,
         "rule_id": None,

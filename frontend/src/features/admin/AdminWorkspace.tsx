@@ -66,7 +66,8 @@ export function AdminWorkspace({
   const [resetPasswordForm, setResetPasswordForm] = useState<{ userId: number | null; password: string }>({ userId: null, password: "" });
   const [editingEmailId, setEditingEmailId] = useState<number | null>(null);
   const [editingEmailValue, setEditingEmailValue] = useState("");
-  const [settingsForm, setSettingsForm] = useState<SystemSettings>({ app_name: "NetMap", login_message: "", announcement: "", live_ping_enabled: true, idle_timeout_minutes: 15, active_network_public_targets_enabled: false });
+  const [settingsForm, setSettingsForm] = useState<SystemSettings>({ app_name: "NetMap", login_message: "", announcement: "", live_ping_enabled: true, monitor_interval_seconds: 300, idle_timeout_minutes: 15, active_network_public_targets_enabled: false });
+  const [monitorIntervalRaw, setMonitorIntervalRaw] = useState("300");
   const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -119,6 +120,7 @@ export function AdminWorkspace({
       setUsers(userRows);
       setSyslogStatus(syslog);
       setSettingsForm(settingsData);
+      setMonitorIntervalRaw(String(settingsData.monitor_interval_seconds));
       setIdleTimeoutRaw(String(settingsData.idle_timeout_minutes));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load admin data");
@@ -421,6 +423,7 @@ export function AdminWorkspace({
     try {
       const updated = await api.updateAdminSettings(accessToken, settingsForm);
       setSettingsForm(updated);
+      setMonitorIntervalRaw(String(updated.monitor_interval_seconds));
       setIdleTimeoutRaw(String(updated.idle_timeout_minutes));
       onSettingsChange(updated);
       setSuccess("Settings saved");
@@ -739,6 +742,36 @@ export function AdminWorkspace({
                     Enable live ping monitoring
                     <span className="tool-note" style={{ margin: 0 }}>Uncheck to disable all background ping checks across the app</span>
                   </label>
+                  <label>
+                    Live ping interval (seconds)
+                    {(() => {
+                      const n = parseInt(monitorIntervalRaw, 10);
+                      const err = monitorIntervalRaw.trim() === "" || isNaN(n) ? "Must be a number" : n < 30 ? "Minimum is 30 seconds" : n > 3600 ? "Maximum is 3600 seconds (1 hour)" : null;
+                      return (
+                        <>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="e.g. 300"
+                            value={monitorIntervalRaw}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setMonitorIntervalRaw(raw);
+                              const parsed = parseInt(raw, 10);
+                              if (!isNaN(parsed) && parsed >= 30 && parsed <= 3600) {
+                                setSettingsForm((c) => ({ ...c, monitor_interval_seconds: parsed }));
+                              }
+                            }}
+                            style={err ? { borderColor: "var(--dash-red)" } : undefined}
+                          />
+                          {err
+                            ? <span className="tool-note" style={{ margin: 0, color: "var(--dash-red)" }}>{err}</span>
+                            : <span className="tool-note" style={{ margin: 0 }}>How often NetMap runs background ping and service checks. Default is 300 seconds.</span>
+                          }
+                        </>
+                      );
+                    })()}
+                  </label>
                   <label className="tool-form-inline-check">
                     <input type="checkbox" checked={settingsForm.active_network_public_targets_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, active_network_public_targets_enabled: e.target.checked }))} />
                     Allow public active network targets
@@ -774,7 +807,7 @@ export function AdminWorkspace({
                       );
                     })()}
                   </label>
-                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); return isNaN(n) || n < 1 || n > 480; })()}>
+                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); return isNaN(n) || n < 1 || n > 480 || isNaN(m) || m < 30 || m > 3600; })()}>
                     {settingsBusy ? "Saving…" : "Save settings"}
                   </button>
                 </form>
@@ -846,6 +879,18 @@ export function AdminWorkspace({
                     <dt>TLS listener</dt><dd>{syslogStatus.tls_enabled ? `enabled :${syslogStatus.tls_port}` : "disabled"}</dd>
                     <dt>Allowlist</dt><dd>{syslogStatus.allowlist_enabled ? "enabled" : "off"}</dd>
                     <dt>Stored events</dt><dd>{syslogStatus.total_events.toLocaleString()}</dd>
+                    <dt>Received packets</dt><dd>{syslogStatus.received_packets.toLocaleString()}</dd>
+                    <dt>Stored since start</dt><dd>{syslogStatus.stored_events.toLocaleString()}</dd>
+                    <dt>Dropped unparsed</dt><dd>{syslogStatus.dropped_unparsed.toLocaleString()}</dd>
+                    <dt>Denied senders</dt><dd>{syslogStatus.denied_senders.toLocaleString()}</dd>
+                    <dt>Last packet</dt><dd>{syslogStatus.last_packet_at ? `${new Date(syslogStatus.last_packet_at).toLocaleString()} from ${syslogStatus.last_packet_sender ?? "unknown"}` : "n/a"}</dd>
+                    <dt>Last stored</dt><dd>{syslogStatus.last_stored_at ? `${new Date(syslogStatus.last_stored_at).toLocaleString()} from ${syslogStatus.last_stored_sender ?? "unknown"}` : "n/a"}</dd>
+                    <dt>Last parse drop</dt><dd>{syslogStatus.last_drop_at ? `${new Date(syslogStatus.last_drop_at).toLocaleString()} from ${syslogStatus.last_drop_sender ?? "unknown"}` : "n/a"}</dd>
+                    {syslogStatus.last_drop_raw && (
+                      <>
+                        <dt>Dropped sample</dt><dd><code>{syslogStatus.last_drop_raw}</code></dd>
+                      </>
+                    )}
                     <dt>Last cleanup</dt><dd>{syslogStatus.retention_last_run_at ? new Date(syslogStatus.retention_last_run_at).toLocaleString() : "n/a"}</dd>
                     <dt>Last event</dt><dd>{syslogStatus.last_event_received_at ? new Date(syslogStatus.last_event_received_at).toLocaleString() : "n/a"}</dd>
                   </dl>
@@ -1096,7 +1141,7 @@ export function AdminWorkspace({
                 }}>+ Add rule</button>
               </div>
             </div>
-            <p className="tool-note">Rules run every 5 minutes in the background. Notifications are sent via the channels configured in the Notifications tab.</p>
+            <p className="tool-note">Rules run on the configured live ping interval in the background. Notifications are sent via the channels configured in the Notifications tab.</p>
             {alertRulesError && <div className="form-error">{alertRulesError}</div>}
 
             {showAlertForm && (

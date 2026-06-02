@@ -16,7 +16,7 @@ from app.db.session import SessionLocal
 from app.models.firewall_event import FirewallEvent
 from app.models.user import User, UserRole
 from app.schemas.firewall_event import FirewallEventList, FirewallEventRead, SyslogStatus
-from app.services.syslog.storage import count_events, get_retention_status
+from app.services.syslog.storage import count_events, get_ingestion_status, get_retention_status
 from app.websocket.firewall_events import firewall_event_broadcaster
 
 router = APIRouter(prefix="/syslog", tags=["syslog"])
@@ -44,6 +44,7 @@ def fts_query(raw_query: str) -> str:
 @router.get("/status", response_model=SyslogStatus)
 def syslog_status(_current_user: Annotated[User, Depends(require_security_view)]) -> SyslogStatus:
     retention_status = get_retention_status()
+    ingestion_status = get_ingestion_status()
     return SyslogStatus(
         enabled=settings.syslog_enabled,
         udp_enabled=settings.syslog_udp_enabled,
@@ -59,6 +60,19 @@ def syslog_status(_current_user: Annotated[User, Depends(require_security_view)]
         retention_last_deleted=retention_status.last_deleted,
         retention_last_error=retention_status.last_error,
         last_event_received_at=retention_status.last_event_received_at,
+        received_packets=ingestion_status.received_packets,
+        stored_events=ingestion_status.stored_events,
+        dropped_unparsed=ingestion_status.dropped_unparsed,
+        denied_senders=ingestion_status.denied_senders,
+        last_packet_at=ingestion_status.last_packet_at,
+        last_packet_sender=ingestion_status.last_packet_sender,
+        last_stored_at=ingestion_status.last_stored_at,
+        last_stored_sender=ingestion_status.last_stored_sender,
+        last_drop_at=ingestion_status.last_drop_at,
+        last_drop_sender=ingestion_status.last_drop_sender,
+        last_drop_raw=ingestion_status.last_drop_raw,
+        last_denied_at=ingestion_status.last_denied_at,
+        last_denied_sender=ingestion_status.last_denied_sender,
     )
 
 
