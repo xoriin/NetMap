@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useContext } from "react";
 import { Search, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
@@ -13,6 +13,7 @@ import { compareGroupLabels } from "../../utils/sort";
 import { deviceLabel, statusColor, formatDeviceTypeLabel } from "../../utils/format";
 import { ipSortKey } from "../../utils/ip";
 import { compareDevices } from "../../utils/sort";
+import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { DeviceDetails } from "../devices/DeviceDetails";
@@ -429,6 +430,17 @@ export function InventoryWorkspace({
     : graph.devices.filter((d) => (d.monitor_status ?? d.status) === "offline").length;
 
   const selectedDeviceLive = selectedDevice && livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
+  const setTopbarNote = useContext(TopbarNoteCtx);
+
+  useEffect(() => {
+    setTopbarNote(
+      <span className={`app-topbar-status${livePingEnabled ? "" : " app-topbar-status--paused"}`}>
+        <span aria-hidden="true" />{livePingEnabled ? "Live" : "Paused"}
+      </span>,
+    );
+  }, [livePingEnabled, setTopbarNote]);
+
+  useEffect(() => () => setTopbarNote(""), [setTopbarNote]);
 
   return (
     <section className="topology-layout inventory-layout">
@@ -567,9 +579,6 @@ export function InventoryWorkspace({
                 onChange={(e) => setInventorySearch(e.target.value)}
               />
             </div>
-            <span className={`app-topbar-status${livePingEnabled ? "" : " app-topbar-status--paused"}`} style={{ flexShrink: 0 }}>
-              <span aria-hidden="true" />{livePingEnabled ? "Live" : "Paused"}
-            </span>
           </div>
           <div className="inventory-table">
             <div className="inventory-table-header">

@@ -37,6 +37,15 @@ router = APIRouter(prefix="/discovery", tags=["discovery"])
 last_scan_by_user: dict[int, datetime] = {}
 
 
+def normalize_mac(mac_address: str | None) -> str | None:
+    if not mac_address:
+        return None
+    value = "".join(ch for ch in mac_address.lower() if ch in "0123456789abcdef")
+    if len(value) != 12:
+        return None
+    return ":".join(value[idx:idx + 2] for idx in range(0, 12, 2))
+
+
 def enforce_rate_limit(user_id: int) -> None:
     now = datetime.now(timezone.utc)
     last_scan = last_scan_by_user.get(user_id)
@@ -74,20 +83,38 @@ def scan_to_read_with_inventory(scan: DiscoveryScan, db: Session) -> DiscoverySc
     if not read.results:
         return read
     ips = [host.ip_address for host in read.results]
+    macs = [normalize_mac(host.mac_address) for host in read.results if normalize_mac(host.mac_address)]
     existing_by_ip = {
         device.ip_address: device
         for device in db.scalars(select(Device).where(Device.ip_address.in_(ips))).all()
     }
+    existing_by_mac: dict[str, Device] = {}
+    if macs:
+        for device in db.scalars(select(Device).where(Device.mac_address.is_not(None))).all():
+            normalized = normalize_mac(device.mac_address)
+            if normalized in macs and normalized not in existing_by_mac:
+                existing_by_mac[normalized] = device
     for host in read.results:
         existing = existing_by_ip.get(host.ip_address)
+        matched_by_mac = False
+        if existing is None:
+            normalized_mac = normalize_mac(host.mac_address)
+            if normalized_mac:
+                existing = existing_by_mac.get(normalized_mac)
+                matched_by_mac = existing is not None
         if existing is None:
             host.import_status = "new"
             continue
         host.existing_device_id = existing.id
         proposed: list[str] = []
+        if matched_by_mac and host.ip_address != existing.ip_address:
+            proposed.append("ip_address")
         if host.hostname and host.hostname != existing.hostname:
             proposed.append("hostname")
-        if host.mac_address and host.mac_address != existing.mac_address:
+        if (
+            host.mac_address
+            and normalize_mac(host.mac_address) != normalize_mac(existing.mac_address)
+        ):
             proposed.append("mac_address")
         if host.vendor and host.vendor != existing.vendor:
             proposed.append("vendor")
@@ -217,8 +244,25 @@ def import_scan_results(
     created = 0
     updated = 0
     skipped_existing = 0
+    results_by_mac = {
+        normalize_mac(result.mac_address): result
+        for result in results
+        if normalize_mac(result.mac_address)
+    }
+    existing_by_mac: dict[str, Device] = {}
+    if results_by_mac:
+        for device in db.scalars(select(Device).where(Device.mac_address.is_not(None))).all():
+            normalized = normalize_mac(device.mac_address)
+            if normalized in results_by_mac and normalized not in existing_by_mac:
+                existing_by_mac[normalized] = device
     for result in results:
         existing = db.scalar(select(Device).where(Device.ip_address == result.ip_address))
+        matched_by_mac = False
+        if existing is None:
+            normalized_mac = normalize_mac(result.mac_address)
+            if normalized_mac:
+                existing = existing_by_mac.get(normalized_mac)
+                matched_by_mac = existing is not None
         if existing is None:
             db.add(discovery_result_to_device(result, topology_group_id=payload.topology_group_id, site_id=payload.site_id))
             created += 1
@@ -228,6 +272,13 @@ def import_scan_results(
             continue
 
         changed = False
+        if (
+            matched_by_mac
+            and payload.update_ip_on_mac_match
+            and existing.ip_address != result.ip_address
+        ):
+            existing.ip_address = result.ip_address
+            changed = True
         for field_name in payload.update_fields:
             discovered_value = getattr(result, field_name)
             if not discovered_value:

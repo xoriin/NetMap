@@ -27,4 +27,4 @@ def test_installed_channel_reads_channel_file(tmp_path: Path) -> None:
 
 
 def test_version_tuple_allows_ahead_of_latest_comparison() -> None:
-    assert _version_tuple("1.2.6") > _version_tuple("1.2.5")  # type: ignore[operator]
+    assert _version_tuple("1.2.7") > _version_tuple("1.2.6")  # type: ignore[operator]

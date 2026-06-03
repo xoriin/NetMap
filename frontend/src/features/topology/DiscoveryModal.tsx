@@ -12,6 +12,13 @@ import { estimateScanTarget } from "../../utils/ip";
 import { Modal } from "../../components/Modal";
 import { ScanProgress } from "../../components/ScanProgress";
 
+const proposedUpdateLabels: Record<string, string> = {
+  ip_address: "IP address",
+  hostname: "Hostname",
+  mac_address: "MAC",
+  vendor: "Vendor",
+};
+
 export function DiscoveryModal({
   accessToken,
   onCancel,
@@ -45,6 +52,7 @@ export function DiscoveryModal({
   const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set());
   const [importMode, setImportMode] = useState<"new_only" | "fill_missing" | "override_existing">("fill_missing");
   const [updateFields, setUpdateFields] = useState<Array<"hostname" | "mac_address" | "vendor">>(["hostname", "mac_address", "vendor"]);
+  const [updateIpOnMacMatch, setUpdateIpOnMacMatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const targetEstimate = estimateScanTarget(target);
@@ -145,7 +153,16 @@ export function DiscoveryModal({
     try {
       const resolvedGroupId = selectedGroupId ? Number(selectedGroupId) : null;
       const siteId = selectedSiteId ? Number(selectedSiteId) : null;
-      await api.importDiscoveryResults(accessToken, scan.id, [...selectedIps], resolvedGroupId, siteId, importMode, updateFields);
+      await api.importDiscoveryResults(
+        accessToken,
+        scan.id,
+        [...selectedIps],
+        resolvedGroupId,
+        siteId,
+        importMode,
+        updateFields,
+        updateIpOnMacMatch,
+      );
       await onImported();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
@@ -380,7 +397,7 @@ export function DiscoveryModal({
                         {host.import_status === "new" ? "New" : host.import_status === "changed" ? "Update available" : "Known"}
                       </strong>
                       {host.proposed_updates.length > 0 && (
-                        <span className="dash-panel-meta"> · {host.proposed_updates.join(", ")}</span>
+                        <span className="dash-panel-meta"> · {host.proposed_updates.map((field) => proposedUpdateLabels[field] ?? field).join(", ")}</span>
                       )}
                       <span className="dash-panel-meta">
                         {" · "}{host.open_ports.length ? host.open_ports.join(", ") : "No open ports"}
@@ -400,6 +417,15 @@ export function DiscoveryModal({
                 </label>
                 <div className="scan-confirm-check" style={{ alignItems: "flex-start" }}>
                   <span className="dash-panel-meta">Fields</span>
+                  <label>
+                    <input
+                      checked={updateIpOnMacMatch}
+                      disabled={importMode === "new_only"}
+                      type="checkbox"
+                      onChange={(event) => setUpdateIpOnMacMatch(event.target.checked)}
+                    />
+                    Update IP when MAC matches
+                  </label>
                   <label>
                     <input
                       checked={updateFields.includes("hostname")}

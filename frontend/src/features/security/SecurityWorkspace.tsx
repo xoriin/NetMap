@@ -18,6 +18,7 @@ export function SecurityWorkspace({
   onJumpToTopologyDevice: (deviceId: number) => void;
 }) {
   const [filters, setFilters] = useState<SecurityFilters>(emptySecurityFilters);
+  const [draftFilters, setDraftFilters] = useState<SecurityFilters>(emptySecurityFilters);
   const [events, setEvents] = useState<FirewallEvent[]>([]);
   const [status, setStatus] = useState<SyslogStatus | null>(null);
   const [resultMeta, setResultMeta] = useState<FirewallEventList | null>(null);
@@ -107,33 +108,42 @@ export function SecurityWorkspace({
     return () => socket.close();
   }, [accessToken, autoScroll, filters, liveTail]);
 
-  function updateFilter(field: keyof SecurityFilters, value: string) {
+  function updateDraftFilter(field: keyof SecurityFilters, value: string) {
+    setDraftFilters((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyDraftFilters() {
     setOffset(0);
-    setFilters((current) => ({ ...current, [field]: value }));
+    setFilters(draftFilters);
   }
 
   function applyFilter(field: keyof SecurityFilters, value: string | number | null) {
     if (value === null || value === "") {
       return;
     }
-    updateFilter(field, String(value));
+    const nextFilters = { ...draftFilters, [field]: String(value) };
+    setOffset(0);
+    setDraftFilters(nextFilters);
+    setFilters(nextFilters);
   }
 
   function applyQuickFilter(kind: "blocked" | "passed" | "wan" | "hour" | "day") {
     const now = new Date();
     setOffset(0);
-    setFilters((current) => {
+    setDraftFilters((current) => {
+      let nextFilters: SecurityFilters;
       if (kind === "blocked") {
-        return { ...current, action: "block" };
+        nextFilters = { ...current, action: "block" };
+      } else if (kind === "passed") {
+        nextFilters = { ...current, action: "pass" };
+      } else if (kind === "wan") {
+        nextFilters = { ...current, interface: "wan" };
+      } else {
+        const start = new Date(now.getTime() - (kind === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000));
+        nextFilters = { ...current, start_time: toDateTimeLocal(start), end_time: "" };
       }
-      if (kind === "passed") {
-        return { ...current, action: "pass" };
-      }
-      if (kind === "wan") {
-        return { ...current, interface: "wan" };
-      }
-      const start = new Date(now.getTime() - (kind === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000));
-      return { ...current, start_time: toDateTimeLocal(start), end_time: "" };
+      setFilters(nextFilters);
+      return nextFilters;
     });
   }
 
@@ -186,13 +196,20 @@ export function SecurityWorkspace({
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
       <div className="security-content">
-        <aside className="security-filters" aria-label="Firewall event filters">
+        <form
+          className="security-filters"
+          aria-label="Firewall event filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyDraftFilters();
+          }}
+        >
           <label className="security-search">
             <Search size={16} aria-hidden="true" />
             <input
               placeholder="Search raw log, IP, rule, reason"
-              value={filters.q}
-              onChange={(event) => updateFilter("q", event.target.value)}
+              value={draftFilters.q}
+              onChange={(event) => updateDraftFilter("q", event.target.value)}
             />
           </label>
           <div className="quick-filters">
@@ -202,25 +219,31 @@ export function SecurityWorkspace({
             <button type="button" onClick={() => applyQuickFilter("hour")}>Last Hour</button>
             <button type="button" onClick={() => applyQuickFilter("day")}>Last 24h</button>
           </div>
-          <SecurityFilterInput label="Source IP" value={filters.src_ip} onChange={(value) => updateFilter("src_ip", value)} />
-          <SecurityFilterInput label="Destination IP" value={filters.dst_ip} onChange={(value) => updateFilter("dst_ip", value)} />
-          <SecurityFilterInput label="Source Port" value={filters.src_port} onChange={(value) => updateFilter("src_port", value)} />
-          <SecurityFilterInput label="Destination Port" value={filters.dst_port} onChange={(value) => updateFilter("dst_port", value)} />
-          <SecurityFilterInput label="Action" value={filters.action} onChange={(value) => updateFilter("action", value)} />
-          <SecurityFilterInput label="Protocol" value={filters.protocol} onChange={(value) => updateFilter("protocol", value)} />
-          <SecurityFilterInput label="Interface" value={filters.interface} onChange={(value) => updateFilter("interface", value)} />
+          <SecurityFilterInput label="Source IP" value={draftFilters.src_ip} onChange={(value) => updateDraftFilter("src_ip", value)} />
+          <SecurityFilterInput label="Destination IP" value={draftFilters.dst_ip} onChange={(value) => updateDraftFilter("dst_ip", value)} />
+          <SecurityFilterInput label="Source Port" value={draftFilters.src_port} onChange={(value) => updateDraftFilter("src_port", value)} />
+          <SecurityFilterInput label="Destination Port" value={draftFilters.dst_port} onChange={(value) => updateDraftFilter("dst_port", value)} />
+          <SecurityFilterInput label="Action" value={draftFilters.action} onChange={(value) => updateDraftFilter("action", value)} />
+          <SecurityFilterInput label="Protocol" value={draftFilters.protocol} onChange={(value) => updateDraftFilter("protocol", value)} />
+          <SecurityFilterInput label="Interface" value={draftFilters.interface} onChange={(value) => updateDraftFilter("interface", value)} />
           <label>
             Start time
-            <input type="datetime-local" value={filters.start_time} onChange={(event) => updateFilter("start_time", event.target.value)} />
+            <input type="datetime-local" value={draftFilters.start_time} onChange={(event) => updateDraftFilter("start_time", event.target.value)} />
           </label>
           <label>
             End time
-            <input type="datetime-local" value={filters.end_time} onChange={(event) => updateFilter("end_time", event.target.value)} />
+            <input type="datetime-local" value={draftFilters.end_time} onChange={(event) => updateDraftFilter("end_time", event.target.value)} />
           </label>
-          <button className="clear-filters" type="button" onClick={() => { setOffset(0); setFilters(emptySecurityFilters); }}>
-            Clear filters
-          </button>
-        </aside>
+          <div className="security-filter-actions">
+            <button className="security-search-btn" type="submit">
+              <Search size={15} aria-hidden="true" />
+              Search
+            </button>
+            <button className="clear-filters" type="button" onClick={() => { setOffset(0); setDraftFilters(emptySecurityFilters); setFilters(emptySecurityFilters); }}>
+              Clear filters
+            </button>
+          </div>
+        </form>
         <div className="security-results">
           <div className="security-results-meta">
             <span>{loading ? "Searching..." : `${total} matching events`}</span>

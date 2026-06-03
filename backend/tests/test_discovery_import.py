@@ -75,6 +75,33 @@ def test_scan_read_marks_existing_changed_hosts():
     assert host.proposed_updates == ["hostname", "mac_address", "vendor"]
 
 
+def test_scan_read_marks_mac_matched_host_ip_change():
+    db = _session()
+    existing = Device(
+        hostname="wifi-phone",
+        ip_address="192.168.1.10",
+        mac_address="aa:bb:cc:dd:ee:ff",
+        vendor="PhoneVendor",
+        status="online",
+    )
+    scan = _scan(DiscoveryHost(
+        ip_address="192.168.1.84",
+        hostname="wifi-phone",
+        mac_address="AA-BB-CC-DD-EE-FF",
+        vendor="PhoneVendor",
+    ))
+    db.add_all([existing, scan])
+    db.commit()
+    db.refresh(scan)
+
+    read = scan_to_read_with_inventory(scan, db)
+
+    host = read.results[0]
+    assert host.existing_device_id == existing.id
+    assert host.import_status == "changed"
+    assert host.proposed_updates == ["ip_address"]
+
+
 def test_discovery_import_fill_missing_does_not_override_existing_values():
     db = _session()
     existing = Device(
@@ -106,6 +133,48 @@ def test_discovery_import_fill_missing_does_not_override_existing_values():
     assert existing.hostname == "old-host"
     assert existing.mac_address == "aa:bb:cc:dd:ee:ff"
     assert existing.vendor == "OldVendor"
+
+
+def test_discovery_import_mac_match_updates_ip_only_when_enabled():
+    db = _session()
+    existing = Device(
+        hostname="wifi-phone",
+        ip_address="192.168.1.10",
+        mac_address="aa:bb:cc:dd:ee:ff",
+        vendor="PhoneVendor",
+        status="online",
+    )
+    scan = _scan(DiscoveryHost(
+        ip_address="192.168.1.84",
+        hostname="wifi-phone",
+        mac_address="aa:bb:cc:dd:ee:ff",
+        vendor="PhoneVendor",
+    ))
+    db.add_all([existing, scan])
+    db.commit()
+    db.refresh(scan)
+
+    disabled = import_scan_results(
+        DiscoveryImportRequest(scan_id=scan.id, mode="fill_missing", update_ip_on_mac_match=False),
+        SimpleNamespace(id=1),  # type: ignore[arg-type]
+        db,
+    )
+    db.refresh(existing)
+
+    assert disabled.created == 0
+    assert disabled.updated == 0
+    assert existing.ip_address == "192.168.1.10"
+
+    enabled = import_scan_results(
+        DiscoveryImportRequest(scan_id=scan.id, mode="fill_missing", update_ip_on_mac_match=True),
+        SimpleNamespace(id=1),  # type: ignore[arg-type]
+        db,
+    )
+    db.refresh(existing)
+
+    assert enabled.created == 0
+    assert enabled.updated == 1
+    assert existing.ip_address == "192.168.1.84"
 
 
 def test_discovery_import_override_existing_replaces_selected_fields():

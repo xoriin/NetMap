@@ -172,7 +172,7 @@ export type DiscoveryHost = {
   open_ports: number[];
   existing_device_id: number | null;
   import_status: "new" | "existing" | "changed";
-  proposed_updates: Array<"hostname" | "mac_address" | "vendor">;
+  proposed_updates: Array<"ip_address" | "hostname" | "mac_address" | "vendor">;
 };
 
 export type DiscoveryScan = {
@@ -1071,6 +1071,7 @@ export const api = {
     siteId?: number | null,
     mode?: "new_only" | "fill_missing" | "override_existing",
     updateFields?: Array<"hostname" | "mac_address" | "vendor">,
+    updateIpOnMacMatch?: boolean,
   ) =>
     request<DiscoveryImportResult>("/api/v1/discovery/import", {
       method: "POST",
@@ -1082,6 +1083,7 @@ export const api = {
         site_id: siteId ?? null,
         mode: mode ?? "fill_missing",
         update_fields: updateFields ?? ["hostname", "mac_address", "vendor"],
+        update_ip_on_mac_match: updateIpOnMacMatch ?? false,
       }),
     }),
   syslogStatus: (token: string) => request<SyslogStatus>("/api/v1/syslog/status", { token }),

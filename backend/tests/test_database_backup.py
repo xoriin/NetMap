@@ -1,6 +1,9 @@
 import sqlite3
+from unittest.mock import Mock
 
 from sqlalchemy import create_engine
+from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm import sessionmaker
 
 from app.core import secrets
 from app.db.session import Base
@@ -29,3 +32,41 @@ def test_backup_database_bytes_uses_active_sqlite_engine(tmp_path, monkeypatch):
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
     assert {"users", "system_settings", "devices", "device_relationships"}.issubset(tables)
+
+
+def test_network_report_pdf_skips_malformed_firewall_db(tmp_path):
+    db_path = tmp_path / "netmap.db"
+    test_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=test_engine)
+    SessionLocal = sessionmaker(bind=test_engine)
+    db = SessionLocal()
+    firewall_db = Mock()
+    firewall_db.execute.side_effect = DatabaseError(
+        "SELECT count(*) FROM firewall_events",
+        {},
+        sqlite3.DatabaseError("database disk image is malformed"),
+    )
+
+    try:
+        payload = export_service.build_network_report_pdf(db, firewall_db)
+    finally:
+        db.close()
+
+    assert payload.startswith(b"%PDF")
+    firewall_db.rollback.assert_called_once()
+
+
+def test_report_firewall_summary_marks_corrupt_firewall_db_unavailable():
+    firewall_db = Mock()
+    firewall_db.execute.side_effect = DatabaseError(
+        "SELECT count(*) FROM firewall_events",
+        {},
+        sqlite3.DatabaseError("database disk image is malformed"),
+    )
+
+    summary = export_service.build_report_firewall_summary(firewall_db)
+
+    assert summary["available"] is False
+    assert summary["total_events"] == "Unavailable"
+    assert summary["blocked_sources"] == []
+    firewall_db.rollback.assert_called_once()

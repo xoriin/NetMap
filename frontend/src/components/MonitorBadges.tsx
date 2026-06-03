@@ -48,10 +48,12 @@ export function RttSparkline({ data }: { data: MonitorHistoryPoint[] }) {
   const range = maxRtt - minRtt || 1;
   const H = 56, W = 100;
   const step = W / (valid.length - 1);
-  const yOf = (ms: number) => H - ((ms - minRtt) / range) * (H - 6) - 3;
+  const yOf = (ms: number) => H - ((ms - minRtt) / range) * (H - 10) - 5;
   const points = valid.map((d, i) => `${i * step},${yOf(d.rtt_ms as number)}`).join(" ");
-  const area = `${points} ${W},${H} 0,${H}`;
   const avgY = yOf(avgRtt);
+  const lastPoint = valid[valid.length - 1];
+  const lastX = W;
+  const lastY = yOf(lastPoint.rtt_ms as number);
   const fmt = (ms: number) => ms < 1 ? `${(ms * 1000).toFixed(0)}µs` : `${ms % 1 === 0 ? ms.toFixed(0) : ms.toFixed(1)}ms`;
   const fmtTs = (iso: string) => { const d = new Date(iso); return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; };
 
@@ -64,9 +66,12 @@ export function RttSparkline({ data }: { data: MonitorHistoryPoint[] }) {
       </div>
       <div className="mon-sparkline-area">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mon-sparkline" aria-label="RTT trend">
-          <line x1={0} y1={avgY} x2={W} y2={avgY} stroke="rgba(29,154,176,0.30)" strokeWidth="0.7" strokeDasharray="2 2" />
-          <polygon points={area} fill="rgba(29,154,176,0.10)" />
-          <polyline points={points} fill="none" stroke="#1d9ab0" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+          <line className="mon-sparkline-grid" x1={0} y1={5} x2={W} y2={5} />
+          <line className="mon-sparkline-grid" x1={0} y1={H / 2} x2={W} y2={H / 2} />
+          <line className="mon-sparkline-grid" x1={0} y1={H - 5} x2={W} y2={H - 5} />
+          <line className="mon-sparkline-avg" x1={0} y1={avgY} x2={W} y2={avgY} />
+          <polyline className="mon-sparkline-line" points={points} />
+          <circle className="mon-sparkline-endpoint" cx={lastX} cy={lastY} r="1.7" />
         </svg>
         <div className="mon-sparkline-xaxis">
           <span>{fmtTs(valid[0].checked_at)}</span>

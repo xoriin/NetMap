@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import io
 import json
+import logging
 import sqlite3
 import tempfile
 from collections.abc import Sequence
@@ -16,6 +17,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import case, desc, func, or_, select
+from sqlalchemy.exc import DatabaseError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
@@ -26,6 +28,7 @@ from app.services.topology.service import device_to_dict, infer_subnet
 
 BLOCK_ACTIONS = ("block", "deny", "drop")
 PASS_ACTIONS = ("pass", "allow", "accept")
+logger = logging.getLogger(__name__)
 
 
 def build_inventory_export(db: Session, export_format: str) -> tuple[str, str, bytes]:
@@ -124,20 +127,7 @@ def build_firewall_export(
 
 def build_network_report_pdf(db: Session, firewall_db: Session) -> bytes:
     devices = db.scalars(select(Device).options(selectinload(Device.group)).order_by(Device.hostname, Device.ip_address)).all()
-    last_24_hours = datetime.now(timezone.utc) - timedelta(hours=24)
-    event_counts_row = firewall_db.execute(
-        select(
-            func.count().label("total"),
-            func.sum(case((FirewallEvent.action.in_(BLOCK_ACTIONS), 1), else_=0)).label("blocked"),
-            func.sum(case((FirewallEvent.action.in_(PASS_ACTIONS), 1), else_=0)).label("passed"),
-        ).where(FirewallEvent.received_at >= last_24_hours)
-    ).one()
-    total_events = int(event_counts_row.total or 0)
-    blocked_events = int(event_counts_row.blocked or 0)
-    passed_events = int(event_counts_row.passed or 0)
-
-    blocked_sources = top_blocked_dimension(firewall_db, FirewallEvent.src_ip)
-    blocked_destinations = top_blocked_dimension(firewall_db, FirewallEvent.dst_ip)
+    firewall_summary = build_report_firewall_summary(firewall_db)
     subnet_counts = summarize_subnets(devices)
 
     buffer = io.BytesIO()
@@ -160,7 +150,7 @@ def build_network_report_pdf(db: Session, firewall_db: Session) -> bytes:
             [
                 ("Devices", str(len(devices))),
                 ("Topology groups", str(len({device_to_dict(device)['topology_group'] for device in devices}))),
-                ("Firewall events in last 24h", str(total_events)),
+                ("Firewall events in last 24h", firewall_summary["total_events"]),
             ],
         ),
         Spacer(1, 12),
@@ -189,22 +179,23 @@ def build_network_report_pdf(db: Session, firewall_db: Session) -> bytes:
         Paragraph("Recent Firewall Event Summary", styles["Heading2"]),
         table_for_pairs(
             [
-                ("Blocked", str(blocked_events)),
-                ("Passed", str(passed_events)),
+                ("Blocked", firewall_summary["blocked_events"]),
+                ("Passed", firewall_summary["passed_events"]),
                 ("Retention days", str(settings.firewall_log_retention_days)),
+                ("Firewall data", firewall_summary["status"]),
             ],
         ),
         Spacer(1, 12),
         Paragraph("Top Blocked Sources", styles["Heading2"]),
         table_for_rows(
             ["Source", "Blocked events"],
-            [[value, str(count)] for value, count in blocked_sources] or [["No data", "0"]],
+            [[value, str(count)] for value, count in firewall_summary["blocked_sources"]] or [["No data", "0"]],
         ),
         Spacer(1, 12),
         Paragraph("Top Blocked Destinations", styles["Heading2"]),
         table_for_rows(
             ["Destination", "Blocked events"],
-            [[value, str(count)] for value, count in blocked_destinations] or [["No data", "0"]],
+            [[value, str(count)] for value, count in firewall_summary["blocked_destinations"]] or [["No data", "0"]],
         ),
         Spacer(1, 12),
         Paragraph("Certificate / Security Summary", styles["Heading2"]),
@@ -215,6 +206,42 @@ def build_network_report_pdf(db: Session, firewall_db: Session) -> bytes:
     ]
     doc.build(story)
     return buffer.getvalue()
+
+
+def build_report_firewall_summary(firewall_db: Session) -> dict[str, object]:
+    try:
+        last_24_hours = datetime.now(timezone.utc) - timedelta(hours=24)
+        event_counts_row = firewall_db.execute(
+            select(
+                func.count().label("total"),
+                func.sum(case((FirewallEvent.action.in_(BLOCK_ACTIONS), 1), else_=0)).label("blocked"),
+                func.sum(case((FirewallEvent.action.in_(PASS_ACTIONS), 1), else_=0)).label("passed"),
+            ).where(FirewallEvent.received_at >= last_24_hours)
+        ).one()
+        return {
+            "available": True,
+            "status": "Available",
+            "total_events": str(int(event_counts_row.total or 0)),
+            "blocked_events": str(int(event_counts_row.blocked or 0)),
+            "passed_events": str(int(event_counts_row.passed or 0)),
+            "blocked_sources": top_blocked_dimension(firewall_db, FirewallEvent.src_ip),
+            "blocked_destinations": top_blocked_dimension(firewall_db, FirewallEvent.dst_ip),
+        }
+    except (DatabaseError, SQLAlchemyError, sqlite3.Error) as exc:
+        logger.warning("Skipping firewall summary in PDF report because firewall.db could not be read", exc_info=True)
+        try:
+            firewall_db.rollback()
+        except SQLAlchemyError:
+            pass
+        return {
+            "available": False,
+            "status": "Unavailable - firewall database could not be read",
+            "total_events": "Unavailable",
+            "blocked_events": "Unavailable",
+            "passed_events": "Unavailable",
+            "blocked_sources": [],
+            "blocked_destinations": [],
+        }
 
 
 _SIG_PREFIX = b"\n--NETMAP-SIG-V1:"

@@ -66,6 +66,7 @@ class DiscoveryImportRequest(BaseModel):
     update_fields: list[Literal["hostname", "mac_address", "vendor"]] = Field(
         default_factory=lambda: ["hostname", "mac_address", "vendor"]
     )
+    update_ip_on_mac_match: bool = False
 
     @field_validator("ip_addresses")
     @classmethod

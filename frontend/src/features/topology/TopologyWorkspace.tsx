@@ -1427,33 +1427,35 @@ export function TopologyWorkspace({
         <div className="topo-entity-backdrop" onClick={() => setExpandedEntitySection(null)} />
       )}
       <div className="topo-entity-panel">
-        {(["devices", "relationships", "groups"] as const).map((section) => {
-          const isActive = expandedEntitySection === section;
-          const count = section === "devices"
-            ? filteredGraph.devices.length
-            : section === "relationships"
-            ? filteredGraph.relationships.length
-            : new Set(filteredGraph.devices.map((d) => d.topology_group).filter(Boolean)).size;
-          const icon = section === "devices"
-            ? <IconServer size={13} />
-            : section === "relationships"
-            ? <Network size={13} />
-            : <IconTopologyRing size={13} />;
-          const label = section === "devices" ? "Devices" : section === "relationships" ? "Links" : "Groups";
-          return (
-            <button
-              key={section}
-              type="button"
-              className={`topo-stat-btn${isActive ? " topo-stat-btn--active" : ""} topo-stat-btn--${section}`}
-              onClick={() => setExpandedEntitySection(isActive ? null : section)}
-            >
-              <span className="topo-stat-icon">{icon}</span>
-              <span className="topo-stat-count">{count}</span>
-              <span className="topo-stat-label">{label}</span>
-              {isActive ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-            </button>
-          );
-        })}
+        <div className="topo-entity-actions">
+          {(["devices", "relationships", "groups"] as const).map((section) => {
+            const isActive = expandedEntitySection === section;
+            const count = section === "devices"
+              ? filteredGraph.devices.length
+              : section === "relationships"
+              ? filteredGraph.relationships.length
+              : new Set(filteredGraph.devices.map((d) => d.topology_group).filter(Boolean)).size;
+            const icon = section === "devices"
+              ? <IconServer size={13} />
+              : section === "relationships"
+              ? <Network size={13} />
+              : <IconTopologyRing size={13} />;
+            const label = section === "devices" ? "Devices" : section === "relationships" ? "Links" : "Groups";
+            return (
+              <button
+                key={section}
+                type="button"
+                className={`topo-stat-btn${isActive ? " topo-stat-btn--active" : ""} topo-stat-btn--${section}`}
+                onClick={() => setExpandedEntitySection(isActive ? null : section)}
+              >
+                <span className="topo-stat-icon">{icon}</span>
+                <span className="topo-stat-count">{count}</span>
+                <span className="topo-stat-label">{label}</span>
+                {isActive ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+            );
+          })}
+        </div>
         {expandedEntitySection && (
           <div className="topo-entity-list">
             {expandedEntitySection === "devices" && (
@@ -1762,12 +1764,6 @@ export function TopologyWorkspace({
             )}
           </div>
         </div>
-        <span
-          className={`app-topbar-status${livePingEnabled ? "" : " app-topbar-status--paused"}`}
-          style={{ marginLeft: "auto", flexShrink: 0 }}
-        >
-          <span aria-hidden="true" />{livePingEnabled ? "Live" : "Paused"}
-        </span>
       </div>
       {topologyError && <div className="form-error">{topologyError}</div>}
       <div className={showDetailsPanel ? "topology-content details-open" : "topology-content"}>
