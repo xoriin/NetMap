@@ -270,20 +270,76 @@ def _all_resolved_addresses_private(host: str) -> bool:
     return all(any(address in network for network in PRIVATE_ACTIVE_TARGET_NETWORKS) for address in addresses)
 
 
+def _validate_tool_command(command: list[str]) -> None:
+    if not command:
+        raise ValueError("Invalid command")
+    for arg in command:
+        if not isinstance(arg, str) or any(ch in arg for ch in ("\x00", "\n", "\r")):
+            raise ValueError("Invalid command argument")
+
+    executable = command[0].rsplit("/", 1)[-1]
+    if executable not in {"ping", "traceroute", "traceroute6"}:
+        raise ValueError("Unsupported tool command")
+
+    if executable == "ping":
+        if len(command) != 7 or command[1] != "-c" or command[3] != "-W" or command[5] != "--":
+            raise ValueError("Invalid ping command")
+        if not command[2].isdigit() or not command[4].isdigit():
+            raise ValueError("Invalid ping command argument")
+        _safe_tool_target_argument(command[6])
+        return
+
+    known_int_flags = {"-m", "-q", "-f", "-p"}
+    known_float_flags = {"-w"}
+    known_no_value_flags = {"-n", "-I", "-T", "-U"}
+
+    i = 1
+    target_seen = False
+    while i < len(command):
+        token = command[i]
+        if token == "--":
+            if target_seen or i + 2 != len(command):
+                raise ValueError("Invalid traceroute command")
+            _safe_tool_target_argument(command[i + 1])
+            target_seen = True
+            break
+        if token.startswith("-"):
+            if token in known_no_value_flags:
+                i += 1
+                continue
+            if token in known_int_flags:
+                if i + 1 >= len(command) or not command[i + 1].isdigit():
+                    raise ValueError("Invalid traceroute command argument")
+                i += 2
+                continue
+            if token in known_float_flags:
+                if i + 1 >= len(command):
+                    raise ValueError("Invalid traceroute command argument")
+                try:
+                    float(command[i + 1])
+                except ValueError as exc:
+                    raise ValueError("Invalid traceroute command argument") from exc
+                i += 2
+                continue
+            raise ValueError("Unsupported traceroute command option")
+
+        if target_seen:
+            raise ValueError("Invalid traceroute command")
+        _safe_tool_target_argument(token)
+        target_seen = True
+        i += 1
+
+    if not target_seen:
+        raise ValueError("Invalid traceroute command")
+
+
 def _run_tool_command(
     command: list[str],
     *,
     timeout_seconds: int | float,
     timeout_label: str,
 ) -> subprocess.CompletedProcess[str]:
-    if not command:
-        raise ValueError("Invalid command")
-    executable = command[0].rsplit("/", 1)[-1]
-    if executable not in {"ping", "traceroute", "traceroute6"}:
-        raise ValueError("Unsupported tool command")
-    for arg in command[1:]:
-        if not isinstance(arg, str) or any(ch in arg for ch in ("\x00", "\n", "\r")):
-            raise ValueError("Invalid command argument")
+    _validate_tool_command(command)
     try:
         return subprocess.run(command, capture_output=True, text=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired as exc:

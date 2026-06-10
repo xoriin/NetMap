@@ -95,6 +95,29 @@ def test_run_tool_command_rejects_control_characters() -> None:
         _run_tool_command(["ping", "-c", "1", "10.0.0.1\nid"], timeout_seconds=1, timeout_label="Ping")
 
 
+def test_run_tool_command_rejects_malformed_ping_command() -> None:
+    with pytest.raises(ValueError, match="Invalid ping command"):
+        _run_tool_command(["ping", "-c", "1", "10.0.0.1"], timeout_seconds=1, timeout_label="Ping")
+
+
+def test_run_tool_command_rejects_unknown_traceroute_option() -> None:
+    with pytest.raises(ValueError, match="Unsupported traceroute command option"):
+        _run_tool_command(
+            ["traceroute", "-n", "-e", "--", "10.0.0.1"],
+            timeout_seconds=1,
+            timeout_label="Traceroute",
+        )
+
+
+def test_run_tool_command_rejects_extra_traceroute_target() -> None:
+    with pytest.raises(ValueError, match="Invalid traceroute command"):
+        _run_tool_command(
+            ["traceroute", "-n", "--", "10.0.0.1", "10.0.0.2"],
+            timeout_seconds=1,
+            timeout_label="Traceroute",
+        )
+
+
 def test_resolve_host_uses_temporary_default_socket_timeout() -> None:
     observed_timeout = None
 
