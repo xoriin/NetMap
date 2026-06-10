@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1.admin import get_public_settings, update_settings
-from app.api.v1.monitoring import _build_device_summaries, list_device_summaries
+from app.api.v1.monitoring import _build_device_summaries, device_analysis, list_device_summaries
 from app.db.session import Base
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
@@ -162,6 +162,43 @@ def test_monitoring_service_results_parse_legacy_and_rich_history_rows():
     assert rich_result.target_id == 7
     assert rich_result.label == "Admin UI"
     assert rich_result.status == "closed"
+
+
+def test_device_analysis_handles_sqlite_naive_checked_at_values():
+    db = _session()
+    now = datetime.now(timezone.utc)
+    device = Device(
+        display_name="Router",
+        ip_address="10.0.0.40",
+        status="online",
+        monitor_status="online",
+        last_monitored_at=now,
+        updated_at=now,
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+
+    rows = []
+    for idx in range(12):
+        rows.append(
+            DeviceMonitorHistory(
+                device_id=device.id,
+                checked_at=(now - timedelta(hours=idx)).replace(tzinfo=None),
+                status="offline" if 3 <= idx <= 4 else "online",
+                rtt_ms=float(10 + idx),
+                port_results="[]",
+            )
+        )
+    db.add_all(rows)
+    db.commit()
+
+    analysis = device_analysis(device.id, None, db)  # type: ignore[arg-type]
+
+    assert analysis.device_id == device.id
+    assert analysis.anomaly_level in {"normal", "elevated", "anomalous"}
+    assert analysis.flap_count_24h == 2
+    assert analysis.longest_outage_minutes == 120
 
 
 def test_alert_monitor_reads_interval_and_live_ping_settings(monkeypatch):

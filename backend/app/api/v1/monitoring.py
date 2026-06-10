@@ -65,6 +65,12 @@ def _parse_port_results(raw: str) -> list[PortResult]:
         return []
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 @router.get("/summary", response_model=FleetSummary)
 def fleet_summary(
     _current_user: Annotated[User, Depends(get_current_user)],
@@ -348,8 +354,16 @@ def device_analysis(
         anomaly_level = "normal"
 
     # ── Trend: recent 6 h vs 6–24 h window ──────────────────────────────────
-    rtts_recent = [r.rtt_ms for r in rows_7d if r.rtt_ms is not None and r.checked_at >= since_6h]
-    rtts_older = [r.rtt_ms for r in rows_7d if r.rtt_ms is not None and since_6_24h <= r.checked_at < since_6h]
+    rtts_recent = [
+        r.rtt_ms
+        for r in rows_7d
+        if r.rtt_ms is not None and _as_utc(r.checked_at) >= since_6h
+    ]
+    rtts_older = [
+        r.rtt_ms
+        for r in rows_7d
+        if r.rtt_ms is not None and since_6_24h <= _as_utc(r.checked_at) < since_6h
+    ]
     trend = "insufficient_data"
     trend_pct: float | None = None
 
@@ -361,7 +375,7 @@ def device_analysis(
             trend = "rising" if trend_pct > 15 else "falling" if trend_pct < -15 else "stable"
 
     # ── Flap count (status transitions in 24 h) ──────────────────────────────
-    rows_24h = [r for r in rows_7d if r.checked_at >= since_24h]
+    rows_24h = [r for r in rows_7d if _as_utc(r.checked_at) >= since_24h]
     flap_count = 0
     for i in range(1, len(rows_24h)):
         if rows_24h[i].status != rows_24h[i - 1].status:
@@ -371,17 +385,18 @@ def device_analysis(
     longest_outage_minutes: int | None = None
     streak_start: datetime | None = None
     for row in rows_7d:
+        checked_at = _as_utc(row.checked_at)
         if row.status == "offline":
             if streak_start is None:
-                streak_start = row.checked_at
+                streak_start = checked_at
         else:
             if streak_start is not None:
-                duration = int((row.checked_at - streak_start).total_seconds() / 60)
+                duration = int((checked_at - streak_start).total_seconds() / 60)
                 longest_outage_minutes = max(longest_outage_minutes or 0, duration)
                 streak_start = None
     # handle open streak at end
     if streak_start is not None and rows_7d:
-        duration = int((rows_7d[-1].checked_at - streak_start).total_seconds() / 60)
+        duration = int((_as_utc(rows_7d[-1].checked_at) - streak_start).total_seconds() / 60)
         longest_outage_minutes = max(longest_outage_minutes or 0, duration)
 
     return DeviceAnalysis(

@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.2.7] - 2026-06-03
+
+### Discovery
+- Discovery now recognizes existing devices by normalized MAC address when a DHCP/Wi-Fi device returns at a new IP.
+- Discovery import can explicitly update the IP address for a MAC-matched device when "Update IP when MAC matches" is selected.
+
+### Monitoring
+- Cleaned up the selected-device RTT chart with a lighter line, subtle guide grid, smaller endpoint marker, and dark-mode chart colors.
+- Inventory uses the shared Monitoring-style live status pill, while Topology no longer shows a map-level Live/Paused pill.
+- Monitoring device analysis now normalizes SQLite-returned timestamps as UTC before Python-side comparisons, preventing 500 errors from mixed naive/aware datetimes.
+
+### Security / Syslog
+- OpenWrt banIP firewall prefixes now parse action, chain/context, and feed/list metadata.
+- Corrupt `firewall.db` files encountered during retention cleanup are now recreated automatically instead of leaving startup maintenance errors in the logs.
+- Firewall retention cleanup now skips overlapping in-process runs and defers gracefully when SQLite reports `database is locked`, avoiding startup maintenance tracebacks while retrying on the next retention pass.
+- Security raw-log search now matches individual prefix terms instead of requiring the full query as an exact phrase.
+- Security filters now use draft values with an explicit Search button or Enter key; quick filters and clickable event cells still apply immediately.
+- Active network tool subprocess execution now allowlists ping/traceroute commands and rejects control characters in command arguments.
+
+### Exports / Operations
+- Network report PDF generation now skips malformed or unreadable `firewall.db` summary data instead of returning HTTP 500.
+- Dev and test builds now track candidate `1.2.7` while production remains `1.2.6`.
+
+---
+
 ## [1.2.6] - 2026-06-01
 
 ### Discovery
