@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useContext } from "react";
+import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { Search, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
@@ -21,8 +22,6 @@ import { DeviceForm } from "../devices/DeviceForm";
 import { DiscoveryModal } from "../topology/DiscoveryModal";
 import { DeviceImportModal } from "../devices/DeviceImportModal";
 
-let _inventoryStatusCache: DeviceLiveStatus[] = [];
-
 export function InventoryWorkspace({
   accessToken,
   canViewSecurity,
@@ -33,7 +32,9 @@ export function InventoryWorkspace({
   onDeviceChange,
   onDevicesRemove,
   onGraphChange,
+  onObservationActioned,
   onToggleFavourite,
+  openObservationCount,
 }: {
   accessToken: string;
   canViewSecurity: boolean;
@@ -44,7 +45,9 @@ export function InventoryWorkspace({
   onDeviceChange: (device: Device) => void;
   onDevicesRemove: (deviceIds: number[]) => void;
   onGraphChange: () => Promise<void>;
+  onObservationActioned?: () => void;
   onToggleFavourite: (deviceId: number) => void;
+  openObservationCount?: number;
 }) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(graph.devices[0]?.id ?? null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
@@ -58,10 +61,8 @@ export function InventoryWorkspace({
   const [groups, setGroups] = useState<TopologyGroup[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
-  const [liveStatusBusy, setLiveStatusBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
-  const [liveStatuses, setLiveStatuses] = useState<DeviceLiveStatus[]>(_inventoryStatusCache);
   const [inventorySortKey, setInventorySortKey] = useState<string>("device");
   const [inventorySortDir, setInventorySortDir] = useState<"asc" | "desc">("asc");
   const [inventorySearch, setInventorySearch] = useState("");
@@ -81,7 +82,16 @@ export function InventoryWorkspace({
     () => [...new Set(graph.devices.map((device) => device.topology_group))].filter(Boolean).sort(compareGroupLabels),
     [graph.devices],
   );
-  const liveStatusByDeviceId = useMemo(() => new Map(liveStatuses.map((status) => [status.device_id, status])), [liveStatuses]);
+  const liveStatusByDeviceId = useMemo<Map<number, DeviceLiveStatus>>(() => new Map(graph.devices.map((device) => {
+    const status = device.status === "disabled" ? "disabled" : (device.monitor_status ?? device.status);
+    return [device.id, {
+      device_id: device.id,
+      status,
+      latency_ms: null,
+      last_checked_at: device.last_monitored_at ?? device.updated_at,
+      error: null,
+    } satisfies DeviceLiveStatus];
+  })), [graph.devices]);
   const filteredDevices = useMemo(() => {
     let devs = selectedGroupFilter === 'all' ? graph.devices : graph.devices.filter((d) => d.topology_group === selectedGroupFilter);
     if (selectedSiteFilter === 'unassigned') {
@@ -201,45 +211,6 @@ export function InventoryWorkspace({
   useEffect(() => {
     setSelectedDeviceIds((current) => new Set([...current].filter((id) => graph.devices.some((device) => device.id === id))));
   }, [graph.devices]);
-
-  async function refreshLiveStatuses(silent = false) {
-    if (!livePingEnabled || graph.devices.length === 0) {
-      setLiveStatuses([]);
-      return;
-    }
-    if (!silent) {
-      setLiveStatusBusy(true);
-      setInventoryError(null);
-    }
-    try {
-      const response = await api.topologyLiveStatuses(accessToken, {
-        device_ids: graph.devices.slice(0, 64).map((device) => device.id),
-        timeout_seconds: 2,
-      });
-      _inventoryStatusCache = response.statuses;
-      setLiveStatuses(response.statuses);
-    } catch (err) {
-      if (!silent) {
-        setInventoryError(err instanceof Error ? err.message : 'Unable to refresh live status');
-      }
-    } finally {
-      if (!silent) {
-        setLiveStatusBusy(false);
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (!livePingEnabled || graph.devices.length === 0) {
-      setLiveStatuses([]);
-      return;
-    }
-    const intervalId = window.setInterval(() => {
-      void refreshLiveStatuses(true);
-    }, 30_000);
-    void refreshLiveStatuses();
-    return () => window.clearInterval(intervalId);
-  }, [accessToken, graph.devices, livePingEnabled]);
 
   useEffect(() => {
     if (!canViewSecurity || !accessToken || !selectedDevice) {
@@ -422,12 +393,8 @@ export function InventoryWorkspace({
   }
 
   const groupCount = new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size;
-  const invOnlineCount = livePingEnabled && liveStatuses.length > 0
-    ? liveStatuses.filter((s) => s.status === "online").length
-    : graph.devices.filter((d) => (d.monitor_status ?? d.status) === "online").length;
-  const invOfflineCount = livePingEnabled && liveStatuses.length > 0
-    ? liveStatuses.filter((s) => s.status === "offline").length
-    : graph.devices.filter((d) => (d.monitor_status ?? d.status) === "offline").length;
+  const invOnlineCount = graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "online").length;
+  const invOfflineCount = graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "offline").length;
 
   const selectedDeviceLive = selectedDevice && livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
   const setTopbarNote = useContext(TopbarNoteCtx);
@@ -450,6 +417,12 @@ export function InventoryWorkspace({
         <DashStat label="Offline" value={invOfflineCount} sub={invOfflineCount > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={invOfflineCount > 0 ? "red" : "green"} />
         <DashStat label="Groups" value={groupCount} sub="topology segments" icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
+
+      <ObservationsAlert
+        accessToken={accessToken}
+        openObservationCount={openObservationCount}
+        onObservationActioned={onObservationActioned}
+      />
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
       {/* ── Table + details panel ──────────────────────────────────────── */}

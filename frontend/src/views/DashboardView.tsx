@@ -54,6 +54,8 @@ export function DashboardView({
   onNavigate,
   onUserUpdate,
   onSettingsChange,
+  onObservationActioned,
+  openObservationCount,
   theme,
   user,
   summary,
@@ -78,6 +80,8 @@ export function DashboardView({
   onNavigate: (route: AppRoute) => void;
   onUserUpdate: (user: User) => void;
   onSettingsChange: (settings: import("../api/client").SystemSettings) => void;
+  onObservationActioned?: () => void;
+  openObservationCount?: number;
   theme: "light" | "dark";
   user: User;
   summary: DashboardSummary | null;
@@ -133,7 +137,9 @@ export function DashboardView({
           favouriteIds={favouriteIds}
           graph={graph}
           onNavigate={onNavigate}
+          onObservationActioned={onObservationActioned}
           onToggleFavourite={onToggleFavourite}
+          openObservationCount={openObservationCount}
           summary={summary}
           user={user}
         />
@@ -163,7 +169,9 @@ export function DashboardView({
           onDeviceChange={onDeviceChange}
           onDevicesRemove={onDevicesRemove}
           onGraphChange={onGraphChange}
+          onObservationActioned={onObservationActioned}
           onToggleFavourite={onToggleFavourite}
+          openObservationCount={openObservationCount}
           livePingEnabled={livePingEnabled}
         />
       )}

@@ -1,11 +1,12 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { Search, Network } from "lucide-react";
-import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter } from "@tabler/icons-react";
+import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
   type DnsRecordType, type DnsLookupResult, type ReverseDnsResult,
   type PingResult, type TracerouteResult, type TcpPortCheckResult,
-  type SubnetCalculatorResult, type SnmpProbeResult, type SnmpProfile, type Device, type TopologyGraph, type User,
+  type SubnetCalculatorResult, type SnmpProbeResult, type SnmpProfile,
+  type LldpNeighbour, type Device, type TopologyGraph, type User,
 } from "../../api/client";
 import { SUBNET_REF } from "../../constants";
 import { deviceLabel, formatMs } from "../../utils/format";
@@ -65,6 +66,11 @@ export function ToolsWorkspace({
   const [snmpResult, setSnmpResult] = useState<SnmpProbeResult | null>(null);
   const [snmpError, setSnmpError] = useState<string | null>(null);
   const [snmpLoading, setSnmpLoading] = useState(false);
+  const [lldpDeviceId, setLldpDeviceId] = useState<string>(() => String(selectedDevice?.id ?? ""));
+  const [lldpNeighbours, setLldpNeighbours] = useState<LldpNeighbour[]>([]);
+  const [lldpError, setLldpError] = useState<string | null>(null);
+  const [lldpLoading, setLldpLoading] = useState(false);
+  const [lldpScanned, setLldpScanned] = useState(false);
 
   const activeTarget = selectedDevice?.ip_address ?? "";
   const [activeTool, setActiveTool] = useState("dns");
@@ -79,6 +85,7 @@ export function ToolsWorkspace({
     setTracerouteHostValue((current) => current || ip);
     setTcpHostValue((current) => current || ip);
     setSnmpHost((current) => current || ip);
+    setLldpDeviceId((current) => current || String(selectedDevice.id));
     if (selectedDevice.subnet) {
       const parts = selectedDevice.subnet.split("/");
       setSubnetIp(parts[0]);
@@ -260,6 +267,7 @@ export function ToolsWorkspace({
             { id: "tcp",         label: "TCP Port Check",    Icon: IconServer,            passive: false },
             { id: "subnet",      label: "Subnet Calculator", Icon: IconLayoutDashboard,   passive: true  },
             { id: "snmp",        label: "SNMP Probe",        Icon: IconRouter,            passive: false },
+            // { id: "lldp",        label: "LLDP Neighbours",   Icon: IconTopologyRing,      passive: false },
           ] as const).map(({ id, label, Icon, passive }) => {
             const available = passive || canRunActiveTools;
             return (
@@ -757,6 +765,117 @@ export function ToolsWorkspace({
                   </div>
                 )}
               </div>
+            )}
+          </section>}
+
+          {activeTool === "lldp" && <section className="tool-card">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const id = Number(lldpDeviceId);
+              if (!id) return;
+              setLldpLoading(true);
+              setLldpError(null);
+              setLldpNeighbours([]);
+              try {
+                const result = await api.lldpScan(accessToken, id);
+                if (result.error) setLldpError(result.error);
+                setLldpNeighbours(result.neighbours);
+                setLldpScanned(true);
+              } catch (err) {
+                setLldpError(err instanceof Error ? err.message : "Scan failed.");
+              } finally {
+                setLldpLoading(false);
+              }
+            }}>
+              <div className="tool-form-header">
+                <h3>LLDP Neighbours</h3>
+              </div>
+              <label>
+                Device (must have SNMP profile assigned)
+                <select
+                  value={lldpDeviceId}
+                  onChange={(e) => setLldpDeviceId(e.target.value)}
+                  disabled={!canRunActiveTools}
+                >
+                  <option value="">— select a device —</option>
+                  {graph.devices.map((d) => (
+                    <option key={d.id} value={String(d.id)}>
+                      {deviceLabel(d)} ({d.ip_address})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" disabled={lldpLoading || !canRunActiveTools || !lldpDeviceId}>
+                {lldpLoading ? "Scanning…" : "Scan LLDP"}
+              </button>
+            </form>
+            {lldpError && <div className="form-error">{lldpError}</div>}
+            {lldpNeighbours.length > 0 && (
+              <div className="tool-result">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Local port</th>
+                      <th>Remote name</th>
+                      <th>Chassis ID</th>
+                      <th>Mgmt IP</th>
+                      <th>Remote port</th>
+                      <th>Matched device</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lldpNeighbours.map((n) => {
+                      const matched = n.matched_device_id
+                        ? graph.devices.find((d) => d.id === n.matched_device_id)
+                        : null;
+                      return (
+                        <tr key={n.id} style={{ opacity: n.dismissed ? 0.4 : 1 }}>
+                          <td>{n.local_port_desc || n.local_port_id || `port ${n.local_port_index}`}</td>
+                          <td>{n.remote_sys_name || "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: 12 }}>{n.remote_chassis_id}</td>
+                          <td>{n.remote_mgmt_addr || "—"}</td>
+                          <td>{n.remote_port_desc || n.remote_port_id || "—"}</td>
+                          <td>{matched ? deviceLabel(matched) : <span className="text-muted">unmatched</span>}</td>
+                          <td style={{ display: "flex", gap: 6 }}>
+                            {!n.dismissed && matched && (
+                              <button
+                                type="button"
+                                className="btn-xs btn-primary"
+                                onClick={async () => {
+                                  try {
+                                    await api.lldpCreateLink(accessToken, n.id);
+                                    setLldpNeighbours((prev) => prev.map((x) => x.id === n.id ? { ...x, dismissed: true } : x));
+                                  } catch { /* ignore */ }
+                                }}
+                              >
+                                Create link
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="btn-xs"
+                              onClick={async () => {
+                                const dismissed = !n.dismissed;
+                                await api.patchLldpNeighbour(accessToken, n.id, { dismissed });
+                                setLldpNeighbours((prev) => prev.map((x) => x.id === n.id ? { ...x, dismissed } : x));
+                              }}
+                            >
+                              {n.dismissed ? "Restore" : "Dismiss"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!lldpLoading && !lldpError && !lldpScanned && (
+              <p className="tool-result-empty">Select a device with an SNMP profile assigned and click Scan LLDP.</p>
+            )}
+            {!lldpLoading && !lldpError && lldpScanned && lldpNeighbours.length === 0 && (
+              <p className="tool-result-empty">No LLDP neighbours found. The device responded via SNMP but its LLDP-MIB table is empty — check that the LLDP daemon is configured to expose its neighbour table via SNMP (see notes below).</p>
             )}
           </section>}
 

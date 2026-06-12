@@ -12,6 +12,7 @@ export function Sidebar({
   onLogout,
   onToggleTheme,
   onToggleCollapse,
+  openObservationCount,
   theme,
   onNavigate,
   versionInfo,
@@ -24,6 +25,7 @@ export function Sidebar({
   onLogout: () => void;
   onToggleTheme: () => void;
   onToggleCollapse: () => void;
+  openObservationCount?: number;
   theme: "light" | "dark";
   onNavigate: (route: AppRoute) => void;
   versionInfo: VersionInfo | null;
@@ -70,6 +72,11 @@ export function Sidebar({
                 >
                   <Icon size={18} aria-hidden="true" />
                   {!collapsed && route.label}
+                  {route.href === "/inventory" && openObservationCount && openObservationCount > 0 ? (
+                    <span className="sidebar-badge" aria-label={`${openObservationCount} open network changes`}>
+                      {openObservationCount > 99 ? "99+" : openObservationCount}
+                    </span>
+                  ) : null}
                 </button>
               </div>
             );

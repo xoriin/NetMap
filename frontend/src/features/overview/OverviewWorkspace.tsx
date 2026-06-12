@@ -4,11 +4,12 @@ import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
   IconUsers, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
 } from "@tabler/icons-react";
-import { api, type FleetSummary, type DeviceMonitorSummary, type DashboardSummary, type TopologyGraph, type User } from "../../api/client";
+import { api, type FleetSummary, type Device, type DeviceMonitorSummary, type DashboardSummary, type TopologyGraph, type User } from "../../api/client";
 import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
 import { HealthDonut } from "../../components/HealthDonut";
+import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { MonStatusDot, UptimeBadge } from "../../components/MonitorBadges";
 import { HeartbeatBar } from "../../components/HeartbeatBar";
 
@@ -17,7 +18,9 @@ export function OverviewWorkspace({
   favouriteIds,
   graph,
   onNavigate,
+  onObservationActioned,
   onToggleFavourite,
+  openObservationCount,
   summary,
   user,
 }: {
@@ -25,7 +28,9 @@ export function OverviewWorkspace({
   favouriteIds: Set<number>;
   graph: TopologyGraph;
   onNavigate: (route: AppRoute) => void;
+  onObservationActioned?: () => void;
   onToggleFavourite: (deviceId: number) => void;
+  openObservationCount?: number;
   summary: DashboardSummary | null;
   user: User;
 }) {
@@ -46,16 +51,17 @@ export function OverviewWorkspace({
 
   const statusCounts = useMemo(() => {
     const c = { online: 0, offline: 0, warning: 0, unknown: 0 };
-    for (const d of monDevices) {
-      if (d.status === "online") c.online++;
-      else if (d.status === "offline") c.offline++;
-      else if (d.status === "warning") c.warning++;
+    for (const d of graph.devices) {
+      const status = d.status === "disabled" ? "unknown" : (d.monitor_status ?? d.status);
+      if (status === "online") c.online++;
+      else if (status === "offline") c.offline++;
+      else if (status === "warning") c.warning++;
       else c.unknown++;
     }
     return c;
-  }, [monDevices]);
+  }, [graph.devices]);
 
-  const total = monDevices.length > 0 ? monDevices.length : graph.devices.length;
+  const total = graph.devices.filter((device) => device.status !== "disabled").length;
 
   const groupCount = useMemo(
     () => new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size,
@@ -68,8 +74,8 @@ export function OverviewWorkspace({
   );
 
   const offlineDevices = useMemo(
-    () => monDevices.filter((d) => d.status === "offline"),
-    [monDevices],
+    () => graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "offline"),
+    [graph.devices],
   );
 
   useEffect(() => { setAlertDismissed(false); }, [offlineDevices.length]);
@@ -100,6 +106,14 @@ export function OverviewWorkspace({
   }, [graph.devices]);
 
   const onlinePct = total > 0 ? Math.round((statusCounts.online / total) * 100) : 0;
+
+  const liveStatusByDeviceId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const d of graph.devices) {
+      m.set(d.id, d.status === "disabled" ? "disabled" : (d.monitor_status ?? d.status));
+    }
+    return m;
+  }, [graph.devices]);
 
   const favouriteDevices = useMemo(
     () => monDevices.filter((d) => favouriteIds.has(d.device_id)),
@@ -133,8 +147,8 @@ export function OverviewWorkspace({
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
           <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
-          {offlineDevices.slice(0, 6).map((d) => (
-            <span key={d.device_id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
+          {offlineDevices.slice(0, 6).map((d: Device) => (
+            <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
           {offlineDevices.length > 6 && (
             <span className="dash-alert-tag dash-alert-tag--more">+{offlineDevices.length - 6} more</span>
@@ -148,6 +162,12 @@ export function OverviewWorkspace({
         </div>
       )}
 
+      <ObservationsAlert
+        accessToken={accessToken}
+        openObservationCount={openObservationCount}
+        onObservationActioned={onObservationActioned}
+      />
+
       {/* Main grids */}
       <div className="dash-grids">
 
@@ -155,8 +175,8 @@ export function OverviewWorkspace({
       <div className="dash-grid-3">
 
         {/* Network health */}
-        <div className="dash-panel dash-panel--favourites">
-          <div className="dash-panel-header dash-panel-header--favourites">
+        <div className="dash-panel">
+          <div className="dash-panel-header">
             <span className="dash-panel-title">Network health</span>
             <span className="dash-panel-meta">{total} device{total !== 1 ? "s" : ""}</span>
           </div>
@@ -314,7 +334,7 @@ export function OverviewWorkspace({
 
         {/* Monitoring snapshot */}
         <div className="dash-panel">
-          <div className="dash-panel-header">
+          <div className="dash-panel-header dash-panel-header--favourites">
             <span className="dash-panel-title">Favourites</span>
             <div className="dash-panel-actions">
               <div className="overview-fav-search">
@@ -368,7 +388,7 @@ export function OverviewWorkspace({
               <div className="dash-device-list">
                 {visibleFavouriteDevices.map((d) => (
                   <div key={d.device_id} className="dash-device-row dash-device-row--favourite">
-                    <MonStatusDot status={d.status} />
+                    <MonStatusDot status={liveStatusByDeviceId.get(d.device_id) ?? d.status} />
                     <div className="dash-device-info">
                       <span className="dash-device-name">{d.display_name ?? d.hostname ?? d.ip_address}</span>
                       {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat} size="sm" />}
@@ -396,6 +416,7 @@ export function OverviewWorkspace({
       </div>
 
       </div>{/* end dash-grids */}
+
     </section>
   );
 }
