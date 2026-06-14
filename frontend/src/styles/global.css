@@ -6232,7 +6232,7 @@ textarea.details-inline-input {
 .mon-device-picker {
   border: 1px solid #c8d3dd;
   border-radius: 8px;
-  background: #fff;
+  background: transparent;
   overflow: hidden;
 }
 
@@ -6369,9 +6369,8 @@ body.theme-dark .ep-chevron { color: #4a6a80; }
 
 body.theme-dark .ep-dropdown,
 body.theme-dark .mon-device-picker {
-  background: #131e28;
+  background: transparent;
   border-color: #1e2e3c;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
 }
 
 body.theme-dark .ep-search-row { border-bottom-color: #1e2e3c; }
@@ -10514,9 +10513,21 @@ body.theme-dark .mon-mini-sparkline-line { stroke: #4db8cc; opacity: 0.75; }
   border-right: 1px solid #dce6ee;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 40px;
 }
 body.theme-dark .mon-ports-form-col { border-right-color: #1e2e3c; }
+
+.mon-ports-form-col .mon-device-picker { border: none; border-radius: 0; background: transparent; }
+.mon-ports-form-col .ep-search-row { border: none; border-bottom: none; background: #fff; border: 1px solid #ccd8e0; border-radius: 5px; padding: 0; position: relative; }
+.mon-ports-form-col .ep-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.mon-ports-form-col .ep-search { background: transparent; border: none; border-radius: 5px; padding: 7px 10px 7px 28px; width: 100%; box-sizing: border-box; }
+.mon-ports-form-col .ep-list { margin-top: 8px; scrollbar-width: thin; scrollbar-color: rgba(160,180,192,0.4) transparent; }
+.mon-ports-form-col .ep-list::-webkit-scrollbar { width: 4px; }
+.mon-ports-form-col .ep-list::-webkit-scrollbar-track { background: transparent; }
+.mon-ports-form-col .ep-list::-webkit-scrollbar-thumb { background: rgba(160,180,192,0.4); border-radius: 2px; }
+.mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover { background: rgba(130,160,180,0.65); }
+body.theme-dark .mon-ports-form-col .ep-search-row { background: #0f1c28; border-color: #2a3d52; }
+body.theme-dark .mon-ports-form-col .ep-search { color: #d8eaf5; }
 .mon-ports-list-col {
   flex: 1;
   padding: 18px 20px;
@@ -10529,7 +10540,7 @@ body.theme-dark .mon-ports-form-col { border-right-color: #1e2e3c; }
 .mon-ports-field-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
