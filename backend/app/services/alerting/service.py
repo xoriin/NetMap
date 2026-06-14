@@ -130,21 +130,32 @@ class AlertMonitorService:
                 current[device_id] = status
                 rtt_map[device_id] = rtt_ms
 
-        for device in devices:
-            # Port checks
-            ports_to_check = global_ports + device_extra_ports.get(device.id, [])
-            port_results = []
-            for target in ports_to_check:
-                open_ = check_port(device.ip_address, target.port)
-                port_results.append({
-                    "target_id": target.id,
-                    "port": target.port,
-                    "label": target.label,
-                    "check_type": target.check_type,
-                    "open": open_,
-                    "status": "open" if open_ else "closed",
-                })
-            port_map[device.id] = port_results
+        port_tasks: list[tuple[str, int, object]] = [
+            (device.ip_address, device.id, target)
+            for device in devices
+            for target in (global_ports + device_extra_ports.get(device.id, []))
+        ]
+        if port_tasks:
+            port_workers = max(1, min(MONITOR_STATUS_WORKERS, len(port_tasks)))
+            port_future_map: dict = {}
+            with ThreadPoolExecutor(max_workers=port_workers) as port_ex:
+                for ip, device_id, target in port_tasks:
+                    f = port_ex.submit(check_port, ip, target.port)
+                    port_future_map[f] = (device_id, target)
+                for future in as_completed(port_future_map):
+                    device_id, target = port_future_map[future]
+                    try:
+                        open_ = future.result()
+                    except Exception:
+                        open_ = False
+                    port_map.setdefault(device_id, []).append({
+                        "target_id": target.id,
+                        "port": target.port,
+                        "label": target.label,
+                        "check_type": target.check_type,
+                        "open": open_,
+                        "status": "open" if open_ else "closed",
+                    })
 
         # Persist history and update device monitor_status
         with SessionLocal() as db:

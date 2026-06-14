@@ -170,11 +170,12 @@ export type DiscoveryHost = {
   hostname: string | null;
   mac_address: string | null;
   vendor: string | null;
+  os: string | null;
   status: string;
   open_ports: number[];
   existing_device_id: number | null;
   import_status: "new" | "existing" | "changed";
-  proposed_updates: Array<"ip_address" | "hostname" | "mac_address" | "vendor">;
+  proposed_updates: Array<"ip_address" | "hostname" | "mac_address" | "vendor" | "os">;
 };
 
 export type DiscoveryScan = {
@@ -1151,7 +1152,7 @@ export const api = {
     topologyGroupId?: number | null,
     siteId?: number | null,
     mode?: "new_only" | "fill_missing" | "override_existing",
-    updateFields?: Array<"hostname" | "mac_address" | "vendor">,
+    updateFields?: Array<"hostname" | "mac_address" | "vendor" | "os">,
     updateIpOnMacMatch?: boolean,
   ) =>
     request<DiscoveryImportResult>("/api/v1/discovery/import", {

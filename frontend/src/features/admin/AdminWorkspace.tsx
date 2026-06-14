@@ -912,6 +912,18 @@ export function AdminWorkspace({
     }
   }
 
+  async function applyObservation(observation: DiscoveryObservation) {
+    setAutomationBusy(true);
+    try {
+      const updated = await api.applyObservation(accessToken, observation.id);
+      setObservations((prev) => prev.map((o) => o.id === observation.id ? updated : o));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply observation");
+    } finally {
+      setAutomationBusy(false);
+    }
+  }
+
   const filteredUsers = useMemo(
     () => users.filter((u) => !userSearch || u.username.toLowerCase().includes(userSearch.toLowerCase())),
     [users, userSearch],
@@ -920,7 +932,7 @@ export function AdminWorkspace({
     { id: "system", label: "System", Icon: Settings },
     { id: "users", label: "Users", Icon: IconUsers },
     { id: "groups", label: "Groups", Icon: IconShieldCheck },
-    { id: "credentials", label: "Credentials", Icon: IconServer },
+    { id: "credentials", label: "SNMP Profiles", Icon: IconServer },
     { id: "notifications", label: "Notifications", Icon: IconCloud },
     { id: "alerts", label: "Alerts", Icon: IconAlertCircle },
     { id: "automation", label: "Automation", Icon: IconCalendarClock },
@@ -2157,36 +2169,35 @@ export function AdminWorkspace({
                 </p>
                 {openObs.length === 0 && <p className="tool-note">No open observations.</p>}
                 {openObs.length > 0 && (
-                  <div className="admin-users-table">
-                    <div className="admin-users-header" style={{ gridTemplateColumns: "auto 2fr 1fr auto auto" }}>
-                      <span>Type</span>
-                      <span>Summary</span>
-                      <span>Seen</span>
-                      <span>Schedule</span>
-                      <span>Actions</span>
-                    </div>
+                  <div className="scan-observation-list">
                     {openObs.map((obs) => (
-                      <div key={obs.id} className="admin-users-row" style={{ gridTemplateColumns: "auto 2fr 1fr auto auto", alignItems: "center" }}>
-                        <span className={`scan-observation-badge scan-observation-badge--${obs.observation_type}`}>
-                          {obsTypeLabel[obs.observation_type] ?? obs.observation_type}
-                        </span>
-                        <span>
-                          <strong style={{ display: "block" }}>{obs.summary}</strong>
-                          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                            {[obs.hostname, obs.ip_address, obs.mac_address].filter(Boolean).join(" · ")}
+                      <div key={obs.id} className="scan-observation-row">
+                        <div>
+                          <span className={`scan-observation-badge scan-observation-badge--${obs.observation_type}`}>
+                            {obsTypeLabel[obs.observation_type] ?? obs.observation_type}
                           </span>
-                        </span>
-                        <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                          {new Date(obs.last_seen_at).toLocaleString()}
-                        </span>
-                        <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                          {schedules.find((s) => s.id === obs.schedule_id)?.name ?? `#${obs.schedule_id}`}
-                        </span>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          {obs.status === "open" && (
-                            <button type="button" className="ipam-btn" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => void updateObservation(obs, "acknowledged")}>Ack</button>
+                          <strong>{obs.summary}</strong>
+                          <span>
+                            {[obs.hostname, obs.ip_address, obs.mac_address].filter(Boolean).join(" · ")}
+                            {" · seen "}{new Date(obs.last_seen_at).toLocaleString()}
+                            {" · "}{schedules.find((s) => s.id === obs.schedule_id)?.name ?? `scan #${obs.schedule_id}`}
+                          </span>
+                        </div>
+                        <div className="scan-schedule-actions">
+                          {(obs.observation_type === "new_device" || obs.observation_type === "ip_change" || obs.observation_type === "field_change") && (
+                            <button
+                              type="button"
+                              className="ipam-btn ipam-btn--primary"
+                              disabled={automationBusy}
+                              onClick={() => void applyObservation(obs)}
+                            >
+                              {obs.observation_type === "new_device" ? "Add to inventory" : "Apply"}
+                            </button>
                           )}
-                          <button type="button" className="ipam-btn ipam-btn--danger" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                          {obs.status === "open" && (
+                            <button type="button" className="ipam-btn" disabled={automationBusy} onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
+                          )}
+                          <button type="button" className="ipam-btn ipam-btn--danger" disabled={automationBusy} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
                         </div>
                       </div>
                     ))}

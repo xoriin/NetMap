@@ -32,6 +32,7 @@ class DiscoveryHost(BaseModel):
     hostname: str | None = None
     mac_address: str | None = None
     vendor: str | None = None
+    os: str | None = None
     status: str = "unknown"
     open_ports: list[int] = Field(default_factory=list)
     existing_device_id: int | None = None
@@ -64,8 +65,8 @@ class DiscoveryImportRequest(BaseModel):
     topology_group_id: int | None = None
     site_id: int | None = None
     mode: DiscoveryImportMode = "fill_missing"
-    update_fields: list[Literal["hostname", "mac_address", "vendor"]] = Field(
-        default_factory=lambda: ["hostname", "mac_address", "vendor"]
+    update_fields: list[Literal["hostname", "mac_address", "vendor", "os"]] = Field(
+        default_factory=lambda: ["hostname", "mac_address", "vendor", "os"]
     )
     update_ip_on_mac_match: bool = False
 

@@ -281,7 +281,8 @@ def enrich_hosts_from_snmp_arp(
     if not hosts or not snmp_targets:
         return hosts
 
-    from app.services.snmp import snmp_arp_map
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services.snmp import snmp_arp_map, SnmpClient, OID_SYS_DESCR, value_to_text
 
     arp_entries = snmp_arp_map(
         snmp_targets,
@@ -307,6 +308,30 @@ def enrich_hosts_from_snmp_arp(
                 }
             )
         )
+
+    # Probe each discovered host for sysDescr (OS string) using the same community.
+    # Best-effort: 1-second timeout, no retries, parallel across all hosts.
+    def _probe_host_os(host: DiscoveryHost) -> tuple[str, str | None]:
+        try:
+            client = SnmpClient(host.ip_address, community, port=port, timeout_seconds=1, retries=0)
+            return host.ip_address, value_to_text(client.get(OID_SYS_DESCR))
+        except Exception:
+            return host.ip_address, None
+
+    os_map: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=min(20, len(enriched))) as executor:
+        for ip, sys_descr in executor.map(_probe_host_os, enriched):
+            if sys_descr:
+                os_map[ip] = sys_descr
+
+    if os_map:
+        enriched = [
+            host.model_copy(update={"os": os_map[host.ip_address]})
+            if host.ip_address in os_map
+            else host
+            for host in enriched
+        ]
+
     return enriched
 
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { type AppRoute, appRoutes, appRouteByHref, appRouteCopy } from "./routes";
 import { type User, type VersionInfo } from "./api/client";
 
@@ -37,7 +37,14 @@ export function Sidebar({
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Primary navigation">
       <div className="brand">
-        <Network size={24} aria-hidden="true" />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="24" height="24" aria-hidden="true">
+          <line x1="16" y1="8" x2="8" y2="24" stroke="#1d6472" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="16" y1="8" x2="24" y2="24" stroke="#1d6472" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="8" y1="24" x2="24" y2="24" stroke="#1d6472" strokeWidth="2" strokeLinecap="round"/>
+          <circle cx="16" cy="8" r="3.5" fill="#1d9ab0"/>
+          <circle cx="8" cy="24" r="3.5" fill="#5bc8da"/>
+          <circle cx="24" cy="24" r="3.5" fill="#5bc8da"/>
+        </svg>
         {!collapsed && <span>NetMap</span>}
       </div>
       <button

@@ -17,6 +17,7 @@ const proposedUpdateLabels: Record<string, string> = {
   hostname: "Hostname",
   mac_address: "MAC",
   vendor: "Vendor",
+  os: "OS",
 };
 
 export function DiscoveryModal({
@@ -51,7 +52,7 @@ export function DiscoveryModal({
   const [scan, setScan] = useState<DiscoveryScan | null>(null);
   const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set());
   const [importMode, setImportMode] = useState<"new_only" | "fill_missing" | "override_existing">("fill_missing");
-  const [updateFields, setUpdateFields] = useState<Array<"hostname" | "mac_address" | "vendor">>(["hostname", "mac_address", "vendor"]);
+  const [updateFields, setUpdateFields] = useState<Array<"hostname" | "mac_address" | "vendor" | "os">>(["hostname", "mac_address", "vendor", "os"]);
   const [updateIpOnMacMatch, setUpdateIpOnMacMatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +172,33 @@ export function DiscoveryModal({
     }
   }
 
+  async function updateAllChanged() {
+    if (!accessToken || !scan) return;
+    const changedIps = scan.results
+      .filter((h) => h.import_status === "changed")
+      .map((h) => h.ip_address);
+    if (changedIps.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.importDiscoveryResults(
+        accessToken,
+        scan.id,
+        changedIps,
+        selectedGroupId ? Number(selectedGroupId) : null,
+        selectedSiteId ? Number(selectedSiteId) : null,
+        "fill_missing",
+        ["hostname", "mac_address", "vendor", "os"],
+        false,
+      );
+      await onImported();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleHost(host: DiscoveryHost) {
     setSelectedIps((current) => {
       const next = new Set(current);
@@ -183,7 +211,7 @@ export function DiscoveryModal({
     });
   }
 
-  function toggleUpdateField(field: "hostname" | "mac_address" | "vendor") {
+  function toggleUpdateField(field: "hostname" | "mac_address" | "vendor" | "os") {
     setUpdateFields((current) =>
       current.includes(field) ? current.filter((value) => value !== field) : [...current, field],
     );
@@ -389,7 +417,10 @@ export function DiscoveryModal({
                       onChange={() => toggleHost(host)}
                     />
                     <span>{host.ip_address}</span>
-                    <span>{host.hostname || "No hostname"}</span>
+                    <span>
+                      {host.hostname || "No hostname"}
+                      {host.os && <span className="dash-panel-meta" style={{ display: "block", fontSize: 10 }}>{host.os}</span>}
+                    </span>
                     <span>{host.vendor || host.mac_address || "No MAC/vendor"}</span>
                     <span>
                       <strong>
@@ -452,12 +483,26 @@ export function DiscoveryModal({
                     />
                     Vendor
                   </label>
+                  <label>
+                    <input
+                      checked={updateFields.includes("os")}
+                      disabled={importMode === "new_only"}
+                      type="checkbox"
+                      onChange={() => toggleUpdateField("os")}
+                    />
+                    OS
+                  </label>
                 </div>
               </div>
               <div className="modal-actions scan-import-actions">
                 <button type="button" className="ipam-btn ipam-btn--primary" disabled={busy || selectedIps.size === 0} onClick={() => void importSelected()}>
                   Apply selected
                 </button>
+                {scanCounts.changed > 0 && (
+                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={busy} onClick={() => void updateAllChanged()}>
+                    Update {scanCounts.changed} existing
+                  </button>
+                )}
               </div>
             </>
           )}

@@ -1,25 +1,25 @@
 # Changelog
 
-## [1.2.8] - 2026-06-12
+## [1.2.8] - 2026-06-14
 
-### LLDP
-- Started LLDP implementation: added LLDP Neighbours tool under the Tools workspace. Queries any device's LLDP-MIB over SNMP (uses the device's assigned credential profile) to discover adjacent devices on each switch port.
-- Discovered neighbours are stored and matched to existing inventory by MAC address, management IP, or hostname. Unmatched neighbours are flagged for review.
-- From the results table, users can create a topology link between matched device pairs with one click, or dismiss neighbours they want to ignore.
+### Added
+- **LLDP Neighbours tool** (Tools workspace): queries a device's LLDP-MIB over SNMP to discover adjacent devices on each switch port. Results are matched to inventory by MAC, management IP, or hostname; unmatched neighbours are flagged. One-click topology link creation from matched pairs.
+- **OS field** on devices: stores the operating system string (e.g. "Ubuntu 24.04", "Cisco IOS"), editable inline in device details or via the Add/Edit form. SNMP enrichment preview now suggests `sysDescr` as the OS and `sysName` as the hostname for the source device when those fields are blank.
+- **Created timestamp** in device details (read-only).
+- **Port ranges and comma-separated ports** in service checks: the port field now accepts `443`, `67,68`, `8080-8090`, or any combination — one check entry is created per port under the same label.
+- **Last poll relative time**: the topbar "Last poll" indicator now shows a live "(X min ago)" note that updates every 30 seconds.
+- **Service check device picker**: the "Specific device" form now includes a searchable dropdown so you no longer need to pre-click a device in the table before adding a scoped check. The dropdown has an embedded search field that filters in real time.
 
-### Devices
-- Added **OS field** to device details and forms. Stores the operating system string (e.g. "Ubuntu 24.04", "Windows Server 2025", "Cisco IOS") and is editable inline in device details or via the Add/Edit device form. SNMP enrichment preview now suggests `sysDescr` as the OS value and `sysName` as the hostname for the source device when those fields are blank.
-- Device details now show a **Created** timestamp (read-only) at the bottom of the details panel.
+### Changed
+- **Admin Credentials tab renamed to "SNMP Profiles"** for clarity — the tab manages SNMP community strings and auth profiles, not user credentials.
+- **Automation tab change observations** now use the card-row layout (type badge, summary, identity, schedule name, Acknowledge/Resolve actions), matching the discovery modal style.
+- Dark mode is now the default theme for new installations and users who have not previously set a preference.
 
-### Monitoring
-- Fixed: public IPs registered in inventory were always probed as offline. The background monitor now probes all registered devices regardless of the public-targets gate (a Tools-tab-only restriction for interactive user pings).
-- Fixed: the Devices panel in the Monitoring workspace no longer has a fixed 520 px height cap — it now expands to fill available viewport height.
-- Service checks port field now accepts port ranges (`60-65`), comma-separated ports (`9001, 9040, 8054`), or any combination. Each port gets its own check entry under the same label.
-- The "Last poll" topbar indicator now shows a live relative time (e.g. "2 min ago") that updates every 30 seconds, alongside the absolute poll time.
-- Styled the "Add" service check button consistently with the rest of the app theme.
-
-### App
-- Dark mode is now the default for new installations and users who have not previously set a theme preference.
+### Fixed
+- **Public IP monitoring**: registered devices with public IPs were always probed as offline. The background monitor now probes all registered devices regardless of the public-targets gate (that restriction applies only to interactive Tools pings).
+- **Monitoring panel height**: the Devices panel no longer has a fixed 520 px cap — it expands to fill available viewport height.
+- **Monitoring "X minutes ago" timezone offset**: `func.max(checked_at)` from SQLite returns a naive datetime; JavaScript was parsing it as local time, producing large offsets for non-UTC users. Fixed by applying `_as_utc()` to all three `checked_at` datetime fields in the monitoring API response.
+- **Port checks now run in parallel**: sequential 2-second TCP timeouts across all devices × all port targets could push the effective monitor cycle far beyond the configured interval. Checks now run concurrently (up to 12 connections), matching the existing ICMP approach.
 
 ---
 

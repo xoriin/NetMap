@@ -182,6 +182,8 @@ def annotate_hosts_with_inventory(hosts: list[DiscoveryHost], db: Session) -> li
             proposed.append("mac_address")
         if host.vendor and host.vendor != existing.vendor:
             proposed.append("vendor")
+        if host.os and host.os != existing.os:
+            proposed.append("os")
         host.proposed_updates = proposed
         host.import_status = "changed" if proposed else "existing"
     return hosts

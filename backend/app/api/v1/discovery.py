@@ -288,7 +288,7 @@ def update_observation(
     return _observation_to_read(observation)
 
 
-_APPLY_ALLOWED_FIELDS = {"ip_address", "hostname", "mac_address", "vendor", "device_type", "os_info"}
+_APPLY_ALLOWED_FIELDS = {"ip_address", "hostname", "mac_address", "vendor", "device_type", "os_info", "os"}
 
 
 @router.post("/observations/{observation_id}/apply", response_model=DiscoveryObservationRead)
@@ -461,6 +461,7 @@ def discovery_result_to_device(result: DiscoveryHost, topology_group_id: int | N
         ip_address=result.ip_address,
         mac_address=result.mac_address,
         vendor=result.vendor,
+        os=result.os,
         device_type="discovered",
         status="online",
         icon="device",

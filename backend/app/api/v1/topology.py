@@ -851,24 +851,25 @@ def _snmp_arp_enrichment_preview(db: Session, source_device: Device) -> DeviceSn
     }
     changes: list[DeviceSnmpEnrichmentChange] = []
 
-    # Suggest OS (sysDescr) and hostname (sysName) for the source device itself
-    if sys_descr and not source_device.os:
+    # Suggest OS (sysDescr) and hostname (sysName) for the source device itself.
+    # Compare against current value so re-running after apply doesn't hide refreshed values.
+    if sys_descr and sys_descr != source_device.os:
         changes.append(DeviceSnmpEnrichmentChange(
             device_id=source_device.id,
             ip_address=source_device.ip_address,
             field="os",
-            current=None,
+            current=source_device.os,
             suggested=sys_descr,
-            source=f"snmp:sysDescr",
+            source="snmp:sysDescr",
         ))
-    if sys_name and not source_device.hostname:
+    if sys_name and sys_name != source_device.hostname:
         changes.append(DeviceSnmpEnrichmentChange(
             device_id=source_device.id,
             ip_address=source_device.ip_address,
             field="hostname",
-            current=None,
+            current=source_device.hostname,
             suggested=sys_name,
-            source=f"snmp:sysName",
+            source="snmp:sysName",
         ))
 
     for entry in arp_entries:
