@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Moon, Network, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import {
   type DashboardSummary, type Device, type DeviceMonitorSummary, type DeviceStatus, type SystemSettings, type TokenPair,
   type TopologyGraph, type User, type VersionInfo, api,
@@ -462,7 +462,7 @@ export function App() {
         <div className="auth-split-left" aria-hidden="true">
           <div className="auth-brand-panel">
             <div className="auth-brand-mark">
-              <Network size={36} />
+              <img src="/favicon.svg" width="80" height="80" alt="" />
             </div>
             <div className="auth-brand-wordmark">NetMap</div>
             <div className="auth-brand-tagline">Network topology &amp; monitoring for your infrastructure</div>

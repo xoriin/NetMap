@@ -3,7 +3,7 @@ import type { IpAddressEntry } from "../api/client";
 
 const IP_KIND_COLOR: Record<string, string> = {
   network: "#94a3b8", broadcast: "#94a3b8", gateway: "#f59e0b",
-  device: "#2dba7c", dhcp: "#3b80d0", reserved: "#9333ea", free: "#e8edf3",
+  device: "#2dba7c", dhcp: "#3b80d0", reserved: "#115e59", free: "#e8edf3",
 };
 const IP_KIND_LABEL: Record<string, string> = {
   network: "Network", broadcast: "Broadcast", gateway: "Gateway",
