@@ -14,10 +14,22 @@
 - **Admin Credentials tab renamed to "SNMP Profiles"** for clarity — the tab manages SNMP community strings and auth profiles, not user credentials.
 - **Automation tab change observations** now use the card-row layout (type badge, summary, identity, schedule name, Acknowledge/Resolve actions), matching the discovery modal style.
 - Dark mode is now the default theme for new installations and users who have not previously set a preference.
+- Frontend `npm run dev` now uses port 5173 and proxies `/api` to the local AIO container on `127.0.0.1:8090` by default, so CSS/React changes can be hot-reloaded from VS Code without rebuilding the container.
+
+### Changed
+- **Port Monitoring modal** (formerly "Service Checks"): renamed, widened, and redesigned to a horizontal two-column layout with the form on the left and the active-checks list on the right. The device picker supports multi-selection with a live search bar and scrollable device list.
+- **IPAM reserved colour** changed from purple to deep teal to better match the green/teal palette.
+- **IPAM DHCP range pill** in dark mode is now muted (dimmer border and text) to reduce visual noise.
+- **IPAM free-cell hover** colour changed to `#2dba7c` (device green) with matching legend and tooltip dot.
+- **Login screen** now displays the app favicon (with dark rounded background) in place of the generic network icon, on both the left branding panel and the login form header. The left panel has a soft teal glow behind the icon.
+
+### Added
+- **IPAM range reservations**: the Reserve IP dialog now accepts a range in the IP address field (e.g. `192.168.1.10-35`). Entering a range shows a live count preview and creates all IPs in sequence on submit. MAC address field is hidden in range mode.
 
 ### Fixed
 - **Public IP monitoring**: registered devices with public IPs were always probed as offline. The background monitor now probes all registered devices regardless of the public-targets gate (that restriction applies only to interactive Tools pings).
 - **Monitoring panel height**: the Devices panel no longer has a fixed 520 px cap — it expands to fill available viewport height.
+- **Monitoring table spacing**: the device column now uses aligned lanes for device identity, a compact heartbeat strip, and a lighter mini RTT graph, while uptime, RTT, service, checked, and favourite columns stay compact on the right.
 - **Monitoring "X minutes ago" timezone offset**: `func.max(checked_at)` from SQLite returns a naive datetime; JavaScript was parsing it as local time, producing large offsets for non-UTC users. Fixed by applying `_as_utc()` to all three `checked_at` datetime fields in the monitoring API response.
 - **Port checks now run in parallel**: sequential 2-second TCP timeouts across all devices × all port targets could push the effective monitor cycle far beyond the configured interval. Checks now run concurrently (up to 12 connections), matching the existing ICMP approach.
 

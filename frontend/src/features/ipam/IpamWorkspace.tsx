@@ -46,6 +46,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
   // Reservation form state
   const [reserveIp, setReserveIp] = useState<string | null>(null);
+  const [reserveIpLocked, setReserveIpLocked] = useState(false);
   const [editingReservation, setEditingReservation] = useState<IpReservation | null>(null);
   const [reserveLabel, setReserveLabel] = useState("");
   const [reserveMac, setReserveMac] = useState("");
@@ -163,8 +164,55 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
     } catch { /* ignore */ }
   }
 
+  function parseReserveIpInput(value: string): string[] | string {
+    const v = value.trim();
+    const parseOctet = (s: string) => { const n = Number(s); return Number.isInteger(n) && n >= 0 && n <= 255 ? n : null; };
+    const parseIp = (s: string): number[] | null => {
+      const parts = s.trim().split(".");
+      if (parts.length !== 4) return null;
+      const nums = parts.map(parseOctet);
+      return nums.some((n) => n === null) ? null : (nums as number[]);
+    };
+    // Range: "192.168.1.10-35" or "192.168.1.10-192.168.1.35"
+    const dash = v.lastIndexOf("-");
+    if (dash > 0) {
+      const startStr = v.slice(0, dash);
+      const endStr = v.slice(dash + 1);
+      const sp = parseIp(startStr);
+      if (!sp) return "Invalid start IP";
+      // End is either a bare octet (10-35 shorthand) or a full IP
+      let ep: number[] | null;
+      if (/^\d{1,3}$/.test(endStr)) {
+        const eo = parseOctet(endStr);
+        if (eo === null) return "Invalid end octet";
+        ep = [...sp.slice(0, 3), eo];
+      } else {
+        ep = parseIp(endStr);
+        if (!ep) return "Invalid end IP";
+      }
+      if (sp[0] !== ep[0] || sp[1] !== ep[1] || sp[2] !== ep[2]) return "Start and end must share the same /24";
+      if (sp[3] > ep[3]) return "End must be ≥ start";
+      const count = ep[3] - sp[3] + 1;
+      if (count > 255) return "Range too large (max 255)";
+      const prefix = sp.slice(0, 3).join(".");
+      return Array.from({ length: count }, (_, i) => `${prefix}.${sp[3] + i}`);
+    }
+    return [v];
+  }
+
   function openReserveDialog(ip: string) {
     setReserveIp(ip);
+    setReserveIpLocked(true);
+    setEditingReservation(null);
+    setReserveLabel("");
+    setReserveMac("");
+    setReserveNotes("");
+    setReserveError(null);
+  }
+
+  function openNewReservation() {
+    setReserveIp("");
+    setReserveIpLocked(false);
     setEditingReservation(null);
     setReserveLabel("");
     setReserveMac("");
@@ -175,6 +223,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
   function openEditReservation(r: IpReservation) {
     setEditingReservation(r);
     setReserveIp(r.ip_address);
+    setReserveIpLocked(true);
     setReserveLabel(r.label);
     setReserveMac(r.mac_address ?? "");
     setReserveNotes(r.notes ?? "");
@@ -183,6 +232,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
   function closeReserveDialog() {
     setReserveIp(null);
+    setReserveIpLocked(false);
     setEditingReservation(null);
     setReserveError(null);
   }
@@ -192,21 +242,23 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
     if (reserveIp === null) return;
     setReserveBusy(true); setReserveError(null);
     try {
-      const payload: IpReservationPayload = {
-        ip_address: reserveIp,
-        label: reserveLabel.trim(),
-        mac_address: reserveMac.trim() || null,
-        notes: reserveNotes.trim() || null,
-        subnet_id: selectedSubnet?.id ?? null,
-      };
       if (editingReservation) {
         await api.updateReservation(accessToken, editingReservation.id, {
-          label: payload.label,
-          mac_address: payload.mac_address,
-          notes: payload.notes,
+          label: reserveLabel.trim(),
+          mac_address: reserveMac.trim() || null,
+          notes: reserveNotes.trim() || null,
         });
       } else {
-        await api.createReservation(accessToken, payload);
+        const ips = parseReserveIpInput(reserveIp);
+        if (typeof ips === "string") { setReserveError(ips); setReserveBusy(false); return; }
+        for (const ip of ips) {
+          await api.createReservation(accessToken, {
+            ip_address: ip, label: reserveLabel.trim(),
+            mac_address: ips.length === 1 ? (reserveMac.trim() || null) : null,
+            notes: reserveNotes.trim() || null,
+            subnet_id: selectedSubnet?.id ?? null,
+          });
+        }
       }
       closeReserveDialog();
       await load();
@@ -462,7 +514,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
               </label>
             )}
             {canWrite && (
-              <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => { setReserveIp(""); setEditingReservation(null); setReserveLabel(""); setReserveMac(""); setReserveNotes(""); setReserveError(null); }}>
+              <button type="button" className="ipam-btn ipam-btn--primary" onClick={openNewReservation}>
                 + Reserve IP
               </button>
             )}
@@ -668,7 +720,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                 <>
                   <IpGrid entries={addresses} onReserve={openReserveDialog} canWrite={canWrite} />
                   <div className="ipam-grid-legend">
-                    {[["device","#2dba7c","Device"], ["dhcp","#3b80d0","DHCP lease"], ["range","#dbeafe","DHCP range"], ["reserved","#9333ea","Reserved"], ["gateway","#f59e0b","Gateway"], ["free","#e8edf3","Free"], ["network","#94a3b8","Net/Bcast"]].map(([k, c, l]) => (
+                    {[["device","#2dba7c","Device"], ["dhcp","#3b80d0","DHCP lease"], ["range","#dbeafe","DHCP range"], ["reserved","#115e59","Reserved"], ["gateway","#f59e0b","Gateway"], ["free","#2dba7c","Free"], ["network","#94a3b8","Net/Bcast"]].map(([k, c, l]) => (
                       <span key={k} className="ipam-legend-item"><span className="ipam-legend-dot" style={{ background: c }} />{l}</span>
                     ))}
                     {canWrite && <span className="ipam-legend-tip">· click a free address to reserve it</span>}
@@ -711,13 +763,20 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                     <input
                       className="ipam-form-input ipam-form-input--mono"
                       required
-                      placeholder="e.g. 192.168.1.50"
-                      value={reserveIp}
-                      readOnly={reserveIp !== "" || !!editingReservation}
+                      placeholder="e.g. 192.168.1.50 or 192.168.1.10-35"
+                      value={reserveIp ?? ""}
+                      readOnly={reserveIpLocked || !!editingReservation}
+                      autoFocus={!reserveIpLocked && !editingReservation}
                       onChange={(e) => setReserveIp(e.target.value)}
                     />
                   </label>
                 </div>
+                {!reserveIpLocked && !editingReservation && reserveIp ? (() => {
+                  const result = parseReserveIpInput(reserveIp);
+                  return Array.isArray(result) && result.length > 1
+                    ? <p className="ipam-range-preview">→ {result.length} addresses ({result[0]} – {result[result.length - 1]})</p>
+                    : null;
+                })() : null}
                 <div className="ipam-form-row" style={{ marginBottom: 12 }}>
                   <label className="ipam-form-label" style={{ flex: 1 }}>Label / purpose *
                     <input
@@ -726,20 +785,26 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                       placeholder="e.g. Printer, CCTV camera, Reserved for server"
                       value={reserveLabel}
                       onChange={(e) => setReserveLabel(e.target.value)}
-                      autoFocus
+                      autoFocus={reserveIpLocked || !!editingReservation}
                     />
                   </label>
                 </div>
-                <div className="ipam-form-row" style={{ marginBottom: 12 }}>
-                  <label className="ipam-form-label" style={{ flex: 1 }}>MAC address
-                    <input
-                      className="ipam-form-input ipam-form-input--mono"
-                      placeholder="e.g. aa:bb:cc:dd:ee:ff"
-                      value={reserveMac}
-                      onChange={(e) => setReserveMac(e.target.value)}
-                    />
-                  </label>
-                </div>
+                {(() => {
+                  const result = reserveIp ? parseReserveIpInput(reserveIp) : null;
+                  const isRange = Array.isArray(result) && result.length > 1;
+                  return !isRange ? (
+                    <div className="ipam-form-row" style={{ marginBottom: 12 }}>
+                      <label className="ipam-form-label" style={{ flex: 1 }}>MAC address
+                        <input
+                          className="ipam-form-input ipam-form-input--mono"
+                          placeholder="e.g. aa:bb:cc:dd:ee:ff"
+                          value={reserveMac}
+                          onChange={(e) => setReserveMac(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  ) : null;
+                })()}
                 <div style={{ marginBottom: 14 }}>
                   <label className="ipam-form-label">Notes
                     <input
@@ -753,7 +818,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                 {reserveError && <p className="form-error">{reserveError}</p>}
                 <div className="ipam-form-actions">
                   <button type="submit" className="ipam-btn ipam-btn--primary" disabled={reserveBusy || !reserveLabel.trim()}>
-                    {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : "Reserve IP"}
+                    {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : (() => { const r = reserveIp ? parseReserveIpInput(reserveIp) : null; return Array.isArray(r) && r.length > 1 ? `Reserve ${r.length} addresses` : "Reserve IP"; })()}
                   </button>
                   <button type="button" className="ipam-btn" onClick={closeReserveDialog}>Cancel</button>
                   {editingReservation && canWrite && (

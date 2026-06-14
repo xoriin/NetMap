@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { Network } from "lucide-react";
 import { api } from "../../api/client";
 
 function LoginForm({
@@ -37,7 +36,7 @@ function LoginForm({
         <div className="auth-brand">
           <div className="auth-brand-row">
             <div className="auth-brand-icon">
-              <Network size={20} />
+              <img src="/favicon.svg" width="32" height="32" alt="" />
             </div>
             <span className="auth-brand-name">{appName || "NetMap"}</span>
           </div>
@@ -100,7 +99,9 @@ function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?:
       <div className="auth-card">
         <div className="auth-brand">
           <div className="auth-brand-row">
-            <div className="auth-brand-icon"><Network size={20} /></div>
+            <div className="auth-brand-icon">
+              <img src="/favicon.svg" width="32" height="32" alt="" />
+            </div>
             <span className="auth-brand-name">{appName || "NetMap"}</span>
           </div>
         </div>
