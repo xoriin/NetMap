@@ -984,11 +984,7 @@ export function TopologyWorkspace({
     if (!cy) {
       return;
     }
-    const timeout = window.setTimeout(() => {
-      cy.resize();
-      cy.fit(undefined, 36);
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    window.requestAnimationFrame(() => { cy.resize(); });
   }, [showDetailsPanel]);
 
   useEffect(() => {
@@ -1001,7 +997,7 @@ export function TopologyWorkspace({
       "border-opacity": showGroupZoneBorders ? 0.1 : 0,
       "border-width": showGroupZoneBorders ? 2 : 0,
     });
-  }, [groupZoneOpacityPercent, layoutRevision, filteredGraph, showGroupZoneBorders]);
+  }, [groupZoneOpacityPercent, layoutRevision, showGroupZoneBorders]);
 
   useEffect(() => {
     if (!jumpTarget) {

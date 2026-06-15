@@ -247,11 +247,15 @@ class AlertMonitorService:
     def _probe_device_status(self, device: Device) -> tuple[str, float | None]:
         try:
             result = ping_host(PingRequest(host=device.ip_address, count=3, timeout_seconds=3), allow_public_targets=True)
-            if result.received > 0:
+            if (result.received or 0) > 0:
                 return "online", result.average_ms
-            # ICMP available but no response — fall through to TCP fallback
+            logger.debug(
+                "ICMP probe got 0 replies for %s (transmitted=%s, output=%r) — trying TCP fallback",
+                device.ip_address, result.transmitted,
+                (result.raw_output or "")[:200],
+            )
         except Exception as exc:  # noqa: BLE001
-            logger.debug("ICMP monitor failed for %s: %s", device.ip_address, exc)
+            logger.warning("ICMP probe failed for %s: %s — trying TCP fallback", device.ip_address, exc)
 
         for port in LIVE_STATUS_FALLBACK_PORTS:
             try:
@@ -264,6 +268,7 @@ class AlertMonitorService:
             except OSError:
                 continue
 
+        logger.debug("All probes failed for %s — marking offline", device.ip_address)
         return "offline", None
 
     def _prune_history(self) -> None:
