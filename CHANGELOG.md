@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.9] - 2026-06-15
+
+### Fixed
+- Corrected version identifier to resolve a false "update available" notification caused by a duplicate tag during the 1.2.8 release.
+
+---
+
 ## [1.2.8] - 2026-06-14
 
 ### Added
