@@ -178,7 +178,7 @@ export function SecurityWorkspace({
           )}
         </div>
         <div className="security-topbar-controls">
-          <button className="toolbar-btn" type="button" onClick={() => setLiveTail((current) => !current)}>
+          <button className="nm-btn nm-btn--sm" type="button" onClick={() => setLiveTail((current) => !current)}>
             {liveTail ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
             {liveTail ? "Pause" : "Resume"}
           </button>

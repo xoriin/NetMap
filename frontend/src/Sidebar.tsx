@@ -36,19 +36,26 @@ export function Sidebar({
 
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Primary navigation">
-      <div className="brand">
-        <img src="/favicon.svg" width="28" height="28" alt="" />
-        {!collapsed && <span>NetMap</span>}
+      <div className="sidebar-brand-row">
+        <button
+          type="button"
+          className="brand"
+          onClick={() => onNavigate("/overview")}
+          title="Home (Overview)"
+        >
+          <img src="/favicon.svg" width="28" height="28" alt="" />
+          {!collapsed && <span>NetMap</span>}
+        </button>
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
       </div>
-      <button
-        type="button"
-        className="sidebar-collapse-btn"
-        onClick={onToggleCollapse}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-        {!collapsed && <span className="nav-label">Collapse</span>}
-      </button>
       <nav>
         {appRoutes
           .filter((route) => !route.requiresSecurityRole || canViewSecurity)

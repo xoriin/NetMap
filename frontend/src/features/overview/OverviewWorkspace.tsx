@@ -4,7 +4,7 @@ import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
   IconUsers, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
 } from "@tabler/icons-react";
-import { api, type FleetSummary, type Device, type DeviceMonitorSummary, type DashboardSummary, type TopologyGraph, type User } from "../../api/client";
+import { api, type FleetSummary, type Device, type DeviceMonitorSummary, type DevicePayload, type DashboardSummary, type TopologyGraph, type TopologyGroup, type Site, type SnmpProfile, type User } from "../../api/client";
 import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
@@ -12,11 +12,16 @@ import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { MonStatusDot, UptimeBadge } from "../../components/MonitorBadges";
 import { HeartbeatBar } from "../../components/HeartbeatBar";
+import { DeviceForm } from "../devices/DeviceForm";
+import { DiscoveryModal } from "../topology/DiscoveryModal";
 
 export function OverviewWorkspace({
   accessToken,
+  canWrite,
   favouriteIds,
   graph,
+  onDeviceChange,
+  onGraphChange,
   onNavigate,
   onObservationActioned,
   onToggleFavourite,
@@ -25,8 +30,11 @@ export function OverviewWorkspace({
   user,
 }: {
   accessToken: string | null;
+  canWrite: boolean;
   favouriteIds: Set<number>;
   graph: TopologyGraph;
+  onDeviceChange: (device: Device) => void;
+  onGraphChange: () => Promise<void>;
   onNavigate: (route: AppRoute) => void;
   onObservationActioned?: () => void;
   onToggleFavourite: (deviceId: number) => void;
@@ -39,6 +47,13 @@ export function OverviewWorkspace({
   const [monLoading, setMonLoading] = useState(true);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [favouriteSearch, setFavouriteSearch] = useState("");
+  const [showDeviceForm, setShowDeviceForm] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [groups, setGroups] = useState<TopologyGroup[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -48,6 +63,37 @@ export function OverviewWorkspace({
       api.listMonitoringDevices(accessToken),
     ]).then(([f, d]) => { setMonFleet(f); setMonDevices(d); }).catch(() => {}).finally(() => setMonLoading(false));
   }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken || !canWrite) return;
+    let cancelled = false;
+    void Promise.all([
+      api.topologyGroups(accessToken),
+      api.sites(accessToken),
+      api.listSnmpProfiles(accessToken),
+    ]).then(([groupRows, siteRows, profileRows]) => {
+      if (cancelled) return;
+      setGroups(groupRows);
+      setSites(siteRows);
+      setSnmpProfiles(profileRows);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [accessToken, canWrite]);
+
+  async function submitNewDevice(payload: DevicePayload) {
+    if (!accessToken) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const created = await api.createDevice(accessToken, payload);
+      onDeviceChange(created);
+      setShowDeviceForm(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unable to create device");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const statusCounts = useMemo(() => {
     const c = { online: 0, offline: 0, warning: 0, unknown: 0 };
@@ -299,17 +345,37 @@ export function OverviewWorkspace({
         <div className="dash-panel">
           <div className="dash-panel-header">
             <span className="dash-panel-title">Recently updated</span>
-            <button type="button" className="dash-panel-link" onClick={() => onNavigate("/inventory")}>
-              View all <IconArrowRight size={12} />
-            </button>
+            <div className="dash-panel-actions">
+              {canWrite && (
+                <>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>
+                    + Device
+                  </button>
+                  <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>
+                    Scan
+                  </button>
+                </>
+              )}
+              <button type="button" className="dash-panel-link" onClick={() => onNavigate("/inventory")}>
+                View all <IconArrowRight size={12} />
+              </button>
+            </div>
           </div>
           <div className="dash-panel-body">
+            {actionError && <div className="form-error" style={{ margin: "0 0 12px" }}>{actionError}</div>}
             {recentDevices.length === 0 ? (
               <div className="dash-empty-state">
                 <div className="dash-empty-icon"><IconDeviceDesktop size={22} /></div>
                 <div className="dash-empty-title">No devices yet</div>
                 <div className="dash-empty-desc">Add your first device to start mapping your network.</div>
-                <button type="button" className="dash-empty-action" onClick={() => onNavigate("/inventory")}>Add a device</button>
+                {canWrite ? (
+                  <div className="dash-empty-actions">
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>+ Device</button>
+                    <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>
+                  </div>
+                ) : (
+                  <button type="button" className="dash-empty-action" onClick={() => onNavigate("/inventory")}>View inventory</button>
+                )}
               </div>
             ) : (
               <div className="dash-device-list">
@@ -323,7 +389,7 @@ export function OverviewWorkspace({
                         <span className="dash-device-meta">{d.ip_address}{d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}</span>
                       </div>
                       <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
-                      <span className={`dash-status-pill dash-status-pill--${liveStatus}`}>{liveStatus}</span>
+                      <span className={`nm-status nm-status--${liveStatus}`}>{liveStatus}</span>
                     </div>
                   );
                 })}
@@ -394,7 +460,7 @@ export function OverviewWorkspace({
                       {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat} size="sm" />}
                     </div>
                     <UptimeBadge value={d.uptime_24h} />
-                    <span className="dash-panel-meta" style={{ minWidth: 60, textAlign: "right" }}>
+                    <span className="dash-fav-rtt dash-panel-meta">
                       {d.avg_rtt_24h != null ? `${d.avg_rtt_24h.toFixed(1)} ms` : "—"}
                     </span>
                     <button
@@ -416,6 +482,29 @@ export function OverviewWorkspace({
       </div>
 
       </div>{/* end dash-grids */}
+
+      {showDeviceForm && (
+        <DeviceForm
+          busy={busy}
+          device={null}
+          cloneSource={null}
+          groups={groups}
+          snmpProfiles={snmpProfiles}
+          sites={sites}
+          onCancel={() => setShowDeviceForm(false)}
+          onSubmit={submitNewDevice}
+        />
+      )}
+      {showScanModal && accessToken && (
+        <DiscoveryModal
+          accessToken={accessToken}
+          onCancel={() => setShowScanModal(false)}
+          onImported={async () => {
+            setShowScanModal(false);
+            await onGraphChange();
+          }}
+        />
+      )}
 
     </section>
   );

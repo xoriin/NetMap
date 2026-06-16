@@ -342,9 +342,9 @@ export function RelationshipEditForm({
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
         {formError && <div className="form-error">{formError}</div>}
-        <div className="modal-actions">
-          <button type="button" className="ipam-btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Save changes</button>
+        <div className="modal-actions modal-actions--plain">
+          <button type="button" className="nm-btn" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Save changes</button>
         </div>
       </form>
     </Modal>
@@ -455,9 +455,9 @@ export function RelationshipForm({
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
         {formError && <div className="form-error">{formError}</div>}
-        <div className="modal-actions">
-          <button type="button" className="ipam-btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy || !sourceEndpoint || !targetEndpoint}>
+        <div className="modal-actions modal-actions--plain">
+          <button type="button" className="nm-btn" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy || !sourceEndpoint || !targetEndpoint}>
             Save
           </button>
         </div>

@@ -224,7 +224,7 @@ export function LocationsWorkspace({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <input type="color" value={form.color || '#6366f1'} style={{ width: 44, height: 34, padding: 2, cursor: 'pointer', borderRadius: 6, border: '1px solid var(--border)' }} onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
           <span style={{ fontFamily: 'monospace', fontSize: 12, opacity: 0.7 }}>{form.color || '#6366f1'}</span>
-          {form.color && <button type="button" className="ipam-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
+          {form.color && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
         </div>
       </label>
       {error && <p className="form-error vlan-form-grid__full">{error}</p>}
@@ -238,9 +238,10 @@ export function LocationsWorkspace({
   useEffect(() => {
     setTopbarNote(
       <div className="loc-topbar-actions">
-        <div className="loc-topbar-search">
-          <Search size={14} aria-hidden="true" />
+        <div className="nm-search nm-search--toolbar loc-topbar-search">
+          <Search size={14} className="nm-search-icon" aria-hidden="true" />
           <input
+            className="nm-input"
             type="search"
             placeholder="Search locations..."
             value={search}
@@ -248,7 +249,7 @@ export function LocationsWorkspace({
           />
         </div>
         {canWrite && (
-          <button type="button" className="toolbar-btn toolbar-btn--primary" disabled={busy} onClick={openCreateForm}>
+          <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={openCreateForm}>
             + New location
           </button>
         )}
@@ -321,8 +322,8 @@ export function LocationsWorkspace({
                   </span>
                   {canWrite && (
                     <div className="loc-card-actions" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" className="vlan-action-btn" disabled={busy} onClick={() => openEditForm(site)}>Edit</button>
-                      <button type="button" className="vlan-action-btn vlan-action-btn--danger" disabled={busy} onClick={() => void handleDeleteSite(site.id, site.display_name ?? site.name)}>Delete</button>
+                      <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => openEditForm(site)}>Edit</button>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busy} onClick={() => void handleDeleteSite(site.id, site.display_name ?? site.name)}>Delete</button>
                     </div>
                   )}
                 </div>
@@ -332,68 +333,66 @@ export function LocationsWorkspace({
         </div>
       )}
 
-      {/* Detail modal */}
       {detailSite && !showForm && (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDetailSite(null); }}>
-          <div className="modal" style={{ width: 'min(100%, 560px)' }}>
-            <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(209,220,230,0.6)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                {detailSite.color && <span style={{ width: 12, height: 12, borderRadius: '50%', background: detailSite.color, flexShrink: 0 }} aria-hidden />}
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {detailSite.display_name ?? detailSite.name}
-                </h3>
-              </div>
-              <button type="button" className="ipam-modal-close" onClick={() => setDetailSite(null)} aria-label="Close">✕</button>
-            </div>
-            <div style={{ padding: '16px 20px', overflowY: 'auto', maxHeight: 'calc(80vh - 60px)' }}>
-              {canWrite && (
-                <div className="detail-actions" style={{ marginBottom: 14 }}>
-                  <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => openEditForm(detailSite)}>Edit location</button>
+        <Modal
+          title={detailSite.display_name ?? detailSite.name}
+          onCancel={() => setDetailSite(null)}
+          size="sm"
+          headerExtra={detailSite.color ? (
+            <span className="loc-detail-swatch" style={{ background: detailSite.color }} aria-hidden />
+          ) : undefined}
+          footer={canWrite ? (
+            <button type="button" className="nm-btn nm-btn--primary" onClick={() => openEditForm(detailSite)}>Edit location</button>
+          ) : undefined}
+        >
+          <div className="loc-detail-body">
+            <dl className="loc-detail-meta">
+              {detailSite.display_name && <><dt>Name</dt><dd>{detailSite.name}</dd></>}
+              {detailSite.description && <><dt>Description</dt><dd>{detailSite.description}</dd></>}
+              {detailSite.address && <><dt>Address</dt><dd>{detailSite.address}</dd></>}
+              <dt>Devices</dt>
+              <dd>{deviceCountBySite.get(detailSite.id) ?? 0} assigned</dd>
+            </dl>
+            {detailSite.address && (
+              geocodeResult === 'loading' ? (
+                <div className="dash-panel-meta" style={{ textAlign: 'center', padding: '20px 0' }}>Locating on map…</div>
+              ) : geocodeResult ? (
+                <div>
+                  <iframe
+                    className="loc-detail-map"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${geocodeResult.lon - 0.012},${geocodeResult.lat - 0.008},${geocodeResult.lon + 0.012},${geocodeResult.lat + 0.008}&layer=mapnik&marker=${geocodeResult.lat},${geocodeResult.lon}`}
+                    title="Location map"
+                    loading="lazy"
+                  />
+                  <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(detailSite.address)}`} target="_blank" rel="noopener noreferrer" className="dash-panel-link" style={{ fontSize: '0.75em', display: 'block', marginTop: 6 }}>View larger map ↗</a>
                 </div>
-              )}
-              <dl style={{ margin: '0 0 14px', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 14px', fontSize: '0.875em', alignItems: 'baseline' }}>
-                {detailSite.display_name && <><dt style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>Name</dt><dd style={{ margin: 0 }}>{detailSite.name}</dd></>}
-                {detailSite.description && <><dt style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>Description</dt><dd style={{ margin: 0 }}>{detailSite.description}</dd></>}
-                {detailSite.address && <><dt style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>Address</dt><dd style={{ margin: 0 }}>{detailSite.address}</dd></>}
-                <dt style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>Devices</dt>
-                <dd style={{ margin: 0 }}>{deviceCountBySite.get(detailSite.id) ?? 0} assigned</dd>
-              </dl>
-              {detailSite.address && (
-                geocodeResult === 'loading' ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: '0.82em' }}>Locating on map…</div>
-                ) : geocodeResult ? (
-                  <div>
-                    <iframe
-                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${geocodeResult.lon - 0.012},${geocodeResult.lat - 0.008},${geocodeResult.lon + 0.012},${geocodeResult.lat + 0.008}&layer=mapnik&marker=${geocodeResult.lat},${geocodeResult.lon}`}
-                      style={{ width: '100%', height: 220, border: '1px solid var(--border)', borderRadius: 8, display: 'block' }}
-                      title="Location map"
-                      loading="lazy"
-                    />
-                    <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(detailSite.address)}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75em', color: 'var(--muted)', textDecoration: 'none', display: 'block', marginTop: 6 }}>View larger map ↗</a>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.82em', color: 'var(--muted)' }}>
-                    Address not found on map.{' '}
-                    <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(detailSite.address)}`} target="_blank" rel="noopener noreferrer">Search manually ↗</a>
-                  </div>
-                )
-              )}
-            </div>
+              ) : (
+                <div className="dash-panel-meta" style={{ fontSize: '0.82em' }}>
+                  Address not found on map.{' '}
+                  <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(detailSite.address)}`} target="_blank" rel="noopener noreferrer" className="dash-panel-link">Search manually ↗</a>
+                </div>
+              )
+            )}
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Create / edit form */}
       {showForm && (
-        <Modal title={editingId !== null ? 'Edit location' : 'New location'} onCancel={closeForm}>
-          <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
-            {locationFormFields}
-            <div className="modal-actions" style={{ paddingTop: 6 }}>
-              <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>
+        <Modal
+          title={editingId !== null ? 'Edit location' : 'New location'}
+          onCancel={closeForm}
+          footer={(
+            <div className="nm-btn-row" style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+              <button type="submit" form="location-form" className="nm-btn nm-btn--primary" disabled={busy}>
                 {editingId !== null ? 'Save changes' : 'Create location'}
               </button>
             </div>
+          )}
+        >
+          <form id="location-form" className="modal-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
+            {locationFormFields}
           </form>
         </Modal>
       )}

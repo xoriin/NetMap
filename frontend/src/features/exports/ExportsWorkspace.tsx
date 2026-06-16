@@ -67,7 +67,7 @@ export function ExportsWorkspace({
               </div>
               {!canExportInventory && <p className="tool-note" style={{ margin: 0 }}>Only NetworkAdmin and SuperAdmin can export inventory data.</p>}
               <div className="ipam-form-actions">
-                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
                   {busyKey === "inventory" ? "Preparing…" : "Download inventory"}
                 </button>
               </div>
@@ -115,7 +115,7 @@ export function ExportsWorkspace({
               </div>
               {!canExportFirewall && <p className="tool-note" style={{ margin: 0 }}>Viewer cannot export firewall data.</p>}
               <div className="ipam-form-actions">
-                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportFirewall || busyKey === "firewall"} onClick={() => runDownload("firewall", () => api.downloadFirewallExport(accessToken, { format: firewallFormat, q: firewallFilters.q, src_ip: firewallFilters.src_ip, dst_ip: firewallFilters.dst_ip, action: firewallFilters.action, protocol: firewallFilters.protocol, interface: firewallFilters.interface, limit: Number(firewallFilters.limit) || 5000 }))}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportFirewall || busyKey === "firewall"} onClick={() => runDownload("firewall", () => api.downloadFirewallExport(accessToken, { format: firewallFormat, q: firewallFilters.q, src_ip: firewallFilters.src_ip, dst_ip: firewallFilters.dst_ip, action: firewallFilters.action, protocol: firewallFilters.protocol, interface: firewallFilters.interface, limit: Number(firewallFilters.limit) || 5000 }))}>
                   {busyKey === "firewall" ? "Preparing…" : "Download firewall export"}
                 </button>
               </div>
@@ -135,7 +135,7 @@ export function ExportsWorkspace({
               <p className="tool-note" style={{ margin: 0 }}>Generates a PDF with topology summary, inventory snapshot, subnet summary, and blocked traffic leaders.</p>
               {!canExportInventory && <p className="tool-note" style={{ margin: 0 }}>Only NetworkAdmin and SuperAdmin can generate reports.</p>}
               <div className="ipam-form-actions">
-                <button type="button" className="ipam-btn ipam-btn--primary" disabled={!canExportInventory || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
                   {busyKey === "report" ? "Preparing…" : "Download PDF report"}
                 </button>
               </div>

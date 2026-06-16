@@ -66,8 +66,8 @@ export function SubnetForm({
       )}
       {error && <p className="form-error">{error}</p>}
       <div className="ipam-form-actions">
-        <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>{busy ? "Saving…" : "Save subnet"}</button>
-        <button type="button" className="ipam-btn" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>{busy ? "Saving…" : "Save subnet"}</button>
+        <button type="button" className="nm-btn" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );

@@ -231,7 +231,7 @@ export function DiscoveryModal({
           <label>
             Target
             <input
-              placeholder="10.30.30.0/24, 10.30.30.10, or 10.30.30.1-10.30.30.50"
+              placeholder="192.168.1.0/24, 192.168.1.10, or 192.168.1.1-192.168.1.50"
               required
               value={target}
               onChange={(event) => setTarget(event.target.value)}
@@ -256,7 +256,7 @@ export function DiscoveryModal({
             </label>
             <button
               type="button"
-              className="toolbar-btn"
+              className="nm-btn nm-btn--sm"
               title="Create a new VLAN / group"
               onClick={() => { setShowNewGroup((v) => !v); setNewGroupName(""); }}
             >
@@ -271,7 +271,7 @@ export function DiscoveryModal({
                 onChange={(e) => setNewGroupName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void createNewGroup(); } }}
               />
-              <button type="button" className="ipam-btn ipam-btn--primary" disabled={!newGroupName.trim() || newGroupBusy} onClick={() => void createNewGroup()}>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={!newGroupName.trim() || newGroupBusy} onClick={() => void createNewGroup()}>
                 {newGroupBusy ? "Creating…" : "Create"}
               </button>
             </div>
@@ -288,7 +288,7 @@ export function DiscoveryModal({
             </label>
             <button
               type="button"
-              className="toolbar-btn"
+              className="nm-btn nm-btn--sm"
               title="Create a new location"
               onClick={() => { setShowNewSite((v) => !v); setNewSiteName(""); }}
             >
@@ -303,21 +303,31 @@ export function DiscoveryModal({
                 onChange={(e) => setNewSiteName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void createNewSite(); } }}
               />
-              <button type="button" className="ipam-btn ipam-btn--primary" disabled={!newSiteName.trim() || newSiteBusy} onClick={() => void createNewSite()}>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={!newSiteName.trim() || newSiteBusy} onClick={() => void createNewSite()}>
                 {newSiteBusy ? "Creating…" : "Create"}
               </button>
             </div>
           )}
-          <label className="scan-confirm-check">
-            <input
-              checked={snmpEnabled}
-              type="checkbox"
-              onChange={(event) => setSnmpEnabled(event.target.checked)}
-            />
-            Enrich MAC/vendor from SNMP ARP table
-          </label>
+          <div className="scan-snmp-toggle-row">
+            <button
+              type="button"
+              className={`nm-btn nm-btn--sm${snmpEnabled ? " nm-btn--active" : ""}`}
+              aria-pressed={snmpEnabled}
+              onClick={() => setSnmpEnabled((current) => !current)}
+            >
+              {snmpEnabled ? "SNMP enrichment on" : "SNMP enrichment"}
+            </button>
+            <span className="dash-panel-meta">
+              {snmpEnabled
+                ? "MAC and vendor data will be pulled from router ARP tables"
+                : "Optional — fill MAC/vendor from an L3 device after the scan"}
+            </span>
+          </div>
           {snmpEnabled && (
-            <>
+            <div className="scan-snmp-panel">
+              <p className="scan-snmp-intro">
+                Query a router or L3 switch SNMP ARP table to enrich discovered hosts with MAC addresses and vendors.
+              </p>
               <label>
                 SNMP profile
                 <select value={snmpProfileId} onChange={(event) => setSnmpProfileId(event.target.value)}>
@@ -332,7 +342,7 @@ export function DiscoveryModal({
               <label>
                 SNMP router / L3 switch IPs
                 <input
-                  placeholder={selectedGroup?.gateway ? `Using VLAN gateway ${selectedGroup.gateway} if left blank` : "192.168.1.1, 10.30.20.1"}
+                  placeholder={selectedGroup?.gateway ? `Using VLAN gateway ${selectedGroup.gateway} if left blank` : "192.168.1.1, 192.168.1.254"}
                   value={snmpTargets}
                   onChange={(event) => setSnmpTargets(event.target.value)}
                 />
@@ -356,7 +366,7 @@ export function DiscoveryModal({
                   <input min={1} max={15} required={snmpEnabled} type="number" value={snmpTimeout} onChange={(event) => setSnmpTimeout(event.target.value)} />
                 </label>}
               </div>
-            </>
+            </div>
           )}
         </div>
         <div className="scan-target-info">
@@ -376,12 +386,12 @@ export function DiscoveryModal({
           )}
         </div>
         {busy && <ScanProgress scanType={scanType} />}
-        {error && <div className="form-error">{error}</div>}
-        <div className="modal-actions">
-          <button type="button" className="ipam-btn" onClick={onCancel}>
-            Close
+        {error && <div className="nm-alert nm-alert--error">{error}</div>}
+        <div className="modal-actions modal-actions--plain">
+          <button type="button" className="nm-btn" onClick={onCancel}>
+            Cancel
           </button>
-          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={!canStartScan}>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={!canStartScan}>
             {busy ? "Scanning..." : "Start scan"}
           </button>
         </div>
@@ -494,12 +504,12 @@ export function DiscoveryModal({
                   </label>
                 </div>
               </div>
-              <div className="modal-actions scan-import-actions">
-                <button type="button" className="ipam-btn ipam-btn--primary" disabled={busy || selectedIps.size === 0} onClick={() => void importSelected()}>
-                  Apply selected
+              <div className="modal-actions modal-actions--plain scan-import-actions">
+                <button type="button" className="nm-btn nm-btn--primary" disabled={busy || selectedIps.size === 0} onClick={() => void importSelected()}>
+                  Import selected
                 </button>
                 {scanCounts.changed > 0 && (
-                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={busy} onClick={() => void updateAllChanged()}>
+                  <button type="button" className="nm-btn" disabled={busy} onClick={() => void updateAllChanged()}>
                     Update {scanCounts.changed} existing
                   </button>
                 )}

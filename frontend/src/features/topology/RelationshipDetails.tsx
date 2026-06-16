@@ -43,8 +43,8 @@ export function RelationshipDetails({
       </dl>
       {canWrite && (
         <div className="detail-actions detail-actions--device">
-          <button type="button" className="vlan-action-btn" disabled={disabled} onClick={onEdit}>Edit link</button>
-          <button type="button" className="vlan-action-btn vlan-action-btn--danger" disabled={disabled} onClick={onDelete}>Delete link</button>
+          <button type="button" className="nm-btn nm-btn--sm" disabled={disabled} onClick={onEdit}>Edit link</button>
+          <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={disabled} onClick={onDelete}>Delete link</button>
         </div>
       )}
     </div>

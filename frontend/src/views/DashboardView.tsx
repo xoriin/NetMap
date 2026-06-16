@@ -134,8 +134,11 @@ export function DashboardView({
       {currentRoute === "/overview" && (
         <OverviewWorkspace
           accessToken={accessToken}
+          canWrite={canWrite}
           favouriteIds={favouriteIds}
           graph={graph}
+          onDeviceChange={onDeviceChange}
+          onGraphChange={onGraphChange}
           onNavigate={onNavigate}
           onObservationActioned={onObservationActioned}
           onToggleFavourite={onToggleFavourite}

@@ -698,6 +698,7 @@ export type IpAddressEntry = {
   ip: string;
   kind: "network" | "broadcast" | "gateway" | "device" | "dhcp" | "reserved" | "free";
   label: string | null;
+  display_name: string | null;
   mac_address: string | null;
   vendor: string | null;
   dhcp_range: boolean;

@@ -444,7 +444,7 @@ export function DeviceDetails({
             <input
               autoFocus
               className="details-inline-input"
-              placeholder="192.168.10.0/24"
+              placeholder="192.168.1.0/24"
               value={fieldDraft}
               onChange={(e) => setFieldDraft(e.target.value)}
               onBlur={() => { if (!committingRef.current) void commitField({ subnet: fieldDraft.trim() || null }); }}
@@ -500,12 +500,12 @@ export function DeviceDetails({
       {canWrite && (assignedSnmpProfile || onClone || onDelete) && (
         <div className="detail-actions detail-actions--device">
           {assignedSnmpProfile && (
-            <button type="button" className="vlan-action-btn" disabled={disabled || snmpBusy} onClick={() => void previewSnmpEnrichment()}>
+            <button type="button" className="nm-btn nm-btn--sm" disabled={disabled || snmpBusy} onClick={() => void previewSnmpEnrichment()}>
               {snmpBusy ? "Checking..." : "SNMP ARP preview"}
             </button>
           )}
-          {onClone && <button type="button" className="vlan-action-btn" disabled={disabled} onClick={onClone}>Clone</button>}
-          {onDelete && <button type="button" className="vlan-action-btn vlan-action-btn--danger" disabled={disabled} onClick={onDelete}>Delete</button>}
+          {onClone && <button type="button" className="nm-btn nm-btn--sm" disabled={disabled} onClick={onClone}>Clone</button>}
+          {onDelete && <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={disabled} onClick={onDelete}>Delete</button>}
         </div>
       )}
       {snmpError && <p className="details-edit-hint">{snmpError}</p>}
@@ -521,7 +521,7 @@ export function DeviceDetails({
           ))}
           {snmpPreview.changes.length > 0 && (
             <div className="detail-actions detail-actions--device">
-              <button type="button" className="vlan-action-btn vlan-action-btn--primary" disabled={snmpBusy} onClick={() => void applySnmpEnrichment()}>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={snmpBusy} onClick={() => void applySnmpEnrichment()}>
                 Apply updates
               </button>
             </div>

@@ -61,6 +61,7 @@ class IpAddressEntry(BaseModel):
     ip: str
     kind: str  # network | broadcast | gateway | device | dhcp | reserved | free
     label: str | None = None
+    display_name: str | None = None
     mac_address: str | None = None
     vendor: str | None = None
     dhcp_range: bool = False

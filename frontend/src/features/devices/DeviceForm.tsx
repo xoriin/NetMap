@@ -113,7 +113,7 @@ export function DeviceForm({
                 </label>
                 <label>
                   IP address
-                  <input value={form.ip_address} onChange={(event) => update("ip_address", event.target.value)} />
+                  <input placeholder="192.168.1.100" value={form.ip_address} onChange={(event) => update("ip_address", event.target.value)} />
                 </label>
               </div>
               <div className="modal-form-row">
@@ -164,7 +164,7 @@ export function DeviceForm({
               <div className="modal-form-row">
                 <label>
                   Subnet
-                  <input placeholder="192.168.10.0/24" value={form.subnet} onChange={(event) => update("subnet", event.target.value)} />
+                  <input placeholder="192.168.1.0/24" value={form.subnet} onChange={(event) => update("subnet", event.target.value)} />
                 </label>
                 <label>
                   VLAN / Group
@@ -213,8 +213,8 @@ export function DeviceForm({
         </div>
 
         <div className="modal-actions device-form-actions">
-          <button type="button" className="ipam-btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Save</button>
+          <button type="button" className="nm-btn" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Save</button>
         </div>
       </form>
     </Modal>

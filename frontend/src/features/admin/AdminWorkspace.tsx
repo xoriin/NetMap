@@ -958,7 +958,7 @@ export function AdminWorkspace({
           <section className="panel admin-panel">
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><IconUsers size={16} />Users</h2>
-              <button type="button" className="ipam-btn" onClick={() => void loadAdminData()}>Refresh</button>
+              <button type="button" className="nm-btn" onClick={() => void loadAdminData()}>Refresh</button>
             </div>
             <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
             {loading ? <p>Loading…</p> : (
@@ -1065,8 +1065,8 @@ export function AdminWorkspace({
                   <input required minLength={12} type="password" value={resetPasswordForm.password} onChange={(e) => setResetPasswordForm((c) => ({ ...c, password: e.target.value }))} />
                 </label>
                 <div className="admin-reset-actions">
-                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busyUserId === resetPasswordForm.userId}>Save</button>
-                  <button type="button" className="ipam-btn" onClick={() => setResetPasswordForm({ userId: null, password: "" })}>Cancel</button>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={busyUserId === resetPasswordForm.userId}>Save</button>
+                  <button type="button" className="nm-btn" onClick={() => setResetPasswordForm({ userId: null, password: "" })}>Cancel</button>
                 </div>
               </form>
             )}
@@ -1091,7 +1091,7 @@ export function AdminWorkspace({
                 </label>
               </div>
               <label className="inline-toggle"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
-              <button type="submit" className="ipam-btn ipam-btn--primary">Create user</button>
+              <button type="submit" className="nm-btn nm-btn--primary">Create user</button>
             </form>
           </section>
         </div>
@@ -1103,8 +1103,8 @@ export function AdminWorkspace({
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : "Login & Audit History"}</h2>
               <div className="admin-panel-actions">
-                {auditUserFilter && <button type="button" className="ipam-btn" onClick={() => void loadAuditLogs(0, null)}>All users</button>}
-                <button type="button" className="ipam-btn" onClick={() => void loadAuditLogs(auditOffset, auditUserFilter)}>Refresh</button>
+                {auditUserFilter && <button type="button" className="nm-btn" onClick={() => void loadAuditLogs(0, null)}>All users</button>}
+                <button type="button" className="nm-btn" onClick={() => void loadAuditLogs(auditOffset, auditUserFilter)}>Refresh</button>
               </div>
             </div>
             <div className="audit-log-table">
@@ -1142,9 +1142,9 @@ export function AdminWorkspace({
               })}
             </div>
             <div className="audit-pagination">
-              <button type="button" className="ipam-btn" disabled={auditOffset === 0} onClick={() => void loadAuditLogs(Math.max(0, auditOffset - 50), auditUserFilter)}>← Prev</button>
+              <button type="button" className="nm-btn" disabled={auditOffset === 0} onClick={() => void loadAuditLogs(Math.max(0, auditOffset - 50), auditUserFilter)}>← Prev</button>
               <span>{auditOffset + 1}–{Math.min(auditOffset + 50, auditLogsTotal)} of {auditLogsTotal}</span>
-              <button type="button" className="ipam-btn" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => void loadAuditLogs(auditOffset + 50, auditUserFilter)}>Next →</button>
+              <button type="button" className="nm-btn" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => void loadAuditLogs(auditOffset + 50, auditUserFilter)}>Next →</button>
             </div>
           </section>
         </div>
@@ -1263,7 +1263,7 @@ export function AdminWorkspace({
                       );
                     })()}
                   </label>
-                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); return isNaN(n) || n < 1 || n > 480 || isNaN(m) || m < 30 || m > 3600; })()}>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); return isNaN(n) || n < 1 || n > 480 || isNaN(m) || m < 30 || m > 3600; })()}>
                     {settingsBusy ? "Saving…" : "Save settings"}
                   </button>
                 </form>
@@ -1272,7 +1272,7 @@ export function AdminWorkspace({
                 <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
                 <p className="tool-note">SuperAdmin only. Operates directly on the SQLite database file.</p>
                 <div className="tool-form">
-                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
                     {backupBusy === "backup" ? "Preparing…" : "Download backup"}
                   </button>
                   <label>
@@ -1280,7 +1280,7 @@ export function AdminWorkspace({
                     <input accept=".db,application/octet-stream" type="file" disabled={backupBusy === "restore"} onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} />
                   </label>
                   {restoreFile && (
-                    <button type="button" className="ipam-btn ipam-btn--primary" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
+                    <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
                       {backupBusy === "restore" ? "Restoring…" : `Restore ${restoreFile.name}`}
                     </button>
                   )}
@@ -1320,7 +1320,7 @@ export function AdminWorkspace({
                       {" · "}{allRuntimePacks.length} pack{allRuntimePacks.length !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => setIconModalOpen(true)}>
+                  <button type="button" className="nm-btn nm-btn--primary" onClick={() => setIconModalOpen(true)}>
                     Manage icons →
                   </button>
                 </div>
@@ -1355,7 +1355,7 @@ export function AdminWorkspace({
               <section className="panel admin-panel">
                 <div className="system-icon-header">
                   <h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2>
-                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={diagBusy} onClick={() => void loadDiagnostics()}>
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={diagBusy} onClick={() => void loadDiagnostics()}>
                     {diagBusy ? "Loading…" : diagnostics ? "Refresh" : "Load"}
                   </button>
                 </div>
@@ -1421,7 +1421,7 @@ export function AdminWorkspace({
           <section className="panel admin-panel">
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><IconServer size={16} />SNMP profiles</h2>
-              <button type="button" className="ipam-btn" disabled={snmpProfilesBusy} onClick={() => void loadSnmpProfiles()}>
+              <button type="button" className="nm-btn" disabled={snmpProfilesBusy} onClick={() => void loadSnmpProfiles()}>
                 Refresh
               </button>
             </div>
@@ -1454,7 +1454,7 @@ export function AdminWorkspace({
                   <input required min={0} max={3} type="number" value={snmpProfileForm.retries} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, retries: e.target.value }))} />
                 </label>
               </div>
-              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={snmpProfilesBusy}>
+              <button type="submit" className="nm-btn nm-btn--primary" disabled={snmpProfilesBusy}>
                 {snmpProfilesBusy ? "Saving..." : "Create profile"}
               </button>
             </form>
@@ -1493,12 +1493,12 @@ export function AdminWorkspace({
               <div className="admin-panel-actions">
                 <button
                   type="button"
-                  className="ipam-btn ipam-btn--primary"
+                  className="nm-btn nm-btn--primary"
                   onClick={() => { setEditingProfileId(null); setProfileForm(emptyProfileForm); setShowProfileModal(true); }}
                 >
                   + Add method
                 </button>
-                <button type="button" className="ipam-btn" disabled={profileBusy} onClick={() => void loadNotificationProfiles()}>
+                <button type="button" className="nm-btn" disabled={profileBusy} onClick={() => void loadNotificationProfiles()}>
                   Refresh
                 </button>
               </div>
@@ -1764,7 +1764,7 @@ export function AdminWorkspace({
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><IconAlertCircle size={16} />Alert Rules</h2>
               <div className="admin-panel-actions">
-                <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => {
+                <button type="button" className="nm-btn nm-btn--primary" onClick={() => {
                   setEditingAlertRule(null);
                   setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, channels: [], cooldown_minutes: 30 });
                   setShowAlertForm(true);
@@ -1839,10 +1839,10 @@ export function AdminWorkspace({
                   Enabled
                 </label>
                 <div className="ipam-form-actions">
-                  <button type="button" className="ipam-btn ipam-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0} onClick={() => void saveAlertRule()}>
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0} onClick={() => void saveAlertRule()}>
                     {alertRulesBusy ? "Saving…" : editingAlertRule ? "Update rule" : "Create rule"}
                   </button>
-                  <button type="button" className="ipam-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
+                  <button type="button" className="nm-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
                 </div>
               </div>
             )}
@@ -1927,10 +1927,10 @@ export function AdminWorkspace({
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><IconShieldCheck size={16} />Role Permissions</h2>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="ipam-btn" onClick={() => { setShowNewGroupForm((v) => !v); setNewGroupName(""); }}>
+                <button type="button" className="nm-btn" onClick={() => { setShowNewGroupForm((v) => !v); setNewGroupName(""); }}>
                   {showNewGroupForm ? "Cancel" : "+ New group"}
                 </button>
-                <button type="button" className="ipam-btn ipam-btn--primary" disabled={groupsBusy} onClick={() => void saveRolePermissions()}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={groupsBusy} onClick={() => void saveRolePermissions()}>
                   {groupsBusy ? "Saving…" : "Save changes"}
                 </button>
               </div>
@@ -1951,7 +1951,7 @@ export function AdminWorkspace({
                 />
                 <button
                   type="button"
-                  className="ipam-btn ipam-btn--primary"
+                  className="nm-btn nm-btn--primary"
                   disabled={groupsBusy || !newGroupName.trim() || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(newGroupName.trim())}
                   onClick={() => void createGroup(newGroupName)}
                 >
@@ -2031,7 +2031,7 @@ export function AdminWorkspace({
           <section className="panel admin-panel">
             <div className="admin-panel-header">
               <h2 className="admin-section-title"><IconCalendarClock size={16} />Scheduled scans</h2>
-              <button type="button" className="ipam-btn" disabled={automationBusy} onClick={() => void loadAutomation()}>Refresh</button>
+              <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void loadAutomation()}>Refresh</button>
             </div>
             <p className="tool-note">
               Scheduled scans automatically probe your network at a set interval and record observations for new devices, IP address changes, field changes, and hosts that disappear.
@@ -2097,7 +2097,7 @@ export function AdminWorkspace({
                 <input type="checkbox" checked={schedForm.enabled} onChange={(e) => setSchedForm((f) => ({ ...f, enabled: e.target.checked }))} />
                 Enable immediately
               </label>
-              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={automationBusy || !schedForm.target.trim()}>
+              <button type="submit" className="nm-btn nm-btn--primary" disabled={automationBusy || !schedForm.target.trim()}>
                 {automationBusy ? "Saving…" : "Create schedule"}
               </button>
             </form>
@@ -2136,9 +2136,9 @@ export function AdminWorkspace({
                       </span>
                     </span>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button type="button" className="ipam-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void runScheduleNow(sched)}>Run</button>
-                      <button type="button" className="ipam-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void toggleSchedule(sched)}>{sched.enabled ? "Pause" : "Enable"}</button>
-                      <button type="button" className="ipam-btn ipam-btn--danger" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void deleteSchedule(sched)}>Delete</button>
+                      <button type="button" className="nm-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void runScheduleNow(sched)}>Run</button>
+                      <button type="button" className="nm-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void toggleSchedule(sched)}>{sched.enabled ? "Pause" : "Enable"}</button>
+                      <button type="button" className="nm-btn nm-btn--danger" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void deleteSchedule(sched)}>Delete</button>
                     </div>
                   </div>
                 ))}
@@ -2187,7 +2187,7 @@ export function AdminWorkspace({
                           {(obs.observation_type === "new_device" || obs.observation_type === "ip_change" || obs.observation_type === "field_change") && (
                             <button
                               type="button"
-                              className="ipam-btn ipam-btn--primary"
+                              className="nm-btn nm-btn--primary"
                               disabled={automationBusy}
                               onClick={() => void applyObservation(obs)}
                             >
@@ -2195,9 +2195,9 @@ export function AdminWorkspace({
                             </button>
                           )}
                           {obs.status === "open" && (
-                            <button type="button" className="ipam-btn" disabled={automationBusy} onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
+                            <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
                           )}
-                          <button type="button" className="ipam-btn ipam-btn--danger" disabled={automationBusy} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                          <button type="button" className="nm-btn nm-btn--danger" disabled={automationBusy} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
                         </div>
                       </div>
                     ))}

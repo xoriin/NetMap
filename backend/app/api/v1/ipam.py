@@ -34,6 +34,7 @@ from app.schemas.ipam import (
     VlanSuggestion,
 )
 from app.services.ipam.dhcp_parser import auto_parse
+from app.services.discovery.scheduled import normalize_mac
 from app.services.ipam.subnet_utils import detect_conflicts, enumerate_addresses
 
 router = APIRouter(prefix="/ipam", tags=["ipam"])
@@ -354,6 +355,13 @@ def subnet_addresses(
 
     devices = db.execute(select(Device.ip_address, Device.display_name, Device.hostname, Device.mac_address, Device.vendor)).all()
     device_map = {row.ip_address: row.display_name or row.hostname or row.ip_address for row in devices}
+    device_display: dict[str, str | None] = {row.ip_address: row.display_name for row in devices}
+    device_hostname: dict[str, str | None] = {row.ip_address: row.hostname for row in devices}
+    device_by_mac: dict[str, str | None] = {}
+    for row in devices:
+        norm = normalize_mac(row.mac_address)
+        if norm:
+            device_by_mac[norm] = row.display_name or row.hostname
     device_mac: dict[str, str | None] = {row.ip_address: row.mac_address for row in devices}
     device_vendor: dict[str, str | None] = {row.ip_address: row.vendor for row in devices}
     leases = db.execute(select(DhcpLease.ip_address, DhcpLease.hostname, DhcpLease.mac_address).where(DhcpLease.is_active == True)).all()  # noqa: E712
@@ -364,11 +372,27 @@ def subnet_addresses(
     reservation_mac: dict[str, str | None] = {row.ip_address: row.mac_address for row in reservations}
 
     entries = enumerate_addresses(subnet.cidr, device_map, dhcp_map, subnet.gateway, reservation_map=reservation_map)
+
+    def _entry_display_name(entry) -> str | None:
+        if entry.kind == "device":
+            return device_display.get(entry.ip) or device_hostname.get(entry.ip)
+        if entry.kind == "dhcp":
+            lease_mac = dhcp_mac.get(entry.ip)
+            if lease_mac:
+                matched = device_by_mac.get(normalize_mac(lease_mac) or "")
+                if matched:
+                    return matched
+            return entry.label or None
+        if entry.kind in {"reserved", "gateway"}:
+            return entry.label
+        return None
+
     return [
         IpAddressEntry(
             ip=e.ip,
             kind=e.kind,
             label=e.label,
+            display_name=_entry_display_name(e),
             dhcp_range=_in_dhcp_range(e.ip, subnet.dhcp_start, subnet.dhcp_end),
             mac_address=(
                 device_mac.get(e.ip) if e.kind == "device"

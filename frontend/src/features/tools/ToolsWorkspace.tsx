@@ -340,7 +340,7 @@ export function ToolsWorkspace({
             <form className="tool-form" onSubmit={runReverseDns}>
               <label>
                 IP address
-                <input required value={reverseDnsIp} onChange={(event) => setReverseDnsIp(event.target.value)} />
+                <input required value={reverseDnsIp} placeholder="192.168.1.100" onChange={(event) => setReverseDnsIp(event.target.value)} />
               </label>
               <div className="tool-form-actions">
                 <button type="submit" disabled={reverseDnsLoading}>
@@ -378,7 +378,7 @@ export function ToolsWorkspace({
             <form className="tool-form" onSubmit={runPing}>
               <label>
                 Host
-                <input required disabled={!canRunActiveTools} value={pingHostValue} onChange={(event) => setPingHostValue(event.target.value)} />
+                <input required disabled={!canRunActiveTools} placeholder="192.168.1.1" value={pingHostValue} onChange={(event) => setPingHostValue(event.target.value)} />
               </label>
               <div className="tool-form-grid">
                 <label>
@@ -443,7 +443,7 @@ export function ToolsWorkspace({
             <form className="tool-form" onSubmit={runTraceroute}>
               <label>
                 Host
-                <input required disabled={!canRunActiveTools} value={tracerouteHostValue} onChange={(event) => setTracerouteHostValue(event.target.value)} />
+                <input required disabled={!canRunActiveTools} placeholder="192.168.1.1" value={tracerouteHostValue} onChange={(event) => setTracerouteHostValue(event.target.value)} />
               </label>
               <div className="tool-form-grid">
                 <label>
@@ -512,7 +512,7 @@ export function ToolsWorkspace({
             <form className="tool-form" onSubmit={runTcpCheck}>
               <label>
                 Host
-                <input required disabled={!canRunActiveTools} value={tcpHostValue} onChange={(event) => setTcpHostValue(event.target.value)} />
+                <input required disabled={!canRunActiveTools} placeholder="192.168.1.1" value={tcpHostValue} onChange={(event) => setTcpHostValue(event.target.value)} />
               </label>
               <div className="tool-form-grid">
                 <label>
@@ -685,7 +685,7 @@ export function ToolsWorkspace({
               </label>
               <label>
                 Host
-                <input required disabled={!canRunActiveTools} value={snmpHost} onChange={(event) => setSnmpHost(event.target.value)} />
+                <input required disabled={!canRunActiveTools} placeholder="192.168.1.1" value={snmpHost} onChange={(event) => setSnmpHost(event.target.value)} />
               </label>
               {!snmpProfileId && <label>
                 Community

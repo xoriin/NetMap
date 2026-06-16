@@ -1752,12 +1752,12 @@ export function TopologyWorkspace({
         <div className="toolbar-divider" />
         <div className="toolbar-group">
           <div className="toolbar-group-controls">
-            <button type="button" className="toolbar-btn" onClick={fitTopology}>Fit</button>
-            <button type="button" className="toolbar-btn" onClick={resetLayout}>Reset view</button>
+            <button type="button" className="nm-btn nm-btn--sm" onClick={fitTopology}>Fit</button>
+            <button type="button" className="nm-btn nm-btn--sm" onClick={resetLayout}>Reset view</button>
             {canWrite && (
               <>
-                <button type="button" className="toolbar-btn" onClick={exportTopologyPng}>PNG</button>
-                <button type="button" className="toolbar-btn" onClick={exportTopologySvg}>SVG</button>
+                <button type="button" className="nm-btn nm-btn--sm" onClick={exportTopologyPng}>PNG</button>
+                <button type="button" className="nm-btn nm-btn--sm" onClick={exportTopologySvg}>SVG</button>
               </>
             )}
           </div>
@@ -1781,7 +1781,7 @@ export function TopologyWorkspace({
             <div className="toolbar-dropdown-wrapper">
               <button
                 type="button"
-                className={showGroupsPanel ? "toolbar-btn toolbar-btn--active" : "toolbar-btn"}
+                className={showGroupsPanel ? "nm-btn nm-btn--sm nm-btn--active" : "nm-btn nm-btn--sm"}
                 onClick={() => setShowGroupsPanel((c) => !c)}
               >
                 Groups
@@ -1793,10 +1793,10 @@ export function TopologyWorkspace({
               {showGroupsPanel && (
                 <div className="toolbar-groups-panel">
                   <div className="toolbar-groups-actions">
-                    <button type="button" className="toolbar-btn toolbar-btn--xs" onClick={() => setHiddenGroupNames(new Set())}>
+                    <button type="button" className="nm-btn nm-btn--sm" onClick={() => setHiddenGroupNames(new Set())}>
                       Show all
                     </button>
-                    <button type="button" className="toolbar-btn toolbar-btn--xs" onClick={() => setHiddenGroupNames(new Set(allGroupNames))}>
+                    <button type="button" className="nm-btn nm-btn--sm" onClick={() => setHiddenGroupNames(new Set(allGroupNames))}>
                       Hide all
                     </button>
                   </div>
@@ -1837,7 +1837,7 @@ export function TopologyWorkspace({
             <div className="toolbar-dropdown-wrapper">
               <button
                 type="button"
-                className={showDisplaySettings ? "toolbar-btn toolbar-btn--active" : "toolbar-btn"}
+                className={showDisplaySettings ? "nm-btn nm-btn--sm nm-btn--active" : "nm-btn nm-btn--sm"}
                 onClick={() => setShowDisplaySettings((c) => !c)}
               >
                 Display
@@ -1854,10 +1854,10 @@ export function TopologyWorkspace({
                     </select>
                   </label>
                   <div className="toolbar-display-actions">
-                    <button type="button" className="toolbar-btn" onClick={autoArrangeSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
+                    <button type="button" className="nm-btn nm-btn--sm" onClick={autoArrangeSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
                       Snap to grid
                     </button>
-                    <button type="button" className="toolbar-btn" onClick={resetSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
+                    <button type="button" className="nm-btn nm-btn--sm" onClick={resetSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
                       Reset group
                     </button>
                   </div>
@@ -1951,9 +1951,9 @@ export function TopologyWorkspace({
             </div>
             {canWrite && (
               <>
-                <button type="button" className="toolbar-btn toolbar-btn--primary" onClick={() => setShowDeviceForm(true)}>+ Device</button>
-                <button type="button" className="toolbar-btn" onClick={() => setShowScanModal(true)}>Scan</button>
-                <button type="button" className="toolbar-btn" disabled={liveGraph.devices.length < 2} onClick={() => setShowRelationshipForm(true)}>+ Link</button>
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowDeviceForm(true)}>+ Device</button>
+                <button type="button" className="nm-btn nm-btn--sm" onClick={() => setShowScanModal(true)}>Scan</button>
+                <button type="button" className="nm-btn nm-btn--sm" disabled={liveGraph.devices.length < 2} onClick={() => setShowRelationshipForm(true)}>+ Link</button>
               </>
             )}
           </div>

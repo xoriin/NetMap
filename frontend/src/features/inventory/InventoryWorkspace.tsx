@@ -468,7 +468,7 @@ export function InventoryWorkspace({
               <>
                 <span className="inv-sep" />
                 <details className="inv-bulk-menu">
-                  <summary className="inv-action-btn">
+                  <summary className="nm-btn">
                     {selectedDeviceIds.size > 0 ? `${selectedDeviceIds.size} selected` : "Bulk"}
                     <ChevronDown size={13} />
                   </summary>
@@ -533,20 +533,21 @@ export function InventoryWorkspace({
                   </div>
                 </details>
                 <span className="inv-sep" />
-                <button type="button" className="inv-action-btn inv-action-btn--primary" onClick={() => setShowDeviceForm(true)}>
+                <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowDeviceForm(true)}>
                   + Device
                 </button>
-                <button type="button" className="inv-action-btn" onClick={() => setShowScanModal(true)}>
+                <button type="button" className="nm-btn" onClick={() => setShowScanModal(true)}>
                   Scan
                 </button>
-                <button type="button" className="inv-action-btn" onClick={() => setShowImportModal(true)}>
+                <button type="button" className="nm-btn" onClick={() => setShowImportModal(true)}>
                   Import
                 </button>
               </>
             )}
-            <div className="inv-search-box">
-              <Search size={14} />
+            <div className="inv-search-box nm-search">
+              <Search size={14} className="nm-search-icon" />
               <input
+                className="nm-input"
                 placeholder="Search devices…"
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}

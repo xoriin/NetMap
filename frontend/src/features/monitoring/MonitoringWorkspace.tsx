@@ -98,11 +98,6 @@ export function MonitoringWorkspace({
     document.addEventListener("mouseup", onUp);
   }
 
-  function resetColWidths() {
-    setColWidths(null);
-    window.localStorage.removeItem(MON_COL_WIDTHS_KEY);
-  }
-
   const [fleet, setFleet] = useState<FleetSummary | null>(null);
   const [devices, setDevices] = useState<DeviceMonitorSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +125,7 @@ export function MonitoringWorkspace({
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterSite, setFilterSite] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterVlan, setFilterVlan] = useState("all");
 
   const loadAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
@@ -256,6 +252,10 @@ export function MonitoringWorkspace({
       .sort(([, a], [, b]) => (a ?? "").localeCompare(b ?? "")),
     [devices],
   );
+  const vlanOptions = useMemo(
+    () => [...new Set(devices.map((d) => d.vlan_id).filter(Boolean))].sort() as string[],
+    [devices],
+  );
 
   const filteredDevices = useMemo(() => {
     const q = searchQ.toLowerCase();
@@ -271,6 +271,7 @@ export function MonitoringWorkspace({
     if (filterGroup !== "all") filtered = filtered.filter((d) => d.topology_group === filterGroup);
     if (filterSite !== "all") filtered = filtered.filter((d) => String(d.site_id) === filterSite);
     if (filterStatus !== "all") filtered = filtered.filter((d) => d.status === filterStatus);
+    if (filterVlan !== "all") filtered = filtered.filter((d) => d.vlan_id === filterVlan);
 
     const dir = sortDir === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
@@ -299,7 +300,7 @@ export function MonitoringWorkspace({
       }
     });
     return filtered;
-  }, [devices, searchQ, filterGroup, filterSite, filterStatus, sortKey, sortDir]);
+  }, [devices, searchQ, filterGroup, filterSite, filterStatus, filterVlan, sortKey, sortDir]);
 
   function toggleSort(key: typeof sortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -496,18 +497,21 @@ export function MonitoringWorkspace({
                   {siteOptions.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
                 </select>
               )}
-              <button type="button" className="toolbar-btn toolbar-btn--sm" onClick={resetColWidths} title="Reset column widths to default">
-                Reset columns
-              </button>
+              {vlanOptions.length > 0 && (
+                <select className="toolbar-select" value={filterVlan} onChange={(e) => setFilterVlan(e.target.value)}>
+                  <option value="all">All VLANs</option>
+                  {vlanOptions.map((v) => <option key={v} value={v}>VLAN {v}</option>)}
+                </select>
+              )}
               {canManagePorts && (
-                <button type="button" className="toolbar-btn toolbar-btn--sm toolbar-btn--primary" onClick={() => setShowPortsModal(true)}>
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowPortsModal(true)}>
                   Ports
                 </button>
               )}
-              <div className="mon-search-wrap">
-                <Search size={13} />
+              <div className="mon-search-wrap nm-search">
+                <Search size={13} className="nm-search-icon" />
                 <input
-                  className="mon-search"
+                  className="mon-search nm-input"
                   placeholder="Search devices…"
                   value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)}

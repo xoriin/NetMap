@@ -537,7 +537,10 @@ export function App() {
         <section className="workspace">
           {error && <div className="error-banner">{error}</div>}
           {appSettings?.announcement && (
-            <div className="announcement-banner">{appSettings.announcement}</div>
+            <div className="dash-alert dash-alert--overview-bar dash-alert--announcement">
+              <span className="dash-alert-dot dash-alert-dot--purple" aria-hidden="true" />
+              <span>{appSettings.announcement}</span>
+            </div>
           )}
           <DashboardView
             accessToken={accessToken}

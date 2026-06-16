@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
+import { Modal } from "./Modal";
 import { deviceTypeOptions } from "../constants";
 import {
   applyDeviceTypeIconMap,
@@ -42,12 +43,6 @@ export function IconManagerModal({
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [typeIconMap, setTypeIconMap] = useState<Record<string, string>>(() => readDeviceTypeIconMap());
   const [typeIconSaved, setTypeIconSaved] = useState(false);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
 
   const allPacksList = [
     { pack: builtInIconPack, isLocal: false },
@@ -146,26 +141,21 @@ export function IconManagerModal({
   }
 
   return (
-    <div className="icon-mgr-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="icon-mgr-modal" role="dialog" aria-label="Icon manager">
-        <div className="icon-mgr-header">
-          <span className="icon-mgr-title">Icon Manager</span>
-          <button type="button" className="icon-picker-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="icon-mgr-tabs">
-          {(["packs", "import", "device-types"] as const).map((t) => (
-            <button key={t} type="button" className={`icon-mgr-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
-              {t === "packs" ? "Packs" : t === "import" ? "Import" : "Device types"}
-            </button>
-          ))}
-        </div>
+    <Modal title="Icon Manager" onCancel={onClose} modalClassName="icon-mgr-modal" bodyClassName="modal-body--flush">
+      <div className="icon-mgr-tabs">
+        {(["packs", "import", "device-types"] as const).map((t) => (
+          <button key={t} type="button" className={`icon-mgr-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
+            {t === "packs" ? "Packs" : t === "import" ? "Import" : "Device types"}
+          </button>
+        ))}
+      </div>
 
-        {(modalError || iconPackError) && (
-          <div className="icon-mgr-banner icon-mgr-banner--error">{modalError ?? iconPackError}</div>
-        )}
-        {modalSuccess && <div className="icon-mgr-banner icon-mgr-banner--success">{modalSuccess}</div>}
+      {(modalError || iconPackError) && (
+        <div className="nm-alert nm-alert--error icon-mgr-banner">{modalError ?? iconPackError}</div>
+      )}
+      {modalSuccess && <div className="nm-alert nm-alert--info icon-mgr-banner icon-mgr-banner--success">{modalSuccess}</div>}
 
-        <div className="icon-mgr-body">
+      <div className="icon-mgr-body">
           {tab === "packs" && (
             <div className="icon-mgr-packs-list">
               {iconPackLoading && <p className="tool-note" style={{ padding: "8px 16px" }}>Loading server packs...</p>}
@@ -197,12 +187,12 @@ export function IconManagerModal({
                     </div>
                     <div className="icon-mgr-pack-actions">
                       {!isActive && (
-                        <button type="button" className="icon-mgr-btn" onClick={() => { onSelectIconPack(pack.id); setModalSuccess(`Switched to "${pack.name}"`); }}>
+                        <button type="button" className="nm-btn nm-btn--sm" onClick={() => { onSelectIconPack(pack.id); setModalSuccess(`Switched to "${pack.name}"`); }}>
                           Use this pack
                         </button>
                       )}
                       {isLocal && (
-                        <button type="button" className="icon-mgr-btn icon-mgr-btn--danger" onClick={() => onRemoveLocalIconPack(pack.id)}>
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => onRemoveLocalIconPack(pack.id)}>
                           Remove
                         </button>
                       )}
@@ -211,7 +201,7 @@ export function IconManagerModal({
                 );
               })}
               <p className="tool-note" style={{ padding: "12px 16px 4px", fontSize: 11 }}>
-                Server packs can also be added via <code>dev/frontend/public/icon-packs/</code>.
+                Server packs can also be added via <code>frontend/public/icon-packs/</code>.
               </p>
             </div>
           )}
@@ -225,7 +215,7 @@ export function IconManagerModal({
                 </div>
                 <form className="icon-mgr-form" onSubmit={(e) => void handleImportJson(e)}>
                   <input name="icon_pack_file" type="file" accept="application/json,.json" />
-                  <button type="submit" disabled={busy}>{busy ? "Importing..." : "Import"}</button>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>{busy ? "Importing..." : "Import"}</button>
                 </form>
               </div>
               <div className="icon-mgr-import-section">
@@ -242,7 +232,7 @@ export function IconManagerModal({
                     <label>Pack name <input name="icon_pack_svg_name" placeholder="My SVG Pack" /></label>
                     <label>Pack id <input name="icon_pack_svg_id" placeholder="my-svg-pack" /></label>
                   </div>
-                  <button type="submit" disabled={busy}>{busy ? "Importing..." : "Import SVG folder"}</button>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>{busy ? "Importing..." : "Import SVG folder"}</button>
                 </form>
               </div>
               <div className="icon-mgr-import-section">
@@ -260,7 +250,7 @@ export function IconManagerModal({
                     <label>Pack name <input name="icon_pack_png_name" placeholder="My PNG Pack" /></label>
                     <label>Pack id <input name="icon_pack_png_id" placeholder="my-png-pack" /></label>
                   </div>
-                  <button type="submit" disabled={busy}>{busy ? "Importing..." : "Import image folder"}</button>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>{busy ? "Importing..." : "Import image folder"}</button>
                 </form>
               </div>
             </div>
@@ -282,11 +272,11 @@ export function IconManagerModal({
                   </div>
                 ))}
               </div>
-              <div className="icon-mgr-device-types-actions">
-                <button type="button" onClick={() => { applyDeviceTypeIconMap(typeIconMap); setTypeIconSaved(true); setTimeout(() => setTypeIconSaved(false), 2000); }}>
+              <div className="icon-mgr-device-types-actions nm-btn-row">
+                <button type="button" className="nm-btn nm-btn--primary" onClick={() => { applyDeviceTypeIconMap(typeIconMap); setTypeIconSaved(true); setTimeout(() => setTypeIconSaved(false), 2000); }}>
                   Save mapping
                 </button>
-                <button type="button" onClick={() => { const d = { ...defaultDeviceTypeIconMap }; setTypeIconMap(d); applyDeviceTypeIconMap(d); }}>
+                <button type="button" className="nm-btn" onClick={() => { const d = { ...defaultDeviceTypeIconMap }; setTypeIconMap(d); applyDeviceTypeIconMap(d); }}>
                   Reset to defaults
                 </button>
                 {typeIconSaved && <span className="icon-mgr-saved-tick">Saved ✓</span>}
@@ -294,7 +284,6 @@ export function IconManagerModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

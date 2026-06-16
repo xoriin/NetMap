@@ -133,12 +133,12 @@ export function ObservationsAlert({
                           <span className="obs-row-acked">Acknowledged</span>
                         )}
                         {canApply && (
-                          <button type="button" className="ipam-btn" onClick={() => void applyObservation(obs)}>{applyLabel}</button>
+                          <button type="button" className="nm-btn" onClick={() => void applyObservation(obs)}>{applyLabel}</button>
                         )}
                         {obs.status === "open" && (
-                          <button type="button" className="ipam-btn" onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
+                          <button type="button" className="nm-btn" onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
                         )}
-                        <button type="button" className="ipam-btn ipam-btn--danger" onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                        <button type="button" className="nm-btn nm-btn--danger" onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
                       </div>
                     </div>
                   );

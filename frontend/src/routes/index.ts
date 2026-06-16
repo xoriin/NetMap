@@ -1,4 +1,4 @@
-import { Activity, Globe, Network, Settings, MapPin, Wrench, Shield, Download, UserCircle } from "lucide-react";
+import { Activity, Globe, Home, Network, Settings, MapPin, Wrench, Shield, Download, UserCircle } from "lucide-react";
 import type { TokenPair } from "../api/client";
 import { tokenStorageKey } from "../constants";
 
@@ -14,7 +14,7 @@ export type RouteDefinition = {
 };
 
 export const appRoutes: RouteDefinition[] = [
-  { href: "/overview",   icon: Activity,    label: "Overview",   section: "Network" },
+  { href: "/overview",   icon: Home,        label: "Overview",   section: "Network" },
   { href: "/topology",   icon: Globe,       label: "Topology" },
   { href: "/inventory",  icon: Network,     label: "Inventory" },
   { href: "/vlans",      icon: Settings,    label: "VLANs" },

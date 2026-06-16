@@ -156,7 +156,7 @@ export function ProfileWorkspace({
             {profileSuccess && <div className="success-banner">Profile saved.</div>}
 
             <div className="profile-form-actions">
-              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={profileBusy}>
+              <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy}>
                 {profileBusy ? "Saving…" : "Save profile"}
               </button>
             </div>
@@ -207,7 +207,7 @@ export function ProfileWorkspace({
             {pwSuccess && <div className="success-banner">Password changed successfully.</div>}
 
             <div className="profile-form-actions">
-              <button type="submit" className="ipam-btn ipam-btn--primary" disabled={pwBusy}>
+              <button type="submit" className="nm-btn nm-btn--primary" disabled={pwBusy}>
                 {pwBusy ? "Updating…" : "Change password"}
               </button>
             </div>

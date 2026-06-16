@@ -18,6 +18,15 @@ import { Modal } from "../../components/Modal";
 import { MonStatusDot } from "../../components/MonitorBadges";
 import { SubnetForm } from "../ipam/SubnetForm";
 
+function ipamAddressLabel(entry: IpAddressEntry): string | null {
+  const name = entry.display_name?.trim();
+  if (name) return name;
+  if (entry.kind === "dhcp" || entry.kind === "reserved" || entry.kind === "gateway") {
+    return entry.label?.trim() || null;
+  }
+  return null;
+}
+
 export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; canWrite: boolean }) {
   const [summary, setSummary] = useState<IpamSummary | null>(null);
   const [subnets, setSubnets] = useState<IpamSubnet[]>([]);
@@ -436,8 +445,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                         <td className="mon-cell-mono">{v.gateway ?? "—"}</td>
                         <td>
                           {v.already_imported
-                            ? <span className="dash-status-pill dash-status-pill--unknown">Already imported</span>
-                            : <span className="dash-status-pill dash-status-pill--online">Available</span>}
+                            ? <span className="nm-status nm-status--unknown">Already imported</span>
+                            : <span className="nm-status nm-status--online">Available</span>}
                         </td>
                       </tr>
                     ))}
@@ -446,7 +455,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                 {vlanMsg && <p style={{ fontSize: 13, marginBottom: 8, color: "var(--dash-green)" }}>{vlanMsg}</p>}
                 <button
                   type="button"
-                  className="ipam-btn ipam-btn--primary"
+                  className="nm-btn nm-btn--primary"
                   disabled={vlanSelected.size === 0 || vlanBusy}
                   onClick={() => void doVlanImport()}
                 >
@@ -514,7 +523,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
               </label>
             )}
             {canWrite && (
-              <button type="button" className="ipam-btn ipam-btn--primary" onClick={openNewReservation}>
+              <button type="button" className="nm-btn nm-btn--primary" onClick={openNewReservation}>
                 + Reserve IP
               </button>
             )}
@@ -550,8 +559,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                       {canWrite && (
                         <td>
                           <span className="ipam-row-actions">
-                            <button type="button" className="vlan-action-btn" onClick={() => openEditReservation(r)}>Edit</button>
-                            <button type="button" className="vlan-action-btn vlan-action-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>
+                            <button type="button" className="nm-btn nm-btn--sm" onClick={() => openEditReservation(r)}>Edit</button>
+                            <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>
                           </span>
                         </td>
                       )}
@@ -571,10 +580,10 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             <span className="dash-panel-title">Subnets ({subnets.length})</span>
             {canWrite && !showSubnetForm && (
               <span style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="ipam-btn" onClick={() => void openVlanImport()}>
+                <button type="button" className="nm-btn" onClick={() => void openVlanImport()}>
                   Import from VLANs
                 </button>
-                <button type="button" className="ipam-btn ipam-btn--primary" onClick={() => setShowSubnetForm(true)}>
+                <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowSubnetForm(true)}>
                   + Add subnet
                 </button>
               </span>
@@ -628,8 +637,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                       {canWrite && (
                         <td onClick={(e) => e.stopPropagation()}>
                           <span className="ipam-row-actions">
-                            <button type="button" className="vlan-action-btn" onClick={() => { setEditingSubnet(s); setShowSubnetForm(false); }}>Edit</button>
-                            <button type="button" className="vlan-action-btn vlan-action-btn--danger" onClick={() => void deleteSubnet(s)}>Delete</button>
+                            <button type="button" className="nm-btn nm-btn--sm" onClick={() => { setEditingSubnet(s); setShowSubnetForm(false); }}>Edit</button>
+                            <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteSubnet(s)}>Delete</button>
                           </span>
                         </td>
                       )}
@@ -644,194 +653,217 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* Subnet detail modal */}
       {selectedSubnet && (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSelectedSubnet(null); }}>
-          <div className="modal ipam-detail-modal">
-
-            {/* Modal header */}
-            <div className="modal-header ipam-modal-header">
-              <div className="ipam-modal-title-wrap">
-                <span className="ipam-modal-name">{selectedSubnet.name}</span>
-                <code className="ipam-cidr ipam-modal-cidr">{selectedSubnet.cidr}</code>
-                {selectedSubnet.vlan_id && <span className="mon-device-ip">VLAN {selectedSubnet.vlan_id}</span>}
-              </div>
-              <button type="button" className="ipam-modal-close" onClick={() => setSelectedSubnet(null)} aria-label="Close">✕</button>
+        <Modal
+          title={selectedSubnet.name}
+          onCancel={() => setSelectedSubnet(null)}
+          modalClassName="ipam-detail-modal"
+          bodyClassName="ipam-detail-modal-shell modal-body--flush"
+          headerExtra={(
+            <>
+              <code className="ipam-cidr ipam-modal-cidr">{selectedSubnet.cidr}</code>
+              {selectedSubnet.vlan_id && <span className="mon-device-ip">VLAN {selectedSubnet.vlan_id}</span>}
+            </>
+          )}
+        >
+          <div className="ipam-modal-stats">
+            <div className="ipam-modal-stat">
+              <span className="ipam-modal-stat-label">Used</span>
+              <strong className="ipam-modal-stat-val">{selectedSubnet.used}<span className="ipam-modal-stat-of"> / {selectedSubnet.total_hosts}</span></strong>
             </div>
-
-            {/* Stats row */}
-            <div className="ipam-modal-stats">
+            <div className="ipam-modal-stat">
+              <span className="ipam-modal-stat-label">Free</span>
+              <strong className="ipam-modal-stat-val">{selectedSubnet.free}</strong>
+            </div>
+            <div className="ipam-modal-stat">
+              <span className="ipam-modal-stat-label">Utilization</span>
+              <strong className="ipam-modal-stat-val">{Math.round(selectedSubnet.utilization * 100)}%</strong>
+            </div>
+            {selectedSubnet.gateway && (
               <div className="ipam-modal-stat">
-                <span className="ipam-modal-stat-label">Used</span>
-                <strong className="ipam-modal-stat-val">{selectedSubnet.used}<span className="ipam-modal-stat-of"> / {selectedSubnet.total_hosts}</span></strong>
+                <span className="ipam-modal-stat-label">Gateway</span>
+                <strong className="ipam-modal-stat-val ipam-modal-stat-mono">{selectedSubnet.gateway}</strong>
               </div>
+            )}
+            {selectedSubnet.dhcp_start && selectedSubnet.dhcp_end && (
               <div className="ipam-modal-stat">
-                <span className="ipam-modal-stat-label">Free</span>
-                <strong className="ipam-modal-stat-val">{selectedSubnet.free}</strong>
+                <span className="ipam-modal-stat-label">DHCP range</span>
+                <span className="ipam-dhcp-range-pill ipam-modal-dhcp-pill">
+                  <code>{selectedSubnet.dhcp_start}</code><span>to</span><code>{selectedSubnet.dhcp_end}</code>
+                </span>
               </div>
-              <div className="ipam-modal-stat">
-                <span className="ipam-modal-stat-label">Utilization</span>
-                <strong className="ipam-modal-stat-val">{Math.round(selectedSubnet.utilization * 100)}%</strong>
-              </div>
-              {selectedSubnet.gateway && (
-                <div className="ipam-modal-stat">
-                  <span className="ipam-modal-stat-label">Gateway</span>
-                  <strong className="ipam-modal-stat-val ipam-modal-stat-mono">{selectedSubnet.gateway}</strong>
-                </div>
-              )}
-              {selectedSubnet.dhcp_start && selectedSubnet.dhcp_end && (
-                <div className="ipam-modal-stat">
-                  <span className="ipam-modal-stat-label">DHCP range</span>
-                  <span className="ipam-dhcp-range-pill ipam-modal-dhcp-pill">
-                    <code>{selectedSubnet.dhcp_start}</code><span>to</span><code>{selectedSubnet.dhcp_end}</code>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Utilization bar */}
-            <div className="ipam-modal-util">
-              <UtilizationBar value={selectedSubnet.utilization} />
-            </div>
-
-            {/* Filter tabs */}
-            <div className="ipam-addr-tabs">
-              {(["all", "device", "dhcp", "reserved", "free"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  className={`ipam-addr-tab${addrFilter === f ? " active" : ""}`}
-                  onClick={() => setAddrFilter(f)}
-                >
-                  {f === "all" ? "All addresses"
-                    : f === "device" ? `Devices (${addresses.filter(a => a.kind === "device").length})`
-                    : f === "dhcp" ? `DHCP (${addresses.filter(a => a.kind === "dhcp").length})`
-                    : f === "reserved" ? `Reserved (${addresses.filter(a => a.kind === "reserved").length})`
-                    : `Free (${addresses.filter(a => a.kind === "free").length})`}
-                </button>
-              ))}
-            </div>
-
-            {/* Address content */}
-            <div className="ipam-modal-body">
-              {addressesLoading ? (
-                <p className="dash-empty">Loading addresses…</p>
-              ) : addresses.length === 0 ? (
-                <p className="dash-empty">Subnet too large to enumerate individual IPs (max 1024 hosts).</p>
-              ) : addrFilter === "all" && addresses.length <= 256 ? (
-                <>
-                  <IpGrid entries={addresses} onReserve={openReserveDialog} canWrite={canWrite} />
-                  <div className="ipam-grid-legend">
-                    {[["device","#2dba7c","Device"], ["dhcp","#3b80d0","DHCP lease"], ["range","#dbeafe","DHCP range"], ["reserved","#115e59","Reserved"], ["gateway","#f59e0b","Gateway"], ["free","#2dba7c","Free"], ["network","#94a3b8","Net/Bcast"]].map(([k, c, l]) => (
-                      <span key={k} className="ipam-legend-item"><span className="ipam-legend-dot" style={{ background: c }} />{l}</span>
-                    ))}
-                    {canWrite && <span className="ipam-legend-tip">· click a free address to reserve it</span>}
-                  </div>
-                </>
-              ) : (
-                <table className="mon-table">
-                  <thead>
-                    <tr><th>IP Address</th><th>Status</th><th>Label</th></tr>
-                  </thead>
-                  <tbody>
-                    {filteredAddresses.filter((a) => a.kind !== "network" && a.kind !== "broadcast").map((a) => (
-                      <tr key={a.ip} className="mon-row">
-                        <td><code className="ipam-cidr">{a.ip}</code></td>
-                        <td><span className={`ipam-kind-badge ipam-kind-badge--${a.kind}`}>{a.kind}</span></td>
-                        <td className="mon-device-name">{a.label ?? <span className="dash-panel-meta">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
+            )}
           </div>
-        </div>
+
+          <div className="ipam-modal-util">
+            <UtilizationBar value={selectedSubnet.utilization} />
+          </div>
+
+          <div className="ipam-addr-tabs" role="tablist" aria-label="Address filter">
+            {(
+              [
+                { key: "all" as const, label: "All" },
+                { key: "device" as const, label: "Devices", count: addresses.filter((a) => a.kind === "device").length },
+                { key: "dhcp" as const, label: "DHCP", count: addresses.filter((a) => a.kind === "dhcp").length },
+                { key: "reserved" as const, label: "Reserved", count: addresses.filter((a) => a.kind === "reserved").length },
+                { key: "free" as const, label: "Free", count: addresses.filter((a) => a.kind === "free").length },
+              ]
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={addrFilter === tab.key}
+                className={`ipam-addr-tab${addrFilter === tab.key ? " active" : ""}`}
+                onClick={() => setAddrFilter(tab.key)}
+              >
+                <span className="ipam-addr-tab-label">{tab.label}</span>
+                {"count" in tab && tab.count !== undefined ? (
+                  <span className="ipam-addr-tab-count">{tab.count}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          <div className="ipam-modal-body">
+            {addressesLoading ? (
+              <p className="dash-empty ipam-modal-body-inner">Loading addresses…</p>
+            ) : addresses.length === 0 ? (
+              <p className="dash-empty ipam-modal-body-inner">Subnet too large to enumerate individual IPs (max 1024 hosts).</p>
+            ) : addrFilter === "all" && addresses.length <= 256 ? (
+              <div className="ipam-modal-body-inner">
+                <IpGrid entries={addresses} onReserve={openReserveDialog} canWrite={canWrite} />
+                <div className="ipam-grid-legend">
+                  {[["device","#2dba7c","Device"], ["dhcp","#3b80d0","DHCP lease"], ["range","#dbeafe","DHCP range"], ["reserved","#115e59","Reserved"], ["gateway","#f59e0b","Gateway"], ["free","#2dba7c","Free"], ["network","#94a3b8","Net/Bcast"]].map(([k, c, l]) => (
+                    <span key={k} className="ipam-legend-item"><span className="ipam-legend-dot" style={{ background: c }} />{l}</span>
+                  ))}
+                  {canWrite && <span className="ipam-legend-tip">· click a free address to reserve it</span>}
+                </div>
+              </div>
+            ) : (
+              <table className="ipam-addr-table">
+                <colgroup>
+                  <col className="ipam-addr-col" />
+                  <col className="ipam-addr-col" />
+                  <col className="ipam-addr-col" />
+                </colgroup>
+                <thead>
+                  <tr><th>IP Address</th><th>Status</th><th>Label</th></tr>
+                </thead>
+                <tbody>
+                  {filteredAddresses.filter((a) => a.kind !== "network" && a.kind !== "broadcast").map((a) => (
+                    <tr key={a.ip} className="ipam-addr-row">
+                      <td className="ipam-addr-cell ipam-addr-cell--ip">
+                        <code className="ipam-cidr">{a.ip}</code>
+                      </td>
+                      <td className="ipam-addr-cell ipam-addr-cell--status">
+                        <span className={`ipam-kind-badge ipam-kind-badge--${a.kind}`}>{a.kind}</span>
+                      </td>
+                      <td className="ipam-addr-cell ipam-addr-cell--label">
+                        <span className="ipam-addr-label">
+                          {ipamAddressLabel(a) ?? <span className="dash-panel-meta">—</span>}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Modal>
       )}
 
-      {/* Reserve IP dialog */}
       {reserveIp !== null && (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closeReserveDialog(); }}>
-          <div className="modal" style={{ maxWidth: 420 }}>
-            <div className="modal-header">
-              <span className="dash-panel-title">{editingReservation ? "Edit reservation" : "Reserve IP address"}</span>
-              <button type="button" className="ipam-modal-close" onClick={closeReserveDialog} aria-label="Close">✕</button>
+        <Modal
+          title={editingReservation ? "Edit reservation" : "Reserve IP address"}
+          onCancel={closeReserveDialog}
+          size="sm"
+          footer={(
+            <div className="nm-btn-row" style={{ width: "100%", justifyContent: "space-between" }}>
+              {editingReservation && canWrite ? (
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--danger"
+                  onClick={() => { closeReserveDialog(); void deleteReservation(editingReservation); }}
+                >
+                  Delete
+                </button>
+              ) : <span />}
+              <div className="nm-btn-row">
+                <button type="button" className="nm-btn" onClick={closeReserveDialog}>Cancel</button>
+                <button
+                  type="submit"
+                  form="reserve-ip-form"
+                  className="nm-btn nm-btn--primary"
+                  disabled={reserveBusy || !reserveLabel.trim()}
+                >
+                  {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : (() => {
+                    const r = reserveIp ? parseReserveIpInput(reserveIp) : null;
+                    return Array.isArray(r) && r.length > 1 ? `Reserve ${r.length} addresses` : "Reserve IP";
+                  })()}
+                </button>
+              </div>
             </div>
-            <div style={{ padding: "16px 20px" }}>
-              <form onSubmit={(e) => void saveReservation(e)}>
-                <div className="ipam-form-row" style={{ marginBottom: 12 }}>
-                  <label className="ipam-form-label" style={{ flex: 1 }}>IP address
-                    <input
-                      className="ipam-form-input ipam-form-input--mono"
-                      required
-                      placeholder="e.g. 192.168.1.50 or 192.168.1.10-35"
-                      value={reserveIp ?? ""}
-                      readOnly={reserveIpLocked || !!editingReservation}
-                      autoFocus={!reserveIpLocked && !editingReservation}
-                      onChange={(e) => setReserveIp(e.target.value)}
-                    />
-                  </label>
-                </div>
-                {!reserveIpLocked && !editingReservation && reserveIp ? (() => {
-                  const result = parseReserveIpInput(reserveIp);
-                  return Array.isArray(result) && result.length > 1
-                    ? <p className="ipam-range-preview">→ {result.length} addresses ({result[0]} – {result[result.length - 1]})</p>
-                    : null;
-                })() : null}
-                <div className="ipam-form-row" style={{ marginBottom: 12 }}>
-                  <label className="ipam-form-label" style={{ flex: 1 }}>Label / purpose *
-                    <input
-                      className="ipam-form-input"
-                      required
-                      placeholder="e.g. Printer, CCTV camera, Reserved for server"
-                      value={reserveLabel}
-                      onChange={(e) => setReserveLabel(e.target.value)}
-                      autoFocus={reserveIpLocked || !!editingReservation}
-                    />
-                  </label>
-                </div>
-                {(() => {
-                  const result = reserveIp ? parseReserveIpInput(reserveIp) : null;
-                  const isRange = Array.isArray(result) && result.length > 1;
-                  return !isRange ? (
-                    <div className="ipam-form-row" style={{ marginBottom: 12 }}>
-                      <label className="ipam-form-label" style={{ flex: 1 }}>MAC address
-                        <input
-                          className="ipam-form-input ipam-form-input--mono"
-                          placeholder="e.g. aa:bb:cc:dd:ee:ff"
-                          value={reserveMac}
-                          onChange={(e) => setReserveMac(e.target.value)}
-                        />
-                      </label>
-                    </div>
-                  ) : null;
-                })()}
-                <div style={{ marginBottom: 14 }}>
-                  <label className="ipam-form-label">Notes
-                    <input
-                      className="ipam-form-input ipam-form-input--wide"
-                      placeholder="Optional"
-                      value={reserveNotes}
-                      onChange={(e) => setReserveNotes(e.target.value)}
-                    />
-                  </label>
-                </div>
-                {reserveError && <p className="form-error">{reserveError}</p>}
-                <div className="ipam-form-actions">
-                  <button type="submit" className="ipam-btn ipam-btn--primary" disabled={reserveBusy || !reserveLabel.trim()}>
-                    {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : (() => { const r = reserveIp ? parseReserveIpInput(reserveIp) : null; return Array.isArray(r) && r.length > 1 ? `Reserve ${r.length} addresses` : "Reserve IP"; })()}
-                  </button>
-                  <button type="button" className="ipam-btn" onClick={closeReserveDialog}>Cancel</button>
-                  {editingReservation && canWrite && (
-                    <button type="button" className="vlan-action-btn vlan-action-btn--danger" style={{ marginLeft: "auto" }}
-                      onClick={() => { closeReserveDialog(); void deleteReservation(editingReservation); }}>
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+          )}
+        >
+          <form id="reserve-ip-form" className="modal-form" onSubmit={(e) => void saveReservation(e)}>
+            <label className="nm-field">
+              <span className="nm-field-label">IP address</span>
+              <input
+                className="nm-input"
+                style={{ fontFamily: "monospace" }}
+                required
+                placeholder="e.g. 192.168.1.50 or 192.168.1.10-35"
+                value={reserveIp ?? ""}
+                readOnly={reserveIpLocked || !!editingReservation}
+                autoFocus={!reserveIpLocked && !editingReservation}
+                onChange={(e) => setReserveIp(e.target.value)}
+              />
+            </label>
+            {!reserveIpLocked && !editingReservation && reserveIp ? (() => {
+              const result = parseReserveIpInput(reserveIp);
+              return Array.isArray(result) && result.length > 1
+                ? <p className="ipam-range-preview">→ {result.length} addresses ({result[0]} – {result[result.length - 1]})</p>
+                : null;
+            })() : null}
+            <label className="nm-field">
+              <span className="nm-field-label">Label / purpose *</span>
+              <input
+                className="nm-input"
+                required
+                placeholder="e.g. Printer, CCTV camera, Reserved for server"
+                value={reserveLabel}
+                onChange={(e) => setReserveLabel(e.target.value)}
+                autoFocus={reserveIpLocked || !!editingReservation}
+              />
+            </label>
+            {(() => {
+              const result = reserveIp ? parseReserveIpInput(reserveIp) : null;
+              const isRange = Array.isArray(result) && result.length > 1;
+              return !isRange ? (
+                <label className="nm-field">
+                  <span className="nm-field-label">MAC address</span>
+                  <input
+                    className="nm-input"
+                    style={{ fontFamily: "monospace" }}
+                    placeholder="e.g. aa:bb:cc:dd:ee:ff"
+                    value={reserveMac}
+                    onChange={(e) => setReserveMac(e.target.value)}
+                  />
+                </label>
+              ) : null;
+            })()}
+            <label className="nm-field">
+              <span className="nm-field-label">Notes</span>
+              <input
+                className="nm-input"
+                placeholder="Optional"
+                value={reserveNotes}
+                onChange={(e) => setReserveNotes(e.target.value)}
+              />
+            </label>
+            {reserveError && <p className="nm-alert nm-alert--error">{reserveError}</p>}
+          </form>
+        </Modal>
       )}
 
       {/* DHCP leases panel */}

@@ -90,9 +90,9 @@ function IpTooltipCard({ entry, x, y, canWrite }: { entry: IpAddressEntry; x: nu
               <span>Range</span><span>DHCP assignment pool</span>
             </div>
           )}
-          {entry.label && (
+          {(entry.display_name || entry.label) && (
             <div className="ipam-tooltip-row">
-              <span>Name</span><span>{entry.label}</span>
+              <span>Name</span><span>{entry.display_name || entry.label}</span>
             </div>
           )}
           {entry.mac_address && (

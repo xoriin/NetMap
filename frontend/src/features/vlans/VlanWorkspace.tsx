@@ -225,10 +225,10 @@ export function VlanWorkspace({
         <input className="ipam-form-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
       </label>
       <label className="ipam-form-label">Subnet (CIDR)
-        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.10.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
+        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.1.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
       </label>
       <label className="ipam-form-label">Gateway
-        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.10.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
+        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.1.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
       </label>
       <label className="ipam-form-label">DNS servers
         <input className="ipam-form-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
@@ -246,9 +246,9 @@ export function VlanWorkspace({
           <Modal title="New group" onCancel={closeForm}>
             <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
               {vlanFormFields}
-              <div className="modal-actions" style={{ paddingTop: 6 }}>
-                <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-                <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Create group</button>
+              <div className="modal-actions">
+                <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+                <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Create group</button>
               </div>
             </form>
           </Modal>
@@ -257,9 +257,9 @@ export function VlanWorkspace({
           <Modal title="Edit group" onCancel={closeForm}>
             <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
               {vlanFormFields}
-              <div className="modal-actions" style={{ paddingTop: 6 }}>
-                <button type="button" className="ipam-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-                <button type="submit" className="ipam-btn ipam-btn--primary" disabled={busy}>Save changes</button>
+              <div className="modal-actions">
+                <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
+                <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Save changes</button>
               </div>
             </form>
           </Modal>
@@ -269,7 +269,7 @@ export function VlanWorkspace({
           <div className="vlan-toolbar">
             <input className="vlan-search-input" type="search" placeholder="Search groups…" value={vlanSearch} onChange={(e) => setVlanSearch(e.target.value)} />
             {canWrite && (
-              <button type="button" className="toolbar-btn toolbar-btn--primary" disabled={busy} onClick={() => openCreateForm()}>+ New group</button>
+              <button type="button" className="nm-btn nm-btn--primary" disabled={busy} onClick={() => openCreateForm()}>+ New group</button>
             )}
           </div>
           {filteredSortedRows.length === 0 ? (
@@ -344,7 +344,7 @@ export function VlanWorkspace({
                       <span className="vlan-row-actions">
                         <button
                           type="button"
-                          className="vlan-action-btn"
+                          className="nm-btn nm-btn--sm"
                           disabled={busy}
                           onClick={() => {
                             const existingGroup =
@@ -363,7 +363,7 @@ export function VlanWorkspace({
                         {row.type === 'entity' && (
                           <button
                             type="button"
-                            className="vlan-action-btn vlan-action-btn--danger"
+                            className="nm-btn nm-btn--sm nm-btn--danger"
                             disabled={busy}
                             onClick={() => void deleteGroup(row.entity!.id, row.entity!.name)}
                           >

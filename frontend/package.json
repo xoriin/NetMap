@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node node_modules/vite/bin/vite.js --host 0.0.0.0",
     "build": "tsc && vite build",
     "analyze": "vite build && xdg-open dist/stats.html 2>/dev/null || open dist/stats.html 2>/dev/null || true",
     "preview": "vite preview --host 0.0.0.0",
@@ -13,6 +13,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.5",
     "@tabler/icons-react": "^3.43.0",
     "cytoscape": "^3.33.1",
     "dompurify": "^3.2.6",
