@@ -19,7 +19,10 @@ def request_client_ip(request: Request) -> str | None:
     if not forwarded_for:
         return direct_ip
 
-    for candidate in forwarded_for.split(","):
+    # Take the rightmost entry: the trusted proxy (nginx) appends the real
+    # client address, so picking from the right prevents attacker-supplied
+    # values at the head of a spoofed XFF header from influencing attribution.
+    for candidate in reversed(forwarded_for.split(",")):
         value = candidate.strip()
         if value:
             return value

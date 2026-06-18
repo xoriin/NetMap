@@ -119,8 +119,8 @@ def reverse_dns(payload: ReverseDnsRequest) -> ReverseDnsResult:
 
 
 def ping_host(payload: PingRequest, *, allow_public_targets: bool | None = None) -> PingResult:
-    ensure_active_target_allowed(payload.host, allow_public_targets=allow_public_targets)
     host_arg = _active_tool_target_ip_argument(payload.host)
+    _ensure_resolved_ip_allowed(host_arg, allow_public_targets=allow_public_targets)
     command = [
         "ping",
         "-c",
@@ -153,10 +153,10 @@ def ping_host(payload: PingRequest, *, allow_public_targets: bool | None = None)
 
 
 def traceroute_host(payload: TracerouteRequest, *, allow_public_targets: bool | None = None) -> TracerouteResult:
-    ensure_active_target_allowed(payload.host, allow_public_targets=allow_public_targets)
+    host_arg = _active_tool_target_ip_argument(payload.host)
+    _ensure_resolved_ip_allowed(host_arg, allow_public_targets=allow_public_targets)
     if shutil.which("traceroute") is None:
         raise FileNotFoundError("traceroute")
-    host_arg = _active_tool_target_ip_argument(payload.host)
     command = [
         "traceroute",
         "-n",
@@ -184,10 +184,11 @@ def traceroute_host(payload: TracerouteRequest, *, allow_public_targets: bool | 
 
 
 def tcp_port_check(payload: TcpPortCheckRequest, *, allow_public_targets: bool | None = None) -> TcpPortCheckResult:
-    ensure_active_target_allowed(payload.host, allow_public_targets=allow_public_targets)
+    resolved_host = _active_tool_target_ip_argument(payload.host)
+    _ensure_resolved_ip_allowed(resolved_host, allow_public_targets=allow_public_targets)
     started = time.perf_counter()
     try:
-        with socket.create_connection((payload.host, payload.port), timeout=payload.timeout_seconds):
+        with socket.create_connection((resolved_host, payload.port), timeout=payload.timeout_seconds):
             reachable = True
             detail = "Connection succeeded"
     except OSError as exc:
@@ -243,6 +244,25 @@ def ensure_active_target_allowed(host: str, *, allow_public_targets: bool | None
     if public_targets_enabled:
         return
     if not _all_resolved_addresses_private(host):
+        raise ValueError(
+            "Public active network targets are blocked. "
+            "Set ACTIVE_NETWORK_PUBLIC_TARGETS_ENABLED=true to allow them."
+        )
+
+
+def _ensure_resolved_ip_allowed(resolved_ip: str, *, allow_public_targets: bool | None = None) -> None:
+    public_targets_enabled = (
+        settings.active_network_public_targets_enabled
+        if allow_public_targets is None
+        else allow_public_targets
+    )
+    if public_targets_enabled:
+        return
+    try:
+        addr = ip_address(resolved_ip)
+    except ValueError:
+        raise ValueError(f"Invalid resolved IP: {resolved_ip}")
+    if not any(addr in net for net in PRIVATE_ACTIVE_TARGET_NETWORKS):
         raise ValueError(
             "Public active network targets are blocked. "
             "Set ACTIVE_NETWORK_PUBLIC_TARGETS_ENABLED=true to allow them."
