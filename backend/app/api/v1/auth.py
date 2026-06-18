@@ -43,6 +43,7 @@ from app.services.auth import (
     is_locked,
     record_login_failure,
     register_refresh_token,
+    revoke_all_user_refresh_tokens,
     revoke_refresh_token_state,
     throttle_subjects,
     validate_refresh_token_state,
@@ -311,6 +312,7 @@ def change_password(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is invalid")
 
     current_user.password_hash = hash_password(payload.new_password)
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="password_changed")
     write_audit(
         db,
         action="auth.password_changed",
@@ -439,8 +441,8 @@ def admin_reset_password(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     user.password_hash = hash_password(payload.new_password)
-    token = create_password_reset_token(user.id)
-    _store_reset_token(db, token, user.id)
+    _invalidate_pending_reset_tokens(db, user.id)
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="admin_password_reset")
     write_audit(
         db,
         action="auth.admin_password_reset",
@@ -448,10 +450,12 @@ def admin_reset_password(
         target=f"user:{user.username}",
     )
     db.commit()
-    if user.email:
+    if user.email and settings.app_url:
         try:
-            base = settings.app_url.rstrip("/") if settings.app_url else str(request.base_url).rstrip("/")
-            reset_link = f"{base}?reset_token={token}"
+            token = create_password_reset_token(user.id)
+            _store_reset_token(db, token, user.id)
+            db.commit()
+            reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
             send_password_reset_email(
                 db,
                 username=user.username,
@@ -505,13 +509,24 @@ def client_ip_from_request(request: Request) -> str | None:
 
 
 def _store_reset_token(db: Session, token: str, user_id: int) -> None:
-    """Decode a password-reset JWT and persist its JTI so it can only be used once."""
     claims = decode_token(token, "password_reset")
     if claims is None:
         return
     jti = str(claims["jti"])
     expires_at = datetime.fromtimestamp(int(claims["exp"]), tz=timezone.utc)
     db.add(PasswordResetToken(jti=jti, user_id=user_id, expires_at=expires_at))
+
+
+def _invalidate_pending_reset_tokens(db: Session, user_id: int) -> None:
+    now = datetime.now(timezone.utc)
+    pending = db.scalars(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used_at.is_(None),
+        )
+    ).all()
+    for t in pending:
+        t.used_at = now
 
 
 @router.post("/auth/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -532,13 +547,13 @@ def forgot_password(
             )
         )
     )
-    if user is None or not user.is_active or not user.email:
+    if user is None or not user.is_active or not user.email or not settings.app_url:
         return
 
+    _invalidate_pending_reset_tokens(db, user.id)
     token = create_password_reset_token(user.id)
     _store_reset_token(db, token, user.id)
-    base = settings.app_url.rstrip("/") if settings.app_url else str(request.base_url).rstrip("/")
-    reset_link = f"{base}?reset_token={token}"
+    reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
 
     try:
         send_self_service_password_reset_email(
@@ -582,8 +597,9 @@ def reset_password_with_token(
     if user is None or not user.is_active:
         raise _invalid
 
-    token_row.used_at = datetime.now(timezone.utc)
+    _invalidate_pending_reset_tokens(db, user.id)
     user.password_hash = hash_password(payload.new_password)
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="password_reset")
     write_audit(
         db,
         action="auth.password_reset_self_service",
