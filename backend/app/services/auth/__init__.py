@@ -10,6 +10,7 @@ from app.services.auth.security import (
 )
 from app.services.auth.tokens import (
     register_refresh_token,
+    revoke_all_user_refresh_tokens,
     revoke_refresh_token_state,
     validate_refresh_token_state,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "is_locked",
     "record_login_failure",
     "register_refresh_token",
+    "revoke_all_user_refresh_tokens",
     "revoke_refresh_token_state",
     "throttle_subjects",
     "validate_refresh_token_state",
