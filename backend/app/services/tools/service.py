@@ -183,25 +183,49 @@ def traceroute_host(payload: TracerouteRequest, *, allow_public_targets: bool | 
     )
 
 
-def tcp_port_check(payload: TcpPortCheckRequest, *, allow_public_targets: bool | None = None) -> TcpPortCheckResult:
+def port_check(payload: TcpPortCheckRequest, *, allow_public_targets: bool | None = None) -> TcpPortCheckResult:
     resolved_host = _active_tool_target_ip_argument(payload.host)
     _ensure_resolved_ip_allowed(resolved_host, allow_public_targets=allow_public_targets)
     started = time.perf_counter()
-    try:
-        with socket.create_connection((resolved_host, payload.port), timeout=payload.timeout_seconds):
-            reachable = True
-            detail = "Connection succeeded"
-    except OSError as exc:
-        reachable = False
-        detail = str(exc)
+    if payload.protocol == "udp":
+        reachable, detail = _udp_port_check(resolved_host, payload.port, payload.timeout_seconds)
+    else:
+        reachable, detail = _tcp_port_check(resolved_host, payload.port, payload.timeout_seconds)
     duration_ms = int((time.perf_counter() - started) * 1000)
     return TcpPortCheckResult(
         host=payload.host,
         port=payload.port,
+        protocol=payload.protocol,
         reachable=reachable,
         duration_ms=duration_ms,
         detail=detail,
     )
+
+
+def _tcp_port_check(host: str, port: int, timeout_seconds: int) -> tuple[bool, str]:
+    try:
+        with socket.create_connection((host, port), timeout=timeout_seconds):
+            return True, "Connection succeeded"
+    except OSError as exc:
+        return False, str(exc)
+
+
+def _udp_port_check(host: str, port: int, timeout_seconds: int) -> tuple[bool, str]:
+    family = socket.AF_INET6 if ip_address(host).version == 6 else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_DGRAM)
+    sock.settimeout(timeout_seconds)
+    try:
+        sock.sendto(b"\x00", (host, port))
+        sock.recvfrom(1024)
+        return True, "UDP response received"
+    except socket.timeout:
+        return False, "No response received (port may be open or filtered)"
+    except ConnectionRefusedError:
+        return False, "Port unreachable (ICMP)"
+    except OSError as exc:
+        return False, str(exc)
+    finally:
+        sock.close()
 
 
 def subnet_calculate(payload: SubnetCalculatorRequest) -> SubnetCalculatorResult:
