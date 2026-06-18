@@ -359,6 +359,7 @@ class ScheduledDiscoveryService:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._running_schedule_ids: set[int] = set()
+        self._running_lock = threading.Lock()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -395,13 +396,27 @@ class ScheduledDiscoveryService:
                 .limit(3)
             ).all()
         for schedule in schedules:
-            if schedule.id in self._running_schedule_ids:
-                continue
-            self._running_schedule_ids.add(schedule.id)
+            with self._running_lock:
+                if schedule.id in self._running_schedule_ids:
+                    continue
+                self._running_schedule_ids.add(schedule.id)
             try:
                 self.run_schedule(schedule.id)
             finally:
-                self._running_schedule_ids.discard(schedule.id)
+                with self._running_lock:
+                    self._running_schedule_ids.discard(schedule.id)
+
+    def try_run_schedule(self, schedule_id: int) -> DiscoveryScan | None:
+        """Run a schedule exactly once, refusing concurrent runs for the same id."""
+        with self._running_lock:
+            if schedule_id in self._running_schedule_ids:
+                return None
+            self._running_schedule_ids.add(schedule_id)
+        try:
+            return self.run_schedule(schedule_id)
+        finally:
+            with self._running_lock:
+                self._running_schedule_ids.discard(schedule_id)
 
     def run_schedule(self, schedule_id: int) -> DiscoveryScan | None:
         with SessionLocal() as db:
