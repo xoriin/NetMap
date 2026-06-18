@@ -85,3 +85,11 @@ def require_firewall_export(current_user: Annotated[User, Depends(get_current_us
 
 def require_report_export(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     return _check(current_user, "report_export", "Report export is not permitted for your role")
+
+
+def require_alert_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return _check(current_user, "alert_write", "Alert management is not permitted for your role")
+
+
+def require_ipam_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return _check(current_user, "ipam_write", "IPAM write access is not permitted for your role")

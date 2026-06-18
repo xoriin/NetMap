@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_ipam_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.dhcp_lease import DhcpLease
@@ -39,9 +39,6 @@ from app.services.ipam.subnet_utils import detect_conflicts, enumerate_addresses
 
 router = APIRouter(prefix="/ipam", tags=["ipam"])
 
-_WRITE_ROLES = ("SuperAdmin", "NetworkAdmin")
-
-
 @dataclass(frozen=True)
 class _IpIndex:
     ips: frozenset
@@ -66,11 +63,6 @@ class _SubnetStats:
     device_count: int
     dhcp_count: int
     reservation_count: int
-
-
-def _require_write(user: User) -> None:
-    if user.role not in _WRITE_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -281,10 +273,9 @@ def list_subnets(
 @router.post("/subnets", response_model=SubnetOut, status_code=201)
 def create_subnet(
     payload: SubnetCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SubnetOut:
-    _require_write(current_user)
     try:
         ipaddress.ip_network(payload.cidr, strict=False)
     except ValueError:
@@ -304,10 +295,9 @@ def create_subnet(
 def update_subnet(
     subnet_id: int,
     payload: SubnetUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SubnetOut:
-    _require_write(current_user)
     subnet = db.get(Subnet, subnet_id)
     if not subnet:
         raise HTTPException(status_code=404, detail="Subnet not found")
@@ -332,10 +322,9 @@ def update_subnet(
 @router.delete("/subnets/{subnet_id}", status_code=204, response_model=None)
 def delete_subnet(
     subnet_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    _require_write(current_user)
     subnet = db.get(Subnet, subnet_id)
     if not subnet:
         raise HTTPException(status_code=404, detail="Subnet not found")
@@ -451,11 +440,10 @@ def vlan_suggestions(
 @router.post("/subnets/import-from-vlans", response_model=dict)
 def import_subnets_from_vlans(
     payload: VlanImportRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     import ipaddress
-    _require_write(current_user)
 
     existing_cidrs = {
         str(ipaddress.ip_network(s.cidr, strict=False))
@@ -505,10 +493,9 @@ def list_reservations(
 @router.post("/reservations", response_model=IpReservationOut, status_code=201)
 def create_reservation(
     payload: IpReservationCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> IpReservationOut:
-    _require_write(current_user)
     import ipaddress
     try:
         ipaddress.ip_address(payload.ip_address)
@@ -534,10 +521,9 @@ def create_reservation(
 def update_reservation(
     reservation_id: int,
     payload: IpReservationUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> IpReservationOut:
-    _require_write(current_user)
     reservation = db.get(IpReservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
@@ -552,10 +538,9 @@ def update_reservation(
 @router.delete("/reservations/{reservation_id}", status_code=204, response_model=None)
 def delete_reservation(
     reservation_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    _require_write(current_user)
     reservation = db.get(IpReservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
@@ -593,10 +578,9 @@ def list_dhcp_leases(
 @router.post("/dhcp-leases/import", response_model=dict)
 def import_dhcp_leases(
     payload: DhcpImportRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    _require_write(current_user)
     parsed = auto_parse(payload.content)
     if not parsed:
         raise HTTPException(status_code=422, detail="Could not parse lease file. Supported formats: ISC dhcpd, dnsmasq.")
@@ -619,9 +603,8 @@ def import_dhcp_leases(
 
 @router.delete("/dhcp-leases", status_code=204, response_model=None)
 def clear_dhcp_leases(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    _require_write(current_user)
     db.execute(delete(DhcpLease))
     db.commit()

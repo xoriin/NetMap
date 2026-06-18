@@ -15,8 +15,9 @@ from app.core.validation import normalize_ip, validate_port, validate_syslog_fie
 from app.db.firewall_session import FirewallSessionLocal, get_firewall_db
 from app.db.session import SessionLocal
 from app.models.firewall_event import FirewallEvent
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.firewall_event import FirewallEventList, FirewallEventRead, SyslogStatus
+from app.services.rbac.permissions import has_permission
 from app.services.syslog.storage import count_events, get_ingestion_status, get_retention_status
 from app.websocket.firewall_events import firewall_event_broadcaster
 
@@ -158,25 +159,23 @@ def list_firewall_events(
 @router.websocket("/events/live")
 async def live_firewall_events(websocket: WebSocket) -> None:
     global _active_ws_connections
+    # Accept first so we can read the auth token; do NOT reserve a slot yet.
+    await websocket.accept()
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+        user = get_websocket_user(raw.strip())
+    except asyncio.TimeoutError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    if user is None or not has_permission(str(user.role), "security_view"):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    # Authenticated — now check the shared quota.
     if _active_ws_connections >= settings.syslog_ws_max_connections:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     _active_ws_connections += 1
     try:
-        await websocket.accept()
-        try:
-            raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
-            user = get_websocket_user(raw.strip())
-        except asyncio.TimeoutError:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        if user is None or user.role not in {
-            UserRole.SUPER_ADMIN,
-            UserRole.NETWORK_ADMIN,
-            UserRole.SECURITY_ANALYST,
-        }:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
         await firewall_event_broadcaster.register(websocket)
         try:
             while True:
