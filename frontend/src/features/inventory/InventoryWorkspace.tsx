@@ -74,7 +74,7 @@ export function InventoryWorkspace({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     const saved = window.localStorage.getItem("netmap.inventory.pageSize");
-    return saved ? Math.max(1, Number(saved)) : 10;
+    return saved ? Math.max(1, Number(saved)) : 25;
   });
 
   const selectedDevice = graph.devices.find((device) => device.id === selectedDeviceId) ?? null;
