@@ -359,6 +359,7 @@ The `NET_RAW` capability is required for ICMP ping and traceroute. Without it th
 Pull the latest image and recreate the container. The database schema is migrated automatically on startup — no manual steps required.
 
 ```bash
+cd /opt/netmap
 docker compose pull
 docker compose up -d
 ```
@@ -366,7 +367,8 @@ docker compose up -d
 Back up your data directory before upgrading if you want a rollback option:
 
 ```bash
-cp -r /opt/netmap/data /opt/netmap/data.bak-$(date +%Y%m%d)
+cd /opt/netmap
+cp -r data data.bak-$(date +%Y%m%d)
 ```
 
 NetMap also has a built-in backup tool under Admin → Database that exports the full database to a downloadable file.
