@@ -4,7 +4,8 @@ from uuid import uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError, VerifyMismatchError
-from jose import JWTError, jwt
+import jwt as _jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 from app.core.config import settings
 from app.core.secrets import signing_secret
@@ -33,12 +34,12 @@ def create_token(subject: str, token_type: str, expires_delta: timedelta) -> str
         "exp": int((now + expires_delta).timestamp()),
         "jti": str(uuid4()),
     }
-    return jwt.encode(payload, signing_secret(), algorithm=ALGORITHM)
+    return _jwt.encode(payload, signing_secret(), algorithm=ALGORITHM)
 
 
 def decode_token(token: str, expected_type: str) -> dict[str, Any] | None:
     try:
-        payload = jwt.decode(token, signing_secret(), algorithms=[ALGORITHM])
+        payload = _jwt.decode(token, signing_secret(), algorithms=[ALGORITHM])
     except JWTError:
         return None
     if payload.get("typ") != expected_type:

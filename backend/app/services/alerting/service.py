@@ -140,7 +140,7 @@ class AlertMonitorService:
             port_future_map: dict = {}
             with ThreadPoolExecutor(max_workers=port_workers) as port_ex:
                 for ip, device_id, target in port_tasks:
-                    f = port_ex.submit(check_port, ip, target.port)
+                    f = port_ex.submit(check_port, ip, target.port, 2.0, protocol=target.check_type)
                     port_future_map[f] = (device_id, target)
                 for future in as_completed(port_future_map):
                     device_id, target = port_future_map[future]

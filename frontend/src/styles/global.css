@@ -1823,6 +1823,13 @@ body.theme-dark .dash-alert-tag--more { background: rgba(140,160,180,0.07); bord
 
 .dash-device-row:last-child { border-bottom: none; }
 .dash-device-row:hover { background: #f5f7f9; }
+.dash-device-row--action {
+  cursor: pointer;
+}
+.dash-device-row--action:focus-visible {
+  outline: 2px solid #1d9ab0;
+  outline-offset: -2px;
+}
 
 .dash-status-dot {
   width: 8px;
@@ -6029,7 +6036,7 @@ textarea.details-inline-input {
   border-bottom: 1px solid #d9e0e7;
 }
 
-.modal-header button {
+.modal-header button:not(.nm-btn--primary) {
   background: rgba(78, 104, 120, 0.15);
   color: #4e6878;
   box-shadow: none;
@@ -9673,6 +9680,14 @@ body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-stats 
   accent-color: #1d9ab0;
   width: 100%;
 }
+.toolbar-display-shape {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.toolbar-display-shape .nm-btn {
+  flex: 1;
+}
 .toolbar-display-actions {
   display: flex;
   gap: 6px;
@@ -12438,9 +12453,9 @@ body.theme-dark .fav-btn--active { color: #e8b840; }
   color: #fff;
 }
 
-.nm-btn--primary:hover:not(:disabled) {
-  background: #174f5c;
-  border-color: #174f5c;
+.nm-btn.nm-btn--primary:hover:not(:disabled) {
+  background: #1f7a8a;
+  border-color: #1f7a8a;
   color: #fff;
 }
 
@@ -12449,9 +12464,10 @@ body.theme-dark .nm-btn--primary {
   border-color: #1a6a78;
 }
 
-body.theme-dark .nm-btn--primary:hover:not(:disabled) {
+body.theme-dark .nm-btn.nm-btn--primary:hover:not(:disabled) {
   background: #1f7f8f;
   border-color: #1f7f8f;
+  color: #fff;
 }
 
 .nm-btn--danger {

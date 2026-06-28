@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.3.1] - 2026-06-28
+
+### Security
+- **Replaced `python-jose` with `PyJWT`** to remove the unmaintained `ecdsa` dependency.
+- **Pinned `cryptography>=48.0.1`**, **`starlette>=1.3.1`**, upgraded DOMPurify, and upgraded Vite/plugin-react to address dependency advisories.
+- **Password changes and resets now revoke active sessions**, invalidate sibling reset tokens, and require `APP_URL` before sending reset links.
+- **RBAC checks tightened** for alert management, IPAM mutations, syslog WebSockets, and configurable `security_view` access.
+- **Network tools hardened** against DNS rebinding; `X-Forwarded-For` parsing now uses the rightmost forwarded address.
+- **Discovery/SNMP safeguards added** with manual scheduled-discovery single-flight enforcement and an SNMP walk wall-clock deadline.
+- **Syslog TCP connection handling fixed** to avoid tracking unbounded per-connection thread references.
+
+### Added
+- **Overview favourites drilldown:** clicking a favourite device now opens a monitoring detail popup directly on Overview.
+- **Monitoring favourites filter:** a star toggle filters the Monitoring device table to favourites only.
+- **TCP/UDP service checks:** monitored port targets can now be TCP or UDP.
+- **TCP/UDP tools port check:** the Tools port checker now supports both TCP and UDP.
+- **Radial group layout:** topology groups can be arranged with a radial group layout option.
+
+### Changed
+- **Inventory default page size** now defaults to 25 rows and migrates old auto-saved 10-row preferences to 25 once, while preserving later manual choices.
+- **Port-check naming** now uses generic "Port check" labels and API action names instead of TCP-only wording.
+- **Upgrade docs** now `cd /opt/netmap` before pull, recreate, and backup commands.
+
+### Fixed
+- **Primary button styling** no longer gets overridden in modal headers.
+- **Overview favourites popup** keeps users on Overview instead of navigating to Monitoring.
+- **Alert monitor service checks** now honour the configured TCP/UDP check type.
+
+---
+
 ## [1.3.0] - 2026-06-16
 
 ### Changed

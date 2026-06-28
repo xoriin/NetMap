@@ -4,16 +4,32 @@ import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
   IconUsers, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
 } from "@tabler/icons-react";
-import { api, type FleetSummary, type Device, type DeviceMonitorSummary, type DevicePayload, type DashboardSummary, type TopologyGraph, type TopologyGroup, type Site, type SnmpProfile, type User } from "../../api/client";
+import {
+  api,
+  type AlertEvent,
+  type DeviceAnalysis,
+  type FleetSummary,
+  type Device,
+  type DeviceMonitorSummary,
+  type DevicePayload,
+  type DashboardSummary,
+  type MonitorHistoryPoint,
+  type TopologyGraph,
+  type TopologyGroup,
+  type Site,
+  type SnmpProfile,
+  type User,
+} from "../../api/client";
 import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
 import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
-import { MonStatusDot, UptimeBadge } from "../../components/MonitorBadges";
-import { HeartbeatBar } from "../../components/HeartbeatBar";
+import { AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge } from "../../components/MonitorBadges";
+import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 import { DeviceForm } from "../devices/DeviceForm";
 import { DiscoveryModal } from "../topology/DiscoveryModal";
+import { computeIncidents } from "../../utils/monitoring";
 
 export function OverviewWorkspace({
   accessToken,
@@ -54,6 +70,12 @@ export function OverviewWorkspace({
   const [snmpProfiles, setSnmpProfiles] = useState<SnmpProfile[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [selectedFavouriteId, setSelectedFavouriteId] = useState<number | null>(null);
+  const [favouriteHistory, setFavouriteHistory] = useState<MonitorHistoryPoint[]>([]);
+  const [favouriteHistoryHours, setFavouriteHistoryHours] = useState(24);
+  const [favouriteHistoryLoading, setFavouriteHistoryLoading] = useState(false);
+  const [favouriteAnalysis, setFavouriteAnalysis] = useState<DeviceAnalysis | null>(null);
+  const [favouriteAlertEvents, setFavouriteAlertEvents] = useState<AlertEvent[]>([]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -176,6 +198,64 @@ export function OverviewWorkspace({
       d.status,
     ].some((value) => (value ?? "").toLowerCase().includes(q)));
   }, [favouriteDevices, favouriteSearch]);
+
+  const selectedFavouriteDevice = useMemo(
+    () => monDevices.find((d) => d.device_id === selectedFavouriteId) ?? null,
+    [monDevices, selectedFavouriteId],
+  );
+
+  useEffect(() => {
+    if (!accessToken || selectedFavouriteId === null) {
+      setFavouriteHistory([]);
+      setFavouriteAnalysis(null);
+      setFavouriteAlertEvents([]);
+      return;
+    }
+    let cancelled = false;
+    setFavouriteHistoryLoading(true);
+    void Promise.all([
+      api.getDeviceHistory(accessToken, selectedFavouriteId, favouriteHistoryHours).catch(() => []),
+      api.listAlertEvents(accessToken, selectedFavouriteId).catch(() => []),
+      api.getDeviceAnalysis(accessToken, selectedFavouriteId).catch((): DeviceAnalysis => ({
+        device_id: selectedFavouriteId,
+        baseline_rtt_ms: null, rtt_stddev: null, rtt_p50: null, rtt_p95: null,
+        current_rtt_ms: null, anomaly_score: null,
+        anomaly_level: "insufficient_data",
+        trend: "insufficient_data", trend_pct: null,
+        flap_count_24h: 0, longest_outage_minutes: null,
+      })),
+    ]).then(([history, events, analysis]) => {
+      if (cancelled) return;
+      setFavouriteHistory(history);
+      setFavouriteAlertEvents(events);
+      setFavouriteAnalysis(analysis);
+    }).finally(() => {
+      if (!cancelled) setFavouriteHistoryLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [accessToken, selectedFavouriteId, favouriteHistoryHours]);
+
+  function fmtTime(iso: string | null) {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function fmtDateTime(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " +
+      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function fmtDuration(minutes: number) {
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  }
+
+  function fmtRtt(ms: number | null) {
+    return ms !== null ? `${ms.toFixed(1)} ms` : "-";
+  }
 
   return (
     <section className="dash-layout">
@@ -453,7 +533,19 @@ export function OverviewWorkspace({
             ) : (
               <div className="dash-device-list">
                 {visibleFavouriteDevices.map((d) => (
-                  <div key={d.device_id} className="dash-device-row dash-device-row--favourite">
+                  <div
+                    key={d.device_id}
+                    role="button"
+                    tabIndex={0}
+                    className="dash-device-row dash-device-row--favourite dash-device-row--action"
+                    onClick={() => setSelectedFavouriteId(d.device_id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedFavouriteId(d.device_id);
+                      }
+                    }}
+                  >
                     <MonStatusDot status={liveStatusByDeviceId.get(d.device_id) ?? d.status} />
                     <div className="dash-device-info">
                       <span className="dash-device-name">{d.display_name ?? d.hostname ?? d.ip_address}</span>
@@ -468,7 +560,7 @@ export function OverviewWorkspace({
                       className="fav-btn fav-btn--active"
                       aria-label="Remove from favourites"
                       title="Remove from favourites"
-                      onClick={() => onToggleFavourite(d.device_id)}
+                      onClick={(e) => { e.stopPropagation(); onToggleFavourite(d.device_id); }}
                     >
                       <Star size={15} fill="currentColor" />
                     </button>
@@ -504,6 +596,215 @@ export function OverviewWorkspace({
             await onGraphChange();
           }}
         />
+      )}
+      {selectedFavouriteDevice && (
+        <div
+          className="mon-hero-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedFavouriteId(null); }}
+        >
+          <div className="mon-hero">
+            <div className={`mon-hero-header mon-hero-header--${selectedFavouriteDevice.status}`}>
+              <div className="mon-hero-header-left">
+                <MonStatusDot status={selectedFavouriteDevice.status} />
+                <div>
+                  <div className="mon-hero-name">
+                    {selectedFavouriteDevice.display_name ?? selectedFavouriteDevice.hostname ?? selectedFavouriteDevice.ip_address}
+                  </div>
+                  <div className="mon-hero-sub">
+                    {selectedFavouriteDevice.hostname && selectedFavouriteDevice.hostname !== selectedFavouriteDevice.ip_address && (
+                      <span>{selectedFavouriteDevice.hostname} - </span>
+                    )}
+                    <span className="mon-cell-mono">{selectedFavouriteDevice.ip_address}</span>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="mon-hero-close" onClick={() => setSelectedFavouriteId(null)} title="Close">x</button>
+            </div>
+
+            <div className="mon-hero-stats">
+              <div className="mon-hero-stat">
+                <span className="mon-hero-stat-label">24 h uptime</span>
+                <UptimeBadge value={selectedFavouriteDevice.uptime_24h} />
+              </div>
+              <div className="mon-hero-stat">
+                <span className="mon-hero-stat-label">7 d uptime</span>
+                <UptimeBadge value={selectedFavouriteDevice.uptime_7d} />
+              </div>
+              <div className="mon-hero-stat">
+                <span className="mon-hero-stat-label">Avg RTT (24 h)</span>
+                <strong className="mon-hero-stat-val">{fmtRtt(selectedFavouriteDevice.avg_rtt_24h)}</strong>
+              </div>
+              {favouriteAnalysis?.current_rtt_ms != null && (
+                <div className="mon-hero-stat">
+                  <span className="mon-hero-stat-label">Current RTT</span>
+                  <strong className="mon-hero-stat-val">{fmtRtt(favouriteAnalysis.current_rtt_ms)}</strong>
+                </div>
+              )}
+              <div className="mon-hero-stat">
+                <span className="mon-hero-stat-label">Last checked</span>
+                <strong className="mon-hero-stat-val">{fmtTime(selectedFavouriteDevice.last_checked)}</strong>
+              </div>
+            </div>
+
+            <div className="mon-hero-body">
+              <div className="mon-hero-cols">
+                <div className="mon-hero-col">
+                  {favouriteAnalysis && (
+                    <div className="mon-hero-section">
+                      <div className="mon-hero-section-title">
+                        Analysis
+                        <span className="dash-panel-meta">7-day baseline</span>
+                      </div>
+                      <div className="mon-analysis-body">
+                        <div className="mon-analysis-row">
+                          <span className="dash-panel-meta">Trend</span>
+                          <TrendBadge trend={favouriteAnalysis.trend} pct={favouriteAnalysis.trend_pct} />
+                        </div>
+                        <div className="mon-analysis-row">
+                          <span className="dash-panel-meta">Anomaly</span>
+                          <AnomalyBadge level={favouriteAnalysis.anomaly_level} score={favouriteAnalysis.anomaly_score} />
+                        </div>
+                        {favouriteAnalysis.baseline_rtt_ms !== null && (
+                          <div className="mon-analysis-row">
+                            <span className="dash-panel-meta">Baseline RTT</span>
+                            <span className="mon-analysis-val">
+                              {favouriteAnalysis.baseline_rtt_ms.toFixed(1)} ms
+                              {favouriteAnalysis.rtt_stddev !== null && (
+                                <span className="dash-panel-meta"> +/- {favouriteAnalysis.rtt_stddev.toFixed(1)}</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        <div className="mon-analysis-row">
+                          <span className="dash-panel-meta">Flaps (24 h)</span>
+                          <span className={`mon-analysis-val${favouriteAnalysis.flap_count_24h >= 4 ? " mon-analysis-val--warn" : ""}`}>
+                            {favouriteAnalysis.flap_count_24h}
+                          </span>
+                        </div>
+                        {favouriteAnalysis.longest_outage_minutes !== null && (
+                          <div className="mon-analysis-row">
+                            <span className="dash-panel-meta">Longest outage (7 d)</span>
+                            <span className="mon-analysis-val">{fmtDuration(favouriteAnalysis.longest_outage_minutes)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedFavouriteDevice.latest_port_results.length > 0 && (
+                    <div className="mon-hero-section">
+                      <div className="mon-hero-section-title">
+                        Service status
+                        <span className="dash-panel-meta">latest check</span>
+                      </div>
+                      <div className="mon-port-rows">
+                        {selectedFavouriteDevice.latest_port_results.map((r) => (
+                          <div key={r.target_id ?? `${r.label}-${r.port}`} className="mon-port-row">
+                            <span className={`mon-dot mon-dot-${r.open ? "online" : "offline"}`} />
+                            <span className="mon-port-label">{r.label}</span>
+                            <span className="dash-panel-meta">{r.check_type.toUpperCase()} :{r.port}</span>
+                            <span className={`mon-port-status mon-port-status--${r.open ? "open" : "closed"}`}>
+                              {r.open ? "Open" : "Closed"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {favouriteHistory.length > 0 && (() => {
+                    const incidents = computeIncidents(favouriteHistory);
+                    if (incidents.length === 0) return null;
+                    return (
+                      <div className="mon-hero-section">
+                        <div className="mon-hero-section-title">
+                          Incident log
+                          <span className="dash-panel-meta">{incidents.length} incident{incidents.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="incident-log">
+                          {incidents.map((inc, i) => {
+                            const startTs = new Date(inc.start).getTime();
+                            const endTs = inc.end ? new Date(inc.end).getTime() : Date.now();
+                            const firedEvents = favouriteAlertEvents.filter((ev) => {
+                              const t = new Date(ev.fired_at).getTime();
+                              return t >= startTs - 5 * 60_000 && t <= endTs + 5 * 60_000;
+                            });
+                            return (
+                              <div key={i} className={`incident-row${inc.end === null ? " incident-row--active" : ""}`}>
+                                <span className={`mon-dot mon-dot-${inc.end === null ? "offline" : "unknown"}`} />
+                                <div className="incident-row-body">
+                                  <span className="incident-time">{fmtDateTime(inc.start)}</span>
+                                  <span className="dash-panel-meta">to</span>
+                                  <span className="incident-time">{inc.end ? fmtDateTime(inc.end) : "now"}</span>
+                                  {firedEvents.length > 0 && (
+                                    <span className="incident-alert-tag" title={firedEvents.map((event) => event.alert_rule_name).join(", ")}>
+                                      {firedEvents.length} alert{firedEvents.length !== 1 ? "s" : ""} fired
+                                    </span>
+                                  )}
+                                </div>
+                                {inc.end === null ? (
+                                  <span className="incident-badge incident-badge--active">Ongoing</span>
+                                ) : (
+                                  <span className="incident-badge">{fmtDuration(inc.durationMin!)}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="mon-hero-col">
+                  <div className="mon-hero-section">
+                    <div className="mon-hero-section-title">
+                      Heartbeat
+                      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span className="dash-panel-meta">hover to inspect</span>
+                        <select
+                          className="mon-hours-select"
+                          value={favouriteHistoryHours}
+                          onChange={(e) => setFavouriteHistoryHours(Number(e.target.value))}
+                        >
+                          <option value={6}>Last 6 h</option>
+                          <option value={24}>Last 24 h</option>
+                          <option value={72}>Last 3 days</option>
+                          <option value={168}>Last 7 days</option>
+                        </select>
+                      </span>
+                    </div>
+                    <div className="mon-heartbeat-body">
+                      {favouriteHistoryLoading
+                        ? <p className="dash-empty">Loading...</p>
+                        : <HeartbeatTimeline history={favouriteHistory} hours={favouriteHistoryHours} />
+                      }
+                    </div>
+                  </div>
+
+                  <div className="mon-hero-section">
+                    <div className="mon-hero-section-title">Response time</div>
+                    <div className="mon-chart-body">
+                      {favouriteHistoryLoading ? (
+                        <p className="dash-empty">Loading...</p>
+                      ) : (
+                        <>
+                          <RttSparkline data={favouriteHistory} />
+                          {favouriteHistory.length > 0 && (
+                            <p className="dash-panel-meta" style={{ margin: "6px 0 0" }}>
+                              {favouriteHistory.length} data points - latest {fmtTime(favouriteHistory[favouriteHistory.length - 1].checked_at)}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
       )}
 
     </section>

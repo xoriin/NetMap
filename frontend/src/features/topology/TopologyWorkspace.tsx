@@ -15,6 +15,7 @@ import {
   readSavedTopologyLayout, clearSavedTopologyLayout,
   writeSavedTopologyLayoutMeta,
   persistCurrentTopologyLayout, collectCurrentTopologyLayoutPositions, sanitizeTopologyLayoutPositions,
+  type GroupLayoutShape,
 } from "../../utils/topology";
 import { compareGroupLabels } from "../../utils/sort";
 import { deviceLabel, statusColor } from "../../utils/format";
@@ -114,7 +115,7 @@ export function TopologyWorkspace({
     try { return readTopologyDisplayPrefs(userId).showNodeLabels ?? true; } catch { return true; }
   });
   const [selectedGroupForDisplay, setSelectedGroupForDisplay] = useState("Ungrouped");
-  const [groupDisplayPrefs, setGroupDisplayPrefs] = useState<Record<string, { nodeScalePercent: number; spacingScalePercent: number; maxDevicesPerRow: number }>>({});
+  const [groupDisplayPrefs, setGroupDisplayPrefs] = useState<Record<string, { nodeScalePercent: number; spacingScalePercent: number; maxDevicesPerRow: number; layoutShape?: GroupLayoutShape; maxRings?: number }>>({});
   const [overlayNodes, setOverlayNodes] = useState<
     Array<{ id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number }>
   >([]);
@@ -1334,6 +1335,91 @@ export function TopologyWorkspace({
     await saveNamedLayout(entered);
   }
 
+  function computeRadialPositions(
+    groupDevices: typeof filteredGraph.devices,
+    cx: number,
+    cy_: number,
+    spacingScalePercent: number,
+    numRings: number,
+  ): Array<{ id: string; x: number; y: number }> {
+    const spacingScale = Math.max(0.8, Math.min(2.2, spacingScalePercent / 100));
+    const nodeSpacing = Math.round(130 * spacingScale);
+    const ringGap = Math.round(110 * spacingScale);
+    const n = groupDevices.length;
+    if (n === 0) return [];
+    if (n === 1) return [{ id: `device-${groupDevices[0].id}`, x: Math.round(cx), y: Math.round(cy_) }];
+
+    const rings = Math.max(1, Math.min(numRings, n));
+
+    // Distribute devices across rings proportionally to ring index+1 (approximates circumference)
+    const totalWeight = (rings * (rings + 1)) / 2;
+    const ringCapacities: number[] = [];
+    let assigned = 0;
+    for (let r = 0; r < rings; r++) {
+      const cap = r === rings - 1
+        ? n - assigned
+        : Math.max(1, Math.round(n * (r + 1) / totalWeight));
+      ringCapacities.push(cap);
+      assigned += cap;
+    }
+
+    const finalPositions: Array<{ id: string; x: number; y: number }> = [];
+    let deviceIdx = 0;
+    for (let ringIdx = 0; ringIdx < rings; ringIdx++) {
+      const count = ringCapacities[ringIdx];
+      // Radius: first ring sized so arc spacing ≈ nodeSpacing; subsequent rings spaced by ringGap
+      const firstRingRadius = Math.max(100, Math.round((ringCapacities[0] * nodeSpacing) / (2 * Math.PI)));
+      const radius = firstRingRadius + ringIdx * ringGap;
+      for (let i = 0; i < count && deviceIdx < n; i++, deviceIdx++) {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+        finalPositions.push({
+          id: `device-${groupDevices[deviceIdx].id}`,
+          x: Math.round(cx + radius * Math.cos(angle)),
+          y: Math.round(cy_ + radius * Math.sin(angle)),
+        });
+      }
+    }
+    return finalPositions;
+  }
+
+  function autoArrangeRadialSelectedGroup() {
+    const cy = cyRef.current;
+    if (!cy || !selectedGroupForDisplay) return;
+
+    const groupDevices = filteredGraph.devices.filter(
+      (device) => device.topology_group === selectedGroupForDisplay,
+    );
+    if (groupDevices.length === 0) return;
+
+    const currentPositions = groupDevices.map((d) => {
+      const id = `device-${d.id}`;
+      const node = cy.$id(id);
+      return node.length > 0 ? node.position() : (layoutPositionsRef.current[id] ?? { x: 0, y: 0 });
+    });
+    const cx = currentPositions.reduce((s, p) => s + p.x, 0) / currentPositions.length;
+    const cy_ = currentPositions.reduce((s, p) => s + p.y, 0) / currentPositions.length;
+
+    const finalPositions = computeRadialPositions(
+      groupDevices, cx, cy_,
+      activeGroupDisplay.spacingScalePercent,
+      activeGroupDisplay.maxRings ?? 1,
+    );
+
+    const nextPositions = { ...layoutPositionsRef.current };
+    for (const { id, x, y } of finalPositions) {
+      const node = cy.$id(id);
+      if (node.length > 0) node.position({ x, y });
+      nextPositions[id] = { x, y };
+    }
+    const sanitizedPositions = sanitizeTopologyLayoutPositions(nextPositions);
+    layoutPositionsRef.current = sanitizedPositions;
+    const now = Date.now();
+    window.localStorage.setItem(savedTopologyLayoutKey(userId), JSON.stringify(sanitizedPositions));
+    writeSavedTopologyLayoutMeta(userId, { savedAt: now });
+    serverSaveLayoutRef.current(sanitizedPositions, true);
+    refreshOverlayNodes();
+  }
+
   function autoArrangeSelectedGroup() {
     const cy = cyRef.current;
     if (!cy || !selectedGroupForDisplay) return;
@@ -1853,9 +1939,26 @@ export function TopologyWorkspace({
                       ))}
                     </select>
                   </label>
+                  <div className="toolbar-display-shape">
+                    {(["grid", "radial"] as GroupLayoutShape[]).map((shape) => (
+                      <button
+                        key={shape}
+                        type="button"
+                        className={`nm-btn nm-btn--sm${(activeGroupDisplay.layoutShape ?? "grid") === shape ? " nm-btn--active" : ""}`}
+                        onClick={() => setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, layoutShape: shape } }))}
+                      >
+                        {shape === "grid" ? "Grid" : "Radial"}
+                      </button>
+                    ))}
+                  </div>
                   <div className="toolbar-display-actions">
-                    <button type="button" className="nm-btn nm-btn--sm" onClick={autoArrangeSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
-                      Snap to grid
+                    <button
+                      type="button"
+                      className="nm-btn nm-btn--sm"
+                      disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}
+                      onClick={(activeGroupDisplay.layoutShape ?? "grid") === "radial" ? autoArrangeRadialSelectedGroup : autoArrangeSelectedGroup}
+                    >
+                      Auto-arrange
                     </button>
                     <button type="button" className="nm-btn nm-btn--sm" onClick={resetSelectedGroup} disabled={!visibleGroupNames.includes(selectedGroupForDisplay)}>
                       Reset group
@@ -1870,31 +1973,60 @@ export function TopologyWorkspace({
                     Spacing <span>{activeGroupDisplay.spacingScalePercent}%</span>
                     <input type="range" min={80} max={220} step={10} value={activeGroupDisplay.spacingScalePercent}
                       onChange={(e) => {
+                        const newSpacingPercent = Number(e.target.value);
                         const cy = cyRef.current;
-                        const gId = groupId(selectedGroupForDisplay);
                         const nextPositions = { ...layoutPositionsRef.current };
-                        if (cy) {
-                          const groupNode = cy.$id(gId);
-                          if (groupNode.length > 0) {
-                            const bb = groupNode.boundingBox({});
-                            const devYs = filteredGraph.devices
-                              .filter((d) => d.topology_group === selectedGroupForDisplay)
-                              .map((d) => cy.$id(`device-${d.id}`))
-                              .filter((n) => n.length > 0)
-                              .map((n) => n.position().y);
-                            const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
-                            nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
+                        if ((activeGroupDisplay.layoutShape ?? "grid") === "radial" && cy) {
+                          const groupDevices = filteredGraph.devices.filter((d) => d.topology_group === selectedGroupForDisplay);
+                          const curPos = groupDevices.map((d) => {
+                            const id = `device-${d.id}`;
+                            const node = cy.$id(id);
+                            return node.length > 0 ? node.position() : (layoutPositionsRef.current[id] ?? { x: 0, y: 0 });
+                          });
+                          const cx = curPos.reduce((s, p) => s + p.x, 0) / curPos.length;
+                          const cy_ = curPos.reduce((s, p) => s + p.y, 0) / curPos.length;
+                          const finalPositions = computeRadialPositions(groupDevices, cx, cy_, newSpacingPercent, activeGroupDisplay.maxRings ?? 1);
+                          for (const { id, x, y } of finalPositions) {
+                            cy.$id(id).position({ x, y });
+                            nextPositions[id] = { x, y };
                           }
+                          layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
+                          window.localStorage.setItem(savedTopologyLayoutKey(userId), JSON.stringify(layoutPositionsRef.current));
+                          writeSavedTopologyLayoutMeta(userId, { savedAt: Date.now() });
+                          serverSaveLayoutRef.current(layoutPositionsRef.current, true);
+                          refreshOverlayNodes();
+                        } else {
+                          const gId = groupId(selectedGroupForDisplay);
+                          if (cy) {
+                            const groupNode = cy.$id(gId);
+                            if (groupNode.length > 0) {
+                              const bb = groupNode.boundingBox({});
+                              const devYs = filteredGraph.devices
+                                .filter((d) => d.topology_group === selectedGroupForDisplay)
+                                .map((d) => cy.$id(`device-${d.id}`))
+                                .filter((n) => n.length > 0)
+                                .map((n) => n.position().y);
+                              const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
+                              nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
+                            }
+                          }
+                          filteredGraph.devices
+                            .filter((d) => d.topology_group === selectedGroupForDisplay)
+                            .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
+                          layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
+                          skipPersistOnNextRenderRef.current = true;
                         }
-                        filteredGraph.devices
-                          .filter((d) => d.topology_group === selectedGroupForDisplay)
-                          .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
-                        layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
-                        skipPersistOnNextRenderRef.current = true;
-                        setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: Number(e.target.value) } }));
+                        setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: newSpacingPercent } }));
                       }} />
                   </label>
-                  <label>
+                  {(activeGroupDisplay.layoutShape ?? "grid") === "radial" && (
+                    <label>
+                      Rings <span>{activeGroupDisplay.maxRings ?? 1}</span>
+                      <input type="range" min={1} max={5} step={1} value={activeGroupDisplay.maxRings ?? 1}
+                        onChange={(e) => setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxRings: Number(e.target.value) } }))} />
+                    </label>
+                  )}
+                  {(activeGroupDisplay.layoutShape ?? "grid") !== "radial" && <label>
                     Per row <span>{activeGroupDisplay.maxDevicesPerRow}</span>
                     <input type="range" min={3} max={8} step={1} value={activeGroupDisplay.maxDevicesPerRow}
                       onChange={(e) => {
@@ -1921,7 +2053,7 @@ export function TopologyWorkspace({
                         skipPersistOnNextRenderRef.current = true;
                         setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxDevicesPerRow: Number(e.target.value) } }));
                       }} />
-                  </label>
+                  </label>}
                   <label>
                     Background <span>{groupZoneOpacityPercent}%</span>
                     <input type="range" min={0} max={100} step={5} value={groupZoneOpacityPercent}

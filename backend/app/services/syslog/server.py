@@ -120,14 +120,19 @@ class SyslogIngestionService:
                 client.close()
                 logger.warning("TCP syslog connection limit reached (%s), dropping %s", settings.syslog_max_tcp_connections, sender_host)
                 continue
-            self._start_thread(
-                f"syslog-{label.lower()}-{sender_host}",
-                lambda client=client, sender_host=sender_host: self._handle_tcp_client(
+            # Start per-client thread without tracking it in self._threads —
+            # tracking causes unbounded growth as connections accumulate.
+            # The semaphore already bounds live concurrency.
+            t = threading.Thread(
+                target=lambda client=client, sender_host=sender_host: self._handle_tcp_client(
                     client,
                     sender_host,
                     context,
                 ),
+                name=f"syslog-{label.lower()}-{sender_host}",
+                daemon=True,
             )
+            t.start()
 
     def _handle_tcp_client(
         self,

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_topology_write
+from app.api.deps import get_current_user, require_alert_write
 from app.db.session import get_db
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
@@ -28,7 +28,7 @@ def _to_read(rule: AlertRule) -> AlertRuleRead:
 
 @router.get("/rules", response_model=list[AlertRuleRead])
 def list_rules(
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_alert_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[AlertRuleRead]:
     rules = db.scalars(select(AlertRule).order_by(AlertRule.created_at)).all()
@@ -38,7 +38,7 @@ def list_rules(
 @router.post("/rules", response_model=AlertRuleRead, status_code=status.HTTP_201_CREATED)
 def create_rule(
     payload: AlertRuleCreate,
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_alert_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> AlertRuleRead:
     if payload.device_id is not None:
@@ -62,7 +62,7 @@ def create_rule(
 def update_rule(
     rule_id: int,
     payload: AlertRuleUpdate,
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_alert_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> AlertRuleRead:
     rule = db.get(AlertRule, rule_id)
@@ -84,7 +84,7 @@ def update_rule(
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_rule(
     rule_id: int,
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_alert_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     rule = db.get(AlertRule, rule_id)
@@ -97,7 +97,7 @@ def delete_rule(
 @router.post("/rules/{rule_id}/test", response_model=dict[str, str])
 def test_rule(
     rule_id: int,
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_alert_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
     rule = db.get(AlertRule, rule_id)

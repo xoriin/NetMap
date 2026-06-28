@@ -88,5 +88,5 @@ class PortTargetCreate(BaseModel):
     device_id: int | None = None
     port: int = Field(..., ge=1, le=65535)
     label: str = Field(..., min_length=1, max_length=60)
-    check_type: str = Field(default="tcp", pattern="^tcp$")
+    check_type: str = Field(default="tcp", pattern="^(tcp|udp)$")
     enabled: bool = True

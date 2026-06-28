@@ -53,6 +53,7 @@ class TcpPortCheckRequest(BaseModel):
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(ge=1, le=65535)
     timeout_seconds: int = Field(default=3, ge=1, le=30)
+    protocol: Literal["tcp", "udp"] = "tcp"
 
     @field_validator("host")
     @classmethod
@@ -135,6 +136,7 @@ class TracerouteResult(BaseModel):
 class TcpPortCheckResult(BaseModel):
     host: str
     port: int
+    protocol: str
     reachable: bool
     duration_ms: int
     detail: str

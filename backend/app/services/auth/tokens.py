@@ -75,3 +75,17 @@ def revoke_refresh_token_state(
     state.revoked_reason = reason
     state.replaced_by_jti = replaced_by_jti
 
+
+def revoke_all_user_refresh_tokens(db: Session, *, user_id: int, reason: str) -> int:
+    now = datetime.now(timezone.utc)
+    active = db.scalars(
+        select(RefreshTokenState).where(
+            RefreshTokenState.user_id == user_id,
+            RefreshTokenState.revoked_at.is_(None),
+        )
+    ).all()
+    for state in active:
+        state.revoked_at = now
+        state.revoked_reason = reason
+    return len(active)
+

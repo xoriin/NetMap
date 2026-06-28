@@ -241,9 +241,12 @@ def run_schedule_now(
     schedule = db.get(DiscoverySchedule, schedule_id)
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    scan = scheduled_discovery.run_schedule(schedule_id)
+    scan = scheduled_discovery.try_run_schedule(schedule_id)
     if scan is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule is disabled")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Schedule is disabled or a scan is already running for this schedule",
+        )
     refreshed = db.get(DiscoveryScan, scan.id)
     return scan_to_read_with_inventory(refreshed or scan, db)
 

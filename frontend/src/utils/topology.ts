@@ -166,8 +166,10 @@ export function topologyDisplayPrefsKey(userId: number) {
   return `${topologyDisplayPrefsStoragePrefix}.${userId}`;
 }
 
+export type GroupLayoutShape = "grid" | "radial";
+
 export type TopologyDisplayPrefsLocal = {
-  groups: Record<string, { nodeScalePercent: number; spacingScalePercent: number; maxDevicesPerRow: number }>;
+  groups: Record<string, { nodeScalePercent: number; spacingScalePercent: number; maxDevicesPerRow: number; layoutShape?: GroupLayoutShape; maxRings?: number }>;
   groupZoneOpacityPercent?: number;
   showGroupZoneBorders?: boolean;
   showNodeIcons?: boolean;

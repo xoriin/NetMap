@@ -95,10 +95,19 @@ class SnmpClient:
     def get(self, oid: tuple[int, ...]) -> Any | None:
         return self._request(SNMP_GET_REQUEST, oid).value
 
-    def walk(self, base_oid: tuple[int, ...], *, max_rows: int = MAX_SNMP_WALK_ROWS) -> list[tuple[tuple[int, ...], Any]]:
+    def walk(
+        self,
+        base_oid: tuple[int, ...],
+        *,
+        max_rows: int = MAX_SNMP_WALK_ROWS,
+        max_wall_seconds: float = 30.0,
+    ) -> list[tuple[tuple[int, ...], Any]]:
         rows: list[tuple[tuple[int, ...], Any]] = []
         current_oid = base_oid
+        deadline = time.monotonic() + max_wall_seconds
         for _ in range(max_rows):
+            if time.monotonic() >= deadline:
+                break
             varbind = self._request(SNMP_GET_NEXT_REQUEST, current_oid)
             if not oid_starts_with(varbind.oid, base_oid):
                 break
