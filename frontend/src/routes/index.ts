@@ -64,6 +64,7 @@ export function readRouteFromLocation(): AppRoute {
     pathname === "/inventory" ||
     pathname === "/vlans" ||
     pathname === "/locations" ||
+    pathname === "/monitoring" ||
     pathname === "/tools" ||
     pathname === "/security" ||
     pathname === "/exports" ||

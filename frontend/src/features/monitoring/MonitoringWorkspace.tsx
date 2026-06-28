@@ -110,6 +110,7 @@ export function MonitoringWorkspace({
   const [showPortsModal, setShowPortsModal] = useState(false);
   const [portFormPort, setPortFormPort] = useState("");
   const [portFormLabel, setPortFormLabel] = useState("");
+  const [portFormProtocol, setPortFormProtocol] = useState<"tcp" | "udp">("tcp");
   const [portFormScope, setPortFormScope] = useState<"global" | "device">("global");
   const [portFormDeviceIds, setPortFormDeviceIds] = useState<Set<number>>(new Set());
   const [portDeviceSearch, setPortDeviceSearch] = useState("");
@@ -126,6 +127,7 @@ export function MonitoringWorkspace({
   const [filterSite, setFilterSite] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");
+  const [favouriteFilter, setFavouriteFilter] = useState(false);
 
   const loadAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
@@ -272,6 +274,7 @@ export function MonitoringWorkspace({
     if (filterSite !== "all") filtered = filtered.filter((d) => String(d.site_id) === filterSite);
     if (filterStatus !== "all") filtered = filtered.filter((d) => d.status === filterStatus);
     if (filterVlan !== "all") filtered = filtered.filter((d) => d.vlan_id === filterVlan);
+    if (favouriteFilter) filtered = filtered.filter((d) => favouriteIds.has(d.device_id));
 
     const dir = sortDir === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
@@ -300,7 +303,7 @@ export function MonitoringWorkspace({
       }
     });
     return filtered;
-  }, [devices, searchQ, filterGroup, filterSite, filterStatus, filterVlan, sortKey, sortDir]);
+  }, [devices, searchQ, filterGroup, filterSite, filterStatus, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
 
   function toggleSort(key: typeof sortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -344,7 +347,7 @@ export function MonitoringWorkspace({
               device_id: deviceId,
               port,
               label: portFormLabel.trim(),
-              check_type: "tcp",
+              check_type: portFormProtocol,
               enabled: true,
             })
           )
@@ -503,6 +506,15 @@ export function MonitoringWorkspace({
                   {vlanOptions.map((v) => <option key={v} value={v}>VLAN {v}</option>)}
                 </select>
               )}
+              <button
+                type="button"
+                className={`inv-status-tab inv-fav-filter${favouriteFilter ? " active" : ""}`}
+                onClick={() => setFavouriteFilter((current) => !current)}
+                title={favouriteFilter ? "Show all devices" : "Show favourites only"}
+              >
+                <Star size={13} fill={favouriteFilter ? "currentColor" : "none"} />
+                Favs
+              </button>
               {canManagePorts && (
                 <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowPortsModal(true)}>
                   Ports
@@ -617,7 +629,7 @@ export function MonitoringWorkspace({
                         ) : (
                           <span className="mon-port-badges">
                             {d.latest_port_results.map((r) => (
-                              <span key={r.target_id ?? `${r.label}-${r.port}`} className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`} title={`${r.label} :${r.port}`}>{r.label}</span>
+                              <span key={r.target_id ?? `${r.label}-${r.port}`} className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`} title={`${r.label} ${r.check_type.toUpperCase()}:${r.port}`}>{r.label}</span>
                             ))}
                           </span>
                         )}
@@ -683,6 +695,17 @@ export function MonitoringWorkspace({
                       value={portFormPort}
                       onChange={(e) => setPortFormPort(e.target.value)}
                     />
+                  </label>
+                  <label className="mon-ports-field-label">
+                    Protocol
+                    <select
+                      className="mon-ports-input"
+                      value={portFormProtocol}
+                      onChange={(e) => setPortFormProtocol(e.target.value as "tcp" | "udp")}
+                    >
+                      <option value="tcp">TCP</option>
+                      <option value="udp">UDP</option>
+                    </select>
                   </label>
                   <label className="mon-ports-field-label">
                     Scope
@@ -768,7 +791,7 @@ export function MonitoringWorkspace({
                           <span className="mon-dot mon-dot-online" />
                           <div className="incident-row-body">
                             <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.label}</span>
-                            <span className="dash-panel-meta">port {p.port}</span>
+                            <span className="dash-panel-meta">{p.check_type.toUpperCase()} port {p.port}</span>
                           </div>
                           {canManagePorts && (
                             <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`}>
@@ -802,7 +825,7 @@ export function MonitoringWorkspace({
                               <span className="mon-dot mon-dot-online" />
                               <div className="incident-row-body" style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
                                 <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.label}</span>
-                                <span className="dash-panel-meta">{devName} · port {p.port}</span>
+                                <span className="dash-panel-meta">{devName} · {p.check_type.toUpperCase()} port {p.port}</span>
                               </div>
                               {canManagePorts && (
                                 <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`}>
@@ -946,7 +969,7 @@ export function MonitoringWorkspace({
                           <div key={r.target_id ?? `${r.label}-${r.port}`} className="mon-port-row">
                             <span className={`mon-dot mon-dot-${r.open ? "online" : "offline"}`} />
                             <span className="mon-port-label">{r.label}</span>
-                            <span className="dash-panel-meta">:{r.port}</span>
+                            <span className="dash-panel-meta">{r.check_type.toUpperCase()} :{r.port}</span>
                             <span className={`mon-port-status mon-port-status--${r.open ? "open" : "closed"}`}>
                               {r.open ? "Open" : "Closed"}
                             </span>

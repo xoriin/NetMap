@@ -22,6 +22,9 @@ import { DeviceForm } from "../devices/DeviceForm";
 import { DiscoveryModal } from "../topology/DiscoveryModal";
 import { DeviceImportModal } from "../devices/DeviceImportModal";
 
+const INVENTORY_PAGE_SIZE_KEY = "netmap.inventory.pageSize";
+const INVENTORY_PAGE_SIZE_MIGRATION_KEY = "netmap.inventory.pageSizeDefault25";
+
 export function InventoryWorkspace({
   accessToken,
   canViewSecurity,
@@ -73,7 +76,12 @@ export function InventoryWorkspace({
   const [deviceSecurityLoading, setDeviceSecurityLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
-    const saved = window.localStorage.getItem("netmap.inventory.pageSize");
+    const saved = window.localStorage.getItem(INVENTORY_PAGE_SIZE_KEY);
+    const migratedDefault = window.localStorage.getItem(INVENTORY_PAGE_SIZE_MIGRATION_KEY);
+    if (saved === "10" && migratedDefault !== "true") {
+      window.localStorage.setItem(INVENTORY_PAGE_SIZE_MIGRATION_KEY, "true");
+      return 25;
+    }
     return saved ? Math.max(1, Number(saved)) : 25;
   });
 
@@ -165,7 +173,7 @@ export function InventoryWorkspace({
   }, [filteredDevices, pageSize]);
 
   useEffect(() => {
-    window.localStorage.setItem("netmap.inventory.pageSize", String(pageSize));
+    window.localStorage.setItem(INVENTORY_PAGE_SIZE_KEY, String(pageSize));
   }, [pageSize]);
 
   useEffect(() => {

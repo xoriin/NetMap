@@ -34,9 +34,9 @@ from app.services.tools.service import (
     enforce_rate_limit,
     ensure_active_target_allowed,
     ping_host,
+    port_check,
     reverse_dns,
     subnet_calculate,
-    tcp_port_check,
     traceroute_host,
 )
 from app.services.snmp import SnmpError, probe_snmp_v2c
@@ -143,8 +143,8 @@ def run_traceroute(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/tcp-check", response_model=TcpPortCheckResult)
-def run_tcp_check(
+@router.post("/port-check", response_model=TcpPortCheckResult)
+def run_port_check(
     payload: TcpPortCheckRequest,
     current_user: Annotated[User, Depends(require_tools_active)],
     db: Annotated[Session, Depends(get_db)],
@@ -152,13 +152,13 @@ def run_tcp_check(
     _enforce_tool_rate_limit(current_user.id)
     write_audit(
         db,
-        action="tools.tcp_check",
+        action="tools.port_check",
         actor_user_id=current_user.id,
-        target=f"{payload.host}:{payload.port}",
+        target=f"{payload.host}:{payload.port}/{payload.protocol}",
     )
     db.commit()
     try:
-        return tcp_port_check(payload, allow_public_targets=_public_active_targets_enabled(db))
+        return port_check(payload, allow_public_targets=_public_active_targets_enabled(db))
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

@@ -48,6 +48,7 @@ export function ToolsWorkspace({
   const [tcpHostValue, setTcpHostValue] = useState("");
   const [tcpPort, setTcpPort] = useState("443");
   const [tcpTimeout, setTcpTimeout] = useState("3");
+  const [tcpProtocol, setTcpProtocol] = useState<"tcp" | "udp">("tcp");
   const [tcpResult, setTcpResult] = useState<TcpPortCheckResult | null>(null);
   const [tcpError, setTcpError] = useState<string | null>(null);
   const [tcpLoading, setTcpLoading] = useState(false);
@@ -182,10 +183,11 @@ export function ToolsWorkspace({
           host: tcpHostValue,
           port: Number(tcpPort),
           timeout_seconds: Number(tcpTimeout),
+          protocol: tcpProtocol,
         }),
       );
     } catch (err) {
-      setTcpError(err instanceof Error ? err.message : "TCP check failed");
+      setTcpError(err instanceof Error ? err.message : "Port check failed");
     } finally {
       setTcpLoading(false);
     }
@@ -264,7 +266,7 @@ export function ToolsWorkspace({
             { id: "reverse-dns", label: "Reverse DNS",       Icon: IconWorld,             passive: true  },
             { id: "ping",        label: "Ping Test",         Icon: IconWifi,              passive: false },
             { id: "traceroute",  label: "Traceroute",        Icon: Network,               passive: false },
-            { id: "tcp",         label: "TCP Port Check",    Icon: IconServer,            passive: false },
+            { id: "tcp",         label: "Port Check",        Icon: IconServer,            passive: false },
             { id: "subnet",      label: "Subnet Calculator", Icon: IconLayoutDashboard,   passive: true  },
             { id: "snmp",        label: "SNMP Probe",        Icon: IconRouter,            passive: false },
             // { id: "lldp",        label: "LLDP Neighbours",   Icon: IconTopologyRing,      passive: false },
@@ -504,7 +506,7 @@ export function ToolsWorkspace({
 
           {activeTool === "tcp" && <section className="tool-card">
             <div className="tool-card-header">
-              <h3>TCP port check</h3>
+              <h3>Port check</h3>
               <span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>
                 {canRunActiveTools ? "Active" : "Restricted"}
               </span>
@@ -515,6 +517,13 @@ export function ToolsWorkspace({
                 <input required disabled={!canRunActiveTools} placeholder="192.168.1.1" value={tcpHostValue} onChange={(event) => setTcpHostValue(event.target.value)} />
               </label>
               <div className="tool-form-grid">
+                <label>
+                  Protocol
+                  <select value={tcpProtocol} disabled={!canRunActiveTools} onChange={(event) => setTcpProtocol(event.target.value as "tcp" | "udp")}>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
+                </label>
                 <label>
                   Port
                   <input
@@ -551,7 +560,7 @@ export function ToolsWorkspace({
             {tcpResult && (
               <div className="tool-result">
                 <div className="tool-result-meta">
-                  <span>{`${tcpResult.host}:${tcpResult.port}`}</span>
+                  <span>{`${tcpResult.protocol.toUpperCase()} ${tcpResult.host}:${tcpResult.port}`}</span>
                   <span>{tcpResult.duration_ms} ms</span>
                 </div>
                 <p className={tcpResult.reachable ? "tool-status success" : "tool-status danger"}>

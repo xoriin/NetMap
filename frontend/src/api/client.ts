@@ -476,6 +476,7 @@ export type TracerouteResult = {
 export type TcpPortCheckResult = {
   host: string;
   port: number;
+  protocol: string;
   reachable: boolean;
   duration_ms: number;
   detail: string;
@@ -604,7 +605,7 @@ export type PortResult = {
   target_id: number | null;
   port: number;
   label: string;
-  check_type: "tcp";
+  check_type: "tcp" | "udp";
   open: boolean;
   status: string | null;
 };
@@ -651,7 +652,7 @@ export type PortTarget = {
   device_id: number | null;
   port: number;
   label: string;
-  check_type: "tcp";
+  check_type: "tcp" | "udp";
   enabled: boolean;
   created_at: string;
 };
@@ -1260,8 +1261,8 @@ export const api = {
       token,
       body: JSON.stringify(payload),
     }),
-  tcpCheck: (token: string, payload: { host: string; port: number; timeout_seconds: number }) =>
-    request<TcpPortCheckResult>("/api/v1/tools/tcp-check", {
+  tcpCheck: (token: string, payload: { host: string; port: number; timeout_seconds: number; protocol: "tcp" | "udp" }) =>
+    request<TcpPortCheckResult>("/api/v1/tools/port-check", {
       method: "POST",
       token,
       body: JSON.stringify(payload),
@@ -1461,7 +1462,7 @@ export const api = {
     request<DeviceAnalysis>(`/api/v1/monitoring/devices/${deviceId}/analysis`, { token }),
   listPortTargets: (token: string) =>
     request<PortTarget[]>("/api/v1/monitoring/service-checks", { token }),
-  createPortTarget: (token: string, payload: { device_id: number | null; port: number; label: string; check_type?: "tcp"; enabled?: boolean }) =>
+  createPortTarget: (token: string, payload: { device_id: number | null; port: number; label: string; check_type?: "tcp" | "udp"; enabled?: boolean }) =>
     request<PortTarget>("/api/v1/monitoring/service-checks", { method: "POST", token, body: JSON.stringify(payload) }),
   deletePortTarget: (token: string, id: number) =>
     request<void>(`/api/v1/monitoring/service-checks/${id}`, { method: "DELETE", token }),
