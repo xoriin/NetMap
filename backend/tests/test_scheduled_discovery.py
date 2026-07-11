@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -192,3 +192,143 @@ def test_scheduled_discovery_records_disappeared_after_three_missed_scans():
     details = json.loads(disappeared[0].details_json)
     assert details["previous_scan_id"] == baseline.id
     assert details["missed_scans"] == 3
+
+
+def _observation(schedule_id: int, obs_type: str, *, status: str = "open", ip: str = "192.168.1.10", mac: str | None = "aa:bb:cc:dd:ee:ff", details: dict | None = None, resolved_at: datetime | None = None) -> DiscoveryObservation:
+    now = datetime.now(timezone.utc)
+    return DiscoveryObservation(
+        schedule_id=schedule_id,
+        scan_id=None,
+        device_id=None,
+        observation_type=obs_type,
+        status=status,
+        ip_address=ip,
+        mac_address=mac,
+        hostname="wifi-client",
+        summary="test",
+        details_json=json.dumps(details or {}),
+        first_seen_at=now,
+        last_seen_at=now,
+        resolved_at=resolved_at,
+    )
+
+
+def test_reappearing_host_auto_resolves_open_disappeared_observation():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+    stale = _observation(schedule.id, "disappeared", status="open")
+    db.add(stale)
+    current = _scan(
+        DiscoveryHost(ip_address="192.168.1.10", hostname="wifi-client", mac_address="AA-BB-CC-DD-EE-FF", import_status="existing"),
+        schedule_id=schedule.id,
+    )
+    db.add(current)
+    db.commit()
+    db.refresh(current)
+    db.refresh(stale)
+
+    create_observations_for_scan(db, schedule, current, None)
+
+    db.refresh(stale)
+    assert stale.status == "resolved"
+    assert stale.resolved_at is not None
+    assert json.loads(stale.details_json)["auto_resolved"] == "reappeared"
+
+
+def test_resolved_new_device_with_mac_is_not_re_raised():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+    dismissed = _observation(
+        schedule.id,
+        "new_device",
+        status="resolved",
+        ip="192.168.1.50",
+        mac="11:22:33:44:55:66",
+        resolved_at=datetime.now(timezone.utc) - timedelta(days=90),
+    )
+    db.add(dismissed)
+    current = _scan(
+        DiscoveryHost(ip_address="192.168.1.77", hostname="guest-phone", mac_address="11-22-33-44-55-66"),
+        schedule_id=schedule.id,
+    )
+    db.add(current)
+    db.commit()
+    db.refresh(current)
+
+    observations = create_observations_for_scan(db, schedule, current, None)
+
+    # MAC-identified dismissal is permanent, even at a new IP and much later
+    assert [o for o in observations if o.observation_type == "new_device"] == []
+
+
+def test_resolved_new_device_without_mac_suppressed_only_within_window():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+    recently = _observation(
+        schedule.id, "new_device", status="resolved", ip="192.168.1.50", mac=None,
+        resolved_at=datetime.now(timezone.utc) - timedelta(days=2),
+    )
+    long_ago = _observation(
+        schedule.id, "new_device", status="resolved", ip="192.168.1.60", mac=None,
+        resolved_at=datetime.now(timezone.utc) - timedelta(days=60),
+    )
+    db.add_all([recently, long_ago])
+    current = _scan(
+        DiscoveryHost(ip_address="192.168.1.50", hostname="suppressed"),
+        DiscoveryHost(ip_address="192.168.1.60", hostname="re-raised"),
+        schedule_id=schedule.id,
+    )
+    db.add(current)
+    db.commit()
+    db.refresh(current)
+
+    observations = create_observations_for_scan(db, schedule, current, None)
+
+    new_ips = {o.ip_address for o in observations if o.observation_type == "new_device"}
+    assert new_ips == {"192.168.1.60"}
+
+
+def test_intermittent_host_does_not_re_raise_disappeared():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+    # This host already went through a disappear→reappear cycle two days ago.
+    flapper_history = _observation(
+        schedule.id,
+        "disappeared",
+        status="resolved",
+        details={"auto_resolved": "reappeared"},
+        resolved_at=datetime.now(timezone.utc) - timedelta(days=2),
+    )
+    db.add(flapper_history)
+    baseline = _scan(
+        DiscoveryHost(ip_address="192.168.1.10", hostname="wifi-client", mac_address="aa:bb:cc:dd:ee:ff"),
+        DiscoveryHost(ip_address="192.168.1.20", hostname="stable-host", mac_address="11:22:33:44:55:66"),
+        schedule_id=schedule.id,
+    )
+    misses = [
+        _scan(
+            DiscoveryHost(ip_address="192.168.1.20", hostname="stable-host", mac_address="11:22:33:44:55:66"),
+            schedule_id=schedule.id,
+        )
+        for _ in range(3)
+    ]
+    db.add_all([baseline, *misses])
+    db.commit()
+    for scan in misses:
+        db.refresh(scan)
+
+    observations = create_observations_for_scan(db, schedule, misses[-1], misses[-2])
+
+    assert [o for o in observations if o.observation_type == "disappeared"] == []

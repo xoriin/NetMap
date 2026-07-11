@@ -203,6 +203,8 @@ def create_observations_for_scan(
     current_hosts = annotate_hosts_with_inventory(deserialize_results(scan.results_json), db)
     observations: list[DiscoveryObservation] = []
 
+    _resolve_reappeared_observations(db, schedule.id, current_hosts, now)
+
     # MAC → device lookup to catch hosts whose IP already belongs to a different device
     scan_macs = {normalize_mac(host.mac_address) for host in current_hosts if normalize_mac(host.mac_address)}
     devices_by_mac: dict[str, Device] = {}
@@ -234,6 +236,8 @@ def create_observations_for_scan(
             ))
             continue
         if host.import_status == "new":
+            if _new_device_previously_dismissed(db, schedule.id, host, now):
+                continue
             observations.append(_upsert_observation(
                 db,
                 schedule.id,
@@ -368,6 +372,8 @@ def _disappeared_observations(
         normalized_mac = normalize_mac(host.mac_address)
         if any(_host_seen_in_scan(host.ip_address, normalized_mac, hosts) for hosts in absent_scan_hosts):
             continue
+        if _is_intermittent_host(db, schedule_id, host.ip_address, normalized_mac, now):
+            continue
         observations.append(_upsert_observation(
             db,
             schedule_id,
@@ -397,6 +403,117 @@ def _recent_completed_scans(
         .order_by(DiscoveryScan.id.desc())
         .limit(limit)
     ).all())
+
+
+# Suppression windows for transient (typically wifi) hosts that leave and
+# rejoin the network between sweeps. MAC-identified dismissals are permanent —
+# "resolve" in the review modal is documented as dismiss-forever; IP-only
+# identities get a bounded window since DHCP can hand the address to new hardware.
+NEW_DEVICE_IP_SUPPRESS_DAYS = 14
+DISAPPEARED_FLAP_SUPPRESS_DAYS = 7
+
+
+def _load_details(details_json: str) -> dict:
+    try:
+        value = json.loads(details_json)
+        return value if isinstance(value, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _resolve_reappeared_observations(
+    db: Session,
+    schedule_id: int,
+    current_hosts: list[DiscoveryHost],
+    now: datetime,
+) -> None:
+    """Auto-close open 'disappeared' observations for hosts present in this scan."""
+    open_disappeared = db.scalars(
+        select(DiscoveryObservation).where(
+            DiscoveryObservation.schedule_id == schedule_id,
+            DiscoveryObservation.observation_type == "disappeared",
+            DiscoveryObservation.status != "resolved",
+        )
+    ).all()
+    for observation in open_disappeared:
+        if not observation.ip_address:
+            continue
+        if _host_seen_in_scan(observation.ip_address, observation.mac_address, current_hosts):
+            observation.status = "resolved"
+            observation.resolved_at = now
+            observation.last_seen_at = now
+            details = _load_details(observation.details_json)
+            details["auto_resolved"] = "reappeared"
+            observation.details_json = json.dumps(details)
+
+
+def _new_device_previously_dismissed(
+    db: Session,
+    schedule_id: int,
+    host: DiscoveryHost,
+    now: datetime,
+) -> bool:
+    """True when the user already resolved a new-device observation for this host.
+
+    Resolve means "dismiss permanently" in the review UI, so a MAC-identified
+    dismissal suppresses re-raising forever; IP-only matches get a bounded
+    window because the address may be reassigned to genuinely new hardware.
+    """
+    normalized_mac = normalize_mac(host.mac_address)
+    query = select(DiscoveryObservation).where(
+        DiscoveryObservation.schedule_id == schedule_id,
+        DiscoveryObservation.observation_type == "new_device",
+        DiscoveryObservation.status == "resolved",
+    )
+    if normalized_mac:
+        return db.scalar(query.where(DiscoveryObservation.mac_address == normalized_mac)) is not None
+    cutoff = now - timedelta(days=NEW_DEVICE_IP_SUPPRESS_DAYS)
+    for observation in db.scalars(
+        query.where(DiscoveryObservation.ip_address == host.ip_address)
+        .order_by(DiscoveryObservation.id.desc())
+        .limit(5)
+    ).all():
+        resolved_at = observation.resolved_at or observation.last_seen_at
+        if resolved_at is not None and _as_aware_utc(resolved_at) >= cutoff:
+            return True
+    return False
+
+
+def _is_intermittent_host(
+    db: Session,
+    schedule_id: int,
+    ip_address: str,
+    normalized_mac: str | None,
+    now: datetime,
+) -> bool:
+    """True when this host recently disappeared and came back on its own.
+
+    Such hosts (typically wifi clients) are expected to drop out between
+    sweeps — re-raising a 'disappeared' observation each cycle is noise.
+    """
+    query = select(DiscoveryObservation).where(
+        DiscoveryObservation.schedule_id == schedule_id,
+        DiscoveryObservation.observation_type == "disappeared",
+        DiscoveryObservation.status == "resolved",
+    )
+    if normalized_mac:
+        query = query.where(DiscoveryObservation.mac_address == normalized_mac)
+    else:
+        query = query.where(DiscoveryObservation.ip_address == ip_address)
+    cutoff = now - timedelta(days=DISAPPEARED_FLAP_SUPPRESS_DAYS)
+    for observation in db.scalars(query.order_by(DiscoveryObservation.id.desc()).limit(5)).all():
+        if _load_details(observation.details_json).get("auto_resolved") != "reappeared":
+            continue
+        resolved_at = observation.resolved_at or observation.last_seen_at
+        if resolved_at is not None and _as_aware_utc(resolved_at) >= cutoff:
+            return True
+    return False
 
 
 def _host_seen_in_scan(ip_address: str, normalized_mac: str | None, hosts: list[DiscoveryHost]) -> bool:
