@@ -45,7 +45,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
+    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -134,6 +134,11 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0042_device_types", _migrate_device_types)
         _run_migration(conn, inspector, "0043_oidc_login_states", _migrate_oidc_login_states)
         _run_migration(conn, inspector, "0044_external_identities", _migrate_external_identities)
+        _run_migration(conn, inspector, "0045_api_keys", _migrate_api_keys)
+        _run_migration(conn, inspector, "0046_api_key_rate_limit", _migrate_api_key_rate_limit)
+        _run_migration(conn, inspector, "0047_user_whats_new_ack", _migrate_user_whats_new_ack)
+        _run_migration(conn, inspector, "0048_layout_share_codes", _migrate_layout_share_codes)
+        _run_migration(conn, inspector, "0049_relationship_link_speed", _migrate_relationship_link_speed)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -975,3 +980,77 @@ def _migrate_external_identities(conn, inspector) -> None:
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_identities_issuer ON external_identities (issuer)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_identities_subject ON external_identities (subject)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_identities_user_id ON external_identities (user_id)"))
+
+
+def _migrate_api_keys(conn, inspector) -> None:
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users (id),
+                name VARCHAR(100) NOT NULL,
+                prefix VARCHAR(16) NOT NULL UNIQUE,
+                key_hash VARCHAR(64) NOT NULL,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME,
+                last_used_at DATETIME,
+                last_used_ip VARCHAR(64),
+                revoked_at DATETIME,
+                revoked_reason VARCHAR(120),
+                created_ip VARCHAR(64)
+            )
+            """
+        )
+    )
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_keys_id ON api_keys (id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_keys_user_id ON api_keys (user_id)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_prefix ON api_keys (prefix)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_keys_expires_at ON api_keys (expires_at)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_keys_revoked_at ON api_keys (revoked_at)"))
+
+
+def _migrate_api_key_rate_limit(conn, inspector) -> None:
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS api_key_throttle_state (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject VARCHAR(255) NOT NULL UNIQUE,
+                window_started_at DATETIME,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                failed_attempts INTEGER NOT NULL DEFAULT 0,
+                locked_until DATETIME,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        )
+    )
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_api_key_throttle_state_id ON api_key_throttle_state (id)"))
+    conn.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_key_throttle_state_subject ON api_key_throttle_state (subject)")
+    )
+    conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_api_key_throttle_state_locked_until ON api_key_throttle_state (locked_until)")
+    )
+
+
+def _migrate_user_whats_new_ack(conn, inspector) -> None:
+    existing = {col["name"] for col in inspector.get_columns("users")}
+    if "whats_new_acknowledged_version" not in existing:
+        conn.execute(text("ALTER TABLE users ADD COLUMN whats_new_acknowledged_version VARCHAR(40)"))
+
+
+def _migrate_layout_share_codes(conn, inspector) -> None:
+    existing = {col["name"] for col in inspector.get_columns("topology_layouts")}
+    if "share_code" not in existing:
+        conn.execute(text("ALTER TABLE topology_layouts ADD COLUMN share_code VARCHAR(24)"))
+    conn.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS ix_topology_layouts_share_code ON topology_layouts (share_code)")
+    )
+
+
+def _migrate_relationship_link_speed(conn, inspector) -> None:
+    existing = {col["name"] for col in inspector.get_columns("device_relationships")}
+    if "link_speed_mbps" not in existing:
+        conn.execute(text("ALTER TABLE device_relationships ADD COLUMN link_speed_mbps INTEGER"))
