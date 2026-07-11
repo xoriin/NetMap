@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRound, Shield } from "lucide-react";
-import { api, type OidcSettings, type OidcTestResult, type User } from "../../../api/client";
+import { KeyRound, KeySquare, Shield } from "lucide-react";
+import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
@@ -283,6 +283,95 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   );
 }
 
+function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
+  const toast = useToast();
+  const confirmAction = useConfirm();
+  const keysQuery = useApiQuery(() => api.listAllApiKeys(accessToken), [accessToken]);
+  const [revokeBusy, setRevokeBusy] = useState(false);
+
+  async function revokeKey(key: ApiKeyAdmin) {
+    const confirmed = await confirmAction({
+      title: "Revoke this API key?",
+      message: `"${key.name}" (owned by ${key.username}) will stop working immediately.`,
+      detail: "Any integration or script using this key will lose access to NetMap. This cannot be undone.",
+      confirmLabel: "Revoke key",
+      danger: true,
+    });
+    if (!confirmed) return;
+    setRevokeBusy(true);
+    try {
+      await api.adminRevokeApiKey(accessToken, key.id);
+      toast.success(`API key "${key.name}" revoked`);
+      await keysQuery.reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke API key");
+    } finally {
+      setRevokeBusy(false);
+    }
+  }
+
+  const keys = keysQuery.data ?? [];
+  const activeKeys = keys.filter((key) => key.revoked_at === null);
+  const revokedCount = keys.length - activeKeys.length;
+
+  return (
+    <section className="panel admin-panel">
+      <div className="admin-panel-header">
+        <h2 className="admin-section-title"><KeySquare size={16} />API Keys</h2>
+        <div className="admin-panel-actions">
+          <button type="button" className="nm-btn" onClick={() => void keysQuery.reload()}>Refresh</button>
+        </div>
+      </div>
+      {keysQuery.error && <div className="form-error">{keysQuery.error}</div>}
+      <p className="auth-field-hint">
+        All registered API keys across users. Keys inherit their owner's role permissions; users create their own
+        keys from the Profile page.{revokedCount > 0 ? ` ${revokedCount} revoked key${revokedCount === 1 ? "" : "s"} hidden.` : ""}
+      </p>
+      {activeKeys.length === 0
+        ? <p className="auth-field-hint">{keysQuery.isLoading ? "Loading…" : "No active API keys."}</p>
+        : (
+          <div className="nm-table-wrap">
+            <table className="nm-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Name</th>
+                  <th>Key</th>
+                  <th>Created</th>
+                  <th>Expires</th>
+                  <th>Last used</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {activeKeys.map((key) => (
+                  <tr key={key.id}>
+                    <td>{key.username}</td>
+                    <td>{key.name}</td>
+                    <td className="nm-table-mono">nm_{key.prefix}…</td>
+                    <td>{new Date(key.created_at).toLocaleDateString()}</td>
+                    <td>{key.expires_at ? new Date(key.expires_at).toLocaleDateString() : "Never"}</td>
+                    <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}</td>
+                    <td className="nm-table-actions">
+                      <button
+                        type="button"
+                        className="nm-btn nm-btn--sm nm-btn--danger"
+                        disabled={revokeBusy}
+                        onClick={() => void revokeKey(key)}
+                      >
+                        Revoke
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+    </section>
+  );
+}
+
 export function SecurityTab({
   accessToken,
   users,
@@ -307,6 +396,7 @@ export function SecurityTab({
   return (
     <div className="admin-tab-content">
       <SsoSettingsPanel accessToken={accessToken} />
+      <ApiKeysOversightPanel accessToken={accessToken} />
       <section className="panel admin-panel admin-security-audit-panel">
         <div className="admin-panel-header">
           <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : "Login & Audit History"}</h2>
