@@ -24,6 +24,7 @@ class DeviceRelationship(Base):
     allow_outbound: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_inbound: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    link_speed_mbps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

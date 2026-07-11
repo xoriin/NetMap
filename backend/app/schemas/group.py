@@ -172,6 +172,7 @@ class DeviceBulkUpdateRequest(BaseModel):
     device_ids: list[int] = Field(min_length=1, max_length=200)
     topology_group_id: int | None = None
     topology_group: str | None = Field(default=None, max_length=120)
+    site_id: int | None = None
 
     @field_validator("device_ids")
     @classmethod

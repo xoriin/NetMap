@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import json
 import logging
 from math import isfinite
+import secrets
 import socket
 import time
 from typing import Annotated
@@ -54,7 +55,9 @@ from app.schemas.topology import (
     RelationshipRead,
     RelationshipUpdate,
     TopologyLayoutCreate,
+    TopologyLayoutImportRequest,
     TopologyLayoutRead,
+    TopologyLayoutShareRead,
     TopologyGraph,
 )
 from app.schemas.tools import PingRequest
@@ -177,30 +180,53 @@ def bulk_update_devices(
         if group is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
 
+    site: Site | None = None
+    update_site = "site_id" in payload.model_fields_set
+    if update_site and payload.site_id is not None:
+        site = db.get(Site, payload.site_id)
+        if site is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+    # Group assignment only applies when a group field was sent — a site-only
+    # request must not silently clear group membership.
+    update_group = (
+        "topology_group_id" in payload.model_fields_set
+        or "topology_group" in payload.model_fields_set
+        or not update_site
+    )
+
     for device in devices:
-        if group is not None:
-            device.topology_group_id = group.id
-            device.topology_group = group.name
-        elif payload.topology_group is not None:
-            fallback_group = db.scalar(select(TopologyGroup).where(TopologyGroup.name == payload.topology_group))
-            if fallback_group is not None:
-                device.topology_group_id = fallback_group.id
+        if update_group:
+            if group is not None:
+                device.topology_group_id = group.id
+                device.topology_group = group.name
+            elif payload.topology_group is not None:
+                fallback_group = db.scalar(select(TopologyGroup).where(TopologyGroup.name == payload.topology_group))
+                if fallback_group is not None:
+                    device.topology_group_id = fallback_group.id
+                else:
+                    device.topology_group_id = None
+                device.topology_group = payload.topology_group
             else:
                 device.topology_group_id = None
-            device.topology_group = payload.topology_group
-        else:
-            device.topology_group_id = None
-            device.topology_group = None
+                device.topology_group = None
+        if update_site:
+            device.site_id = payload.site_id
 
+    detail_parts = []
+    if update_group:
+        detail_parts.append(f"group={group.name if group is not None else payload.topology_group or 'inferred'}")
+    if update_site:
+        detail_parts.append(f"site={site.name if site is not None else 'none'}")
     write_audit(
         db,
         action="topology.devices_bulk_updated",
         actor_user_id=current_user.id,
         target=f"count:{len(devices)}",
-        detail=f"group={group.name if group is not None else payload.topology_group or 'inferred'}",
+        detail=" ".join(detail_parts) or "no-op",
     )
     db.commit()
-    sync_topology_group_entities(db)
+    if update_group:
+        sync_topology_group_entities(db)
     return DeviceBulkUpdateResult(updated=len(devices))
 
 
@@ -548,6 +574,125 @@ def save_topology_layout(
     db.commit()
     db.refresh(layout)
     return serialize_topology_layout(layout)
+
+
+# Unambiguous alphabet (no 0/O/1/I/L) so codes survive being read aloud or
+# hand-typed between users.
+_SHARE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+_SHARE_CODE_LEN = 12
+
+
+def _generate_share_code(db: Session) -> str:
+    for _ in range(20):
+        code = "".join(secrets.choice(_SHARE_CODE_ALPHABET) for _ in range(_SHARE_CODE_LEN))
+        if db.scalar(select(TopologyLayout).where(TopologyLayout.share_code == code)) is None:
+            return code
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to generate share code")
+
+
+def _resolve_import_name(db: Session, user_id: int, wanted: str) -> str:
+    for attempt in range(0, 50):
+        candidate = wanted if attempt == 0 else f"{wanted} ({attempt + 1})"
+        candidate = candidate[:80]
+        exists = db.scalar(
+            select(TopologyLayout).where(
+                TopologyLayout.owner_user_id == user_id,
+                TopologyLayout.name == candidate,
+            ),
+        )
+        if exists is None:
+            return candidate
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Too many layouts with this name")
+
+
+@router.post("/layouts/{layout_id}/share", response_model=TopologyLayoutShareRead)
+def share_topology_layout(
+    layout_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TopologyLayoutShareRead:
+    layout = db.get(TopologyLayout, layout_id)
+    if layout is None or layout.owner_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Layout not found")
+    if layout.name == TOPOLOGY_AUTOSAVE_LAYOUT_NAME:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The autosave layout cannot be shared")
+    if layout.share_code is None:
+        layout.share_code = _generate_share_code(db)
+        write_audit(
+            db,
+            action="topology.layout_shared",
+            actor_user_id=current_user.id,
+            target=f"layout:{layout.name}",
+        )
+        db.commit()
+        db.refresh(layout)
+    return TopologyLayoutShareRead(id=layout.id, name=layout.name, share_code=layout.share_code)
+
+
+@router.delete("/layouts/{layout_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_topology_layout_share(
+    layout_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    layout = db.get(TopologyLayout, layout_id)
+    if layout is None or layout.owner_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Layout not found")
+    if layout.share_code is not None:
+        layout.share_code = None
+        write_audit(
+            db,
+            action="topology.layout_share_revoked",
+            actor_user_id=current_user.id,
+            target=f"layout:{layout.name}",
+        )
+        db.commit()
+
+
+@router.get("/layouts/shared/{code}", response_model=TopologyLayoutRead)
+def preview_shared_layout(
+    code: str,
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TopologyLayoutRead:
+    """Read-only preview of a shared layout by its share code (authenticated users only)."""
+    source = db.scalar(select(TopologyLayout).where(TopologyLayout.share_code == code.strip().upper()))
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No shared layout matches this code")
+    preview = serialize_topology_layout(source)
+    # The share code itself is only surfaced to the layout's owner.
+    preview.share_code = None
+    return preview
+
+
+@router.post("/layouts/import", response_model=TopologyLayoutRead, status_code=status.HTTP_201_CREATED)
+def import_topology_layout(
+    payload: TopologyLayoutImportRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TopologyLayoutRead:
+    source = db.scalar(select(TopologyLayout).where(TopologyLayout.share_code == payload.code))
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No shared layout matches this code")
+    name = _resolve_import_name(db, current_user.id, (payload.name or source.name).strip() or source.name)
+    imported = TopologyLayout(
+        owner_user_id=current_user.id,
+        name=name,
+        positions_json=source.positions_json,
+        display_prefs_json=source.display_prefs_json,
+    )
+    db.add(imported)
+    db.flush()
+    write_audit(
+        db,
+        action="topology.layout_imported",
+        actor_user_id=current_user.id,
+        target=f"layout:{imported.name}",
+        detail=f"source_layout_id={source.id} source_owner={source.owner_user_id}",
+    )
+    db.commit()
+    db.refresh(imported)
+    return serialize_topology_layout(imported)
 
 
 @router.delete("/layouts/{layout_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1093,6 +1238,7 @@ def serialize_topology_layout(layout: TopologyLayout) -> TopologyLayoutRead:
         display_prefs=deserialize_display_prefs(layout.display_prefs_json),
         created_at=layout.created_at,
         updated_at=layout.updated_at,
+        share_code=layout.share_code,
     )
 
 

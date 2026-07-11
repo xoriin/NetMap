@@ -251,6 +251,7 @@ class RelationshipBase(BaseModel):
     allow_outbound: bool = True
     allow_inbound: bool = True
     notes: str | None = Field(default=None, max_length=2000)
+    link_speed_mbps: int | None = Field(default=None, ge=1, le=1_000_000)
 
     @model_validator(mode="after")
     def different_devices(self) -> "RelationshipBase":
@@ -270,6 +271,7 @@ class RelationshipUpdate(BaseModel):
     allow_outbound: bool | None = None
     allow_inbound: bool | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    link_speed_mbps: int | None = Field(default=None, ge=1, le=1_000_000)
 
 
 class RelationshipRead(RelationshipBase):
@@ -334,6 +336,26 @@ class TopologyLayoutRead(TopologyLayoutBase):
     display_prefs: dict | None = None
     created_at: datetime
     updated_at: datetime
+    share_code: str | None = None
+
+
+class TopologyLayoutShareRead(BaseModel):
+    id: int
+    name: str
+    share_code: str
+
+
+class TopologyLayoutImportRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=24)
+    name: str | None = Field(default=None, max_length=80)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("Share code is required")
+        return normalized
 
 
 def normalize_layout_positions(

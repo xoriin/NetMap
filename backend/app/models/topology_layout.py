@@ -17,6 +17,7 @@ class TopologyLayout(Base):
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     positions_json: Mapped[str] = mapped_column(Text, nullable=False)
     display_prefs_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    share_code: Mapped[str | None] = mapped_column(String(24), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

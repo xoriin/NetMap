@@ -1,13 +1,22 @@
+from fastapi import HTTPException
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.v1.topology import deserialize_layout_positions, list_topology_layouts
+from app.api.v1.topology import (
+    deserialize_layout_positions,
+    import_topology_layout,
+    list_topology_layouts,
+    preview_shared_layout,
+    revoke_topology_layout_share,
+    share_topology_layout,
+)
 from app.db.session import Base
+from app.models.audit_log import AuditLog
 from app.models.topology_layout import TopologyLayout
 from app.models.user import User, UserRole
-from app.schemas.topology import TopologyLayoutCreate
+from app.schemas.topology import TopologyLayoutCreate, TopologyLayoutImportRequest
 
 
 def test_topology_layout_accepts_device_and_group_positions():
@@ -82,3 +91,100 @@ def test_list_topology_layouts_includes_latest_shared_autosaves_but_not_other_na
     assert "__autosave__" in names
     assert "Private two" in names
     assert "Private one" not in names
+
+
+def _share_db():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine, tables=[User.__table__, TopologyLayout.__table__, AuditLog.__table__])
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    owner = User(username="owner", password_hash="x", role=UserRole.NETWORK_ADMIN.value)
+    other = User(username="other", password_hash="x", role=UserRole.VIEWER.value)
+    db.add_all([owner, other])
+    db.flush()
+    layout = TopologyLayout(
+        owner_user_id=owner.id,
+        name="Office",
+        positions_json='{"device-1":{"x":1.0,"y":2.0}}',
+        display_prefs_json='{"showNodeIcons": true}',
+    )
+    autosave = TopologyLayout(owner_user_id=owner.id, name="__autosave__", positions_json="{}")
+    db.add_all([layout, autosave])
+    db.commit()
+    return db, owner, other, layout, autosave
+
+
+def test_share_generates_stable_code_and_revoke_clears_it():
+    db, owner, _other, layout, _autosave = _share_db()
+
+    first = share_topology_layout(layout_id=layout.id, current_user=owner, db=db)
+    assert len(first.share_code) == 12
+    second = share_topology_layout(layout_id=layout.id, current_user=owner, db=db)
+    assert second.share_code == first.share_code
+
+    revoke_topology_layout_share(layout_id=layout.id, current_user=owner, db=db)
+    db.refresh(layout)
+    assert layout.share_code is None
+
+
+def test_share_rejects_autosave_and_foreign_layouts():
+    db, owner, other, layout, autosave = _share_db()
+
+    with pytest.raises(HTTPException) as exc:
+        share_topology_layout(layout_id=autosave.id, current_user=owner, db=db)
+    assert exc.value.status_code == 400
+
+    with pytest.raises(HTTPException) as exc:
+        share_topology_layout(layout_id=layout.id, current_user=other, db=db)
+    assert exc.value.status_code == 404
+
+
+def test_import_copies_layout_to_other_user():
+    db, owner, other, layout, _autosave = _share_db()
+    code = share_topology_layout(layout_id=layout.id, current_user=owner, db=db).share_code
+
+    imported = import_topology_layout(
+        payload=TopologyLayoutImportRequest(code=code.lower()),  # codes are case-insensitive
+        current_user=other,
+        db=db,
+    )
+    assert imported.owner_user_id == other.id
+    assert imported.name == "Office"
+    assert set(imported.positions) == {"device-1"}
+    assert imported.positions["device-1"].x == 1.0
+    assert imported.positions["device-1"].y == 2.0
+    assert imported.display_prefs == {"showNodeIcons": True}
+    assert imported.share_code is None  # copies are private until shared themselves
+
+    # A second import gets a suffixed name rather than a unique-constraint error.
+    again = import_topology_layout(
+        payload=TopologyLayoutImportRequest(code=code),
+        current_user=other,
+        db=db,
+    )
+    assert again.name == "Office (2)"
+
+
+def test_preview_shared_layout_returns_readonly_view():
+    db, owner, other, layout, _autosave = _share_db()
+    code = share_topology_layout(layout_id=layout.id, current_user=owner, db=db).share_code
+
+    preview = preview_shared_layout(code=code.lower(), _current_user=other, db=db)
+    assert preview.name == "Office"
+    assert set(preview.positions) == {"device-1"}
+    assert preview.share_code is None  # code never leaks to non-owners
+
+    with pytest.raises(HTTPException) as exc:
+        preview_shared_layout(code="NOSUCHCODE22", _current_user=other, db=db)
+    assert exc.value.status_code == 404
+
+
+def test_import_with_unknown_code_returns_404():
+    db, _owner, other, _layout, _autosave = _share_db()
+    with pytest.raises(HTTPException) as exc:
+        import_topology_layout(
+            payload=TopologyLayoutImportRequest(code="NOSUCHCODE22"),
+            current_user=other,
+            db=db,
+        )
+    assert exc.value.status_code == 404
