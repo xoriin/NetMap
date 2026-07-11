@@ -1,5 +1,5 @@
 export function HealthDonut({ statusCounts, total, pct }: {
-  statusCounts: { online: number; offline: number; warning: number; unknown: number };
+  statusCounts: { online: number; offline: number; warning: number; unknown: number; paused?: number };
   total: number;
   pct: number;
 }) {
@@ -9,11 +9,13 @@ export function HealthDonut({ statusCounts, total, pct }: {
     { key: "online" as const, color: "#2dba7c" },
     { key: "offline" as const, color: "#e05050" },
     { key: "warning" as const, color: "#f59e0b" },
+    { key: "paused" as const, color: "#9aabb6" },
     { key: "unknown" as const, color: "#94a3b8" },
   ];
+  const counts = { paused: 0, ...statusCounts };
   let offset = 0;
   const arcs = segments.map(({ key, color }) => {
-    const frac = total > 0 ? statusCounts[key] / total : 0;
+    const frac = total > 0 ? counts[key] / total : 0;
     const dash = frac * circ;
     const arc = { color, dash, gap: circ - dash, offset };
     offset += dash;

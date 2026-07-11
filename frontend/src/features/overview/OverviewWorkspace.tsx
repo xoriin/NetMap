@@ -108,6 +108,7 @@ export function OverviewWorkspace({
   const snmpProfiles = formOptionsQuery.data?.snmpProfiles ?? [];
 
   const [alertDismissed, setAlertDismissed] = useState(false);
+  const [showOfflineList, setShowOfflineList] = useState(false);
   const [favouriteSearch, setFavouriteSearch] = useState("");
   const [showDeviceForm, setShowDeviceForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -137,9 +138,11 @@ export function OverviewWorkspace({
   }
 
   const statusCounts = useMemo(() => {
-    const c = { online: 0, offline: 0, warning: 0, unknown: 0 };
+    const c = { online: 0, offline: 0, warning: 0, unknown: 0, paused: 0 };
     for (const d of graph.devices) {
-      const status = d.status === "disabled" ? "unknown" : (d.monitor_status ?? d.status);
+      if (d.status === "disabled") { c.unknown++; continue; }
+      if (d.monitoring_paused || d.lifecycle !== "active") { c.paused++; continue; }
+      const status = d.monitor_status ?? d.status;
       if (status === "online") c.online++;
       else if (status === "offline") c.offline++;
       else if (status === "warning") c.warning++;
@@ -161,7 +164,11 @@ export function OverviewWorkspace({
   );
 
   const offlineDevices = useMemo(
-    () => graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "offline"),
+    () => graph.devices.filter((d) =>
+      d.status !== "disabled"
+      && !d.monitoring_paused
+      && d.lifecycle === "active"
+      && (d.monitor_status ?? d.status) === "offline"),
     [graph.devices],
   );
 
@@ -192,7 +199,10 @@ export function OverviewWorkspace({
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [graph.devices]);
 
-  const onlinePct = total > 0 ? Math.round((statusCounts.online / total) * 100) : 0;
+  // Reachability is measured against actively monitored devices — paused
+  // devices are not probed, so they neither help nor hurt the percentage.
+  const monitorableTotal = total - statusCounts.paused;
+  const onlinePct = monitorableTotal > 0 ? Math.round((statusCounts.online / monitorableTotal) * 100) : 0;
 
   const liveStatusByDeviceId = useMemo(() => {
     const m = new Map<number, string>();
@@ -298,7 +308,7 @@ export function OverviewWorkspace({
       <div className="dash-stats">
         <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${onlinePct}% reachable`} icon={<IconServer size={20} />} accent="teal" />
         <DashStat label="Online" value={statusCounts.online} sub="reachable" icon={<IconWifi size={20} />} accent="green" />
-        <DashStat label="Offline" value={statusCounts.offline} sub={statusCounts.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={statusCounts.offline > 0 ? "red" : "green"} />
+        <DashStat label="Offline" value={statusCounts.offline} sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"} icon={<IconWifiOff size={20} />} accent={statusCounts.offline > 0 ? "red" : "green"} />
         <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" />
         <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" />
         <DashStat label="Users" value={summary?.user_count ?? 0} sub="accounts" icon={<IconUsers size={20} />} accent="indigo" />
@@ -308,18 +318,49 @@ export function OverviewWorkspace({
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
           <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
-          {offlineDevices.slice(0, 6).map((d: Device) => (
+          {!showOfflineList && offlineDevices.slice(0, 6).map((d: Device) => (
             <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
-          {offlineDevices.length > 6 && (
+          {!showOfflineList && offlineDevices.length > 6 && (
             <span className="dash-alert-tag dash-alert-tag--more">+{offlineDevices.length - 6} more</span>
           )}
-          <button type="button" className="dash-alert-link" onClick={() => onNavigate("/inventory")}>
-            View inventory <IconArrowRight size={13} />
+          <button type="button" className="dash-alert-link" onClick={() => setShowOfflineList((v) => !v)}>
+            {showOfflineList ? "Hide" : "View"} <IconArrowRight size={13} />
           </button>
-          <button type="button" className="dash-alert-dismiss" aria-label="Dismiss alert" onClick={() => setAlertDismissed(true)}>
+          <button type="button" className="dash-alert-dismiss" aria-label="Dismiss alert" onClick={() => { setAlertDismissed(true); setShowOfflineList(false); }}>
             &times;
           </button>
+        </div>
+      )}
+
+      {showOfflineList && offlineDevices.length > 0 && !alertDismissed && (
+        <div className="dash-panel" style={{ marginBottom: 14 }}>
+          <div className="dash-panel-header">
+            <span className="dash-panel-title">Offline devices</span>
+            <span className="dash-panel-meta">{offlineDevices.length} total</span>
+            <button type="button" className="dash-panel-link" onClick={() => onNavigate("/inventory")}>
+              View inventory <IconArrowRight size={13} />
+            </button>
+          </div>
+          <div className="dash-panel-body">
+            <div className="dash-device-list">
+              {offlineDevices.map((d: Device) => (
+                <div key={d.id} className="dash-device-row">
+                  <span className="dash-status-dot dash-status-dot--offline" />
+                  <div className="dash-device-info">
+                    <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
+                    <span className="dash-device-meta">{d.ip_address}{d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}</span>
+                  </div>
+                  <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
+                  <span className="dash-panel-meta">
+                    {d.last_monitored_at
+                      ? `last checked ${new Date(d.last_monitored_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                      : "not checked yet"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -357,6 +398,7 @@ export function OverviewWorkspace({
                     { key: "online" as const, label: "Online", color: "var(--dash-green)" },
                     { key: "offline" as const, label: "Offline", color: "var(--dash-red)" },
                     { key: "warning" as const, label: "Warning", color: "var(--dash-amber)" },
+                    { key: "paused" as const, label: "Paused", color: "#9aabb6" },
                     { key: "unknown" as const, label: "Unknown", color: "var(--dash-muted)" },
                   ] as const).map(({ key, label, color }) => {
                     const count = statusCounts[key];
