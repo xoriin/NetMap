@@ -1347,6 +1347,181 @@ body.theme-dark .topology-overlay-label {
   cursor: grabbing;
 }
 
+/* ── Topology: device search, path mode, status pulses, mini-map, bulk bar ── */
+
+.topo-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.topo-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--nm-text-faint);
+  pointer-events: none;
+}
+.topo-search-input {
+  width: 150px;
+  height: var(--nm-control-sm);
+  padding: 0 8px 0 26px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-surface);
+  color: var(--nm-text);
+  font-size: 12px;
+}
+.topo-search-input:focus {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+.topo-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  box-shadow: var(--nm-shadow-md);
+  z-index: 60;
+}
+.topo-search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  background: transparent;
+  color: var(--nm-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.topo-search-result:hover {
+  background: var(--nm-row-hover);
+}
+.topo-search-result-ip {
+  color: var(--nm-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.topo-search-empty {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--nm-text-faint);
+}
+
+.topology-overlay-node.search-flash {
+  animation: topo-search-flash 0.9s ease-in-out 3;
+}
+@keyframes topo-search-flash {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 12px rgba(29, 154, 176, 0.95)) drop-shadow(0 0 5px rgba(29, 154, 176, 0.7)); }
+}
+
+.topology-overlay-node.status-changed {
+  animation: topo-status-pulse 1.2s ease-in-out 5;
+}
+@keyframes topo-status-pulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 9px rgba(240, 160, 32, 0.9)); }
+}
+
+.topology-overlay-node.path-dimmed { opacity: 0.18; }
+.topology-overlay-node.path-glow {
+  filter: drop-shadow(0 0 8px rgba(29, 154, 176, 0.8));
+}
+
+.topo-pathbar,
+.topo-bulkbar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  box-shadow: var(--nm-shadow-md);
+  font-size: 12.5px;
+  color: var(--nm-text);
+  z-index: 30;
+}
+.topo-pathbar { top: 12px; }
+.topo-bulkbar { bottom: 14px; }
+.topo-bulkbar select {
+  height: var(--nm-control-sm);
+  padding: 0 8px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-sm);
+  background: var(--nm-surface);
+  color: var(--nm-text);
+  font-size: 12px;
+}
+
+.topo-minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 25;
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  box-shadow: var(--nm-shadow-sm);
+  overflow: hidden;
+  opacity: 0.92;
+}
+.topo-minimap svg {
+  display: block;
+  cursor: crosshair;
+}
+.topo-minimap-viewport {
+  fill: rgba(29, 154, 176, 0.12);
+  stroke: rgba(29, 154, 176, 0.75);
+  stroke-width: 1.2;
+}
+
+/* The layouts manager stacks two small forms plus a table — the modal body
+   already pads the content, so the forms drop their own outer padding to
+   keep a consistent 14px rhythm between sections. */
+.layouts-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.layouts-modal-body .modal-form {
+  padding: 0;
+}
+
+.layout-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+}
+.layout-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--nm-text);
+}
+.layout-preview-meta span { color: var(--nm-text-faint); }
+.layout-preview-plot { align-self: center; }
+.layout-preview-plot circle {
+  fill: var(--nm-accent-strong);
+  opacity: 0.75;
+}
+
 .workspace-loading {
   flex: 1 1 auto;
   display: block;
@@ -4643,24 +4818,18 @@ body.theme-dark .ep-empty { color: #3a5a70; }
 .obs-row-detail strong {
   font-size: 13px;
   color: #1e3040;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .obs-row-detail span {
   font-size: 11px;
   color: #6a8a9a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .obs-row-proposed {
   font-size: 11px;
   color: var(--nm-accent-strong);
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .obs-row-meta {

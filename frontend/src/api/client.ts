@@ -11,6 +11,7 @@ export type User = {
   auth_source?: "local" | "oidc";
   sso_issuer?: string | null;
   sso_last_login_at?: string | null;
+  whats_new_acknowledged_version?: string | null;
 };
 
 export type OidcStatus = {
@@ -70,6 +71,28 @@ export type TokenPair = {
   access_token: string;
   token_type: "bearer";
 };
+
+export type ApiKey = {
+  id: number;
+  name: string;
+  prefix: string;
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  last_used_ip: string | null;
+  revoked_at: string | null;
+};
+
+export type ApiKeyAdmin = ApiKey & {
+  user_id: number;
+  username: string;
+};
+
+export type ApiKeyCreateResponse = ApiKey & {
+  key: string;
+};
+
+export type ApiKeyExpiryDays = 30 | 90 | 365 | null;
 
 export type DashboardSummary = {
   user_count: number;
@@ -162,6 +185,7 @@ export type Relationship = {
   allow_outbound: boolean;
   allow_inbound: boolean;
   notes: string | null;
+  link_speed_mbps: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -173,6 +197,7 @@ export type RelationshipPayload = {
   allow_outbound: boolean;
   allow_inbound: boolean;
   notes: string | null;
+  link_speed_mbps?: number | null;
 };
 
 export type TopologyGraph = {
@@ -214,6 +239,7 @@ export type TopologyLayout = {
   name: string;
   positions: Record<string, LayoutPosition>;
   display_prefs: TopologyDisplayPrefs | null;
+  share_code: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1152,12 +1178,30 @@ export const api = {
       token,
       body: JSON.stringify(payload),
     }),
+  acknowledgeWhatsNew: (token: string, version: string) =>
+    request<User>("/api/v1/auth/me/acknowledge-whats-new", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ version }),
+    }),
   changePassword: (token: string, currentPassword: string, newPassword: string) =>
     request<void>("/api/v1/auth/change-password", {
       method: "POST",
       token,
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+  listApiKeys: (token: string) => request<ApiKey[]>("/api/v1/api-keys", { token }),
+  createApiKey: (token: string, name: string, expiresInDays: ApiKeyExpiryDays) =>
+    request<ApiKeyCreateResponse>("/api/v1/api-keys", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ name, expires_in_days: expiresInDays }),
+    }),
+  revokeApiKey: (token: string, keyId: number) =>
+    request<void>(`/api/v1/api-keys/${keyId}`, { method: "DELETE", token }),
+  listAllApiKeys: (token: string) => request<ApiKeyAdmin[]>("/api/v1/api-keys/admin/all", { token }),
+  adminRevokeApiKey: (token: string, keyId: number) =>
+    request<void>(`/api/v1/api-keys/admin/${keyId}`, { method: "DELETE", token }),
   listUsers: (token: string) => request<User[]>("/api/v1/auth/users", { token }),
   createUser: (
     token: string,
@@ -1240,7 +1284,7 @@ export const api = {
     }),
   bulkUpdateDeviceGroup: (
     token: string,
-    payload: { device_ids: number[]; topology_group_id?: number | null; topology_group?: string | null },
+    payload: { device_ids: number[]; topology_group_id?: number | null; topology_group?: string | null; site_id?: number | null },
   ) =>
     request<{ updated: number }>("/api/v1/topology/devices/bulk-update", {
       method: "POST",
@@ -1266,6 +1310,24 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  shareTopologyLayout: (token: string, layoutId: number) =>
+    request<{ id: number; name: string; share_code: string }>(`/api/v1/topology/layouts/${layoutId}/share`, {
+      method: "POST",
+      token,
+    }),
+  revokeTopologyLayoutShare: (token: string, layoutId: number) =>
+    request<void>(`/api/v1/topology/layouts/${layoutId}/share`, {
+      method: "DELETE",
+      token,
+    }),
+  importTopologyLayout: (token: string, code: string, name?: string) =>
+    request<TopologyLayout>("/api/v1/topology/layouts/import", {
+      method: "POST",
+      token,
+      body: JSON.stringify(name ? { code, name } : { code }),
+    }),
+  previewSharedTopologyLayout: (token: string, code: string) =>
+    request<TopologyLayout>(`/api/v1/topology/layouts/shared/${encodeURIComponent(code)}`, { token }),
   createDevice: (token: string, payload: DevicePayload) =>
     request<Device>("/api/v1/topology/devices", {
       method: "POST",
