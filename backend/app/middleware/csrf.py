@@ -33,7 +33,7 @@ class CsrfProtectionMiddleware:
             return
 
         headers = {key.decode("latin1").lower(): value.decode("latin1") for key, value in scope["headers"]}
-        if headers.get("authorization", "").lower().startswith("bearer "):
+        if headers.get("authorization", "").lower().startswith("bearer ") or headers.get("x-api-key"):
             await self.app(scope, receive, send)
             return
 

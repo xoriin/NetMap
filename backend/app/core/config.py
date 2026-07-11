@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     discovery_max_hosts: int = Field(default=1024, alias="DISCOVERY_MAX_HOSTS")
     tool_rate_limit_max_calls: int = Field(default=20, alias="TOOL_RATE_LIMIT_MAX_CALLS")
     tool_rate_limit_window_seconds: int = Field(default=60, alias="TOOL_RATE_LIMIT_WINDOW_SECONDS")
+    api_key_rate_limit_max_calls: int = Field(default=120, alias="API_KEY_RATE_LIMIT_MAX_CALLS")
+    api_key_rate_limit_window_seconds: int = Field(default=60, alias="API_KEY_RATE_LIMIT_WINDOW_SECONDS")
+    api_key_max_failed_lookups: int = Field(default=10, alias="API_KEY_MAX_FAILED_LOOKUPS")
+    api_key_lookup_lockout_minutes: int = Field(default=15, alias="API_KEY_LOOKUP_LOCKOUT_MINUTES")
     active_network_public_targets_enabled: bool = Field(
         default=False,
         alias="ACTIVE_NETWORK_PUBLIC_TARGETS_ENABLED",

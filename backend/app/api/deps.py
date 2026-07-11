@@ -4,12 +4,65 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.network import request_client_ip
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.services.api_keys.service import touch_last_used, verify_and_load
+from app.services.api_keys.throttle import (
+    check_and_record,
+    clear_lookup_failures,
+    is_lookup_locked,
+    record_lookup_failure,
+)
+from app.services.audit.service import write_audit
 from app.services.rbac.permissions import has_permission
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+API_KEY_HEADER = "x-api-key"
+
+
+def _authenticate_api_key(raw_key: str, request: Request, db: Session) -> User:
+    client_ip = request_client_ip(request)
+    if is_lookup_locked(db, client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed API key attempts; try again later",
+        )
+    key = verify_and_load(db, raw_key)
+    if key is None:
+        crossed_threshold = record_lookup_failure(db, client_ip)
+        if crossed_threshold:
+            write_audit(
+                db,
+                action="apikey.auth_failed",
+                target=f"ip:{client_ip or '-'}",
+                detail="failed API key lookups exceeded threshold; source locked out",
+            )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid, expired, or revoked API key",
+        )
+    if not check_and_record(db, key.id):
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="API key rate limit exceeded",
+        )
+    user = db.get(User, key.user_id)
+    if user is None or not user.is_active:
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or inactive user",
+        )
+    clear_lookup_failures(db, client_ip)
+    touch_last_used(db, key, client_ip)
+    db.commit()
+    request.state.api_key_id = key.id
+    return user
 
 
 def get_current_user(
@@ -17,6 +70,10 @@ def get_current_user(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> User:
+    api_key_header = request.headers.get(API_KEY_HEADER)
+    if api_key_header:
+        return _authenticate_api_key(api_key_header, request, db)
+
     raw_token: str | None = None
     if credentials is not None:
         raw_token = credentials.credentials

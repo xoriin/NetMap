@@ -1,6 +1,7 @@
 """SQLAlchemy models."""
 
 from app.models.alert_event import AlertEvent
+from app.models.api_key import ApiKey, ApiKeyThrottleState
 from app.models.audit_log import AuditLog
 from app.models.auth_session import LoginThrottleState, RefreshTokenState
 from app.models.device import Device, DeviceStatus
@@ -20,6 +21,8 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "AlertEvent",
+    "ApiKey",
+    "ApiKeyThrottleState",
     "AuditLog",
     "IpReservation",
     "NotificationProfile",

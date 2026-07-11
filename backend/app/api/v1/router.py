@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, alerts, audit, auth, dashboard, discovery, exports, ipam, lldp, monitoring, oidc, system, syslog, topology, tools
+from app.api.v1 import admin, alerts, api_keys, audit, auth, dashboard, discovery, exports, ipam, lldp, monitoring, oidc, system, syslog, topology, tools
 
 router = APIRouter()
 
@@ -14,6 +14,7 @@ router.include_router(system.router)
 router.include_router(admin.router)
 router.include_router(auth.router)
 router.include_router(oidc.router)
+router.include_router(api_keys.router)
 router.include_router(audit.router)
 router.include_router(dashboard.router)
 router.include_router(discovery.router)

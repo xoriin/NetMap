@@ -4,6 +4,7 @@ import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy import select
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -33,7 +34,7 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-API-Key"],
     )
     app.add_middleware(CsrfProtectionMiddleware)
     if settings.trusted_hosts:
@@ -42,6 +43,25 @@ def create_app() -> FastAPI:
         app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(api_router, prefix="/api/v1")
+
+    def custom_openapi() -> dict:
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            routes=app.routes,
+        )
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["ApiKeyAuth"] = {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+        }
+        schema["security"] = [{"ApiKeyAuth": []}, {}]
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
 
     @app.get("/api/health", tags=["health"])
     async def root_health_check() -> dict[str, str]:
