@@ -4,7 +4,7 @@ import {
   api,
   type Device, type Relationship, type RelationshipPayload, type DevicePayload,
   type DeviceLiveStatus, type TopologyGraph, type TopologyGroup, type Site,
-  type DeviceSecurityEventSummary, type TopologyLayout, type DeviceIcon, type SnmpProfile,
+  type DeviceSecurityEventSummary, type TopologyLayout, type TopologyDisplayPrefs, type DeviceIcon, type SnmpProfile,
 } from "../../api/client";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
@@ -22,9 +22,11 @@ import { isDeviceMonitoringPaused } from "../../utils/device";
 import { deviceIconUrl, deviceIconPath, resolveDeviceIcon } from "../../icons";
 import { relationshipVisualSourceNodeId, relationshipVisualTargetNodeId } from "../../utils/relationship";
 import { DeviceForm } from "../devices/DeviceForm";
-import { RelationshipEditForm, RelationshipForm } from "./RelationshipForm";
+import { RelationshipEditForm, RelationshipForm, formatLinkSpeed } from "./RelationshipForm";
 import { DiscoveryModal } from "./DiscoveryModal";
-import { buildCytoscapeStylesheet } from "./cytoscapeStyles";
+import { LayoutsModal } from "./LayoutsModal";
+import { MiniMap, type MiniMapExtent, type MiniMapNode } from "./MiniMap";
+import { buildCytoscapeStylesheet, linkSpeedEdgeWidth } from "./cytoscapeStyles";
 import { exportTopologyPng, exportTopologySvg } from "./topologyExport";
 import { EntityList } from "./EntityList";
 import { TopologyToolbar, type GroupDisplayPref } from "./TopologyToolbar";
@@ -76,6 +78,7 @@ export function TopologyWorkspace({
   const [showRelationshipForm, setShowRelationshipForm] = useState(false);
   const [showRelationshipEditForm, setShowRelationshipEditForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [showLayoutsModal, setShowLayoutsModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [topologyError, setTopologyError] = useState<string | null>(null);
   const [deviceSecuritySummary, setDeviceSecuritySummary] = useState<DeviceSecurityEventSummary | null>(null);
@@ -120,6 +123,21 @@ export function TopologyWorkspace({
   const [overlayNodes, setOverlayNodes] = useState<
     Array<{ id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number }>
   >([]);
+  const [flashDeviceId, setFlashDeviceId] = useState<number | null>(null);
+  const [recentlyChangedIds, setRecentlyChangedIds] = useState<Set<number>>(new Set());
+  const prevLiveStatusRef = useRef<Map<number, string>>(new Map());
+  const [pathMode, setPathMode] = useState(false);
+  const [pathStartId, setPathStartId] = useState<number | null>(null);
+  const [pathNodeIds, setPathNodeIds] = useState<Set<number> | null>(null);
+  const pathElementIdsRef = useRef<string[]>([]);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<number[]>([]);
+  const [bulkGroupChoice, setBulkGroupChoice] = useState("");
+  const [bulkSiteChoice, setBulkSiteChoice] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [minimapNodes, setMinimapNodes] = useState<MiniMapNode[]>([]);
+  const [minimapExtent, setMinimapExtent] = useState<MiniMapExtent | null>(null);
+  const deviceTapRef = useRef<(deviceId: number) => void>(() => {});
+  const backgroundTapRef = useRef<() => void>(() => {});
   const refreshOverlayNodesRef = useRef<() => void>(() => {});
   const serverSaveLayoutRef = useRef<(positions: Record<string, { x: number; y: number }>, immediate?: boolean) => void>(() => {});
   const layoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,6 +158,157 @@ export function TopologyWorkspace({
 // Keep these callbacks fresh with the latest state every render
   setGroupForDisplayRef.current = (group: string) => {
     setSelectedGroupForDisplay(group);
+  };
+
+  function clearPathHighlight() {
+    cyRef.current?.elements().removeClass("path-highlight path-dim");
+    pathElementIdsRef.current = [];
+    setPathNodeIds(null);
+    setPathStartId(null);
+  }
+
+  function handlePathClick(deviceId: number) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    if (pathStartId === null || pathStartId === deviceId) {
+      clearPathHighlight();
+      setPathStartId(deviceId);
+      setPathNodeIds(new Set([deviceId]));
+      return;
+    }
+    cy.elements().removeClass("path-highlight path-dim");
+    // Pathfinding walks drawn links AND zone membership: many maps link the
+    // VLAN/group zone (not each device) to the switch, so a device's only
+    // route is device → its zone → onward links. Cytoscape's dijkstra only
+    // follows edges, so we BFS over an adjacency that adds a virtual hop
+    // between every device and its parent zone.
+    const adjacency = new Map<string, { node: string; edge: string | null }[]>();
+    const addHop = (a: string, b: string, edge: string | null) => {
+      if (!adjacency.has(a)) adjacency.set(a, []);
+      if (!adjacency.has(b)) adjacency.set(b, []);
+      adjacency.get(a)!.push({ node: b, edge });
+      adjacency.get(b)!.push({ node: a, edge });
+    };
+    cy.edges().forEach((edge) => addHop(edge.source().id(), edge.target().id(), edge.id()));
+    cy.nodes(".device").forEach((node) => {
+      const parent = node.parent();
+      if (parent.length > 0) addHop(node.id(), parent.first().id(), null);
+    });
+
+    const startNodeId = `device-${pathStartId}`;
+    const targetNodeId = `device-${deviceId}`;
+    const previousHop = new Map<string, { node: string; edge: string | null }>();
+    const visited = new Set([startNodeId]);
+    const queue = [startNodeId];
+    while (queue.length > 0 && !visited.has(targetNodeId)) {
+      const current = queue.shift() as string;
+      for (const next of adjacency.get(current) ?? []) {
+        if (visited.has(next.node)) continue;
+        visited.add(next.node);
+        previousHop.set(next.node, { node: current, edge: next.edge });
+        queue.push(next.node);
+      }
+    }
+    if (!visited.has(targetNodeId)) {
+      toast.error("No linked path between these devices");
+      pathElementIdsRef.current = [];
+      setPathStartId(null);
+      setPathNodeIds(null);
+      return;
+    }
+    const elementIds: string[] = [targetNodeId];
+    let cursor = targetNodeId;
+    while (cursor !== startNodeId) {
+      const hop = previousHop.get(cursor) as { node: string; edge: string | null };
+      if (hop.edge !== null) elementIds.push(hop.edge);
+      elementIds.push(hop.node);
+      cursor = hop.node;
+    }
+    let pathElements = cy.collection();
+    for (const elementId of elementIds) {
+      pathElements = pathElements.union(cy.$id(elementId));
+    }
+    pathElements.addClass("path-highlight");
+    cy.elements("node.device, edge").not(pathElements).addClass("path-dim");
+    pathElementIdsRef.current = elementIds;
+    const ids = new Set<number>();
+    for (const elementId of elementIds) {
+      const match = elementId.match(/^device-(\d+)$/);
+      if (match) ids.add(Number(match[1]));
+    }
+    setPathNodeIds(ids);
+    setPathStartId(null);
+  }
+
+  function togglePathMode() {
+    if (pathMode) clearPathHighlight();
+    setPathMode(!pathMode);
+  }
+
+  function locateDevice(deviceId: number) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const node = cy.$id(`device-${deviceId}`);
+    if (node.length === 0) {
+      toast.error("That device is hidden by the current filters");
+      return;
+    }
+    cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.4) }, { duration: 350 });
+    setFlashDeviceId(deviceId);
+    window.setTimeout(() => setFlashDeviceId((current) => (current === deviceId ? null : current)), 2600);
+  }
+
+  function centerCanvasOn(modelX: number, modelY: number) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const zoom = cy.zoom();
+    cy.animate(
+      { pan: { x: cy.width() / 2 - modelX * zoom, y: cy.height() / 2 - modelY * zoom } },
+      { duration: 200 },
+    );
+  }
+
+  function clearBulkSelection() {
+    cyRef.current?.$("node.device:selected").unselect();
+    setBulkSelectedIds([]);
+    setBulkGroupChoice("");
+    setBulkSiteChoice("");
+  }
+
+  async function applyBulkAssignment() {
+    if (!accessToken || bulkSelectedIds.length < 2) return;
+    const payload: { device_ids: number[]; topology_group_id?: number; site_id?: number } = {
+      device_ids: bulkSelectedIds,
+    };
+    if (bulkGroupChoice) payload.topology_group_id = Number(bulkGroupChoice);
+    if (bulkSiteChoice) payload.site_id = Number(bulkSiteChoice);
+    if (payload.topology_group_id === undefined && payload.site_id === undefined) return;
+    setBulkBusy(true);
+    try {
+      const result = await api.bulkUpdateDeviceGroup(accessToken, payload);
+      toast.success(`Updated ${result.updated} device${result.updated !== 1 ? "s" : ""}`);
+      clearBulkSelection();
+      await onGraphChange();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk update failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  deviceTapRef.current = (deviceId: number) => {
+    if (pathMode) {
+      handlePathClick(deviceId);
+      return;
+    }
+    setSelectedDeviceId(deviceId);
+    setSelectedRelationshipId(null);
+  };
+
+  backgroundTapRef.current = () => {
+    setSelectedDeviceId(null);
+    setSelectedRelationshipId(null);
+    if (pathNodeIds !== null || pathStartId !== null) clearPathHighlight();
   };
 
   const currentDisplayPrefsRef = useRef({
@@ -242,6 +411,35 @@ export function TopologyWorkspace({
       try { localStorage.setItem(`netmap.topology-hidden-groups.${userId}`, JSON.stringify(dp.hiddenGroupNames ?? [])); } catch {}
     }
     setLayoutRevision((c) => c + 1);
+  }
+
+  function currentDisplayPrefsSnapshot(): TopologyDisplayPrefs {
+    const dp = currentDisplayPrefsRef.current;
+    return {
+      groupDisplayPrefs: dp.groupDisplayPrefs,
+      edgeLabelFontSize: dp.edgeLabelFontSize,
+      nodeLabelFontSize: dp.nodeLabelFontSize,
+      groupZoneOpacityPercent: dp.groupZoneOpacityPercent,
+      showGroupZoneBorders: dp.showGroupZoneBorders,
+      hiddenGroupNames: [...dp.hiddenGroupNames],
+      showNodeIcons: dp.showNodeIcons,
+      showNodeLabels: dp.showNodeLabels,
+    };
+  }
+
+  async function refreshSavedLayouts() {
+    if (!accessToken) return;
+    const layouts = await api.topologyLayouts(accessToken);
+    setSavedLayouts(layouts.filter((l) => l.name !== "__autosave__"));
+  }
+
+  function loadNamedLayout(layout: TopologyLayout) {
+    applyAutosaveLayout(layout);
+    // Persist the loaded layout as the new autosave canvas state immediately;
+    // the display-prefs effect re-saves with the freshly applied prefs after
+    // this render if they changed.
+    serverSaveLayoutRef.current(sanitizeTopologyLayoutPositions(layout.positions), true);
+    setShowLayoutsModal(false);
   }
 
   useEffect(() => {
@@ -426,6 +624,7 @@ export function TopologyWorkspace({
     if (!cy) {
       return;
     }
+    const nextMiniNodes: MiniMapNode[] = [];
     const nextNodes = filteredGraph.devices
       .map((device) => {
         const node = cy.$id(`device-${device.id}`);
@@ -440,6 +639,8 @@ export function TopologyWorkspace({
           : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? device.status);
         const colorStatus = liveStatus === "paused" ? "unknown" : liveStatus;
         const color = device.color || statusColor(colorStatus);
+        const modelPosition = node.position();
+        nextMiniNodes.push({ id: device.id, x: modelPosition.x, y: modelPosition.y, color });
         return {
           id: device.id,
           x: position.x,
@@ -452,6 +653,9 @@ export function TopologyWorkspace({
       })
       .filter((row): row is { id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number } => row !== null);
     setOverlayNodes(nextNodes);
+    setMinimapNodes(nextMiniNodes);
+    const extent = cy.extent();
+    setMinimapExtent({ x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 });
   }, [activeIconPackId, filteredGraph.devices, livePingEnabled, liveStatusByDeviceId]);
 
   useEffect(() => {
@@ -534,6 +738,30 @@ export function TopologyWorkspace({
     };
   }, [accessToken, livePingEnabled, liveGraph.devices]);
 
+  // Devices whose live status changed since the previous poll get a short
+  // attention pulse so outages/recoveries draw the eye on a busy map.
+  useEffect(() => {
+    const previous = prevLiveStatusRef.current;
+    const next = new Map<number, string>();
+    const changed: number[] = [];
+    liveStatusByDeviceId.forEach((row, deviceId) => {
+      next.set(deviceId, row.status);
+      const before = previous.get(deviceId);
+      if (before !== undefined && before !== row.status) changed.push(deviceId);
+    });
+    prevLiveStatusRef.current = next;
+    if (changed.length === 0) return;
+    setRecentlyChangedIds((current) => new Set([...current, ...changed]));
+    const timer = window.setTimeout(() => {
+      setRecentlyChangedIds((current) => {
+        const copy = new Set(current);
+        for (const id of changed) copy.delete(id);
+        return copy;
+      });
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [liveStatusByDeviceId]);
+
   useEffect(() => {
     if (!canViewSecurity || !accessToken || !selectedDevice) {
       setDeviceSecuritySummary(null);
@@ -577,14 +805,20 @@ export function TopologyWorkspace({
       cyRef.current = cytoscape({
         container: containerRef.current,
         layout: { name: "preset", fit: true, padding: 36 },
-        boxSelectionEnabled: false,
+        boxSelectionEnabled: true,
         zoomingEnabled: true,
         userZoomingEnabled: true,
         style: buildCytoscapeStylesheet(edgeLabelFontSize),
       });
       cyRef.current.on("tap", "node.device", (event) => {
-        setSelectedDeviceId(Number(event.target.id().replace("device-", "")));
-        setSelectedRelationshipId(null);
+        deviceTapRef.current(Number(event.target.id().replace("device-", "")));
+      });
+      cyRef.current.on("select unselect", "node.device", () => {
+        const ids =
+          cyRef.current
+            ?.$("node.device:selected")
+            .map((node) => Number(node.id().replace("device-", ""))) ?? [];
+        setBulkSelectedIds(ids);
       });
       cyRef.current.on("tap", "edge", (event) => {
         setSelectedRelationshipId(Number(event.target.id().replace("relationship-", "")));
@@ -602,8 +836,7 @@ export function TopologyWorkspace({
       });
       cyRef.current.on("tap", (event) => {
         if (event.target === cyRef.current) {
-          setSelectedDeviceId(null);
-          setSelectedRelationshipId(null);
+          backgroundTapRef.current();
         }
       });
       cyRef.current.on("tap", "node.zone", (event) => {
@@ -728,14 +961,18 @@ export function TopologyWorkspace({
         const preferredTarget = relationshipVisualTargetNodeId(relationship);
         const source = validNodeIds.has(preferredSource) ? preferredSource : `device-${relationship.source_device_id}`;
         const target = validNodeIds.has(preferredTarget) ? preferredTarget : `device-${relationship.target_device_id}`;
+        const speed = relationship.link_speed_mbps ?? null;
         return {
           group: "edges" as const,
           data: {
             id: `relationship-${relationship.id}`,
             source,
             target,
-            label: relationship.relationship_type,
+            label: speed !== null
+              ? `${relationship.relationship_type} · ${formatLinkSpeed(speed)}`
+              : relationship.relationship_type,
             notes: relationship.notes,
+            linkWidth: linkSpeedEdgeWidth(speed),
             edgeLabelColor: theme === "dark" ? "#c8dae8" : "#2a4055",
             edgeLabelBg: theme === "dark" ? "#1d2f40" : "#eef3f7",
             edgeBorderColor: theme === "dark" ? "rgba(60,100,130,0.5)" : "rgba(160,190,210,0.6)",
@@ -744,6 +981,18 @@ export function TopologyWorkspace({
       }),
     ]);
     cy.layout({ name: "preset", fit: false, padding: 36 }).run();
+    // Rebuilding elements drops classes — restore an active path highlight so
+    // the 30s live-status refresh doesn't silently clear it.
+    if (pathElementIdsRef.current.length > 0) {
+      let pathElements = cy.collection();
+      for (const elementId of pathElementIdsRef.current) {
+        pathElements = pathElements.union(cy.$id(elementId));
+      }
+      if (pathElements.length > 0) {
+        pathElements.addClass("path-highlight");
+        cy.elements("node.device, edge").not(pathElements).addClass("path-dim");
+      }
+    }
     refreshOverlayNodes();
     const currentGroupIds = new Set(layout.groups.map((g) => g.id));
     if (knownGroupIdsRef.current.size > 0 && layout.groups.some((g) => !knownGroupIdsRef.current.has(g.id))) {
@@ -984,6 +1233,7 @@ export function TopologyWorkspace({
     allow_outbound: boolean;
     allow_inbound: boolean;
     notes: string | null;
+    link_speed_mbps: number | null;
   }) {
     if (!accessToken || !selectedRelationship) {
       return;
@@ -997,6 +1247,7 @@ export function TopologyWorkspace({
       allow_outbound: payload.allow_outbound,
       allow_inbound: payload.allow_inbound,
       notes: payload.notes,
+      link_speed_mbps: payload.link_speed_mbps,
     };
     setLiveGraph((current) => ({
       ...current,
@@ -1010,6 +1261,7 @@ export function TopologyWorkspace({
               allow_outbound: payload.allow_outbound,
               allow_inbound: payload.allow_inbound,
               notes: payload.notes,
+              link_speed_mbps: payload.link_speed_mbps,
             }
           : relationship,
       ),
@@ -1471,9 +1723,14 @@ export function TopologyWorkspace({
         groupZoneOpacityPercent={groupZoneOpacityPercent}
         nodeLabelFontSize={nodeLabelFontSize}
         edgeLabelFontSize={edgeLabelFontSize}
+        devices={filteredGraph.devices}
+        pathMode={pathMode}
+        onLocateDevice={locateDevice}
+        onTogglePathMode={togglePathMode}
         onSiteChange={setSelectedSiteId}
         onFit={fitTopology}
         onResetLayout={resetLayout}
+        onOpenLayouts={() => setShowLayoutsModal(true)}
         onExportPng={() => { if (cyRef.current) exportTopologyPng(cyRef.current, edgeLabelFontSize); }}
         onExportSvg={() => { if (cyRef.current) exportTopologySvg(cyRef.current); }}
         onShowNodeIconsChange={setShowNodeIcons}
@@ -1503,7 +1760,7 @@ export function TopologyWorkspace({
               <button
                 key={`overlay-${node.id}`}
                 type="button"
-                className={`topology-overlay-node${selectedDeviceId === node.id ? " selected" : ""}${panelHoveredDeviceId === node.id ? " panel-glow" : ""}`}
+                className={`topology-overlay-node${selectedDeviceId === node.id ? " selected" : ""}${panelHoveredDeviceId === node.id ? " panel-glow" : ""}${flashDeviceId === node.id ? " search-flash" : ""}${recentlyChangedIds.has(node.id) ? " status-changed" : ""}${pathNodeIds !== null ? (pathNodeIds.has(node.id) ? " path-glow" : " path-dimmed") : ""}`}
                 style={{ left: `${node.x}px`, top: `${node.y}px` }}
                 onClick={() => {
                   setSelectedDeviceId(node.id);
@@ -1529,6 +1786,49 @@ export function TopologyWorkspace({
             ))}
           </div>
           {filteredGraph.devices.length === 0 && <div className="empty-graph">No devices match the current view</div>}
+          <MiniMap nodes={minimapNodes} extent={minimapExtent} onCenter={centerCanvasOn} />
+          {pathMode && (
+            <div className="topo-pathbar">
+              {pathStartId !== null
+                ? "Now click the destination device"
+                : pathNodeIds !== null && pathNodeIds.size > 1
+                  ? "Path highlighted — click another device to start a new path"
+                  : "Path mode: click the first device"}
+              <button type="button" className="nm-btn nm-btn--sm" onClick={togglePathMode}>Exit</button>
+            </div>
+          )}
+          {bulkSelectedIds.length >= 2 && (
+            <div className="topo-bulkbar">
+              <strong>{bulkSelectedIds.length} devices selected</strong>
+              {canWrite && (
+                <>
+                  <select value={bulkGroupChoice} onChange={(e) => setBulkGroupChoice(e.target.value)}>
+                    <option value="">Assign group…</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={String(group.id)}>{group.name}</option>
+                    ))}
+                  </select>
+                  <select value={bulkSiteChoice} onChange={(e) => setBulkSiteChoice(e.target.value)}>
+                    <option value="">Assign site…</option>
+                    {sites.map((site) => (
+                      <option key={site.id} value={String(site.id)}>{site.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="nm-btn nm-btn--sm nm-btn--primary"
+                    disabled={bulkBusy || (!bulkGroupChoice && !bulkSiteChoice)}
+                    onClick={() => void applyBulkAssignment()}
+                  >
+                    {bulkBusy ? "Applying…" : "Apply"}
+                  </button>
+                </>
+              )}
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={clearBulkSelection}>
+                Clear
+              </button>
+            </div>
+          )}
         </div>
         {showDetailsPanel && (
           <DetailsPanel
@@ -1599,6 +1899,19 @@ export function TopologyWorkspace({
             setShowScanModal(false);
             await onGraphChange();
           }}
+        />
+      )}
+      {showLayoutsModal && accessToken && (
+        <LayoutsModal
+          accessToken={accessToken}
+          layouts={savedLayouts}
+          getCurrentLayout={() => ({
+            positions: sanitizeTopologyLayoutPositions(layoutPositionsRef.current),
+            display_prefs: currentDisplayPrefsSnapshot(),
+          })}
+          onClose={() => setShowLayoutsModal(false)}
+          onLoad={loadNamedLayout}
+          onLayoutsChanged={refreshSavedLayouts}
         />
       )}
     </section>

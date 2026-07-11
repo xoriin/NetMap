@@ -279,6 +279,42 @@ function EndpointPicker({
   );
 }
 
+export const LINK_SPEED_OPTIONS: { label: string; value: number | null }[] = [
+  { label: "Unspecified", value: null },
+  { label: "10 Mbps", value: 10 },
+  { label: "100 Mbps", value: 100 },
+  { label: "1 Gbps", value: 1000 },
+  { label: "2.5 Gbps", value: 2500 },
+  { label: "10 Gbps", value: 10_000 },
+  { label: "25 Gbps", value: 25_000 },
+  { label: "40 Gbps", value: 40_000 },
+  { label: "100 Gbps", value: 100_000 },
+];
+
+export function formatLinkSpeed(mbps: number | null): string {
+  if (mbps === null) return "";
+  if (mbps >= 1000) {
+    const gbps = mbps / 1000;
+    return `${Number.isInteger(gbps) ? gbps : gbps.toFixed(1)} Gbps`;
+  }
+  return `${mbps} Mbps`;
+}
+
+function LinkSpeedSelect({ value, onChange }: { value: number | null; onChange: (value: number | null) => void }) {
+  return (
+    <select
+      value={value === null ? "" : String(value)}
+      onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
+    >
+      {LINK_SPEED_OPTIONS.map((option) => (
+        <option key={option.label} value={option.value === null ? "" : String(option.value)}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 // ── RelationshipEditForm ──────────────────────────────────────────────────────
 
 export function RelationshipEditForm({
@@ -299,6 +335,7 @@ export function RelationshipEditForm({
     allow_outbound: boolean;
     allow_inbound: boolean;
     notes: string | null;
+    link_speed_mbps: number | null;
   }) => Promise<void>;
 }) {
   const formId = "relationship-edit-form";
@@ -316,6 +353,7 @@ export function RelationshipEditForm({
   const [allowOutbound, setAllowOutbound] = useState(relationship.allow_outbound !== false);
   const [allowInbound, setAllowInbound] = useState(relationship.allow_inbound !== false);
   const [notes, setNotes] = useState(stripRelationshipMetadata(relationship.notes));
+  const [linkSpeed, setLinkSpeed] = useState<number | null>(relationship.link_speed_mbps ?? null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const allEndpointValues = useMemo(() => {
@@ -357,6 +395,7 @@ export function RelationshipEditForm({
       allow_outbound: allowOutbound,
       allow_inbound: allowInbound,
       notes: composeRelationshipNotes(sourceEndpoint, targetEndpoint, blankToNull(notes) ?? null),
+      link_speed_mbps: linkSpeed,
     });
   }
 
@@ -374,6 +413,10 @@ export function RelationshipEditForm({
         <label>
           Link name
           <input required value={relationshipType} onChange={(event) => setRelationshipType(event.target.value)} />
+        </label>
+        <label>
+          Link speed
+          <LinkSpeedSelect value={linkSpeed} onChange={setLinkSpeed} />
         </label>
         <label>
           <span className="inline-toggle">
@@ -430,6 +473,7 @@ export function RelationshipForm({
   const [allowOutbound, setAllowOutbound] = useState(true);
   const [allowInbound, setAllowInbound] = useState(true);
   const [notes, setNotes] = useState("");
+  const [linkSpeed, setLinkSpeed] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const allEndpointValues = useMemo(
@@ -470,6 +514,7 @@ export function RelationshipForm({
       allow_outbound: allowOutbound,
       allow_inbound: allowInbound,
       notes: composeRelationshipNotes(sourceEndpoint, targetEndpoint, blankToNull(notes) ?? null),
+      link_speed_mbps: linkSpeed,
     });
   }
 
@@ -487,6 +532,10 @@ export function RelationshipForm({
         <label>
           Type
           <input required value={relationshipType} onChange={(event) => setRelationshipType(event.target.value)} />
+        </label>
+        <label>
+          Link speed
+          <LinkSpeedSelect value={linkSpeed} onChange={setLinkSpeed} />
         </label>
         <label>
           <span className="inline-toggle">

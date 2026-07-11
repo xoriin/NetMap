@@ -6,6 +6,17 @@ export function cyExtendedStyle(style: Record<string, string | number>): cytosca
   return style as unknown as cytoscape.Css.Node;
 }
 
+/** Edge width in px for a manual link speed; unspecified links keep the
+ *  historical default of 2 so existing maps look unchanged. */
+export function linkSpeedEdgeWidth(mbps: number | null): number {
+  if (mbps === null) return 2;
+  if (mbps <= 100) return 1.5;
+  if (mbps < 2500) return 2.5;
+  if (mbps < 10_000) return 3;
+  if (mbps < 40_000) return 4;
+  return 5;
+}
+
 /** Static stylesheet for the topology canvas. Theme-dependent colours are
  *  applied afterwards via data attributes and cy.style() updates. */
 export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.StylesheetJson {
@@ -123,7 +134,36 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
         "text-border-opacity": 1,
         "text-border-width": 1,
         "text-border-color": "data(edgeBorderColor)",
-        width: 2,
+        width: "data(linkWidth)",
+      },
+    },
+    {
+      selector: "edge.path-dim, node.device.path-dim",
+      style: {
+        opacity: 0.15,
+      },
+    },
+    {
+      selector: "edge.path-highlight",
+      style: {
+        "line-color": "#1d9ab0",
+        "target-arrow-color": "#1d9ab0",
+        width: 5,
+        "z-index": 70,
+      },
+    },
+    {
+      selector: "node.device.path-highlight",
+      style: {
+        "z-index": 70,
+      },
+    },
+    {
+      selector: "node.zone.path-highlight",
+      style: {
+        "border-color": "#1d9ab0",
+        "border-width": 3,
+        "border-opacity": 1,
       },
     },
     {

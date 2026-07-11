@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { ChevronDown, EyeOff, Eye } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, EyeOff, Eye, Search } from "lucide-react";
 import { IconWifi, IconWifiOff } from "@tabler/icons-react";
-import type { Site } from "../../api/client";
+import type { Device, Site } from "../../api/client";
 import type { GroupLayoutShape } from "../../utils/topology";
+import { deviceLabel } from "../../utils/format";
 
 export type GroupDisplayPref = {
   nodeScalePercent: number;
@@ -18,7 +19,65 @@ export type GroupDisplayPref = {
  * dropdown. Owns only its dropdown open/close state — every layout-affecting
  * change is delegated to the orchestrator, which owns the cytoscape instance.
  */
+function DeviceSearch({ devices, onLocate }: { devices: Device[]; onLocate: (deviceId: number) => void }) {
+  const [query, setQuery] = useState("");
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return devices
+      .filter((device) =>
+        (device.display_name ?? "").toLowerCase().includes(needle)
+        || (device.hostname ?? "").toLowerCase().includes(needle)
+        || device.ip_address.toLowerCase().includes(needle))
+      .slice(0, 8);
+  }, [devices, query]);
+
+  function pick(deviceId: number) {
+    onLocate(deviceId);
+    setQuery("");
+  }
+
+  return (
+    <div className="topo-search">
+      <Search size={13} aria-hidden="true" className="topo-search-icon" />
+      <input
+        className="topo-search-input"
+        type="search"
+        placeholder="Find device…"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && matches.length > 0) {
+            event.preventDefault();
+            pick(matches[0].id);
+          }
+          if (event.key === "Escape") setQuery("");
+        }}
+      />
+      {matches.length > 0 && (
+        <div className="topo-search-results">
+          {matches.map((device) => (
+            <button key={device.id} type="button" className="topo-search-result" onClick={() => pick(device.id)}>
+              <span className="topo-search-result-name">{deviceLabel(device).split("\n")[0]}</span>
+              <span className="topo-search-result-ip">{device.ip_address}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {query.trim() !== "" && matches.length === 0 && (
+        <div className="topo-search-results">
+          <span className="topo-search-empty">No matching devices</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TopologyToolbar({
+  devices,
+  pathMode,
+  onLocateDevice,
+  onTogglePathMode,
   sites,
   selectedSiteId,
   statusCounts,
@@ -38,6 +97,7 @@ export function TopologyToolbar({
   onSiteChange,
   onFit,
   onResetLayout,
+  onOpenLayouts,
   onExportPng,
   onExportSvg,
   onShowNodeIconsChange,
@@ -58,6 +118,10 @@ export function TopologyToolbar({
   onScan,
   onAddLink,
 }: {
+  devices: Device[];
+  pathMode: boolean;
+  onLocateDevice: (deviceId: number) => void;
+  onTogglePathMode: () => void;
   sites: Site[];
   selectedSiteId: number | null;
   statusCounts: { online: number; offline: number };
@@ -77,6 +141,7 @@ export function TopologyToolbar({
   onSiteChange: (siteId: number | null) => void;
   onFit: () => void;
   onResetLayout: () => void;
+  onOpenLayouts: () => void;
   onExportPng: () => void;
   onExportSvg: () => void;
   onShowNodeIconsChange: (value: boolean) => void;
@@ -132,8 +197,18 @@ export function TopologyToolbar({
       <div className="toolbar-divider" />
       <div className="toolbar-group">
         <div className="toolbar-group-controls">
+          <DeviceSearch devices={devices} onLocate={onLocateDevice} />
           <button type="button" className="nm-btn nm-btn--sm" onClick={onFit}>Fit</button>
           <button type="button" className="nm-btn nm-btn--sm" onClick={onResetLayout}>Reset view</button>
+          <button type="button" className="nm-btn nm-btn--sm" onClick={onOpenLayouts}>Layouts</button>
+          <button
+            type="button"
+            className={`nm-btn nm-btn--sm${pathMode ? " nm-btn--active" : ""}`}
+            title="Highlight the link path between two devices"
+            onClick={onTogglePathMode}
+          >
+            Path
+          </button>
           {canWrite && (
             <>
               <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPng}>PNG</button>
