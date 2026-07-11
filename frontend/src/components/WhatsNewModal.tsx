@@ -1,21 +1,12 @@
 import DOMPurify from "dompurify";
 import { ExternalLink } from "lucide-react";
 import { marked } from "marked";
-import { type ChangelogRelease, type VersionInfo } from "../api/client";
+import { type ChangelogRelease, type User, type VersionInfo } from "../api/client";
 import { Modal } from "./Modal";
-import { readString, writeString } from "../utils/storage";
 
-export const whatsNewAcknowledgedKey = "netmap.whatsNew.acknowledgedVersion";
-
-export function shouldShowWhatsNew(versionInfo: VersionInfo | null) {
-  if (!versionInfo?.current) return false;
-  const acknowledged = readString(whatsNewAcknowledgedKey);
-  if (!acknowledged) return true;
-  return acknowledged !== versionInfo.current;
-}
-
-export function dismissWhatsNew(version: string) {
-  writeString(whatsNewAcknowledgedKey, version);
+export function shouldShowWhatsNew(versionInfo: VersionInfo | null, user: User | null) {
+  if (!versionInfo?.current || !user) return false;
+  return user.whats_new_acknowledged_version !== versionInfo.current;
 }
 
 function renderInlineMarkdown(markdown: string) {

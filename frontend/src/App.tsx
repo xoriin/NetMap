@@ -18,7 +18,7 @@ import { LoginView } from "./features/auth/LoginView";
 import { ResetPasswordView } from "./features/auth/ResetPasswordView";
 import { Sidebar, AppTopbar } from "./Sidebar";
 import { DashboardView } from "./views/DashboardView";
-import { WhatsNewModal, dismissWhatsNew, shouldShowWhatsNew } from "./components/WhatsNewModal";
+import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 
 export function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
@@ -72,8 +72,12 @@ export function App() {
   }, [accessToken]);
 
   useEffect(() => {
-    setShowWhatsNew(shouldShowWhatsNew(versionInfo));
-  }, [versionInfo]);
+    setShowWhatsNew(shouldShowWhatsNew(versionInfo, user));
+    // Auto-open decision is made when the version info arrives (or the signed-in
+    // user changes) — not on every user-object update, which would re-open the
+    // modal after unrelated profile edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [versionInfo, user?.id]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -280,10 +284,11 @@ export function App() {
   }, [screen, tokens?.access_token, idleTimeoutMs]);
 
   function closeWhatsNew() {
-    if (versionInfo?.current) {
-      dismissWhatsNew(versionInfo.current);
-    }
     setShowWhatsNew(false);
+    const version = versionInfo?.current;
+    if (version && accessToken && user?.whats_new_acknowledged_version !== version) {
+      void api.acknowledgeWhatsNew(accessToken, version).then(setUser).catch(() => {});
+    }
   }
 
   function openWhatsNew() {

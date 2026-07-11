@@ -7,7 +7,6 @@ export const storageKeys = {
   theme: "netmap.theme",
   iconPack: "netmap.icon_pack",
   sidebarCollapsed: "netmap.sidebar_collapsed",
-  whatsNewAcknowledged: "netmap.whatsNew.acknowledgedVersion",
 } as const;
 
 export function readString(key: string): string | null {
