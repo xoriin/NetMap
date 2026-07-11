@@ -35,6 +35,7 @@ from app.schemas.auth import (
     UserCreateRequest,
     UserRead,
     UserUpdateRequest,
+    WhatsNewAckRequest,
 )
 from app.services.auth import (
     apply_progressive_delay,
@@ -278,6 +279,18 @@ def update_profile(
         actor_user_id=current_user.id,
         target=f"user:{current_user.username}",
     )
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/auth/me/acknowledge-whats-new", response_model=UserRead)
+def acknowledge_whats_new(
+    payload: WhatsNewAckRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
+    current_user.whats_new_acknowledged_version = payload.version.strip()
     db.commit()
     db.refresh(current_user)
     return current_user

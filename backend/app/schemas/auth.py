@@ -53,6 +53,10 @@ class ProfileUpdateRequest(BaseModel):
     email: str | None = Field(default=None, max_length=254)
 
 
+class WhatsNewAckRequest(BaseModel):
+    version: str = Field(min_length=1, max_length=40)
+
+
 class TokenPair(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -69,6 +73,7 @@ class UserRead(BaseModel):
     auth_source: str = "local"
     sso_issuer: str | None = None
     sso_last_login_at: datetime | None = None
+    whats_new_acknowledged_version: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

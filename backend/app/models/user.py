@@ -36,3 +36,4 @@ class User(Base):
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     avatar_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    whats_new_acknowledged_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
