@@ -10,9 +10,9 @@ if [ -n "${PUID:-}" ]; then
   usermod -o -u "${PUID}" netmap
 fi
 
-chown -R netmap:netmap /app/data
+chown -R netmap:netmap /app/data 2>/dev/null || echo "netmap: skipping chown of /app/data (not permitted); assuming already writable" >&2
 mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
-chown -R netmap:netmap /tmp/nginx
+chown -R netmap:netmap /tmp/nginx 2>/dev/null || echo "netmap: skipping chown of /tmp/nginx (not permitted); assuming already writable" >&2
 
 envsubst '${APP_PORT}' < /etc/netmap/aio-nginx.conf.template > /tmp/nginx.generated.conf
 
