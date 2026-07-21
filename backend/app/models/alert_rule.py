@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
@@ -16,6 +16,10 @@ class AlertRule(Base):
     cooldown_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     # rtt_above rules only: fire when a device's probe RTT exceeds this many ms
     threshold_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ping_loss_above rules only: fire when the % of failed probes over the
+    # trailing loss_window_minutes reaches loss_pct_threshold
+    loss_pct_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    loss_window_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

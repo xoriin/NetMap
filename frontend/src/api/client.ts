@@ -664,7 +664,7 @@ export type NotificationProfilePayload = {
   config: Record<string, string>;
 };
 
-export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping";
+export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above";
 
 export type AlertRule = {
   id: number;
@@ -675,6 +675,8 @@ export type AlertRule = {
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
+  loss_pct_threshold: number | null;
+  loss_window_minutes: number | null;
   last_triggered_at: string | null;
   created_at: string;
   updated_at: string;
@@ -688,6 +690,8 @@ export type AlertRulePayload = {
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
+  loss_pct_threshold: number | null;
+  loss_window_minutes: number | null;
 };
 
 export type AlertEvent = {

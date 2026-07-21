@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
@@ -37,6 +37,8 @@ MONITOR_STATUS_WORKERS = 12
 HTTP_CHECK_TIMEOUT_SECONDS = 5.0
 FLAP_WINDOW_SECONDS = 3600
 FLAP_MIN_TRANSITIONS = 4
+DEFAULT_LOSS_WINDOW_MINUTES = 60
+MIN_LOSS_SAMPLE_SIZE = 3
 
 
 class AlertMonitorService:
@@ -263,6 +265,14 @@ class AlertMonitorService:
                 rtt_ms=rtt, threshold_ms=rule.threshold_ms,
             ))
 
+        for rule, device_id, loss_pct in self._ping_loss_breaches(rules, set(device_map), now):
+            device = device_map[device_id]
+            label = device.display_name or device.hostname or device.ip_address
+            fire(rule, device_id, self._build_message(
+                "ping_loss_above", label, device.ip_address, "online", app_name,
+                loss_pct=loss_pct, loss_pct_threshold=rule.loss_pct_threshold,
+            ))
+
         # Flapping: devices with too many status transitions inside the window
         cutoff = now - timedelta(seconds=FLAP_WINDOW_SECONDS)
         self._flap_times = {
@@ -386,6 +396,41 @@ class AlertMonitorService:
                 breaches.append((rule, device_id, rtt))
         return breaches
 
+    @classmethod
+    def _ping_loss_breaches(
+        cls,
+        rules: list[AlertRule],
+        device_ids: set[int],
+        now: datetime,
+    ) -> list[tuple[AlertRule, int, float]]:
+        """Return (rule, device_id, loss_pct) for every ping_loss_above rule breach this cycle."""
+        loss_rules = [r for r in rules if r.event_type == "ping_loss_above" and r.loss_pct_threshold is not None]
+        if not loss_rules:
+            return []
+
+        breaches: list[tuple[AlertRule, int, float]] = []
+        with SessionLocal() as db:
+            for rule in loss_rules:
+                if not cls._cooldown_ok(rule, now):
+                    continue
+                window_minutes = rule.loss_window_minutes or DEFAULT_LOSS_WINDOW_MINUTES
+                cutoff = now - timedelta(minutes=window_minutes)
+                query = select(
+                    DeviceMonitorHistory.device_id,
+                    func.count(DeviceMonitorHistory.id),
+                    func.sum(case((DeviceMonitorHistory.status == "offline", 1), else_=0)),
+                ).where(DeviceMonitorHistory.checked_at >= cutoff)
+                if rule.device_id is not None:
+                    query = query.where(DeviceMonitorHistory.device_id == rule.device_id)
+                query = query.group_by(DeviceMonitorHistory.device_id)
+                for device_id, total, offline_count in db.execute(query).all():
+                    if device_id not in device_ids or total < MIN_LOSS_SAMPLE_SIZE:
+                        continue
+                    loss_pct = (offline_count or 0) / total * 100
+                    if loss_pct >= rule.loss_pct_threshold:
+                        breaches.append((rule, device_id, loss_pct))
+        return breaches
+
     @staticmethod
     def _cooldown_ok(rule: AlertRule, now: datetime) -> bool:
         if rule.last_triggered_at is None:
@@ -403,10 +448,17 @@ class AlertMonitorService:
         rtt_ms: float | None = None,
         threshold_ms: int | None = None,
         flap_count: int | None = None,
+        loss_pct: float | None = None,
+        loss_pct_threshold: float | None = None,
     ) -> str:
         if event_type == "rtt_above":
             rtt_text = f"{rtt_ms:.0f}" if rtt_ms is not None else "?"
             body = f"🐢 {label} ({ip}) RTT {rtt_text} ms is above the {threshold_ms} ms threshold"
+            return f"{app_name} Alert\n\n{body}"
+        if event_type == "ping_loss_above":
+            loss_text = f"{loss_pct:.0f}" if loss_pct is not None else "?"
+            threshold_text = f"{loss_pct_threshold:.0f}" if loss_pct_threshold is not None else "?"
+            body = f"📶 {label} ({ip}) ping loss {loss_text}% is above the {threshold_text}% threshold"
             return f"{app_name} Alert\n\n{body}"
         if event_type == "device_flapping":
             count_text = str(flap_count) if flap_count is not None else "repeated"

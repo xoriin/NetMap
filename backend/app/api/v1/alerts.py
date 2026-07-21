@@ -59,6 +59,8 @@ def create_rule(
         channels=json.dumps(payload.channels),
         cooldown_minutes=payload.cooldown_minutes,
         threshold_ms=payload.threshold_ms,
+        loss_pct_threshold=payload.loss_pct_threshold,
+        loss_window_minutes=payload.loss_window_minutes,
     )
     db.add(rule)
     db.commit()
@@ -86,6 +88,8 @@ def update_rule(
         setattr(rule, key, value)
     if rule.event_type == "rtt_above" and rule.threshold_ms is None:
         raise HTTPException(status_code=422, detail="threshold_ms is required for rtt_above rules")
+    if rule.event_type == "ping_loss_above" and rule.loss_pct_threshold is None:
+        raise HTTPException(status_code=422, detail="loss_pct_threshold is required for ping_loss_above rules")
     db.commit()
     db.refresh(rule)
     return _to_read(rule)
@@ -146,12 +150,15 @@ def test_rule(
         "any_status_change": "offline",
         "rtt_above": "online",
         "device_flapping": "online",
+        "ping_loss_above": "online",
     }
     status = event_status_map.get(rule.event_type, "unknown")
     threshold = rule.threshold_ms or 100
+    loss_threshold = rule.loss_pct_threshold or 50.0
     body = AlertMonitorService._build_message(
         rule.event_type, label, ip, status, app_name,
         rtt_ms=float(threshold) + 25, threshold_ms=threshold, flap_count=5,
+        loss_pct=loss_threshold + 10, loss_pct_threshold=loss_threshold,
     )
     message = f"[TEST] {body}"
 

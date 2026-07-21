@@ -3,7 +3,10 @@ import re
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-VALID_EVENT_TYPES = {"device_offline", "device_online", "device_warning", "any_status_change", "rtt_above", "device_flapping"}
+VALID_EVENT_TYPES = {
+    "device_offline", "device_online", "device_warning", "any_status_change",
+    "rtt_above", "device_flapping", "ping_loss_above",
+}
 VALID_CHANNELS = {"smtp", "ntfy", "telegram", "signal"}
 PROFILE_TARGET_RE = re.compile(r"^profile:[1-9][0-9]*$")
 
@@ -16,6 +19,8 @@ class AlertRuleCreate(BaseModel):
     channels: list[str] = Field(default_factory=list)
     cooldown_minutes: int = Field(default=30, ge=1, le=1440)
     threshold_ms: int | None = Field(default=None, ge=1, le=60000)
+    loss_pct_threshold: float | None = Field(default=None, ge=1, le=100)
+    loss_window_minutes: int | None = Field(default=60, ge=5, le=1440)
 
     @field_validator("event_type")
     @classmethod
@@ -28,6 +33,8 @@ class AlertRuleCreate(BaseModel):
     def require_threshold_for_rtt(self) -> "AlertRuleCreate":
         if self.event_type == "rtt_above" and self.threshold_ms is None:
             raise ValueError("threshold_ms is required for rtt_above rules")
+        if self.event_type == "ping_loss_above" and self.loss_pct_threshold is None:
+            raise ValueError("loss_pct_threshold is required for ping_loss_above rules")
         return self
 
     @field_validator("channels")
@@ -47,6 +54,8 @@ class AlertRuleUpdate(BaseModel):
     channels: list[str] | None = None
     cooldown_minutes: int | None = Field(None, ge=1, le=1440)
     threshold_ms: int | None = Field(None, ge=1, le=60000)
+    loss_pct_threshold: float | None = Field(None, ge=1, le=100)
+    loss_window_minutes: int | None = Field(None, ge=5, le=1440)
 
     @field_validator("event_type")
     @classmethod
@@ -75,6 +84,8 @@ class AlertRuleRead(BaseModel):
     channels: list[str]
     cooldown_minutes: int
     threshold_ms: int | None
+    loss_pct_threshold: float | None
+    loss_window_minutes: int | None
     last_triggered_at: datetime | None
     created_at: datetime
     updated_at: datetime

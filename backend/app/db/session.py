@@ -139,6 +139,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0047_user_whats_new_ack", _migrate_user_whats_new_ack)
         _run_migration(conn, inspector, "0048_layout_share_codes", _migrate_layout_share_codes)
         _run_migration(conn, inspector, "0049_relationship_link_speed", _migrate_relationship_link_speed)
+        _run_migration(conn, inspector, "0050_alert_rule_ping_loss", _migrate_alert_rule_ping_loss)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -849,6 +850,16 @@ def _migrate_alert_rule_threshold_ms(conn, inspector) -> None:
     existing = {col["name"] for col in inspector.get_columns("alert_rules")}
     if "threshold_ms" not in existing:
         conn.execute(text("ALTER TABLE alert_rules ADD COLUMN threshold_ms INTEGER"))
+
+
+def _migrate_alert_rule_ping_loss(conn, inspector) -> None:
+    if "alert_rules" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("alert_rules")}
+    if "loss_pct_threshold" not in existing:
+        conn.execute(text("ALTER TABLE alert_rules ADD COLUMN loss_pct_threshold REAL"))
+    if "loss_window_minutes" not in existing:
+        conn.execute(text("ALTER TABLE alert_rules ADD COLUMN loss_window_minutes INTEGER"))
 
 
 def _migrate_device_monitoring_fields(conn, inspector) -> None:

@@ -29,6 +29,8 @@ export function AlertsTab({
     channels: [],
     cooldown_minutes: 30,
     threshold_ms: null,
+    loss_pct_threshold: null,
+    loss_window_minutes: 60,
   });
 
   const rulesQuery = useApiQuery(() => api.listAlertRules(accessToken), [accessToken]);
@@ -99,7 +101,7 @@ export function AlertsTab({
           <div className="admin-panel-actions">
             <button type="button" className="nm-btn nm-btn--primary" onClick={() => {
               setEditingAlertRule(null);
-              setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, channels: [], cooldown_minutes: 30, threshold_ms: null });
+              setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, channels: [], cooldown_minutes: 30, threshold_ms: null, loss_pct_threshold: null, loss_window_minutes: 60 });
               setShowAlertForm(true);
             }}>+ Add rule</button>
           </div>
@@ -120,6 +122,7 @@ export function AlertsTab({
                 <option value="any_status_change">Any status change</option>
                 <option value="rtt_above">Response time above threshold</option>
                 <option value="device_flapping">Device is flapping (repeated status changes)</option>
+                <option value="ping_loss_above">Ping loss above threshold</option>
               </select>
             </label>
             {alertForm.event_type === "rtt_above" && (
@@ -127,6 +130,23 @@ export function AlertsTab({
                 <input type="number" min={1} max={60000} value={alertForm.threshold_ms ?? ""} placeholder="e.g. 200"
                   onChange={(e) => setAlertForm(f => ({...f, threshold_ms: e.target.value ? Number(e.target.value) : null}))} />
               </label>
+            )}
+            {alertForm.event_type === "ping_loss_above" && (
+              <>
+                <label>Ping loss threshold (%)
+                  <input type="number" min={1} max={100} value={alertForm.loss_pct_threshold ?? ""} placeholder="e.g. 50"
+                    onChange={(e) => setAlertForm(f => ({...f, loss_pct_threshold: e.target.value ? Number(e.target.value) : null}))} />
+                </label>
+                <label>Sample window
+                  <select value={alertForm.loss_window_minutes ?? 60} onChange={(e) => setAlertForm(f => ({...f, loss_window_minutes: Number(e.target.value)}))}>
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={60}>1 hour</option>
+                    <option value={180}>3 hours</option>
+                    <option value={360}>6 hours</option>
+                  </select>
+                </label>
+              </>
             )}
             <label>Device
               <select value={alertForm.device_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, device_id: e.target.value ? Number(e.target.value) : null}))}>
@@ -180,7 +200,7 @@ export function AlertsTab({
               Enabled
             </label>
             <div className="ipam-form-actions">
-              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || (alertForm.event_type === "rtt_above" && !alertForm.threshold_ms)} onClick={() => void saveAlertRule()}>
+              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || (alertForm.event_type === "rtt_above" && !alertForm.threshold_ms) || (alertForm.event_type === "ping_loss_above" && !alertForm.loss_pct_threshold)} onClick={() => void saveAlertRule()}>
                 {alertRulesBusy ? "Saving…" : editingAlertRule ? "Update rule" : "Create rule"}
               </button>
               <button type="button" className="nm-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
@@ -212,6 +232,7 @@ export function AlertsTab({
                   any_status_change: "Any status change",
                   rtt_above: rule.threshold_ms ? `RTT above ${rule.threshold_ms} ms` : "RTT above threshold",
                   device_flapping: "Flapping",
+                  ping_loss_above: rule.loss_pct_threshold ? `Ping loss above ${rule.loss_pct_threshold}%` : "Ping loss above threshold",
                 };
                 const deviceName = rule.device_id
                   ? (() => { const d = graph.devices.find(x => x.id === rule.device_id); return d ? (d.display_name || d.hostname || d.ip_address) : `#${rule.device_id}`; })()
@@ -239,7 +260,7 @@ export function AlertsTab({
                         </button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => {
                           setEditingAlertRule(rule);
-                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms });
+                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms, loss_pct_threshold: rule.loss_pct_threshold, loss_window_minutes: rule.loss_window_minutes ?? 60 });
                           setShowAlertForm(true);
                         }}>Edit</button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteAlertRule(rule.id)}>Delete</button>
