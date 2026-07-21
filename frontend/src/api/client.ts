@@ -612,6 +612,8 @@ export type SystemSettings = {
   app_name: string;
   login_message: string;
   announcement: string;
+  support_email: string;
+  support_url: string;
   live_ping_enabled: boolean;
   monitor_interval_seconds: number;
   idle_timeout_minutes: number;

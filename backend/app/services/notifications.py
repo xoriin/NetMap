@@ -361,6 +361,18 @@ def send_notification_profile(profile: dict[str, Any], message: str) -> str:
         return "Error: delivery failed"
 
 
+def _support_contact_line(db: Session) -> str:
+    from app.api.v1.admin import load_settings
+
+    settings = load_settings(db)
+    email = settings.get("support_email", "")
+    url = settings.get("support_url", "")
+    contacts = [c for c in (email, url) if c]
+    if not contacts:
+        return ""
+    return f"Need help? Contact {' or '.join(contacts)}.\n\n"
+
+
 def send_password_reset_email(
     db: Session,
     *,
@@ -381,6 +393,7 @@ def send_password_reset_email(
         f"Use the link below to set a new password (valid for 1 hour):\n\n"
         f"{reset_link}\n\n"
         f"If you did not expect this, please contact your administrator.\n\n"
+        f"{_support_contact_line(db)}"
         f"— {app_name}"
     )
     _send_smtp(body, {**s, "smtp_to": email}, subject=f"{app_name} — Your password has been reset")
@@ -405,6 +418,7 @@ def send_self_service_password_reset_email(
         f"Click the link below to set a new password (valid for 1 hour):\n\n"
         f"{reset_link}\n\n"
         f"If you did not request a password reset, you can safely ignore this email.\n\n"
+        f"{_support_contact_line(db)}"
         f"— {app_name}"
     )
     _send_smtp(body, {**s, "smtp_to": email}, subject=f"{app_name} — Password reset request")

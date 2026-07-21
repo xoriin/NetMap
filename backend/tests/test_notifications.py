@@ -12,6 +12,7 @@ from app.models.site import Site  # noqa: F401
 from app.models.system_setting import SystemSetting
 from app.schemas.alert import AlertRuleCreate
 from app.services.notifications import (
+    _support_contact_line,
     create_notification_profile,
     get_notification_profile,
     list_notification_profiles,
@@ -136,3 +137,31 @@ def test_alert_rule_accepts_notification_profile_targets() -> None:
     )
 
     assert rule.channels == ["smtp", "profile:42"]
+
+
+def test_support_contact_line_empty_when_unconfigured() -> None:
+    db = _session()
+    assert _support_contact_line(db) == ""
+
+
+def test_support_contact_line_includes_configured_email_and_url() -> None:
+    db = _session()
+    db.add_all([
+        SystemSetting(key="support_email", value="help@example.com"),
+        SystemSetting(key="support_url", value="https://example.com/support"),
+    ])
+    db.commit()
+
+    line = _support_contact_line(db)
+    assert "help@example.com" in line
+    assert "https://example.com/support" in line
+
+
+def test_support_contact_line_includes_only_email_when_url_unset() -> None:
+    db = _session()
+    db.add(SystemSetting(key="support_email", value="help@example.com"))
+    db.commit()
+
+    line = _support_contact_line(db)
+    assert "help@example.com" in line
+    assert "http" not in line

@@ -38,6 +38,8 @@ export function SystemTab({
     app_name: "NetMap",
     login_message: "",
     announcement: "",
+    support_email: "",
+    support_url: "",
     live_ping_enabled: true,
     monitor_interval_seconds: 300,
     idle_timeout_minutes: 15,
@@ -170,6 +172,15 @@ export function SystemTab({
               <label>
                 Announcement banner
                 <textarea maxLength={500} rows={3} placeholder="Leave empty to hide. Shown to all logged-in users." value={settingsForm.announcement} onChange={(e) => setSettingsForm((c) => ({ ...c, announcement: e.target.value }))} />
+              </label>
+              <label>
+                Support email
+                <input type="email" maxLength={254} placeholder="help@example.com" value={settingsForm.support_email} onChange={(e) => setSettingsForm((c) => ({ ...c, support_email: e.target.value }))} />
+                <span className="tool-note tool-note--hint">Included in password-reset emails so users know who to contact.</span>
+              </label>
+              <label>
+                Support URL
+                <input type="text" maxLength={500} placeholder="https://example.com/support" value={settingsForm.support_url} onChange={(e) => setSettingsForm((c) => ({ ...c, support_url: e.target.value }))} />
               </label>
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.live_ping_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, live_ping_enabled: e.target.checked }))} />

@@ -65,6 +65,8 @@ DEFAULTS: dict[str, str] = {
     "app_name": "NetMap",
     "login_message": "",
     "announcement": "",
+    "support_email": "",
+    "support_url": "",
     "live_ping_enabled": "true",
     "monitor_interval_seconds": "300",
     "idle_timeout_minutes": "15",

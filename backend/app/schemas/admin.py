@@ -14,6 +14,8 @@ class SystemSettingsRead(BaseModel):
     app_name: str
     login_message: str
     announcement: str
+    support_email: str = ""
+    support_url: str = ""
     live_ping_enabled: bool = True
     monitor_interval_seconds: int = 300
     idle_timeout_minutes: int = 15
@@ -60,6 +62,8 @@ class SystemSettingsUpdate(BaseModel):
     app_name: str | None = Field(None, max_length=80)
     login_message: str | None = Field(None, max_length=300)
     announcement: str | None = Field(None, max_length=500)
+    support_email: str | None = Field(None, max_length=254)
+    support_url: str | None = Field(None, max_length=500)
     live_ping_enabled: bool | None = None
     monitor_interval_seconds: int | None = Field(None, ge=30, le=3600)
     idle_timeout_minutes: int | None = Field(None, ge=1, le=480)
