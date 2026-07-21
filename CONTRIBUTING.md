@@ -48,24 +48,29 @@ git clone https://github.com/xoriin/netmap.git
 cd netmap
 
 # Copy the example env file — edit values as needed for local use
-cp netmap.env.example netmap.env
+cp .env.example .env
 ```
 
-No additional setup is required. The rebuild script generates a `MASTER_KEY` automatically on first run if one isn't already set.
+`SECRET_KEY` and `MASTER_KEY` are required and have no default — generate both and set them in `.env`:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"                        # SECRET_KEY
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # MASTER_KEY
+```
 
 ---
 
 ## Running locally
 
-The `rebuild-aio.sh` script builds the container image from source and starts it:
+`docker-compose.build.yml` builds the container image from source and starts it:
 
 ```bash
-./rebuild-aio.sh
+docker compose -f docker-compose.build.yml up --build -d
 ```
 
-This runs `docker compose -f docker-compose.aio.yml up --build --force-recreate -d`. The app will be available at `http://localhost:8090` by default.
+The app will be available at `http://localhost:8080` by default.
 
-On first start, navigate to `http://localhost:8090` and complete the setup wizard to create your first admin account.
+On first start, navigate to `http://localhost:8080` and complete the setup wizard to create your first admin account.
 
 ---
 
@@ -85,7 +90,9 @@ frontend/src/
   Sidebar.tsx      — Navigation shell
   components/      — Shared atom components
   features/        — Page-level workspaces (devices, topology, monitoring, etc.)
-  styles/global.css — All CSS (single file)
+  styles/          — Layered CSS (tokens, base, shell, dashboard, workspaces,
+                       theme-dark, monitoring, components); global.css is the
+                       import index
   utils/           — Shared helpers
 
 docker/
@@ -119,7 +126,7 @@ uv run --extra dev python -m pytest tests
 
 - **No comments explaining what the code does** — well-named identifiers do that. Add a comment only when the *why* is non-obvious (a hidden constraint, a workaround, a subtle invariant).
 - **No speculative abstractions** — don't refactor or add helpers beyond what the task actually needs.
-- **Frontend** — React functional components, TypeScript strict mode, no `any`. CSS lives in `global.css`; follow the existing naming conventions (BEM-adjacent, feature-prefixed: `mon-`, `ep-`, `dash-`, etc.).
+- **Frontend** — React functional components, TypeScript strict mode, no `any`. CSS lives in the layered `styles/` files; follow the existing naming conventions (BEM-adjacent, feature-prefixed: `mon-`, `ep-`, `dash-`, etc.) and use the shared `nm-*` design-system classes for common UI instead of new workspace-specific variants.
 - **Backend** — follow existing patterns for route handlers (thin handlers, logic in `services/`). New database columns require a migration script in `backend/app/db/migrations/`.
 - **Commit messages** — short present-tense summary, no ticket prefixes. Keep it descriptive of the actual change.
 

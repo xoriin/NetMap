@@ -138,7 +138,19 @@ You need Docker and Docker Compose. That's it.
 mkdir -p /opt/netmap && cd /opt/netmap
 ```
 
-**2. Create a `docker-compose.yml`:**
+**2. Generate your secrets** (run once, you'll paste the output into the compose file next):
+
+```bash
+# SECRET_KEY
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+
+# MASTER_KEY
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+> **Important:** Keep both keys stable. Changing `SECRET_KEY` invalidates all active sessions. Changing `MASTER_KEY` makes any encrypted data stored by NetMap unreadable.
+
+**3. Create a `docker-compose.yml`** with the values from step 2:
 
 ```yaml
 services:
@@ -162,18 +174,6 @@ services:
       - NET_RAW
     restart: unless-stopped
 ```
-
-**3. Generate your secrets** (run once, paste the output into the compose file):
-
-```bash
-# SECRET_KEY
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-
-# MASTER_KEY
-python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-> **Important:** Keep both keys stable. Changing `SECRET_KEY` invalidates all active sessions. Changing `MASTER_KEY` makes any encrypted data stored by NetMap unreadable.
 
 **4. Start the container:**
 
