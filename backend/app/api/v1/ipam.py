@@ -583,7 +583,10 @@ def update_reservation(
     reservation = db.get(IpReservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
-    for field, val in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "expires_at" in updates and updates["expires_at"] != reservation.expires_at:
+        reservation.reminder_sent_at = None
+    for field, val in updates.items():
         setattr(reservation, field, val)
     reservation.updated_at = datetime.now(timezone.utc)
     db.commit()

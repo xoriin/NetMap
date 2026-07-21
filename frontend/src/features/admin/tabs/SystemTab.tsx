@@ -11,7 +11,7 @@ import {
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { triggerDownload } from "../../../utils/download";
-import { fmtBytes } from "../notificationProfiles";
+import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from "../notificationProfiles";
 
 export function SystemTab({
   accessToken,
@@ -43,6 +43,9 @@ export function SystemTab({
     idle_timeout_minutes: 15,
     active_network_public_targets_enabled: false,
     ip_reservation_default_expiry_enabled: true,
+    ip_reservation_reminder_enabled: false,
+    ip_reservation_reminder_days: 3,
+    ip_reservation_reminder_channels: [],
   });
   const [monitorIntervalRaw, setMonitorIntervalRaw] = useState("300");
   const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
@@ -60,6 +63,9 @@ export function SystemTab({
     return { syslog, settings };
   }, [accessToken]);
   const syslogStatus = systemQuery.data?.syslog ?? null;
+
+  const notificationProfilesQuery = useApiQuery(() => api.listNotificationProfiles(accessToken), [accessToken]);
+  const notificationProfiles = notificationProfilesQuery.data ?? [];
 
   useEffect(() => {
     const settings = systemQuery.data?.settings;
@@ -216,6 +222,57 @@ export function SystemTab({
                   <span className="tool-note">When enabled, new IPAM reservations prefill an expiry date 90 days ahead. Users can clear the field before saving.</span>
                 </span>
               </label>
+              <label className="tool-form-inline-check">
+                <input type="checkbox" checked={settingsForm.ip_reservation_reminder_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, ip_reservation_reminder_enabled: e.target.checked }))} />
+                <span className="tool-form-check-copy">
+                  <span>Send IP reservation expiry reminders</span>
+                  <span className="tool-note">Notifies the channels below once per reservation when it is within the lead time of its expiry date.</span>
+                </span>
+              </label>
+              {settingsForm.ip_reservation_reminder_enabled && (
+                <>
+                  <label>Reminder lead time (days)
+                    <select value={settingsForm.ip_reservation_reminder_days} onChange={(e) => setSettingsForm((c) => ({ ...c, ip_reservation_reminder_days: Number(e.target.value) }))}>
+                      <option value={1}>1 day</option>
+                      <option value={3}>3 days</option>
+                      <option value={7}>7 days</option>
+                      <option value={14}>14 days</option>
+                      <option value={30}>30 days</option>
+                    </select>
+                  </label>
+                  <fieldset style={{ border: '1px solid #d0dde6', borderRadius: 6, padding: '8px 12px' }}>
+                    <legend style={{ fontSize: 12, fontWeight: 700, color: '#314656', padding: '0 4px' }}>Notify via saved methods</legend>
+                    {settingsForm.ip_reservation_reminder_channels.filter((channel) => !channel.startsWith("profile:")).map(ch => (
+                      <label key={ch} className="tool-form-inline-check" style={{ marginBottom: 4 }}>
+                        <input type="checkbox" checked
+                          onChange={() => setSettingsForm(c => ({
+                            ...c,
+                            ip_reservation_reminder_channels: c.ip_reservation_reminder_channels.filter(x => x !== ch),
+                          }))} />
+                        {legacyChannelLabels[ch] ?? ch} <span className="tool-note">(legacy)</span>
+                      </label>
+                    ))}
+                    {notificationProfiles.map(profile => {
+                      const target = `profile:${profile.id}`;
+                      return (
+                        <label key={target} className="tool-form-inline-check" style={{ marginBottom: 4 }}>
+                          <input type="checkbox" checked={settingsForm.ip_reservation_reminder_channels.includes(target)}
+                            onChange={(e) => setSettingsForm(c => ({
+                              ...c,
+                              ip_reservation_reminder_channels: e.target.checked
+                                ? [...c.ip_reservation_reminder_channels, target]
+                                : c.ip_reservation_reminder_channels.filter(x => x !== target),
+                            }))} />
+                          {profile.name} <span className="tool-note">({notificationProfileMethodLabel(profile)}{profile.enabled ? "" : ", disabled"})</span>
+                        </label>
+                      );
+                    })}
+                    {notificationProfiles.length === 0 && (
+                      <p className="tool-note" style={{ margin: '6px 0 0' }}>Add notification methods in Notifications to receive reservation reminders.</p>
+                    )}
+                  </fieldset>
+                </>
+              )}
               <label>
                 Idle session timeout (minutes)
                 {(() => {

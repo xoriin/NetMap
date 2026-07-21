@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
         from app.models.system_setting import SystemSetting
         from app.services.alerting.service import alert_monitor
         from app.services.discovery.scheduled import scheduled_discovery
+        from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.rbac.permissions import load_from_db
         validate_runtime_configuration()
         init_db()
@@ -84,15 +85,18 @@ def create_app() -> FastAPI:
         syslog_service.start()
         alert_monitor.start()
         scheduled_discovery.start()
+        ip_reservation_reminder_service.start()
         _start_firewall_startup_maintenance()
 
     @app.on_event("shutdown")
     def on_shutdown() -> None:
         from app.services.alerting.service import alert_monitor
         from app.services.discovery.scheduled import scheduled_discovery
+        from app.services.ipam.reminders import ip_reservation_reminder_service
         syslog_service.stop()
         alert_monitor.stop()
         scheduled_discovery.stop()
+        ip_reservation_reminder_service.stop()
 
     return app
 

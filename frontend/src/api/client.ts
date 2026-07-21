@@ -617,6 +617,9 @@ export type SystemSettings = {
   idle_timeout_minutes: number;
   active_network_public_targets_enabled: boolean;
   ip_reservation_default_expiry_enabled: boolean;
+  ip_reservation_reminder_enabled: boolean;
+  ip_reservation_reminder_days: number;
+  ip_reservation_reminder_channels: string[];
 };
 
 export type PermissionMeta = {

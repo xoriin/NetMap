@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -69,6 +70,9 @@ DEFAULTS: dict[str, str] = {
     "idle_timeout_minutes": "15",
     "active_network_public_targets_enabled": str(settings.active_network_public_targets_enabled).lower(),
     "ip_reservation_default_expiry_enabled": "true",
+    "ip_reservation_reminder_enabled": "false",
+    "ip_reservation_reminder_days": "3",
+    "ip_reservation_reminder_channels": "[]",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (
@@ -238,7 +242,10 @@ def update_settings(
     _current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SystemSettingsRead:
-    _save(db, DEFAULTS, payload.model_dump(exclude_unset=True))
+    updates = payload.model_dump(exclude_unset=True)
+    if "ip_reservation_reminder_channels" in updates and updates["ip_reservation_reminder_channels"] is not None:
+        updates["ip_reservation_reminder_channels"] = json.dumps(updates["ip_reservation_reminder_channels"])
+    _save(db, DEFAULTS, updates)
     return SystemSettingsRead(**load_settings(db))
 
 

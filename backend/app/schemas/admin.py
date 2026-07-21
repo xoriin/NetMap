@@ -1,6 +1,9 @@
+import json
 import re
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+from app.schemas.alert import PROFILE_TARGET_RE, VALID_CHANNELS
 
 
 class AdminPasswordResetRequest(BaseModel):
@@ -16,22 +19,41 @@ class SystemSettingsRead(BaseModel):
     idle_timeout_minutes: int = 15
     active_network_public_targets_enabled: bool = False
     ip_reservation_default_expiry_enabled: bool = True
+    ip_reservation_reminder_enabled: bool = False
+    ip_reservation_reminder_days: int = 3
+    ip_reservation_reminder_channels: list[str] = Field(default_factory=list)
 
-    @field_validator("live_ping_enabled", "active_network_public_targets_enabled", "ip_reservation_default_expiry_enabled", mode="before")
+    @field_validator(
+        "live_ping_enabled", "active_network_public_targets_enabled",
+        "ip_reservation_default_expiry_enabled", "ip_reservation_reminder_enabled",
+        mode="before",
+    )
     @classmethod
     def _coerce_bool(cls, v: object) -> bool:
         if isinstance(v, bool):
             return v
         return str(v).lower() not in ("false", "0", "")
 
-    @field_validator("idle_timeout_minutes", "monitor_interval_seconds", mode="before")
+    @field_validator("idle_timeout_minutes", "monitor_interval_seconds", "ip_reservation_reminder_days", mode="before")
     @classmethod
     def _coerce_int(cls, v: object, info: ValidationInfo) -> int:
-        fallback = 300 if info.field_name == "monitor_interval_seconds" else 15
+        fallback = {"monitor_interval_seconds": 300, "ip_reservation_reminder_days": 3}.get(info.field_name, 15)
         try:
             return max(1, int(v))
         except (TypeError, ValueError):
             return fallback
+
+    @field_validator("ip_reservation_reminder_channels", mode="before")
+    @classmethod
+    def _parse_channels(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            if not v:
+                return []
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return []
+        return list(v) if v else []  # type: ignore[arg-type]
 
 
 class SystemSettingsUpdate(BaseModel):
@@ -43,6 +65,19 @@ class SystemSettingsUpdate(BaseModel):
     idle_timeout_minutes: int | None = Field(None, ge=1, le=480)
     active_network_public_targets_enabled: bool | None = None
     ip_reservation_default_expiry_enabled: bool | None = None
+    ip_reservation_reminder_enabled: bool | None = None
+    ip_reservation_reminder_days: int | None = Field(None, ge=1, le=30)
+    ip_reservation_reminder_channels: list[str] | None = None
+
+    @field_validator("ip_reservation_reminder_channels")
+    @classmethod
+    def validate_channels(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        invalid = {channel for channel in v if channel not in VALID_CHANNELS and not PROFILE_TARGET_RE.match(channel)}
+        if invalid:
+            raise ValueError(f"Invalid channels: {invalid}")
+        return v
 
 
 class NotificationSettings(BaseModel):
