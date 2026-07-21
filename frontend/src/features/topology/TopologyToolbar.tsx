@@ -100,6 +100,7 @@ export function TopologyToolbar({
   onOpenLayouts,
   onExportPng,
   onExportSvg,
+  onExportPdf,
   onShowNodeIconsChange,
   onShowNodeLabelsChange,
   onToggleGroupVisibility,
@@ -144,6 +145,7 @@ export function TopologyToolbar({
   onOpenLayouts: () => void;
   onExportPng: () => void;
   onExportSvg: () => void;
+  onExportPdf: () => void;
   onShowNodeIconsChange: (value: boolean) => void;
   onShowNodeLabelsChange: (value: boolean) => void;
   onToggleGroupVisibility: (groupName: string) => void;
@@ -213,6 +215,7 @@ export function TopologyToolbar({
             <>
               <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPng}>PNG</button>
               <button type="button" className="nm-btn nm-btn--sm" onClick={onExportSvg}>SVG</button>
+              <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPdf}>PDF</button>
             </>
           )}
         </div>

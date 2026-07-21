@@ -27,7 +27,7 @@ import { DiscoveryModal } from "./DiscoveryModal";
 import { LayoutsModal } from "./LayoutsModal";
 import { MiniMap, type MiniMapExtent, type MiniMapNode } from "./MiniMap";
 import { buildCytoscapeStylesheet, linkSpeedEdgeWidth } from "./cytoscapeStyles";
-import { exportTopologyPng, exportTopologySvg } from "./topologyExport";
+import { exportTopologyPng, exportTopologySvg, exportTopologyPdf } from "./topologyExport";
 import { EntityList } from "./EntityList";
 import { TopologyToolbar, type GroupDisplayPref } from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
@@ -1733,6 +1733,7 @@ export function TopologyWorkspace({
         onOpenLayouts={() => setShowLayoutsModal(true)}
         onExportPng={() => { if (cyRef.current) exportTopologyPng(cyRef.current, edgeLabelFontSize); }}
         onExportSvg={() => { if (cyRef.current) exportTopologySvg(cyRef.current); }}
+        onExportPdf={() => { if (cyRef.current) exportTopologyPdf(cyRef.current, edgeLabelFontSize); }}
         onShowNodeIconsChange={setShowNodeIcons}
         onShowNodeLabelsChange={setShowNodeLabels}
         onToggleGroupVisibility={toggleGroupVisibility}
