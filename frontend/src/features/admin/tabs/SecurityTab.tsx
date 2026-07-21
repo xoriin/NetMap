@@ -383,15 +383,39 @@ export function SecurityTab({
 }) {
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditUserFilter, setAuditUserFilter] = useState<number | null>(initialUserFilter);
+  const [auditView, setAuditView] = useState<"all" | "login">("all");
 
   const auditQuery = useApiQuery(() => {
-    const params: { limit: number; offset: number; actor_user_id?: number } = { limit: 50, offset: auditOffset };
+    const params: { limit: number; offset: number; actor_user_id?: number; category?: "login" } = { limit: 50, offset: auditOffset };
     if (auditUserFilter !== null) params.actor_user_id = auditUserFilter;
+    if (auditView === "login") params.category = "login";
     return api.listAuditLogs(accessToken, params);
-  }, [accessToken, auditOffset, auditUserFilter]);
+  }, [accessToken, auditOffset, auditUserFilter, auditView]);
 
   const auditLogs = auditQuery.data?.records ?? [];
   const auditLogsTotal = auditQuery.data?.total ?? 0;
+
+  function auditLogUsername(log: { actor_user_id: number | null; target: string | null }): string {
+    if (log.actor_user_id) return users.find((u) => u.id === log.actor_user_id)?.username ?? `#${log.actor_user_id}`;
+    if (log.target?.startsWith("user:")) return log.target.slice(5);
+    return "—";
+  }
+
+  function loginResultBadge(action: string): { label: string; tone: "ok" | "warn" | "err" } {
+    switch (action) {
+      case "auth.login_success": return { label: "Success", tone: "ok" };
+      case "auth.logout": return { label: "Logout", tone: "ok" };
+      case "auth.login_failed": return { label: "Failed", tone: "err" };
+      case "auth.login_blocked": return { label: "Blocked (rate limit)", tone: "err" };
+      case "auth.login_blocked_sso_required": return { label: "Blocked (SSO required)", tone: "warn" };
+      default: return { label: action, tone: "warn" };
+    }
+  }
+
+  function ipFromDetail(detail: string | null): string {
+    const match = detail?.match(/ip=(\S+)/);
+    return match ? match[1] : "—";
+  }
 
   return (
     <div className="admin-tab-content">
@@ -399,47 +423,76 @@ export function SecurityTab({
       <ApiKeysOversightPanel accessToken={accessToken} />
       <section className="panel admin-panel admin-security-audit-panel">
         <div className="admin-panel-header">
-          <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : "Login & Audit History"}</h2>
+          <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : auditView === "login" ? "Login History" : "Login & Audit History"}</h2>
           <div className="admin-panel-actions">
+            <button type="button" className={`nm-btn nm-btn--sm${auditView === "all" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("all"); setAuditOffset(0); }}>All activity</button>
+            <button type="button" className={`nm-btn nm-btn--sm${auditView === "login" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("login"); setAuditOffset(0); }}>Login history</button>
             {auditUserFilter && <button type="button" className="nm-btn" onClick={() => { setAuditUserFilter(null); setAuditOffset(0); }}>All users</button>}
             <button type="button" className="nm-btn" onClick={() => void auditQuery.reload()}>Refresh</button>
           </div>
         </div>
         {auditQuery.error && <div className="form-error">{auditQuery.error}</div>}
-        <div className="audit-log-table">
-          <div className="audit-log-header">
-            <span>Time</span>
-            <span>Event</span>
-            <span>Actor</span>
-            <span>Context</span>
+        {auditView === "login" ? (
+          <div className="audit-log-table audit-log-table--login">
+            <div className="audit-log-header">
+              <span>Time</span>
+              <span>User</span>
+              <span>Result</span>
+              <span>IP address</span>
+            </div>
+            {auditLogs.length === 0 && <p className="audit-empty">{auditQuery.isLoading ? "Loading…" : "No login events found."}</p>}
+            {auditLogs.map((log) => {
+              const dt = new Date(log.created_at);
+              const result = loginResultBadge(log.action);
+              return (
+                <div className="audit-log-row" key={log.id}>
+                  <div className="audit-time-cell">
+                    <span className="audit-date">{dt.toLocaleDateString()}</span>
+                    <span className="audit-time">{dt.toLocaleTimeString()}</span>
+                  </div>
+                  <span className="audit-actor">{auditLogUsername(log)}</span>
+                  <span className={`notif-result${result.tone === "ok" ? " ok" : " err"}`}>{result.label}</span>
+                  <span className="audit-detail nm-table-mono">{ipFromDetail(log.detail)}</span>
+                </div>
+              );
+            })}
           </div>
-          {auditLogs.length === 0 && <p className="audit-empty">{auditQuery.isLoading ? "Loading…" : "No audit records found."}</p>}
-          {auditLogs.map((log) => {
-            const dt = new Date(log.created_at);
-            const category = log.action.split(".")[0];
-            const actor = log.actor_user_id
-              ? (users.find((u) => u.id === log.actor_user_id)?.username ?? `#${log.actor_user_id}`)
-              : "system";
-            return (
-              <div className="audit-log-row" key={log.id}>
-                <div className="audit-time-cell">
-                  <span className="audit-date">{dt.toLocaleDateString()}</span>
-                  <span className="audit-time">{dt.toLocaleTimeString()}</span>
+        ) : (
+          <div className="audit-log-table">
+            <div className="audit-log-header">
+              <span>Time</span>
+              <span>Event</span>
+              <span>Actor</span>
+              <span>Context</span>
+            </div>
+            {auditLogs.length === 0 && <p className="audit-empty">{auditQuery.isLoading ? "Loading…" : "No audit records found."}</p>}
+            {auditLogs.map((log) => {
+              const dt = new Date(log.created_at);
+              const category = log.action.split(".")[0];
+              const actor = log.actor_user_id
+                ? (users.find((u) => u.id === log.actor_user_id)?.username ?? `#${log.actor_user_id}`)
+                : "system";
+              return (
+                <div className="audit-log-row" key={log.id}>
+                  <div className="audit-time-cell">
+                    <span className="audit-date">{dt.toLocaleDateString()}</span>
+                    <span className="audit-time">{dt.toLocaleTimeString()}</span>
+                  </div>
+                  <div className="audit-event-cell">
+                    <span className={`audit-category-badge audit-category-badge--${category}`}>{category}</span>
+                    <span className="audit-action">{log.action.includes(".") ? log.action.slice(log.action.indexOf(".") + 1) : log.action}</span>
+                  </div>
+                  <span className="audit-actor">{actor}</span>
+                  <div className="audit-context-cell">
+                    {log.target && <span className="audit-target">{log.target}</span>}
+                    {log.detail && <span className="audit-detail">{log.detail}</span>}
+                    {!log.target && !log.detail && <span className="audit-detail">—</span>}
+                  </div>
                 </div>
-                <div className="audit-event-cell">
-                  <span className={`audit-category-badge audit-category-badge--${category}`}>{category}</span>
-                  <span className="audit-action">{log.action.includes(".") ? log.action.slice(log.action.indexOf(".") + 1) : log.action}</span>
-                </div>
-                <span className="audit-actor">{actor}</span>
-                <div className="audit-context-cell">
-                  {log.target && <span className="audit-target">{log.target}</span>}
-                  {log.detail && <span className="audit-detail">{log.detail}</span>}
-                  {!log.target && !log.detail && <span className="audit-detail">—</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
         <div className="audit-pagination">
           <button type="button" className="nm-btn" disabled={auditOffset === 0} onClick={() => setAuditOffset((current) => Math.max(0, current - 50))}>← Prev</button>
           <span>{auditOffset + 1}–{Math.min(auditOffset + 50, auditLogsTotal)} of {auditLogsTotal}</span>

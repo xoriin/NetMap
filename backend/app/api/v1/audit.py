@@ -12,6 +12,14 @@ from app.schemas.audit import AuditLogList, AuditLogRead
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
+LOGIN_HISTORY_ACTIONS = (
+    "auth.login_success",
+    "auth.login_failed",
+    "auth.login_blocked",
+    "auth.login_blocked_sso_required",
+    "auth.logout",
+)
+
 
 @router.get("/logs", response_model=AuditLogList)
 def list_audit_logs(
@@ -20,12 +28,16 @@ def list_audit_logs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     actor_user_id: Annotated[int | None, Query()] = None,
+    category: Annotated[str | None, Query()] = None,
 ) -> AuditLogList:
     base_q = select(AuditLog)
     count_q = select(func.count()).select_from(AuditLog)
     if actor_user_id is not None:
         base_q = base_q.where(AuditLog.actor_user_id == actor_user_id)
         count_q = count_q.where(AuditLog.actor_user_id == actor_user_id)
+    if category == "login":
+        base_q = base_q.where(AuditLog.action.in_(LOGIN_HISTORY_ACTIONS))
+        count_q = count_q.where(AuditLog.action.in_(LOGIN_HISTORY_ACTIONS))
     total = int(db.scalar(count_q) or 0)
     records = db.scalars(
         base_q.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).offset(offset).limit(limit),

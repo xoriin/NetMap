@@ -1697,7 +1697,7 @@ export const api = {
       method: "DELETE",
       token,
     }),
-  listAuditLogs: (token: string, params: { limit?: number; offset?: number; actor_user_id?: number } = {}) => {
+  listAuditLogs: (token: string, params: { limit?: number; offset?: number; actor_user_id?: number; category?: "login" } = {}) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) search.set(key, String(value));
