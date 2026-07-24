@@ -123,11 +123,20 @@ export function MonitorsPanel({
     containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - colWidths.reduce((sum, w) => sum + w, 0),
   );
 
+  const MIN_COL_WIDTH = 60;
+
+  // A handle sits at the right edge of column colIdx and trades width with
+  // whatever is immediately to its right — the next resizable column, or the
+  // filler ("Last checked") if colIdx is the last one. Only that one pair
+  // ever changes; every other column keeps both its width and its position.
   function startColResize(colIdx: number, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startWidth = colWidths[colIdx];
+    const isLastResizable = colIdx === colWidths.length - 1;
+    const neighborStartWidth = isLastResizable ? fillerWidth : colWidths[colIdx + 1];
+    const neighborMin = isLastResizable ? MONITORS_FILLER_MIN_WIDTH : MIN_COL_WIDTH;
     resizingRef.current = { colIdx, startX, startWidth };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
@@ -135,15 +144,13 @@ export function MonitorsPanel({
     function onMove(ev: MouseEvent) {
       if (!resizingRef.current) return;
       const { colIdx: ci, startX: sx, startWidth: sw } = resizingRef.current;
-      const rawNext = Math.max(60, sw + (ev.clientX - sx));
+      const rawDelta = ev.clientX - sx;
+      // Clamp so neither side of the pair can shrink past its minimum.
+      const delta = Math.max(MIN_COL_WIDTH - sw, Math.min(neighborStartWidth - neighborMin, rawDelta));
       setColWidths((prev) => {
-        const othersSum = prev.reduce((sum, w, i) => (i === ci ? sum : sum + w), 0);
-        const maxForThis = Math.max(
-          60,
-          containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - MONITORS_FILLER_MIN_WIDTH - othersSum,
-        );
         const updated = [...prev];
-        updated[ci] = Math.min(rawNext, maxForThis);
+        updated[ci] = sw + delta;
+        if (!isLastResizable) updated[ci + 1] = neighborStartWidth - delta;
         return updated;
       });
     }
