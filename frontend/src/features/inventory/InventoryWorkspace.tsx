@@ -11,6 +11,7 @@ import {
   type DeviceSecurityEventSummary, type SnmpProfile,
 } from "../../api/client";
 import { deviceTypeIconMap, iconLabel } from "../../icons";
+import type { AppRoute } from "../../routes";
 import { compareGroupLabels } from "../../utils/sort";
 import { deviceLabel, statusColor, formatDeviceTypeLabel } from "../../utils/format";
 import { isDeviceMonitoringPaused } from "../../utils/device";
@@ -38,6 +39,7 @@ export function InventoryWorkspace({
   onDeviceChange,
   onDevicesRemove,
   onGraphChange,
+  onNavigate,
   onObservationActioned,
   onToggleFavourite,
   openObservationCount,
@@ -51,6 +53,7 @@ export function InventoryWorkspace({
   onDeviceChange: (device: Device) => void;
   onDevicesRemove: (deviceIds: number[]) => void;
   onGraphChange: () => Promise<void>;
+  onNavigate?: (route: AppRoute) => void;
   onObservationActioned?: () => void;
   onToggleFavourite: (deviceId: number) => void;
   openObservationCount?: number;
@@ -446,9 +449,32 @@ export function InventoryWorkspace({
   return (
     <section className="topology-layout inventory-layout">
       <div className="dash-stats inventory-stats">
-        <DashStat label="Devices" value={graph.devices.length} sub="in inventory" icon={<IconServer size={20} />} accent="teal" />
-        <DashStat label="Online" value={invOnlineCount} sub="reachable" icon={<IconWifi size={20} />} accent="green" />
-        <DashStat label="Offline" value={invOfflineCount} sub={invOfflineCount > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={invOfflineCount > 0 ? "red" : "green"} />
+        <DashStat
+          label="Devices"
+          value={graph.devices.length}
+          sub="in inventory"
+          icon={<IconServer size={20} />}
+          accent="teal"
+          onClick={() => setStatusFilter("all")}
+        />
+        <DashStat
+          label="Online"
+          value={invOnlineCount}
+          sub="reachable"
+          icon={<IconWifi size={20} />}
+          accent="green"
+          onClick={() => setStatusFilter((current) => current === "online" ? "all" : "online")}
+          active={statusFilter === "online"}
+        />
+        <DashStat
+          label="Offline"
+          value={invOfflineCount}
+          sub={invOfflineCount > 0 ? "need attention" : "all clear"}
+          icon={<IconWifiOff size={20} />}
+          accent={invOfflineCount > 0 ? "red" : "green"}
+          onClick={() => setStatusFilter((current) => current === "offline" ? "all" : "offline")}
+          active={statusFilter === "offline"}
+        />
         <DashStat label="Groups" value={groupCount} sub="topology segments" icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
 
@@ -456,6 +482,7 @@ export function InventoryWorkspace({
         accessToken={accessToken}
         openObservationCount={openObservationCount}
         onObservationActioned={onObservationActioned}
+        onNavigate={onNavigate}
       />
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
