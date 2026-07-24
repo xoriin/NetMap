@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PortResult(BaseModel):
@@ -12,6 +12,9 @@ class PortResult(BaseModel):
     check_type: str = "tcp"
     open: bool
     status: str | None = None
+    response_time_ms: float | None = None
+    # http/https checks only: the HTTP status code returned, if the server responded at all
+    status_code: int | None = None
 
 
 class MonitorHistoryPoint(BaseModel):
@@ -76,6 +79,9 @@ class DeviceAnalysis(BaseModel):
     longest_outage_minutes: int | None  # longest offline streak in 7 days
 
 
+VALID_HTTP_METHODS = {"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}
+
+
 class PortTargetOut(BaseModel):
     id: int
     device_id: int | None
@@ -83,6 +89,12 @@ class PortTargetOut(BaseModel):
     label: str
     check_type: str = "tcp"
     http_path: str | None = None
+    http_method: str = "GET"
+    expected_status_min: int = 200
+    expected_status_max: int = 399
+    timeout_seconds: float | None = None
+    verify_tls: bool = False
+    follow_redirects: bool = True
     enabled: bool = True
     created_at: datetime
 
@@ -95,6 +107,12 @@ class PortTargetCreate(BaseModel):
     label: str = Field(..., min_length=1, max_length=60)
     check_type: str = Field(default="tcp", pattern="^(tcp|udp|http|https)$")
     http_path: str | None = Field(default=None, max_length=200)
+    http_method: str = Field(default="GET", max_length=10)
+    expected_status_min: int = Field(default=200, ge=100, le=599)
+    expected_status_max: int = Field(default=399, ge=100, le=599)
+    timeout_seconds: float | None = Field(default=None, ge=1, le=30)
+    verify_tls: bool = False
+    follow_redirects: bool = True
     enabled: bool = True
 
     @field_validator("http_path")
@@ -110,3 +128,17 @@ class PortTargetCreate(BaseModel):
         if any(ch in path for ch in ("\r", "\n", " ", "#")):
             raise ValueError("HTTP path contains invalid characters")
         return path
+
+    @field_validator("http_method")
+    @classmethod
+    def validate_http_method(cls, value: str) -> str:
+        method = value.strip().upper()
+        if method not in VALID_HTTP_METHODS:
+            raise ValueError(f"http_method must be one of {sorted(VALID_HTTP_METHODS)}")
+        return method
+
+    @model_validator(mode="after")
+    def validate_status_range(self) -> "PortTargetCreate":
+        if self.expected_status_min > self.expected_status_max:
+            raise ValueError("expected_status_min must be <= expected_status_max")
+        return self

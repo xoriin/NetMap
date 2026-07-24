@@ -46,6 +46,8 @@ class AlertMonitorService:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._known: dict[int, str] = {}
+        # (device_id, port_target_id) -> was it open on the previous poll
+        self._known_ports: dict[tuple[int, int], bool] = {}
         self._flap_times: dict[int, list[datetime]] = {}
         self._initialized = False
         self._last_pruned_at: datetime | None = None
@@ -141,6 +143,8 @@ class AlertMonitorService:
                 current[device_id] = status
                 rtt_map[device_id] = rtt_ms
 
+        current_ports: dict[tuple[int, int], dict] = {}  # (device_id, target_id) -> latest result
+
         port_tasks: list[tuple[str, int, object]] = [
             (device.ip_address, device.id, target)
             for device in devices
@@ -151,26 +155,37 @@ class AlertMonitorService:
             port_future_map: dict = {}
             with ThreadPoolExecutor(max_workers=port_workers) as port_ex:
                 for ip, device_id, target in port_tasks:
-                    timeout = HTTP_CHECK_TIMEOUT_SECONDS if target.check_type in ("http", "https") else 2.0
+                    is_http = target.check_type in ("http", "https")
+                    timeout = target.timeout_seconds if (is_http and target.timeout_seconds) else (HTTP_CHECK_TIMEOUT_SECONDS if is_http else 2.0)
                     f = port_ex.submit(
                         check_port, ip, target.port, timeout,
                         protocol=target.check_type, http_path=target.http_path,
+                        http_method=target.http_method,
+                        expected_status_min=target.expected_status_min,
+                        expected_status_max=target.expected_status_max,
+                        verify_tls=target.verify_tls,
+                        follow_redirects=target.follow_redirects,
                     )
                     port_future_map[f] = (device_id, target)
                 for future in as_completed(port_future_map):
                     device_id, target = port_future_map[future]
                     try:
-                        open_ = future.result()
+                        result = future.result()
+                        open_, response_ms, status_code = result.open, result.response_time_ms, result.status_code
                     except Exception:
-                        open_ = False
-                    port_map.setdefault(device_id, []).append({
+                        open_, response_ms, status_code = False, None, None
+                    entry = {
                         "target_id": target.id,
                         "port": target.port,
                         "label": target.label,
                         "check_type": target.check_type,
                         "open": open_,
                         "status": "open" if open_ else "closed",
-                    })
+                        "response_time_ms": round(response_ms, 2) if response_ms is not None else None,
+                        "status_code": status_code,
+                    }
+                    port_map.setdefault(device_id, []).append(entry)
+                    current_ports[(device_id, target.id)] = entry
 
         # Persist history and update device monitor_status
         with SessionLocal() as db:
@@ -198,14 +213,18 @@ class AlertMonitorService:
 
         self._prune_history()
 
+        known_ports_now = {key: entry["open"] for key, entry in current_ports.items()}
+
         if not self._initialized:
             self._known = current
+            self._known_ports = known_ports_now
             self._initialized = True
             logger.debug("Alert monitor: initial state learned for %d devices", len(current))
             return
 
         if not rules:
             self._known = current
+            self._known_ports = known_ports_now
             return
 
         device_map = {d.id: d for d in devices}
@@ -273,6 +292,27 @@ class AlertMonitorService:
                 loss_pct=loss_pct, loss_pct_threshold=rule.loss_pct_threshold,
             ))
 
+        # Service checks (port/service targets): edge-triggered down, threshold-based slow response
+        for rule, device_id, service_label in self._service_down_breaches(rules, self._known_ports, current_ports, now):
+            device = device_map.get(device_id)
+            if device is None:
+                continue
+            label = device.display_name or device.hostname or device.ip_address
+            fire(rule, device_id, self._build_message(
+                "service_down", label, device.ip_address, "offline", app_name,
+                service_label=service_label,
+            ))
+
+        for rule, device_id, response_ms, service_label in self._service_slow_breaches(rules, current_ports, now):
+            device = device_map.get(device_id)
+            if device is None:
+                continue
+            label = device.display_name or device.hostname or device.ip_address
+            fire(rule, device_id, self._build_message(
+                "service_slow", label, device.ip_address, "online", app_name,
+                rtt_ms=response_ms, threshold_ms=rule.threshold_ms, service_label=service_label,
+            ))
+
         # Flapping: devices with too many status transitions inside the window
         cutoff = now - timedelta(seconds=FLAP_WINDOW_SECONDS)
         self._flap_times = {
@@ -313,6 +353,7 @@ class AlertMonitorService:
                 db.commit()
 
         self._known = current
+        self._known_ports = known_ports_now
 
     def _probe_device_status(self, device: Device) -> tuple[str, float | None]:
         try:
@@ -431,6 +472,56 @@ class AlertMonitorService:
                         breaches.append((rule, device_id, loss_pct))
         return breaches
 
+    @classmethod
+    def _service_down_breaches(
+        cls,
+        rules: list[AlertRule],
+        known_ports: dict[tuple[int, int], bool],
+        current_ports: dict[tuple[int, int], dict],
+        now: datetime,
+    ) -> list[tuple[AlertRule, int, str]]:
+        """Return (rule, device_id, service_label) for every up->down service transition this cycle."""
+        down_rules = [r for r in rules if r.event_type == "service_down"]
+        if not down_rules:
+            return []
+        breaches: list[tuple[AlertRule, int, str]] = []
+        for (device_id, target_id), entry in current_ports.items():
+            was_open = known_ports.get((device_id, target_id))
+            # was_open is None the first time this target is seen — nothing to compare yet
+            if was_open is None or was_open is False or entry["open"]:
+                continue
+            for rule in down_rules:
+                if rule.port_target_id is not None and rule.port_target_id != target_id:
+                    continue
+                if not cls._cooldown_ok(rule, now):
+                    continue
+                breaches.append((rule, device_id, entry["label"]))
+        return breaches
+
+    @classmethod
+    def _service_slow_breaches(
+        cls,
+        rules: list[AlertRule],
+        current_ports: dict[tuple[int, int], dict],
+        now: datetime,
+    ) -> list[tuple[AlertRule, int, float, str]]:
+        """Return (rule, device_id, response_time_ms, service_label) for every service_slow breach this cycle."""
+        slow_rules = [r for r in rules if r.event_type == "service_slow" and r.threshold_ms is not None]
+        if not slow_rules:
+            return []
+        breaches: list[tuple[AlertRule, int, float, str]] = []
+        for rule in slow_rules:
+            if not cls._cooldown_ok(rule, now):
+                continue
+            for (device_id, target_id), entry in current_ports.items():
+                if rule.port_target_id is not None and rule.port_target_id != target_id:
+                    continue
+                response_ms = entry.get("response_time_ms")
+                if response_ms is None or response_ms <= rule.threshold_ms:
+                    continue
+                breaches.append((rule, device_id, response_ms, entry["label"]))
+        return breaches
+
     @staticmethod
     def _cooldown_ok(rule: AlertRule, now: datetime) -> bool:
         if rule.last_triggered_at is None:
@@ -450,6 +541,7 @@ class AlertMonitorService:
         flap_count: int | None = None,
         loss_pct: float | None = None,
         loss_pct_threshold: float | None = None,
+        service_label: str | None = None,
     ) -> str:
         if event_type == "rtt_above":
             rtt_text = f"{rtt_ms:.0f}" if rtt_ms is not None else "?"
@@ -459,6 +551,15 @@ class AlertMonitorService:
             loss_text = f"{loss_pct:.0f}" if loss_pct is not None else "?"
             threshold_text = f"{loss_pct_threshold:.0f}" if loss_pct_threshold is not None else "?"
             body = f"📶 {label} ({ip}) ping loss {loss_text}% is above the {threshold_text}% threshold"
+            return f"{app_name} Alert\n\n{body}"
+        if event_type == "service_down":
+            service_text = service_label or "Service check"
+            body = f"🔻 {service_text} on {label} ({ip}) is DOWN"
+            return f"{app_name} Alert\n\n{body}"
+        if event_type == "service_slow":
+            service_text = service_label or "Service check"
+            rtt_text = f"{rtt_ms:.0f}" if rtt_ms is not None else "?"
+            body = f"🐢 {service_text} on {label} ({ip}) response time {rtt_text} ms is above the {threshold_ms} ms threshold"
             return f"{app_name} Alert\n\n{body}"
         if event_type == "device_flapping":
             count_text = str(flap_count) if flap_count is not None else "repeated"

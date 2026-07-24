@@ -11,6 +11,7 @@ from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
 from app.models.device import Device
 from app.models.notification_delivery import NotificationDelivery
+from app.models.port_target import DevicePortTarget
 from app.schemas.alert import (
     AlertEventRead,
     AlertRuleCreate,
@@ -51,11 +52,15 @@ def create_rule(
     if payload.device_id is not None:
         if not db.get(Device, payload.device_id):
             raise HTTPException(status_code=404, detail="Device not found")
+    if payload.port_target_id is not None:
+        if not db.get(DevicePortTarget, payload.port_target_id):
+            raise HTTPException(status_code=404, detail="Service check not found")
     rule = AlertRule(
         name=payload.name,
         enabled=payload.enabled,
         event_type=payload.event_type,
         device_id=payload.device_id,
+        port_target_id=payload.port_target_id,
         channels=json.dumps(payload.channels),
         cooldown_minutes=payload.cooldown_minutes,
         threshold_ms=payload.threshold_ms,
@@ -84,12 +89,17 @@ def update_rule(
     if "device_id" in updates and updates["device_id"] is not None:
         if not db.get(Device, updates["device_id"]):
             raise HTTPException(status_code=404, detail="Device not found")
+    if "port_target_id" in updates and updates["port_target_id"] is not None:
+        if not db.get(DevicePortTarget, updates["port_target_id"]):
+            raise HTTPException(status_code=404, detail="Service check not found")
     for key, value in updates.items():
         setattr(rule, key, value)
     if rule.event_type == "rtt_above" and rule.threshold_ms is None:
         raise HTTPException(status_code=422, detail="threshold_ms is required for rtt_above rules")
     if rule.event_type == "ping_loss_above" and rule.loss_pct_threshold is None:
         raise HTTPException(status_code=422, detail="loss_pct_threshold is required for ping_loss_above rules")
+    if rule.event_type == "service_slow" and rule.threshold_ms is None:
+        raise HTTPException(status_code=422, detail="threshold_ms is required for service_slow rules")
     db.commit()
     db.refresh(rule)
     return _to_read(rule)
@@ -142,6 +152,12 @@ def test_rule(
         label = "Example Device"
         ip = "192.0.2.1"
 
+    if rule.port_target_id is not None:
+        port_target = db.get(DevicePortTarget, rule.port_target_id)
+        service_label = port_target.label if port_target else f"Service check #{rule.port_target_id}"
+    else:
+        service_label = "Example Service"
+
     # Build using the same format as a real alert, but prefixed with [TEST]
     event_status_map = {
         "device_offline": "offline",
@@ -151,6 +167,8 @@ def test_rule(
         "rtt_above": "online",
         "device_flapping": "online",
         "ping_loss_above": "online",
+        "service_down": "offline",
+        "service_slow": "online",
     }
     status = event_status_map.get(rule.event_type, "unknown")
     threshold = rule.threshold_ms or 100
@@ -159,6 +177,7 @@ def test_rule(
         rule.event_type, label, ip, status, app_name,
         rtt_ms=float(threshold) + 25, threshold_ms=threshold, flap_count=5,
         loss_pct=loss_threshold + 10, loss_pct_threshold=loss_threshold,
+        service_label=service_label,
     )
     message = f"[TEST] {body}"
 

@@ -2,56 +2,119 @@ from __future__ import annotations
 
 import socket
 import ssl
+import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from ipaddress import ip_address
 
 
-def check_port(host: str, port: int, timeout: float = 2.0, *, protocol: str = "tcp", http_path: str | None = None) -> bool:
+@dataclass(frozen=True)
+class CheckResult:
+    open: bool
+    response_time_ms: float | None = None
+    status_code: int | None = None
+
+
+def check_port(
+    host: str,
+    port: int,
+    timeout: float = 2.0,
+    *,
+    protocol: str = "tcp",
+    http_path: str | None = None,
+    http_method: str = "GET",
+    expected_status_min: int = 200,
+    expected_status_max: int = 399,
+    verify_tls: bool = False,
+    follow_redirects: bool = True,
+) -> CheckResult:
     if protocol == "udp":
         return _check_udp(host, port, timeout)
     if protocol in ("http", "https"):
-        return _check_http(host, port, timeout, protocol, http_path or "/")
+        return _check_http(
+            host, port, timeout, protocol, http_path or "/",
+            method=http_method,
+            expected_status_min=expected_status_min,
+            expected_status_max=expected_status_max,
+            verify_tls=verify_tls,
+            follow_redirects=follow_redirects,
+        )
+    start = time.monotonic()
     try:
         with socket.create_connection((host, port), timeout=timeout):
-            return True
+            return CheckResult(open=True, response_time_ms=(time.monotonic() - start) * 1000)
     except OSError:
-        return False
+        return CheckResult(open=False)
 
 
-def _check_http(host: str, port: int, timeout: float, scheme: str, path: str) -> bool:
+def _check_http(
+    host: str,
+    port: int,
+    timeout: float,
+    scheme: str,
+    path: str,
+    *,
+    method: str,
+    expected_status_min: int,
+    expected_status_max: int,
+    verify_tls: bool,
+    follow_redirects: bool,
+) -> CheckResult:
     host_part = f"[{host}]" if ":" in host else host
     url = f"{scheme}://{host_part}:{port}{path}"
-    # ponytail: TLS is deliberately unverified — this is a reachability/health check
-    # against LAN devices where self-signed certs are the norm, not a security check.
-    context = ssl._create_unverified_context() if scheme == "https" else None
-    request = urllib.request.Request(url, method="GET", headers={"User-Agent": "NetMap-Monitor"})
+    handlers: list[urllib.request.BaseHandler] = []
+    if scheme == "https":
+        # ponytail: unverified by default — LAN devices commonly use self-signed
+        # certs. verify_tls opts a specific check into real certificate validation.
+        context = ssl.create_default_context() if verify_tls else ssl._create_unverified_context()
+        handlers.append(urllib.request.HTTPSHandler(context=context))
+    if not follow_redirects:
+        handlers.append(_NoRedirect())
+    opener = urllib.request.build_opener(*handlers)
+    request = urllib.request.Request(url, method=method, headers={"User-Agent": "NetMap-Monitor"})
+    start = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
-            return response.status < 500
+        with opener.open(request, timeout=timeout) as response:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            return CheckResult(
+                open=expected_status_min <= response.status <= expected_status_max,
+                response_time_ms=elapsed_ms,
+                status_code=response.status,
+            )
     except urllib.error.HTTPError as exc:
-        # 401/403/404 etc. mean the HTTP service answered — it is up
-        return exc.code < 500
+        elapsed_ms = (time.monotonic() - start) * 1000
+        return CheckResult(
+            open=expected_status_min <= exc.code <= expected_status_max,
+            response_time_ms=elapsed_ms,
+            status_code=exc.code,
+        )
     except (urllib.error.URLError, OSError, ValueError):
-        return False
+        return CheckResult(open=False)
 
 
-def _check_udp(host: str, port: int, timeout: float) -> bool:
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def _check_udp(host: str, port: int, timeout: float) -> CheckResult:
     try:
         family = socket.AF_INET6 if ip_address(host).version == 6 else socket.AF_INET
     except ValueError:
         family = socket.AF_INET
     sock = socket.socket(family, socket.SOCK_DGRAM)
     sock.settimeout(timeout)
+    start = time.monotonic()
     try:
         sock.sendto(b"\x00", (host, port))
         sock.recvfrom(1024)
-        return True
+        return CheckResult(open=True, response_time_ms=(time.monotonic() - start) * 1000)
     except socket.timeout:
-        return False
+        return CheckResult(open=False)
     except ConnectionRefusedError:
-        return False
+        return CheckResult(open=False)
     except OSError:
-        return False
+        return CheckResult(open=False)
     finally:
         sock.close()

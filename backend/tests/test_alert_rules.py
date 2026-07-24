@@ -22,6 +22,7 @@ def _rule(**kwargs) -> AlertRule:
         enabled=True,
         event_type="rtt_above",
         device_id=None,
+        port_target_id=None,
         channels='["profile:1"]',
         cooldown_minutes=30,
         threshold_ms=100,
@@ -41,6 +42,22 @@ def _loss_rule(**kwargs) -> AlertRule:
         loss_window_minutes=60,
         **kwargs,
     )
+
+
+def _service_down_rule(**kwargs) -> AlertRule:
+    defaults = dict(event_type="service_down", threshold_ms=None, port_target_id=None)
+    defaults.update(kwargs)
+    return _rule(**defaults)
+
+
+def _service_slow_rule(**kwargs) -> AlertRule:
+    defaults = dict(event_type="service_slow", threshold_ms=1000, port_target_id=None)
+    defaults.update(kwargs)
+    return _rule(**defaults)
+
+
+def _port_entry(*, open_: bool, response_time_ms=None, label="HTTPS") -> dict:
+    return {"target_id": 1, "port": 443, "label": label, "check_type": "https", "open": open_, "status": "open" if open_ else "closed", "response_time_ms": response_time_ms, "status_code": 200 if open_ else None}
 
 
 def _history_session():
@@ -188,3 +205,88 @@ def test_ping_loss_breaches_respects_cooldown_and_device_scope(monkeypatch):
 
     scoped_here = _loss_rule(device_id=1)
     assert len(AlertMonitorService._ping_loss_breaches([scoped_here], {1}, now)) == 1
+
+
+def test_service_down_breaches_fires_only_on_up_to_down_transition():
+    now = datetime.now(timezone.utc)
+    rule = _service_down_rule()
+
+    # first sighting of a target (no prior known state) — nothing to compare, no fire
+    unknown = {}
+    current = {(1, 1): _port_entry(open_=False)}
+    assert AlertMonitorService._service_down_breaches([rule], unknown, current, now) == []
+
+    # was up, now down — fires
+    known = {(1, 1): True}
+    breaches = AlertMonitorService._service_down_breaches([rule], known, current, now)
+    assert [(device_id, label) for _, device_id, label in breaches] == [(1, "HTTPS")]
+
+    # was already down — edge already fired, no repeat
+    known_down = {(1, 1): False}
+    assert AlertMonitorService._service_down_breaches([rule], known_down, current, now) == []
+
+    # still up — no fire
+    still_up = {(1, 1): _port_entry(open_=True)}
+    assert AlertMonitorService._service_down_breaches([rule], known, still_up, now) == []
+
+
+def test_service_down_breaches_respects_target_scope_and_cooldown():
+    now = datetime.now(timezone.utc)
+    known = {(1, 1): True, (1, 2): True}
+    current = {(1, 1): _port_entry(open_=False), (1, 2): _port_entry(open_=False, label="DNS")}
+
+    scoped = _service_down_rule(port_target_id=2)
+    breaches = AlertMonitorService._service_down_breaches([scoped], known, current, now)
+    assert [(device_id, label) for _, device_id, label in breaches] == [(1, "DNS")]
+
+    cooling = _service_down_rule(last_triggered_at=now - timedelta(minutes=5))
+    assert AlertMonitorService._service_down_breaches([cooling], known, current, now) == []
+
+
+def test_service_slow_breaches_computes_threshold_and_scope():
+    now = datetime.now(timezone.utc)
+    current = {
+        (1, 1): _port_entry(open_=True, response_time_ms=1500.0),
+        (2, 1): _port_entry(open_=True, response_time_ms=200.0),
+    }
+    rule = _service_slow_rule()
+    breaches = AlertMonitorService._service_slow_breaches([rule], current, now)
+    assert [(device_id, response_ms) for _, device_id, response_ms, _ in breaches] == [(1, 1500.0)]
+
+    # missing threshold rule never breaches
+    no_threshold = _service_slow_rule(threshold_ms=None)
+    assert AlertMonitorService._service_slow_breaches([no_threshold], current, now) == []
+
+    cooling = _service_slow_rule(last_triggered_at=now - timedelta(minutes=5))
+    assert AlertMonitorService._service_slow_breaches([cooling], current, now) == []
+
+
+def test_service_alert_messages_include_label_and_thresholds():
+    down_message = AlertMonitorService._build_message(
+        "service_down", "Web Server", "10.0.0.5", "offline", "NetMap", service_label="HTTPS",
+    )
+    assert "HTTPS" in down_message
+    assert "Web Server" in down_message
+    assert "DOWN" in down_message
+
+    slow_message = AlertMonitorService._build_message(
+        "service_slow", "Web Server", "10.0.0.5", "online", "NetMap",
+        rtt_ms=1500.0, threshold_ms=1000, service_label="HTTPS",
+    )
+    assert "HTTPS" in slow_message
+    assert "1500 ms" in slow_message
+    assert "1000 ms" in slow_message
+
+
+def test_service_slow_rule_schema_requires_threshold():
+    with pytest.raises(ValidationError):
+        AlertRuleCreate(name="Slow API", event_type="service_slow", channels=["profile:1"])
+    rule = AlertRuleCreate(name="Slow API", event_type="service_slow", channels=["profile:1"], threshold_ms=500)
+    assert rule.threshold_ms == 500
+
+
+def test_service_down_rule_schema_accepts_optional_port_target_scope():
+    rule = AlertRuleCreate(name="Down", event_type="service_down", channels=["profile:1"])
+    assert rule.port_target_id is None
+    scoped = AlertRuleCreate(name="Down", event_type="service_down", channels=["profile:1"], port_target_id=7)
+    assert scoped.port_target_id == 7

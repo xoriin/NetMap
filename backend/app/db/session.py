@@ -141,6 +141,8 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0049_relationship_link_speed", _migrate_relationship_link_speed)
         _run_migration(conn, inspector, "0050_alert_rule_ping_loss", _migrate_alert_rule_ping_loss)
         _run_migration(conn, inspector, "0051_ip_reservation_reminder", _migrate_ip_reservation_reminder)
+        _run_migration(conn, inspector, "0052_service_check_http_options", _migrate_service_check_http_options)
+        _run_migration(conn, inspector, "0053_alert_rule_service_check", _migrate_alert_rule_service_check)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1074,3 +1076,29 @@ def _migrate_relationship_link_speed(conn, inspector) -> None:
     existing = {col["name"] for col in inspector.get_columns("device_relationships")}
     if "link_speed_mbps" not in existing:
         conn.execute(text("ALTER TABLE device_relationships ADD COLUMN link_speed_mbps INTEGER"))
+
+
+def _migrate_service_check_http_options(conn, inspector) -> None:
+    if "device_port_targets" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("device_port_targets")}
+    if "http_method" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN http_method VARCHAR(10) NOT NULL DEFAULT 'GET'"))
+    if "expected_status_min" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN expected_status_min INTEGER NOT NULL DEFAULT 200"))
+    if "expected_status_max" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN expected_status_max INTEGER NOT NULL DEFAULT 399"))
+    if "timeout_seconds" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN timeout_seconds REAL"))
+    if "verify_tls" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN verify_tls BOOLEAN NOT NULL DEFAULT 0"))
+    if "follow_redirects" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN follow_redirects BOOLEAN NOT NULL DEFAULT 1"))
+
+
+def _migrate_alert_rule_service_check(conn, inspector) -> None:
+    if "alert_rules" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("alert_rules")}
+    if "port_target_id" not in existing:
+        conn.execute(text("ALTER TABLE alert_rules ADD COLUMN port_target_id INTEGER"))

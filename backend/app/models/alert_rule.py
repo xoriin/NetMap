@@ -12,9 +12,12 @@ class AlertRule(Base):
     event_type: Mapped[str] = mapped_column(String(40), nullable=False)
     # null = all devices, set = specific device
     device_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # service_down / service_slow rules only: null = any service check, set = one specific check
+    port_target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channels: Mapped[str] = mapped_column(Text, default="[]", nullable=False)  # JSON array
     cooldown_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     # rtt_above rules only: fire when a device's probe RTT exceeds this many ms
+    # service_slow rules: fire when a service check's response time exceeds this many ms
     threshold_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # ping_loss_above rules only: fire when the % of failed probes over the
     # trailing loss_window_minutes reaches loss_pct_threshold

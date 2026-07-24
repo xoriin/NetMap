@@ -8,6 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import pytest
+from pydantic import ValidationError
+
 from app.api.v1.ipam import next_available_ip
 from app.api.v1.monitoring import _build_device_summaries
 from app.db.session import Base
@@ -18,6 +21,7 @@ from app.models.monitor_history import DeviceMonitorHistory
 from app.models.site import Site
 from app.models.subnet import Subnet
 from app.models.topology_group import TopologyGroup
+from app.schemas.monitoring import PortTargetCreate
 from app.services.monitoring.port_checker import check_port
 from app.services.notifications import _send_webhook
 
@@ -45,11 +49,21 @@ def _session():
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.end_headers()
+            return
         code = 404 if self.path == "/missing" else 500 if self.path == "/broken" else 200
         self.send_response(code)
         self.send_header("Content-Length", "2")
         self.end_headers()
         self.wfile.write(b"ok")
+
+    def do_HEAD(self):  # noqa: N802
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
 
     def do_POST(self):  # noqa: N802
         self.send_response(200)
@@ -72,15 +86,58 @@ def test_http_check_up_down_and_error_statuses():
     server = _http_server()
     port = server.server_address[1]
     try:
-        assert check_port("127.0.0.1", port, 3.0, protocol="http") is True
-        # 404 means the HTTP service answered — up
-        assert check_port("127.0.0.1", port, 3.0, protocol="http", http_path="/missing") is True
+        assert check_port("127.0.0.1", port, 3.0, protocol="http").open is True
+        # 404 is outside the default 200-399 expected range — down
+        assert check_port("127.0.0.1", port, 3.0, protocol="http", http_path="/missing").open is False
         # 5xx means the service is erroring — down
-        assert check_port("127.0.0.1", port, 3.0, protocol="http", http_path="/broken") is False
+        assert check_port("127.0.0.1", port, 3.0, protocol="http", http_path="/broken").open is False
+        # widening the expected range accepts the 404 as "up"
+        assert check_port(
+            "127.0.0.1", port, 3.0, protocol="http", http_path="/missing",
+            expected_status_min=200, expected_status_max=404,
+        ).open is True
     finally:
         server.shutdown()
     # closed port — down
-    assert check_port("127.0.0.1", port, 0.5, protocol="http") is False
+    assert check_port("127.0.0.1", port, 0.5, protocol="http").open is False
+
+
+def test_http_check_records_response_time_and_status_code():
+    server = _http_server()
+    port = server.server_address[1]
+    try:
+        result = check_port("127.0.0.1", port, 3.0, protocol="http")
+        assert result.status_code == 200
+        assert result.response_time_ms is not None and result.response_time_ms >= 0
+    finally:
+        server.shutdown()
+
+
+def test_http_check_method_and_no_redirect():
+    server = _http_server()
+    port = server.server_address[1]
+    try:
+        head_result = check_port("127.0.0.1", port, 3.0, protocol="http", http_method="HEAD")
+        assert head_result.open is True
+        redirect_result = check_port(
+            "127.0.0.1", port, 3.0, protocol="http", http_path="/redirect",
+            follow_redirects=False, expected_status_min=300, expected_status_max=399,
+        )
+        assert redirect_result.open is True
+        assert redirect_result.status_code == 302
+    finally:
+        server.shutdown()
+
+
+def test_tcp_and_udp_checks_record_response_time():
+    server = _http_server()
+    port = server.server_address[1]
+    try:
+        result = check_port("127.0.0.1", port, 3.0, protocol="tcp")
+        assert result.open is True
+        assert result.response_time_ms is not None
+    finally:
+        server.shutdown()
 
 
 def test_webhook_provider_posts_json():
@@ -135,3 +192,22 @@ def test_monitor_summaries_flag_paused_and_flapping():
     assert summaries["10.0.0.2"].status == "paused"
     assert summaries["10.0.0.3"].flapping is True
     assert summaries["10.0.0.1"].flapping is False
+
+
+def test_port_target_http_options_defaults_and_validation():
+    tcp_target = PortTargetCreate(port=22, label="SSH", check_type="tcp")
+    assert tcp_target.http_method == "GET"
+    assert tcp_target.expected_status_min == 200
+    assert tcp_target.expected_status_max == 399
+
+    http_target = PortTargetCreate(port=443, label="HTTPS", check_type="https", http_method="head", expected_status_min=200, expected_status_max=299)
+    assert http_target.http_method == "HEAD"
+
+    with pytest.raises(ValidationError):
+        PortTargetCreate(port=443, label="HTTPS", check_type="https", http_method="TRACE")
+
+    with pytest.raises(ValidationError):
+        PortTargetCreate(port=443, label="HTTPS", check_type="https", expected_status_min=500, expected_status_max=200)
+
+    with pytest.raises(ValidationError):
+        PortTargetCreate(port=443, label="HTTPS", check_type="https", timeout_seconds=60)

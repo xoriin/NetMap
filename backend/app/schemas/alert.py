@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 VALID_EVENT_TYPES = {
     "device_offline", "device_online", "device_warning", "any_status_change",
-    "rtt_above", "device_flapping", "ping_loss_above",
+    "rtt_above", "device_flapping", "ping_loss_above", "service_down", "service_slow",
 }
 VALID_CHANNELS = {"smtp", "ntfy", "telegram", "signal"}
 PROFILE_TARGET_RE = re.compile(r"^profile:[1-9][0-9]*$")
@@ -16,6 +16,7 @@ class AlertRuleCreate(BaseModel):
     enabled: bool = True
     event_type: str
     device_id: int | None = None
+    port_target_id: int | None = None
     channels: list[str] = Field(default_factory=list)
     cooldown_minutes: int = Field(default=30, ge=1, le=1440)
     threshold_ms: int | None = Field(default=None, ge=1, le=60000)
@@ -35,6 +36,8 @@ class AlertRuleCreate(BaseModel):
             raise ValueError("threshold_ms is required for rtt_above rules")
         if self.event_type == "ping_loss_above" and self.loss_pct_threshold is None:
             raise ValueError("loss_pct_threshold is required for ping_loss_above rules")
+        if self.event_type == "service_slow" and self.threshold_ms is None:
+            raise ValueError("threshold_ms is required for service_slow rules")
         return self
 
     @field_validator("channels")
@@ -51,6 +54,7 @@ class AlertRuleUpdate(BaseModel):
     enabled: bool | None = None
     event_type: str | None = None
     device_id: int | None = None
+    port_target_id: int | None = None
     channels: list[str] | None = None
     cooldown_minutes: int | None = Field(None, ge=1, le=1440)
     threshold_ms: int | None = Field(None, ge=1, le=60000)
@@ -81,6 +85,7 @@ class AlertRuleRead(BaseModel):
     enabled: bool
     event_type: str
     device_id: int | None
+    port_target_id: int | None
     channels: list[str]
     cooldown_minutes: int
     threshold_ms: int | None

@@ -452,12 +452,19 @@ def create_port_target(
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     if payload.device_id is not None and db.get(Device, payload.device_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
+    is_http = payload.check_type in ("http", "https")
     target = DevicePortTarget(
         device_id=payload.device_id,
         port=payload.port,
         label=payload.label,
         check_type=payload.check_type,
-        http_path=payload.http_path if payload.check_type in ("http", "https") else None,
+        http_path=payload.http_path if is_http else None,
+        http_method=payload.http_method if is_http else "GET",
+        expected_status_min=payload.expected_status_min,
+        expected_status_max=payload.expected_status_max,
+        timeout_seconds=payload.timeout_seconds if is_http else None,
+        verify_tls=payload.verify_tls if is_http else False,
+        follow_redirects=payload.follow_redirects if is_http else True,
         enabled=payload.enabled,
     )
     db.add(target)
