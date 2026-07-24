@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
@@ -23,9 +24,29 @@ from app.services.exports import (
     build_inventory_export,
     build_network_report_pdf,
     restore_database_bytes,
+    validate_restore_bytes,
+)
+from app.services.exports.backup_schedule import (
+    backup_filename_path,
+    list_scheduled_backups,
 )
 
 router = APIRouter(prefix="/exports", tags=["exports"])
+
+
+class RestoreValidationResult(BaseModel):
+    valid: bool
+    size_bytes: int
+    table_count: int
+    devices: int | None = None
+    users: int | None = None
+    subnets: int | None = None
+
+
+class ScheduledBackupRead(BaseModel):
+    filename: str
+    size_bytes: int
+    created_at: datetime
 
 
 @router.get("/inventory")
@@ -153,13 +174,10 @@ def export_database_backup(
     )
 
 
-@router.post("/restore", status_code=status.HTTP_204_NO_CONTENT)
-async def restore_database_backup(
-    request: Request,
-    current_user: Annotated[User, Depends(require_super_admin)],
-    db: Annotated[Session, Depends(get_db)],
-) -> None:
-    MAX_BACKUP_SIZE = 500 * 1024 * 1024  # 500 MB
+MAX_BACKUP_SIZE = 500 * 1024 * 1024  # 500 MB
+
+
+async def _read_backup_payload(request: Request) -> bytes:
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_BACKUP_SIZE:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Backup file too large (500 MB max)")
@@ -173,6 +191,31 @@ async def restore_database_backup(
     # Validate SQLite magic bytes
     if not payload.startswith(b"SQLite format 3\x00"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File does not appear to be a valid SQLite database")
+    return payload
+
+
+@router.post("/restore/validate", response_model=RestoreValidationResult)
+async def validate_database_restore(
+    request: Request,
+    _current_user: Annotated[User, Depends(require_super_admin)],
+) -> RestoreValidationResult:
+    payload = await _read_backup_payload(request)
+    try:
+        result = validate_restore_bytes(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Backup validation failed") from exc
+    return RestoreValidationResult(**result)
+
+
+@router.post("/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_database_backup(
+    request: Request,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    payload = await _read_backup_payload(request)
 
     try:
         db.close()
@@ -188,6 +231,51 @@ async def restore_database_backup(
         action="backup.database_restored",
         actor_user_id=current_user.id,
         detail=f"bytes={len(payload)}",
+    )
+    db.commit()
+
+
+@router.get("/scheduled-backups", response_model=list[ScheduledBackupRead])
+def list_scheduled_backup_files(
+    _current_user: Annotated[User, Depends(require_super_admin)],
+) -> list[ScheduledBackupRead]:
+    return [ScheduledBackupRead(**entry) for entry in list_scheduled_backups()]
+
+
+@router.get("/scheduled-backups/{filename}")
+def download_scheduled_backup(
+    filename: str,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    path = backup_filename_path(filename)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup not found")
+    write_audit(
+        db,
+        action="backup.scheduled_downloaded",
+        actor_user_id=current_user.id,
+        detail=filename,
+    )
+    db.commit()
+    return download_response(path.read_bytes(), media_type="application/octet-stream", filename=filename)
+
+
+@router.delete("/scheduled-backups/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_scheduled_backup(
+    filename: str,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    path = backup_filename_path(filename)
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup not found")
+    path.unlink(missing_ok=True)
+    write_audit(
+        db,
+        action="backup.scheduled_deleted",
+        actor_user_id=current_user.id,
+        detail=filename,
     )
     db.commit()
 

@@ -75,6 +75,9 @@ DEFAULTS: dict[str, str] = {
     "ip_reservation_reminder_enabled": "false",
     "ip_reservation_reminder_days": "3",
     "ip_reservation_reminder_channels": "[]",
+    "backup_schedule_enabled": "false",
+    "backup_schedule_interval_hours": "24",
+    "backup_retention_count": "7",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (

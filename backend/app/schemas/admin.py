@@ -24,10 +24,14 @@ class SystemSettingsRead(BaseModel):
     ip_reservation_reminder_enabled: bool = False
     ip_reservation_reminder_days: int = 3
     ip_reservation_reminder_channels: list[str] = Field(default_factory=list)
+    backup_schedule_enabled: bool = False
+    backup_schedule_interval_hours: int = 24
+    backup_retention_count: int = 7
 
     @field_validator(
         "live_ping_enabled", "active_network_public_targets_enabled",
         "ip_reservation_default_expiry_enabled", "ip_reservation_reminder_enabled",
+        "backup_schedule_enabled",
         mode="before",
     )
     @classmethod
@@ -36,10 +40,17 @@ class SystemSettingsRead(BaseModel):
             return v
         return str(v).lower() not in ("false", "0", "")
 
-    @field_validator("idle_timeout_minutes", "monitor_interval_seconds", "ip_reservation_reminder_days", mode="before")
+    @field_validator(
+        "idle_timeout_minutes", "monitor_interval_seconds", "ip_reservation_reminder_days",
+        "backup_schedule_interval_hours", "backup_retention_count",
+        mode="before",
+    )
     @classmethod
     def _coerce_int(cls, v: object, info: ValidationInfo) -> int:
-        fallback = {"monitor_interval_seconds": 300, "ip_reservation_reminder_days": 3}.get(info.field_name, 15)
+        fallback = {
+            "monitor_interval_seconds": 300, "ip_reservation_reminder_days": 3,
+            "backup_schedule_interval_hours": 24, "backup_retention_count": 7,
+        }.get(info.field_name, 15)
         try:
             return max(1, int(v))
         except (TypeError, ValueError):
@@ -72,6 +83,9 @@ class SystemSettingsUpdate(BaseModel):
     ip_reservation_reminder_enabled: bool | None = None
     ip_reservation_reminder_days: int | None = Field(None, ge=1, le=30)
     ip_reservation_reminder_channels: list[str] | None = None
+    backup_schedule_enabled: bool | None = None
+    backup_schedule_interval_hours: int | None = Field(None, ge=1, le=168)
+    backup_retention_count: int | None = Field(None, ge=1, le=90)
 
     @field_validator("ip_reservation_reminder_channels")
     @classmethod
