@@ -687,7 +687,7 @@ export type NotificationProfilePayload = {
   config: Record<string, string>;
 };
 
-export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow";
+export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow" | "monitor_down" | "monitor_slow";
 
 export type AlertRule = {
   id: number;
@@ -696,6 +696,7 @@ export type AlertRule = {
   event_type: AlertRuleEventType;
   device_id: number | null;
   port_target_id: number | null;
+  monitor_id: number | null;
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
@@ -712,6 +713,7 @@ export type AlertRulePayload = {
   event_type: AlertRuleEventType;
   device_id: number | null;
   port_target_id: number | null;
+  monitor_id: number | null;
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
@@ -809,6 +811,54 @@ export type PortTarget = {
   follow_redirects: boolean;
   enabled: boolean;
   created_at: string;
+};
+
+export type MonitorStatus = "online" | "offline" | null;
+
+export type Monitor = {
+  id: number;
+  name: string;
+  url: string;
+  http_method: HttpMethod;
+  expected_status_min: number;
+  expected_status_max: number;
+  timeout_seconds: number;
+  verify_tls: boolean;
+  follow_redirects: boolean;
+  check_interval_seconds: number;
+  max_retries: number;
+  enabled: boolean;
+  consecutive_failures: number;
+  last_status: MonitorStatus;
+  last_checked_at: string | null;
+  uptime_24h: number | null;
+  uptime_7d: number | null;
+  avg_response_time_24h: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MonitorPayload = {
+  name: string;
+  url: string;
+  http_method?: HttpMethod;
+  expected_status_min?: number;
+  expected_status_max?: number;
+  timeout_seconds?: number;
+  verify_tls?: boolean;
+  follow_redirects?: boolean;
+  check_interval_seconds?: number;
+  max_retries?: number;
+  enabled?: boolean;
+};
+
+export type MonitorCheckHistoryPoint = {
+  id: number;
+  checked_at: string;
+  status: "online" | "offline";
+  response_time_ms: number | null;
+  status_code: number | null;
+  error: string | null;
 };
 
 export type DeviceAnalysis = {
@@ -1787,6 +1837,16 @@ export const api = {
     request<PortTarget>("/api/v1/monitoring/service-checks", { method: "POST", token, body: JSON.stringify(payload) }),
   deletePortTarget: (token: string, id: number) =>
     request<void>(`/api/v1/monitoring/service-checks/${id}`, { method: "DELETE", token }),
+  listMonitors: (token: string) =>
+    request<Monitor[]>("/api/v1/monitors", { token }),
+  createMonitor: (token: string, payload: MonitorPayload) =>
+    request<Monitor>("/api/v1/monitors", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateMonitor: (token: string, id: number, payload: Partial<MonitorPayload>) =>
+    request<Monitor>(`/api/v1/monitors/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
+  deleteMonitor: (token: string, id: number) =>
+    request<void>(`/api/v1/monitors/${id}`, { method: "DELETE", token }),
+  getMonitorHistory: (token: string, id: number, hours = 24) =>
+    request<MonitorCheckHistoryPoint[]>(`/api/v1/monitors/${id}/history?hours=${hours}`, { token }),
   // IPAM
   getIpamSummary: (token: string) =>
     request<IpamSummary>("/api/v1/ipam/summary", { token }),
