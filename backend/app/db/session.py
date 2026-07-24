@@ -45,7 +45,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
+    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -143,6 +143,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0051_ip_reservation_reminder", _migrate_ip_reservation_reminder)
         _run_migration(conn, inspector, "0052_service_check_http_options", _migrate_service_check_http_options)
         _run_migration(conn, inspector, "0053_alert_rule_service_check", _migrate_alert_rule_service_check)
+        _run_migration(conn, inspector, "0054_alert_rule_monitor", _migrate_alert_rule_monitor)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1102,3 +1103,11 @@ def _migrate_alert_rule_service_check(conn, inspector) -> None:
     existing = {col["name"] for col in inspector.get_columns("alert_rules")}
     if "port_target_id" not in existing:
         conn.execute(text("ALTER TABLE alert_rules ADD COLUMN port_target_id INTEGER"))
+
+
+def _migrate_alert_rule_monitor(conn, inspector) -> None:
+    if "alert_rules" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("alert_rules")}
+    if "monitor_id" not in existing:
+        conn.execute(text("ALTER TABLE alert_rules ADD COLUMN monitor_id INTEGER"))
