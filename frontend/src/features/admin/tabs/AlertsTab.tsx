@@ -2,7 +2,7 @@ import { useState } from "react";
 import { IconAlertCircle } from "@tabler/icons-react";
 import {
   api,
-  type AlertRule, type AlertRulePayload, type AlertRuleEventType, type TopologyGraph,
+  type AlertRule, type AlertRulePayload, type AlertRuleEventType, type TopologyGraph, type PortTarget,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { formatEventTime } from "../../../utils/format";
@@ -26,6 +26,7 @@ export function AlertsTab({
     enabled: true,
     event_type: "device_offline",
     device_id: null,
+    port_target_id: null,
     channels: [],
     cooldown_minutes: 30,
     threshold_ms: null,
@@ -36,10 +37,19 @@ export function AlertsTab({
   const rulesQuery = useApiQuery(() => api.listAlertRules(accessToken), [accessToken]);
   const profilesQuery = useApiQuery(() => api.listNotificationProfiles(accessToken), [accessToken]);
   const deliveriesQuery = useApiQuery(() => api.listNotificationDeliveries(accessToken), [accessToken]);
+  const portTargetsQuery = useApiQuery(() => api.listPortTargets(accessToken), [accessToken]);
 
   const alertRules = rulesQuery.data ?? [];
   const notificationProfiles = profilesQuery.data ?? [];
   const deliveries = deliveriesQuery.data ?? [];
+  const portTargets: PortTarget[] = portTargetsQuery.data ?? [];
+
+  function serviceCheckLabel(target: PortTarget): string {
+    const deviceName = target.device_id
+      ? (() => { const d = graph.devices.find(x => x.id === target.device_id); return d ? (d.display_name || d.hostname || d.ip_address) : `#${target.device_id}`; })()
+      : "All devices";
+    return `${target.label} (${target.check_type.toUpperCase()}:${target.port} · ${deviceName})`;
+  }
 
   const targetLabel = (target: string) => notificationTargetLabel(notificationProfiles, target);
 
@@ -101,7 +111,7 @@ export function AlertsTab({
           <div className="admin-panel-actions">
             <button type="button" className="nm-btn nm-btn--primary" onClick={() => {
               setEditingAlertRule(null);
-              setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, channels: [], cooldown_minutes: 30, threshold_ms: null, loss_pct_threshold: null, loss_window_minutes: 60 });
+              setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, port_target_id: null, channels: [], cooldown_minutes: 30, threshold_ms: null, loss_pct_threshold: null, loss_window_minutes: 60 });
               setShowAlertForm(true);
             }}>+ Add rule</button>
           </div>
@@ -123,11 +133,19 @@ export function AlertsTab({
                 <option value="rtt_above">Response time above threshold</option>
                 <option value="device_flapping">Device is flapping (repeated status changes)</option>
                 <option value="ping_loss_above">Ping loss above threshold</option>
+                <option value="service_down">Service check goes down</option>
+                <option value="service_slow">Service check response time above threshold</option>
               </select>
             </label>
             {alertForm.event_type === "rtt_above" && (
               <label>RTT threshold (ms)
                 <input type="number" min={1} max={60000} value={alertForm.threshold_ms ?? ""} placeholder="e.g. 200"
+                  onChange={(e) => setAlertForm(f => ({...f, threshold_ms: e.target.value ? Number(e.target.value) : null}))} />
+              </label>
+            )}
+            {alertForm.event_type === "service_slow" && (
+              <label>Response time threshold (ms)
+                <input type="number" min={1} max={60000} value={alertForm.threshold_ms ?? ""} placeholder="e.g. 1000"
                   onChange={(e) => setAlertForm(f => ({...f, threshold_ms: e.target.value ? Number(e.target.value) : null}))} />
               </label>
             )}
@@ -148,14 +166,25 @@ export function AlertsTab({
                 </label>
               </>
             )}
-            <label>Device
-              <select value={alertForm.device_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, device_id: e.target.value ? Number(e.target.value) : null}))}>
-                <option value="">All devices</option>
-                {graph.devices.map(d => (
-                  <option key={d.id} value={d.id}>{d.display_name || d.hostname || d.ip_address}</option>
-                ))}
-              </select>
-            </label>
+            {(alertForm.event_type === "service_down" || alertForm.event_type === "service_slow") ? (
+              <label>Service check
+                <select value={alertForm.port_target_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, port_target_id: e.target.value ? Number(e.target.value) : null}))}>
+                  <option value="">Any service check</option>
+                  {portTargets.map(t => (
+                    <option key={t.id} value={t.id}>{serviceCheckLabel(t)}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label>Device
+                <select value={alertForm.device_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, device_id: e.target.value ? Number(e.target.value) : null}))}>
+                  <option value="">All devices</option>
+                  {graph.devices.map(d => (
+                    <option key={d.id} value={d.id}>{d.display_name || d.hostname || d.ip_address}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <fieldset style={{ border: '1px solid #d0dde6', borderRadius: 6, padding: '8px 12px' }}>
               <legend style={{ fontSize: 12, fontWeight: 700, color: '#314656', padding: '0 4px' }}>Notify via saved methods</legend>
               {alertForm.channels.filter((channel) => !channel.startsWith("profile:")).map(ch => (
@@ -200,7 +229,7 @@ export function AlertsTab({
               Enabled
             </label>
             <div className="ipam-form-actions">
-              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || (alertForm.event_type === "rtt_above" && !alertForm.threshold_ms) || (alertForm.event_type === "ping_loss_above" && !alertForm.loss_pct_threshold)} onClick={() => void saveAlertRule()}>
+              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || ((alertForm.event_type === "rtt_above" || alertForm.event_type === "service_slow") && !alertForm.threshold_ms) || (alertForm.event_type === "ping_loss_above" && !alertForm.loss_pct_threshold)} onClick={() => void saveAlertRule()}>
                 {alertRulesBusy ? "Saving…" : editingAlertRule ? "Update rule" : "Create rule"}
               </button>
               <button type="button" className="nm-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
@@ -216,7 +245,7 @@ export function AlertsTab({
               <tr style={{ borderBottom: '2px solid rgba(175,198,216,0.5)', textAlign: 'left' }}>
                 <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Name</th>
                 <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Trigger</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Device</th>
+                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Device / Service</th>
                 <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Channels</th>
                 <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Cooldown</th>
                 <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Status</th>
@@ -233,10 +262,17 @@ export function AlertsTab({
                   rtt_above: rule.threshold_ms ? `RTT above ${rule.threshold_ms} ms` : "RTT above threshold",
                   device_flapping: "Flapping",
                   ping_loss_above: rule.loss_pct_threshold ? `Ping loss above ${rule.loss_pct_threshold}%` : "Ping loss above threshold",
+                  service_down: "Service check down",
+                  service_slow: rule.threshold_ms ? `Service response above ${rule.threshold_ms} ms` : "Service response above threshold",
                 };
-                const deviceName = rule.device_id
-                  ? (() => { const d = graph.devices.find(x => x.id === rule.device_id); return d ? (d.display_name || d.hostname || d.ip_address) : `#${rule.device_id}`; })()
-                  : "All devices";
+                const isServiceRule = rule.event_type === "service_down" || rule.event_type === "service_slow";
+                const deviceName = isServiceRule
+                  ? (rule.port_target_id
+                      ? (() => { const t = portTargets.find(x => x.id === rule.port_target_id); return t ? serviceCheckLabel(t) : `Service check #${rule.port_target_id}`; })()
+                      : "Any service check")
+                  : (rule.device_id
+                      ? (() => { const d = graph.devices.find(x => x.id === rule.device_id); return d ? (d.display_name || d.hostname || d.ip_address) : `#${rule.device_id}`; })()
+                      : "All devices");
                 const testResult = alertTestResults[rule.id];
                 return (
                   <tr key={rule.id} style={{ borderBottom: '1px solid rgba(175,198,216,0.3)' }}>
@@ -260,7 +296,7 @@ export function AlertsTab({
                         </button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => {
                           setEditingAlertRule(rule);
-                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms, loss_pct_threshold: rule.loss_pct_threshold, loss_window_minutes: rule.loss_window_minutes ?? 60 });
+                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, port_target_id: rule.port_target_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms, loss_pct_threshold: rule.loss_pct_threshold, loss_window_minutes: rule.loss_window_minutes ?? 60 });
                           setShowAlertForm(true);
                         }}>Edit</button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteAlertRule(rule.id)}>Delete</button>
