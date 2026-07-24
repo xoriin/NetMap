@@ -14,6 +14,8 @@ class AlertRule(Base):
     device_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # service_down / service_slow rules only: null = any service check, set = one specific check
     port_target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # monitor_down / monitor_slow rules only: null = any standalone monitor, set = one specific monitor
+    monitor_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channels: Mapped[str] = mapped_column(Text, default="[]", nullable=False)  # JSON array
     cooldown_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     # rtt_above rules only: fire when a device's probe RTT exceeds this many ms

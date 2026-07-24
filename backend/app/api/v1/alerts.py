@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
 from app.models.device import Device
+from app.models.monitor import Monitor
 from app.models.notification_delivery import NotificationDelivery
 from app.models.port_target import DevicePortTarget
 from app.schemas.alert import (
@@ -21,6 +22,7 @@ from app.schemas.alert import (
 )
 from app.models.user import User
 from app.services.alerting.service import AlertMonitorService
+from app.services.monitors.service import StandaloneMonitorService
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -55,12 +57,16 @@ def create_rule(
     if payload.port_target_id is not None:
         if not db.get(DevicePortTarget, payload.port_target_id):
             raise HTTPException(status_code=404, detail="Service check not found")
+    if payload.monitor_id is not None:
+        if not db.get(Monitor, payload.monitor_id):
+            raise HTTPException(status_code=404, detail="Monitor not found")
     rule = AlertRule(
         name=payload.name,
         enabled=payload.enabled,
         event_type=payload.event_type,
         device_id=payload.device_id,
         port_target_id=payload.port_target_id,
+        monitor_id=payload.monitor_id,
         channels=json.dumps(payload.channels),
         cooldown_minutes=payload.cooldown_minutes,
         threshold_ms=payload.threshold_ms,
@@ -92,6 +98,9 @@ def update_rule(
     if "port_target_id" in updates and updates["port_target_id"] is not None:
         if not db.get(DevicePortTarget, updates["port_target_id"]):
             raise HTTPException(status_code=404, detail="Service check not found")
+    if "monitor_id" in updates and updates["monitor_id"] is not None:
+        if not db.get(Monitor, updates["monitor_id"]):
+            raise HTTPException(status_code=404, detail="Monitor not found")
     for key, value in updates.items():
         setattr(rule, key, value)
     if rule.event_type == "rtt_above" and rule.threshold_ms is None:
@@ -100,6 +109,8 @@ def update_rule(
         raise HTTPException(status_code=422, detail="loss_pct_threshold is required for ping_loss_above rules")
     if rule.event_type == "service_slow" and rule.threshold_ms is None:
         raise HTTPException(status_code=422, detail="threshold_ms is required for service_slow rules")
+    if rule.event_type == "monitor_slow" and rule.threshold_ms is None:
+        raise HTTPException(status_code=422, detail="threshold_ms is required for monitor_slow rules")
     db.commit()
     db.refresh(rule)
     return _to_read(rule)
@@ -169,16 +180,31 @@ def test_rule(
         "ping_loss_above": "online",
         "service_down": "offline",
         "service_slow": "online",
+        "monitor_down": "offline",
+        "monitor_slow": "online",
     }
     status = event_status_map.get(rule.event_type, "unknown")
     threshold = rule.threshold_ms or 100
     loss_threshold = rule.loss_pct_threshold or 50.0
-    body = AlertMonitorService._build_message(
-        rule.event_type, label, ip, status, app_name,
-        rtt_ms=float(threshold) + 25, threshold_ms=threshold, flap_count=5,
-        loss_pct=loss_threshold + 10, loss_pct_threshold=loss_threshold,
-        service_label=service_label,
-    )
+
+    if rule.event_type in ("monitor_down", "monitor_slow"):
+        if rule.monitor_id is not None:
+            monitor = db.get(Monitor, rule.monitor_id)
+            monitor_name = monitor.name if monitor else f"Monitor #{rule.monitor_id}"
+            monitor_url = monitor.url if monitor else "https://example.com"
+        else:
+            monitor_name, monitor_url = "Example Monitor", "https://example.com"
+        body = StandaloneMonitorService._build_message(
+            rule.event_type, monitor_name, monitor_url, status, app_name,
+            response_time_ms=float(threshold) + 25, threshold_ms=threshold,
+        )
+    else:
+        body = AlertMonitorService._build_message(
+            rule.event_type, label, ip, status, app_name,
+            rtt_ms=float(threshold) + 25, threshold_ms=threshold, flap_count=5,
+            loss_pct=loss_threshold + 10, loss_pct_threshold=loss_threshold,
+            service_label=service_label,
+        )
     message = f"[TEST] {body}"
 
     results: dict[str, str] = {}
