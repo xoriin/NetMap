@@ -251,6 +251,86 @@
   background: var(--nm-surface);
 }
 
+/* ── Shared themed scrollbar ──────────────────────────────────────────────
+   Rounded floating thumb inset from its track, muted by default, brightens
+   to the accent colour on hover. Applied to every scrollable content region
+   app-wide so scrollbars read as part of the theme, not the OS default. */
+.dash-panel-body,
+.nm-table-wrap,
+.mon-table-body,
+.mon-ports-sidebar,
+.mon-ports-form-col .ep-list,
+.ipam-modal-body,
+.obs-list,
+.monitors-details-panel,
+.monitors-history-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 180, 192, 0.45) transparent;
+  transition: scrollbar-color 0.25s ease;
+}
+.dash-panel-body:hover,
+.nm-table-wrap:hover,
+.mon-table-body:hover,
+.mon-ports-sidebar:hover,
+.mon-ports-form-col .ep-list:hover,
+.ipam-modal-body:hover,
+.obs-list:hover,
+.monitors-details-panel:hover,
+.monitors-history-list:hover {
+  scrollbar-color: rgba(29, 154, 176, 0.55) transparent;
+}
+.dash-panel-body::-webkit-scrollbar,
+.nm-table-wrap::-webkit-scrollbar,
+.mon-table-body::-webkit-scrollbar,
+.mon-ports-sidebar::-webkit-scrollbar,
+.mon-ports-form-col .ep-list::-webkit-scrollbar,
+.ipam-modal-body::-webkit-scrollbar,
+.obs-list::-webkit-scrollbar,
+.monitors-details-panel::-webkit-scrollbar,
+.monitors-history-list::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.dash-panel-body::-webkit-scrollbar-track,
+.nm-table-wrap::-webkit-scrollbar-track,
+.mon-table-body::-webkit-scrollbar-track,
+.mon-ports-sidebar::-webkit-scrollbar-track,
+.mon-ports-form-col .ep-list::-webkit-scrollbar-track,
+.ipam-modal-body::-webkit-scrollbar-track,
+.obs-list::-webkit-scrollbar-track,
+.monitors-details-panel::-webkit-scrollbar-track,
+.monitors-history-list::-webkit-scrollbar-track {
+  background: rgba(160, 180, 192, 0.08);
+  border-radius: 999px;
+  margin: 6px;
+}
+.dash-panel-body::-webkit-scrollbar-thumb,
+.nm-table-wrap::-webkit-scrollbar-thumb,
+.mon-table-body::-webkit-scrollbar-thumb,
+.mon-ports-sidebar::-webkit-scrollbar-thumb,
+.mon-ports-form-col .ep-list::-webkit-scrollbar-thumb,
+.ipam-modal-body::-webkit-scrollbar-thumb,
+.obs-list::-webkit-scrollbar-thumb,
+.monitors-details-panel::-webkit-scrollbar-thumb,
+.monitors-history-list::-webkit-scrollbar-thumb {
+  background-color: rgba(160, 180, 192, 0.4);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.dash-panel-body::-webkit-scrollbar-thumb:hover,
+.nm-table-wrap::-webkit-scrollbar-thumb:hover,
+.mon-table-body::-webkit-scrollbar-thumb:hover,
+.mon-ports-sidebar::-webkit-scrollbar-thumb:hover,
+.mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover,
+.ipam-modal-body::-webkit-scrollbar-thumb:hover,
+.obs-list::-webkit-scrollbar-thumb:hover,
+.monitors-details-panel::-webkit-scrollbar-thumb:hover,
+.monitors-history-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(29, 154, 176, 0.6);
+  background-clip: padding-box;
+}
+
 .nm-table {
   width: 100%;
   border-collapse: collapse;

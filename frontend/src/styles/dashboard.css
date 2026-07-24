@@ -498,12 +498,7 @@ body.route-overview .dash-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(160, 180, 192, 0.4) transparent;
 }
-.dash-panel-body::-webkit-scrollbar { width: 4px; }
-.dash-panel-body::-webkit-scrollbar-track { background: transparent; }
-.dash-panel-body::-webkit-scrollbar-thumb { background: rgba(160, 180, 192, 0.4); border-radius: 2px; }
 
 .dash-panel-header {
   display: flex;

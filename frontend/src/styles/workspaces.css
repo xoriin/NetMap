@@ -1559,6 +1559,31 @@ body.theme-dark .topology-overlay-label {
   border: 0;
   border-bottom: 0;
   box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(160, 180, 192, 0.45) transparent;
+  transition: scrollbar-color 0.25s ease;
+}
+.inventory-table:hover {
+  scrollbar-color: rgba(29, 154, 176, 0.55) transparent;
+}
+.inventory-table::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.inventory-table::-webkit-scrollbar-track {
+  background: rgba(160, 180, 192, 0.08);
+  border-radius: 999px;
+  margin: 6px;
+}
+.inventory-table::-webkit-scrollbar-thumb {
+  background-color: rgba(160, 180, 192, 0.4);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.inventory-table::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(29, 154, 176, 0.6);
+  background-clip: padding-box;
 }
 
 .inventory-table-header,
@@ -4788,8 +4813,6 @@ body.theme-dark .ep-empty { color: #3a5a70; }
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(160, 180, 192, 0.4) transparent;
 }
 
 .obs-row {
