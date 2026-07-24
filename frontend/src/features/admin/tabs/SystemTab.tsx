@@ -6,10 +6,11 @@ import {
 } from "@tabler/icons-react";
 import {
   api,
-  type SystemSettings, type SystemDiagnostics, type VersionInfo,
-  type DashboardSummary, type TopologyGraph,
+  type SystemSettings, type SystemDiagnostics, type VersionInfo, type RestoreValidationResult,
+  type DashboardSummary, type TopologyGraph, type ScheduledBackup,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
+import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
 import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from "../notificationProfiles";
 
@@ -48,14 +49,77 @@ export function SystemTab({
     ip_reservation_reminder_enabled: false,
     ip_reservation_reminder_days: 3,
     ip_reservation_reminder_channels: [],
+    backup_schedule_enabled: false,
+    backup_schedule_interval_hours: 24,
+    backup_retention_count: 7,
   });
   const [monitorIntervalRaw, setMonitorIntervalRaw] = useState("300");
   const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreValidation, setRestoreValidation] = useState<RestoreValidationResult | null>(null);
+  const [restoreValidationError, setRestoreValidationError] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduledBackups, setScheduledBackups] = useState<ScheduledBackup[]>([]);
+  const [scheduledBackupsBusyName, setScheduledBackupsBusyName] = useState<string | null>(null);
+  const confirmAction = useConfirm();
+
+  async function loadScheduledBackups() {
+    try {
+      setScheduledBackups(await api.listScheduledBackups(accessToken));
+    } catch { /* ignore — surfaced via the panel staying empty */ }
+  }
+
+  useEffect(() => {
+    void loadScheduledBackups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken]);
+
+  async function saveBackupSchedule() {
+    setScheduleBusy(true);
+    onError(null); onSuccess(null);
+    try {
+      const updated = await api.updateAdminSettings(accessToken, {
+        backup_schedule_enabled: settingsForm.backup_schedule_enabled,
+        backup_schedule_interval_hours: settingsForm.backup_schedule_interval_hours,
+        backup_retention_count: settingsForm.backup_retention_count,
+      });
+      setSettingsForm(updated);
+      onSettingsChange(updated);
+      onSuccess("Backup schedule saved");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to save backup schedule");
+    } finally { setScheduleBusy(false); }
+  }
+
+  async function downloadScheduledBackupFile(filename: string) {
+    setScheduledBackupsBusyName(filename);
+    try {
+      const result = await api.downloadScheduledBackup(accessToken, filename);
+      triggerDownload(result);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Download failed");
+    } finally { setScheduledBackupsBusyName(null); }
+  }
+
+  async function deleteScheduledBackupFile(filename: string) {
+    const confirmed = await confirmAction({
+      title: "Delete scheduled backup",
+      message: `This permanently deletes ${filename}.`,
+      confirmLabel: "Delete backup",
+    });
+    if (!confirmed) return;
+    setScheduledBackupsBusyName(filename);
+    try {
+      await api.deleteScheduledBackup(accessToken, filename);
+      setScheduledBackups((prev) => prev.filter((b) => b.filename !== filename));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Delete failed");
+    } finally { setScheduledBackupsBusyName(null); }
+  }
 
   const systemQuery = useApiQuery(async () => {
     const [syslog, settings] = await Promise.all([
@@ -105,14 +169,37 @@ export function SystemTab({
     } finally { setBackupBusy(null); }
   }
 
-  async function runRestore() {
+  async function runValidateRestore() {
     if (!restoreFile) return;
+    setBackupBusy("validate");
+    setRestoreValidationError(null);
+    setRestoreValidation(null);
+    onError(null); onSuccess(null);
+    try {
+      const result = await api.validateRestoreBackup(accessToken, restoreFile);
+      setRestoreValidation(result);
+    } catch (err) {
+      setRestoreValidationError(err instanceof Error ? err.message : "Validation failed");
+    } finally { setBackupBusy(null); }
+  }
+
+  async function runRestore() {
+    if (!restoreFile || !restoreValidation?.valid) return;
+    const confirmed = await confirmAction({
+      title: "Restore database",
+      message: `This overwrites the current live database with ${restoreFile.name}.`,
+      detail: `Everything since that backup — ${restoreValidation.devices ?? 0} devices, ${restoreValidation.users ?? 0} users, ${restoreValidation.subnets ?? 0} subnets, and all other data — will be replaced. This cannot be undone.`,
+      confirmLabel: "Restore database",
+      typeToConfirm: "restore",
+    });
+    if (!confirmed) return;
     setBackupBusy("restore");
     onError(null); onSuccess(null);
     try {
       await api.restoreBackup(accessToken, restoreFile);
       onSuccess(`Restored from ${restoreFile.name}`);
       setRestoreFile(null);
+      setRestoreValidation(null);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Restore failed");
     } finally { setBackupBusy(null); }
@@ -328,14 +415,92 @@ export function SystemTab({
               </button>
               <label>
                 Restore from backup
-                <input accept=".db,application/octet-stream" type="file" disabled={backupBusy === "restore"} onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} />
+                <input
+                  accept=".db,application/octet-stream"
+                  type="file"
+                  disabled={backupBusy === "restore" || backupBusy === "validate"}
+                  onChange={(e) => {
+                    setRestoreFile(e.target.files?.[0] ?? null);
+                    setRestoreValidation(null);
+                    setRestoreValidationError(null);
+                  }}
+                />
               </label>
-              {restoreFile && (
-                <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
-                  {backupBusy === "restore" ? "Restoring…" : `Restore ${restoreFile.name}`}
+              {restoreFile && !restoreValidation && (
+                <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "validate"} onClick={() => void runValidateRestore()}>
+                  {backupBusy === "validate" ? "Validating…" : `Validate ${restoreFile.name}`}
                 </button>
               )}
+              {restoreValidationError && <div className="form-error">{restoreValidationError}</div>}
+              {restoreValidation?.valid && (
+                <>
+                  <p className="tool-note">
+                    ✓ Valid backup — {restoreValidation.devices ?? 0} devices, {restoreValidation.users ?? 0} users,{" "}
+                    {restoreValidation.subnets ?? 0} subnets, {restoreValidation.table_count} tables,{" "}
+                    {fmtBytes(restoreValidation.size_bytes)}. Restoring will overwrite the current live database.
+                  </p>
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "restore"} onClick={() => void runRestore()}>
+                    {backupBusy === "restore" ? "Restoring…" : `Restore ${restoreFile?.name}`}
+                  </button>
+                </>
+              )}
             </div>
+          </section>
+          <section className="panel admin-panel">
+            <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
+            <p className="tool-note">Automatically writes a signed backup to disk on a schedule and prunes older copies.</p>
+            <div className="tool-form">
+              <label className="tool-form-inline-check">
+                <input type="checkbox" checked={settingsForm.backup_schedule_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_enabled: e.target.checked }))} />
+                <span className="tool-form-check-copy">
+                  <span>Enable scheduled backups</span>
+                  <span className="tool-note">Runs in the background using the interval and retention below.</span>
+                </span>
+              </label>
+              {settingsForm.backup_schedule_enabled && (
+                <>
+                  <label>Interval
+                    <select value={settingsForm.backup_schedule_interval_hours} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_interval_hours: Number(e.target.value) }))}>
+                      <option value={6}>Every 6 hours</option>
+                      <option value={12}>Every 12 hours</option>
+                      <option value={24}>Daily</option>
+                      <option value={168}>Weekly</option>
+                    </select>
+                  </label>
+                  <label>Keep last
+                    <select value={settingsForm.backup_retention_count} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_retention_count: Number(e.target.value) }))}>
+                      <option value={3}>3 backups</option>
+                      <option value={7}>7 backups</option>
+                      <option value={14}>14 backups</option>
+                      <option value={30}>30 backups</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              <button type="button" className="nm-btn nm-btn--primary" disabled={scheduleBusy} onClick={() => void saveBackupSchedule()}>
+                {scheduleBusy ? "Saving…" : "Save schedule"}
+              </button>
+            </div>
+            {scheduledBackups.length > 0 ? (
+              <div className="mon-port-rows" style={{ marginTop: 12 }}>
+                {scheduledBackups.map((b) => (
+                  <div key={b.filename} className="mon-port-row">
+                    <span className="mon-port-label" style={{ fontFamily: "monospace", fontSize: 12 }}>{b.filename}</span>
+                    <span className="dash-panel-meta">{fmtBytes(b.size_bytes)} · {new Date(b.created_at).toLocaleString()}</span>
+                    <div className="admin-panel-actions">
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void downloadScheduledBackupFile(b.filename)}>
+                        Download
+                      </button>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void deleteScheduledBackupFile(b.filename)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="tool-note" style={{ marginTop: 12 }}>No scheduled backups yet.</p>
+            )}
           </section>
         </div>
         <div className="system-tab-col">
