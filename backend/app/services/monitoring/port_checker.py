@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from ipaddress import ip_address
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,51 @@ def _check_http(
 ) -> CheckResult:
     host_part = f"[{host}]" if ":" in host else host
     url = f"{scheme}://{host_part}:{port}{path}"
+    return _request_http(
+        url, timeout, scheme,
+        method=method,
+        expected_status_min=expected_status_min,
+        expected_status_max=expected_status_max,
+        verify_tls=verify_tls,
+        follow_redirects=follow_redirects,
+    )
+
+
+def check_url(
+    url: str,
+    timeout: float = 10.0,
+    *,
+    method: str = "GET",
+    expected_status_min: int = 200,
+    expected_status_max: int = 399,
+    verify_tls: bool = True,
+    follow_redirects: bool = True,
+) -> CheckResult:
+    """Standalone-monitor variant of _check_http: takes a full URL rather than host/port/path."""
+    scheme = urlsplit(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        return CheckResult(open=False)
+    return _request_http(
+        url, timeout, scheme,
+        method=method,
+        expected_status_min=expected_status_min,
+        expected_status_max=expected_status_max,
+        verify_tls=verify_tls,
+        follow_redirects=follow_redirects,
+    )
+
+
+def _request_http(
+    url: str,
+    timeout: float,
+    scheme: str,
+    *,
+    method: str,
+    expected_status_min: int,
+    expected_status_max: int,
+    verify_tls: bool,
+    follow_redirects: bool,
+) -> CheckResult:
     handlers: list[urllib.request.BaseHandler] = []
     if scheme == "https":
         # ponytail: unverified by default — LAN devices commonly use self-signed
