@@ -1,10 +1,26 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { IconGauge, IconPlugConnected, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { api, type HttpMethod, type Monitor, type MonitorCheckHistoryPoint, type MonitorPayload } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { Modal } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
+import { MonitorDetails } from "./MonitorDetails";
+import {
+  MONITORS_COL_WIDTHS_KEY,
+  MONITORS_DEFAULT_COL_WIDTHS,
+  MONITORS_FILLER_MIN_WIDTH,
+  MONITORS_PAGE_SIZE_KEY,
+  PAGE_SIZE_OPTIONS,
+  fmtMonitorRtt,
+  fmtMonitorUptime,
+  fmtMonitorWhen,
+  loadMonitorsColWidths,
+  loadPageSize,
+} from "../../utils/monitoring";
+
+const MONITORS_STATUS_COL_WIDTH = 64;
+const MONITORS_ACTIONS_COL_WIDTH = 210;
 
 const HTTP_METHODS: HttpMethod[] = ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"];
 
@@ -34,31 +50,23 @@ function emptyForm(): MonitorPayload {
   };
 }
 
-function fmtRtt(ms: number | null): string {
-  return ms !== null ? `${ms.toFixed(0)} ms` : "—";
-}
-
-function fmtUptime(pct: number | null): string {
-  return pct !== null ? `${pct.toFixed(1)}%` : "—";
-}
-
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "Never";
-  return new Date(iso).toLocaleString();
-}
-
 export type MonitorStats = { total: number; online: number; offline: number; avgRtt: number | null };
 
 export function MonitorsPanel({
   accessToken,
   canWrite,
   embedded = false,
+  visible = true,
   onStatsChange,
 }: {
   accessToken: string;
   canWrite: boolean;
   /** Renders just the toolbar + table + drilldown, for embedding inside another panel's body. */
   embedded?: boolean;
+  /** Whether this panel is the visible tab right now — the panel stays mounted-but-hidden
+   * (display:none) while on the other tab, and a hidden element reports zero size, so the
+   * table-width measurement needs to be redone once it's actually shown again. */
+  visible?: boolean;
   onStatsChange?: (stats: MonitorStats) => void;
 }) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -72,8 +80,89 @@ export function MonitorsPanel({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [history, setHistory] = useState<MonitorCheckHistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Always a fully-explicit 6-length array (never null/flexible <col>s) — mixing
+  // flexible and fixed columns meant the very first resize "froze" whatever
+  // inflated width the browser had given the flexible columns at that instant,
+  // producing a jarring jump. Explicit widths from the start make every drag
+  // change only the column being dragged.
+  const [colWidths, setColWidths] = useState<number[]>(() => loadMonitorsColWidths() ?? MONITORS_DEFAULT_COL_WIDTHS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => loadPageSize(MONITORS_PAGE_SIZE_KEY));
+  const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(1200);
   const confirmAction = useConfirm();
   const toast = useToast();
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    // The panel stays mounted (display:none) while on the other tab, so the
+    // observer attached back then saw a 0-width element and never fires again
+    // on its own once revealed. Re-measure directly whenever this becomes the
+    // active tab, then let the observer take over for actual resizes.
+    if (visible) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width) setContainerWidth(rect.width);
+    }
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setContainerWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visible]);
+
+  // "Last checked" isn't user-resizable — it silently absorbs whatever space is
+  // left after the status column, the 5 resizable columns, and the actions
+  // column, so the table always spans the full wrapper width. Dragging one of
+  // the 5 resizable columns only ever changes that column and this filler.
+  const fillerWidth = Math.max(
+    MONITORS_FILLER_MIN_WIDTH,
+    containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - colWidths.reduce((sum, w) => sum + w, 0),
+  );
+
+  function startColResize(colIdx: number, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[colIdx];
+    resizingRef.current = { colIdx, startX, startWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(ev: MouseEvent) {
+      if (!resizingRef.current) return;
+      const { colIdx: ci, startX: sx, startWidth: sw } = resizingRef.current;
+      const rawNext = Math.max(60, sw + (ev.clientX - sx));
+      setColWidths((prev) => {
+        const othersSum = prev.reduce((sum, w, i) => (i === ci ? sum : sum + w), 0);
+        const maxForThis = Math.max(
+          60,
+          containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - MONITORS_FILLER_MIN_WIDTH - othersSum,
+        );
+        const updated = [...prev];
+        updated[ci] = Math.min(rawNext, maxForThis);
+        return updated;
+      });
+    }
+
+    function onUp() {
+      resizingRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setColWidths((prev) => {
+        window.localStorage.setItem(MONITORS_COL_WIDTHS_KEY, JSON.stringify(prev));
+        return prev;
+      });
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
   async function load() {
     try {
@@ -103,6 +192,19 @@ export function MonitorsPanel({
   }, [accessToken, selectedId]);
 
   const selectedMonitor = useMemo(() => monitors.find((m) => m.id === selectedId) ?? null, [monitors, selectedId]);
+
+  const paginatedMonitors = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return monitors.slice(start, start + pageSize);
+  }, [monitors, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [monitors.length, pageSize]);
+
+  useEffect(() => {
+    window.localStorage.setItem(MONITORS_PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
 
   const stats = useMemo(() => {
     const total = monitors.length;
@@ -200,7 +302,7 @@ export function MonitorsPanel({
 
       <div className={embedded ? "monitors-toolbar monitors-toolbar--embedded" : "monitors-toolbar"}>
         {embedded ? (
-          <p className="tool-note tool-note--hint monitors-toolbar-hint">Standalone HTTP/HTTPS monitors, checked independently of inventory devices.</p>
+          <span className="dash-panel-meta monitors-toolbar-hint">Standalone HTTP/HTTPS monitors, checked independently of inventory devices.</span>
         ) : (
           <p className="tool-note">Standalone HTTP/HTTPS monitors, checked independently of inventory devices.</p>
         )}
@@ -213,35 +315,60 @@ export function MonitorsPanel({
         <p className="dash-empty">No standalone monitors yet. Add one to start tracking an HTTP/HTTPS endpoint.</p>
       ) : (
         <div className="monitors-layout">
-          <div className="nm-table-wrap monitors-table-wrap">
-            <table className="nm-table">
+          <div className="nm-table-wrap monitors-table-wrap" ref={wrapRef}>
+            <table
+              className="nm-table monitors-table"
+              ref={tableRef}
+              style={{ tableLayout: "fixed", width: containerWidth }}
+            >
+              <colgroup>
+                <col style={{ width: MONITORS_STATUS_COL_WIDTH }} />
+                {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
+                <col style={{ width: fillerWidth }} />
+                <col style={{ width: MONITORS_ACTIONS_COL_WIDTH }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th></th>
-                  <th>Name</th>
-                  <th>URL</th>
-                  <th>Uptime 24h</th>
-                  <th>Uptime 7d</th>
-                  <th>Avg RTT</th>
+                  <th>
+                    Name
+                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(0, e)} />
+                  </th>
+                  <th>
+                    URL
+                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(1, e)} />
+                  </th>
+                  <th>
+                    Uptime 24h
+                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(2, e)} />
+                  </th>
+                  <th>
+                    Uptime 7d
+                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(3, e)} />
+                  </th>
+                  <th>
+                    Avg RTT
+                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(4, e)} />
+                  </th>
                   <th>Last checked</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {monitors.map((monitor) => (
+                {paginatedMonitors.map((monitor) => (
                   <tr
                     key={monitor.id}
                     className={selectedId === monitor.id ? "is-active" : ""}
                     onClick={() => setSelectedId(monitor.id)}
                     style={{ cursor: "pointer", opacity: monitor.enabled ? 1 : 0.55 }}
                   >
-                    <td><span className={`mon-dot mon-dot-${monitor.last_status ?? "unknown"}`} /></td>
+                    <td className="monitors-dot-cell"><span className={`mon-dot mon-dot-${monitor.last_status ?? "unknown"}`} /></td>
                     <td>{monitor.name}</td>
                     <td className="nm-table-mono">{monitor.url}</td>
-                    <td className="nm-table-num">{fmtUptime(monitor.uptime_24h)}</td>
-                    <td className="nm-table-num">{fmtUptime(monitor.uptime_7d)}</td>
-                    <td className="nm-table-num">{fmtRtt(monitor.avg_response_time_24h)}</td>
-                    <td>{fmtWhen(monitor.last_checked_at)}</td>
+                    <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_24h)}</td>
+                    <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_7d)}</td>
+                    <td className="nm-table-num">{fmtMonitorRtt(monitor.avg_response_time_24h)}</td>
+                    <td>{fmtMonitorWhen(monitor.last_checked_at)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {canWrite && (
                         <div className="nm-table-actions">
@@ -260,53 +387,52 @@ export function MonitorsPanel({
           </div>
 
           {selectedMonitor && (
-            <div className="monitors-drilldown">
-              <div className="monitors-drilldown-header">
-                <span className={`mon-dot mon-dot-${selectedMonitor.last_status ?? "unknown"}`} />
-                <div>
-                  <strong>{selectedMonitor.name}</strong>
-                  <span className="dash-panel-meta">{selectedMonitor.url}</span>
-                </div>
-              </div>
-              <div className="monitors-drilldown-stats">
-                <div><span className="dash-panel-meta">Uptime 24h</span><strong>{fmtUptime(selectedMonitor.uptime_24h)}</strong></div>
-                <div><span className="dash-panel-meta">Uptime 7d</span><strong>{fmtUptime(selectedMonitor.uptime_7d)}</strong></div>
-                <div><span className="dash-panel-meta">Avg response (24h)</span><strong>{fmtRtt(selectedMonitor.avg_response_time_24h)}</strong></div>
-                <div><span className="dash-panel-meta">Check interval</span><strong>{selectedMonitor.check_interval_seconds}s</strong></div>
-              </div>
-
-              <div className="monitors-heartbeat-strip">
-                {historyLoading ? (
-                  <p className="dash-empty">Loading history…</p>
-                ) : history.length === 0 ? (
-                  <p className="dash-empty">No checks recorded yet.</p>
-                ) : (
-                  <div className="heartbeat-bar heartbeat-bar--lg">
-                    {history.slice(-60).map((point) => (
-                      <span
-                        key={point.id}
-                        className="heartbeat-beat"
-                        style={{ background: point.status === "online" ? "var(--nm-success)" : "var(--nm-danger)" }}
-                        title={`${new Date(point.checked_at).toLocaleString()} — ${point.status}${point.response_time_ms !== null ? ` — ${point.response_time_ms.toFixed(0)} ms` : ""}${point.error ? ` — ${point.error}` : ""}`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="monitors-history-list">
-                {history.slice(-15).reverse().map((point) => (
-                  <div key={point.id} className="monitors-history-row">
-                    <span className={`mon-dot mon-dot-${point.status}`} />
-                    <span className="dash-panel-meta">{new Date(point.checked_at).toLocaleTimeString()}</span>
-                    <span className="nm-table-mono">{point.status_code ?? "—"}</span>
-                    <span className="nm-table-num">{fmtRtt(point.response_time_ms)}</span>
-                    {point.error && <span className="monitors-history-error">{point.error}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <aside className="details-panel monitors-details-panel">
+              <MonitorDetails
+                monitor={selectedMonitor}
+                history={history}
+                historyLoading={historyLoading}
+                onClose={() => setSelectedId(null)}
+              />
+            </aside>
           )}
+        </div>
+      )}
+
+      {monitors.length > 0 && (
+        <div className="inv-pagination">
+          <span className="inv-pagination-info">
+            Showing {Math.min((page - 1) * pageSize + 1, monitors.length)}–{Math.min(page * pageSize, monitors.length)} of {monitors.length} monitor{monitors.length !== 1 ? "s" : ""}
+          </span>
+          <div className="inv-pagination-controls">
+            <span style={{ fontSize: 11, opacity: 0.7 }}>Per page:</span>
+            <select
+              className="inv-pagination-select"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button
+              type="button"
+              className="inv-pagination-btn"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ‹ Prev
+            </button>
+            <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+              {page} / {Math.max(1, Math.ceil(monitors.length / pageSize))}
+            </span>
+            <button
+              type="button"
+              className="inv-pagination-btn"
+              disabled={page >= Math.ceil(monitors.length / pageSize)}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next ›
+            </button>
+          </div>
         </div>
       )}
 
@@ -382,7 +508,7 @@ export function MonitorsPanel({
         <DashStat label="Monitors" value={stats.total} sub={stats.total === 0 ? "none yet" : "standalone targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
         <DashStat label="Up" value={stats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
         <DashStat label="Down" value={stats.offline} sub={stats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={stats.offline > 0 ? "red" : "green"} />
-        <DashStat label="Avg response" value={fmtRtt(stats.avgRtt)} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
+        <DashStat label="Avg response" value={fmtMonitorRtt(stats.avgRtt)} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
       </div>
       {body}
     </div>
