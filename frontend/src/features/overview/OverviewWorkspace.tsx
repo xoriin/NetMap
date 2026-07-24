@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Search, Star } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
-  IconUsers, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
+  IconGauge, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
 } from "@tabler/icons-react";
 import {
   api,
@@ -306,12 +306,27 @@ export function OverviewWorkspace({
     <section className="dash-layout">
       {/* Stat row */}
       <div className="dash-stats">
-        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${onlinePct}% reachable`} icon={<IconServer size={20} />} accent="teal" />
-        <DashStat label="Online" value={statusCounts.online} sub="reachable" icon={<IconWifi size={20} />} accent="green" />
-        <DashStat label="Offline" value={statusCounts.offline} sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"} icon={<IconWifiOff size={20} />} accent={statusCounts.offline > 0 ? "red" : "green"} />
-        <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" />
-        <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" />
-        <DashStat label="Users" value={summary?.user_count ?? 0} sub="accounts" icon={<IconUsers size={20} />} accent="indigo" />
+        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${onlinePct}% reachable`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
+        <DashStat label="Online" value={statusCounts.online} sub="reachable" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
+        <DashStat
+          label="Offline"
+          value={statusCounts.offline}
+          sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"}
+          icon={<IconWifiOff size={20} />}
+          accent={statusCounts.offline > 0 ? "red" : "green"}
+          onClick={statusCounts.offline > 0 ? () => { setAlertDismissed(false); setShowOfflineList((v) => !v); } : undefined}
+          active={showOfflineList}
+        />
+        <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" onClick={() => onNavigate("/vlans")} />
+        <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" onClick={() => onNavigate("/topology")} />
+        <DashStat
+          label="Avg RTT"
+          value={fmtRtt(monFleet?.avg_rtt_ms ?? null)}
+          sub="fleet average"
+          icon={<IconGauge size={20} />}
+          accent="indigo"
+          onClick={() => onNavigate("/monitoring")}
+        />
       </div>
 
       {offlineDevices.length > 0 && !alertDismissed && (
@@ -368,6 +383,7 @@ export function OverviewWorkspace({
         accessToken={accessToken}
         openObservationCount={openObservationCount}
         onObservationActioned={onObservationActioned}
+        onNavigate={onNavigate}
       />
 
       {/* Main grids */}
