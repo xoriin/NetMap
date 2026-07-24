@@ -608,6 +608,15 @@ export type AuditLogList = {
   records: AuditLog[];
 };
 
+export type RestoreValidationResult = {
+  valid: boolean;
+  size_bytes: number;
+  table_count: number;
+  devices: number | null;
+  users: number | null;
+  subnets: number | null;
+};
+
 export type SystemSettings = {
   app_name: string;
   login_message: string;
@@ -622,6 +631,15 @@ export type SystemSettings = {
   ip_reservation_reminder_enabled: boolean;
   ip_reservation_reminder_days: number;
   ip_reservation_reminder_channels: string[];
+  backup_schedule_enabled: boolean;
+  backup_schedule_interval_hours: number;
+  backup_retention_count: number;
+};
+
+export type ScheduledBackup = {
+  filename: string;
+  size_bytes: number;
+  created_at: string;
 };
 
 export type PermissionMeta = {
@@ -669,7 +687,7 @@ export type NotificationProfilePayload = {
   config: Record<string, string>;
 };
 
-export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above";
+export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow";
 
 export type AlertRule = {
   id: number;
@@ -677,6 +695,7 @@ export type AlertRule = {
   enabled: boolean;
   event_type: AlertRuleEventType;
   device_id: number | null;
+  port_target_id: number | null;
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
@@ -692,6 +711,7 @@ export type AlertRulePayload = {
   enabled: boolean;
   event_type: AlertRuleEventType;
   device_id: number | null;
+  port_target_id: number | null;
   channels: string[];
   cooldown_minutes: number;
   threshold_ms: number | null;
@@ -716,6 +736,8 @@ export type PortResult = {
   check_type: string;
   open: boolean;
   status: string | null;
+  response_time_ms: number | null;
+  status_code: number | null;
 };
 
 export type NotificationDelivery = {
@@ -770,6 +792,7 @@ export type FleetSummary = {
 };
 
 export type ServiceCheckType = "tcp" | "udp" | "http" | "https";
+export type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "OPTIONS" | "PATCH";
 
 export type PortTarget = {
   id: number;
@@ -778,6 +801,12 @@ export type PortTarget = {
   label: string;
   check_type: ServiceCheckType;
   http_path: string | null;
+  http_method: HttpMethod;
+  expected_status_min: number;
+  expected_status_max: number;
+  timeout_seconds: number | null;
+  verify_tls: boolean;
+  follow_redirects: boolean;
   enabled: boolean;
   created_at: string;
 };
@@ -1456,6 +1485,8 @@ export const api = {
     }),
   applyObservation: (token: string, id: number) =>
     request<DiscoveryObservation>(`/api/v1/discovery/observations/${id}/apply`, { method: "POST", token }),
+  resolveAllObservations: (token: string) =>
+    request<{ resolved: number }>("/api/v1/discovery/observations/resolve-all", { method: "POST", token }),
   syslogStatus: (token: string) => request<SyslogStatus>("/api/v1/syslog/status", { token }),
   firewallEvents: (token: string, params: FirewallEventSearchParams = {}) => {
     const search = new URLSearchParams();
@@ -1586,6 +1617,21 @@ export const api = {
       },
       body: payload,
     }),
+  validateRestoreBackup: (token: string, payload: Blob) =>
+    request<RestoreValidationResult>("/api/v1/exports/restore/validate", {
+      method: "POST",
+      token,
+      headers: {
+        "Content-Type": "application/octet-stream",
+      },
+      body: payload,
+    }),
+  listScheduledBackups: (token: string) =>
+    request<ScheduledBackup[]>("/api/v1/exports/scheduled-backups", { token }),
+  downloadScheduledBackup: (token: string, filename: string) =>
+    requestBlob(`/api/v1/exports/scheduled-backups/${encodeURIComponent(filename)}`, { token }),
+  deleteScheduledBackup: (token: string, filename: string) =>
+    request<void>(`/api/v1/exports/scheduled-backups/${encodeURIComponent(filename)}`, { method: "DELETE", token }),
   adminPublicSettings: () =>
     request<SystemSettings>("/api/v1/admin/settings/public"),
   adminSettings: (token: string) =>
@@ -1707,6 +1753,10 @@ export const api = {
     const query = search.toString();
     return request<AuditLogList>(`/api/v1/audit/logs${query ? `?${query}` : ""}`, { token });
   },
+  exportLoginHistory: (token: string, actorUserId?: number) => {
+    const query = actorUserId !== undefined ? `?actor_user_id=${actorUserId}` : "";
+    return requestBlob(`/api/v1/audit/logs/export${query}`, { token });
+  },
   importDevices: (token: string, payload: Array<Partial<DevicePayload> & { ip_address: string }>) =>
     request<{ created: number; updated: number; errors: string[] }>("/api/v1/topology/devices/import", {
       method: "POST",
@@ -1729,7 +1779,11 @@ export const api = {
     request<DeviceAnalysis>(`/api/v1/monitoring/devices/${deviceId}/analysis`, { token }),
   listPortTargets: (token: string) =>
     request<PortTarget[]>("/api/v1/monitoring/service-checks", { token }),
-  createPortTarget: (token: string, payload: { device_id: number | null; port: number; label: string; check_type?: ServiceCheckType; http_path?: string | null; enabled?: boolean }) =>
+  createPortTarget: (token: string, payload: {
+    device_id: number | null; port: number; label: string; check_type?: ServiceCheckType; http_path?: string | null;
+    http_method?: HttpMethod; expected_status_min?: number; expected_status_max?: number;
+    timeout_seconds?: number | null; verify_tls?: boolean; follow_redirects?: boolean; enabled?: boolean;
+  }) =>
     request<PortTarget>("/api/v1/monitoring/service-checks", { method: "POST", token, body: JSON.stringify(payload) }),
   deletePortTarget: (token: string, id: number) =>
     request<void>(`/api/v1/monitoring/service-checks/${id}`, { method: "DELETE", token }),
