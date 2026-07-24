@@ -918,7 +918,8 @@ body:not(.theme-dark) .inv-toolbar-meta  { color: #5a7a90; }
   gap: 14px;
   margin-bottom: 14px;
   align-items: start;
-  min-height: calc(100vh - 250px);
+  height: calc(100vh - 250px);
+  min-height: 420px;
 }
 .mon-content > .dash-panel:first-child {
   height: 100%;
@@ -1394,6 +1395,24 @@ body.theme-dark .mon-ports-field-label { color: #4a7a96; }
   box-sizing: border-box;
 }
 body.theme-dark .mon-ports-input { background: var(--nm-shell); border-color: #2a3d52; color: #d8eaf5; }
+.mon-ports-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6a8a9a;
+}
+body.theme-dark .mon-ports-range-row { color: #4a7a96; }
+.mon-ports-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #43606f;
+  text-transform: none;
+  letter-spacing: normal;
+}
+body.theme-dark .mon-ports-checkbox-label { color: #a9c3d1; }
 .mon-ports-sel-count {
   font-weight: 400;
   text-transform: none;
@@ -3816,3 +3835,140 @@ button.dash-stat {
 }
 .theme-dark .mon-flap-badge { color: #fbbf24; background: rgba(217, 154, 34, 0.22); }
 .theme-dark .ipam-expired-badge { color: #fca5a5; background: rgba(220, 38, 38, 0.25); }
+
+/* Folder-style Devices/Monitors tabs, replacing the panel title */
+.dash-panel-header--tabbed {
+  align-items: flex-end;
+  padding-left: 0;
+  padding-bottom: 0;
+}
+.mon-panel-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: 8px;
+}
+.mon-panel-tab {
+  appearance: none;
+  border: 1px solid rgba(209, 220, 230, 0.7);
+  border-bottom: none;
+  background: #f3f7fa;
+  color: #7a96a8;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 9px 16px 10px;
+  border-radius: 10px 10px 0 0;
+  cursor: pointer;
+  position: relative;
+  top: 1px;
+  transition: color 0.13s, background 0.13s;
+  white-space: nowrap;
+}
+.mon-panel-tab:hover { color: #2a4860; }
+.mon-panel-tab.active {
+  background: #ffffff;
+  color: #1a2e3d;
+  border-bottom: 1px solid #ffffff;
+}
+.mon-panel-controls .tool-note {
+  margin: 0;
+  padding-right: 8px;
+}
+.mon-tab-hidden {
+  display: none;
+}
+
+/* ── Standalone monitors panel ─────────────────────────────────────────── */
+.monitors-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.monitors-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.monitors-toolbar--embedded {
+  margin-bottom: 4px;
+}
+.monitors-toolbar-hint {
+  flex: 1;
+  min-width: 0;
+  opacity: 0.75;
+}
+.monitors-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.monitors-table-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.monitors-table-wrap tr.is-active {
+  background: var(--nm-accent-soft);
+}
+.monitors-drilldown {
+  flex: 0 0 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-surface);
+}
+.monitors-drilldown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.monitors-drilldown-header strong {
+  display: block;
+  font-size: 14px;
+  color: var(--nm-text);
+}
+.monitors-drilldown-header .dash-panel-meta {
+  overflow-wrap: anywhere;
+}
+.monitors-drilldown-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+.monitors-drilldown-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.monitors-drilldown-stats strong {
+  font-size: 13px;
+  color: var(--nm-text);
+}
+.monitors-heartbeat-strip {
+  overflow-x: auto;
+}
+.monitors-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.monitors-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--nm-border);
+}
+.monitors-history-row:last-child { border-bottom: 0; }
+.monitors-history-error {
+  color: var(--nm-danger);
+  overflow-wrap: anywhere;
+}

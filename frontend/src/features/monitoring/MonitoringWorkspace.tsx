@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useContext, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
 import { Search, Star, ChevronUp, ChevronDown, Activity, X } from "lucide-react";
-import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected } from "@tabler/icons-react";
+import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
 import {
   api,
   type FleetSummary, type DeviceMonitorSummary, type MonitorHistoryPoint,
-  type PortTarget, type AlertEvent, type AlertRule, type DeviceAnalysis, type ServiceCheckType,
+  type PortTarget, type AlertEvent, type AlertRule, type DeviceAnalysis, type ServiceCheckType, type HttpMethod,
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type Incident } from "../../types";
@@ -16,6 +16,7 @@ import {
 } from "../../components/MonitorBadges";
 import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 import { Modal } from "../../components/Modal";
+import { MonitorsPanel, type MonitorStats } from "./MonitorsPanel";
 
 type MonitoringSnapshot = {
   fleet: FleetSummary | null;
@@ -59,6 +60,8 @@ export function MonitoringWorkspace({
   onToggleFavourite: (deviceId: number) => void;
   userRole: string;
 }) {
+  const [viewTab, setViewTab] = useState<"devices" | "monitors">("devices");
+  const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
   const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
@@ -142,6 +145,12 @@ export function MonitoringWorkspace({
   const [portFormLabel, setPortFormLabel] = useState("");
   const [portFormProtocol, setPortFormProtocol] = useState<ServiceCheckType>("tcp");
   const [portFormPath, setPortFormPath] = useState("");
+  const [portFormMethod, setPortFormMethod] = useState<HttpMethod>("GET");
+  const [portFormStatusMin, setPortFormStatusMin] = useState("200");
+  const [portFormStatusMax, setPortFormStatusMax] = useState("399");
+  const [portFormTimeout, setPortFormTimeout] = useState("");
+  const [portFormVerifyTls, setPortFormVerifyTls] = useState(false);
+  const [portFormFollowRedirects, setPortFormFollowRedirects] = useState(true);
   const [portFormScope, setPortFormScope] = useState<"global" | "device">("global");
   const [portFormDeviceIds, setPortFormDeviceIds] = useState<Set<number>>(new Set());
   const [portDeviceSearch, setPortDeviceSearch] = useState("");
@@ -420,6 +429,18 @@ export function MonitoringWorkspace({
     if (!ports) { setPortError("Invalid port — use a number, range (e.g. 60-65), or comma-separated list (e.g. 9001, 9040, 8054)"); return; }
     if (!portFormLabel.trim()) { setPortError("Label required"); return; }
     if (portFormScope === "device" && portFormDeviceIds.size === 0) { setPortError("Select at least one device"); return; }
+    const isHttp = portFormProtocol === "http" || portFormProtocol === "https";
+    const statusMin = parseInt(portFormStatusMin, 10);
+    const statusMax = parseInt(portFormStatusMax, 10);
+    if (isHttp && (isNaN(statusMin) || isNaN(statusMax) || statusMin < 100 || statusMax > 599 || statusMin > statusMax)) {
+      setPortError("Expected status range must be a valid 100-599 range (min ≤ max)");
+      return;
+    }
+    const timeoutSeconds = portFormTimeout.trim() ? parseFloat(portFormTimeout) : null;
+    if (isHttp && timeoutSeconds !== null && (isNaN(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 30)) {
+      setPortError("Timeout must be between 1 and 30 seconds");
+      return;
+    }
     setPortBusy(true);
     setPortError(null);
     try {
@@ -432,13 +453,21 @@ export function MonitoringWorkspace({
               port,
               label: portFormLabel.trim(),
               check_type: portFormProtocol,
-              http_path: (portFormProtocol === "http" || portFormProtocol === "https") && portFormPath.trim() ? portFormPath.trim() : null,
+              http_path: isHttp && portFormPath.trim() ? portFormPath.trim() : null,
+              http_method: isHttp ? portFormMethod : undefined,
+              expected_status_min: isHttp ? statusMin : undefined,
+              expected_status_max: isHttp ? statusMax : undefined,
+              timeout_seconds: isHttp ? timeoutSeconds : undefined,
+              verify_tls: isHttp ? portFormVerifyTls : undefined,
+              follow_redirects: isHttp ? portFormFollowRedirects : undefined,
               enabled: true,
             })
           )
         )
       );
       setPortFormPort(""); setPortFormLabel(""); setPortFormScope("global"); setPortFormDeviceIds(new Set()); setPortDeviceSearch("");
+      setPortFormMethod("GET"); setPortFormStatusMin("200"); setPortFormStatusMax("399");
+      setPortFormTimeout(""); setPortFormVerifyTls(false); setPortFormFollowRedirects(true);
       setPortTargets(await api.listPortTargets(accessToken));
     } catch {
       setPortError("Failed to add service check");
@@ -521,6 +550,14 @@ export function MonitoringWorkspace({
   return (
     <section className="dash-layout">
       {/* Stat cards — same pattern as Overview */}
+      {viewTab === "monitors" ? (
+        <div className="dash-stats dash-stats--monitoring">
+          <DashStat label="Monitors" value={monitorStats.total} sub={monitorStats.total === 0 ? "none yet" : "standalone targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
+          <DashStat label="Up" value={monitorStats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
+          <DashStat label="Down" value={monitorStats.offline} sub={monitorStats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={monitorStats.offline > 0 ? "red" : "green"} />
+          <DashStat label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
+        </div>
+      ) : (
       <div className="dash-stats dash-stats--monitoring">
         <DashStat
           label="Monitored"
@@ -580,7 +617,7 @@ export function MonitoringWorkspace({
           );
         })()}
       </div>
-
+      )}
 
       {/* Offline alert */}
       {offlineDevices.length > 0 && (
@@ -595,71 +632,94 @@ export function MonitoringWorkspace({
         </div>
       )}
 
-      {/* Device list */}
+      {/* Device / Monitor list */}
       <div className="mon-content">
         <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">
-              Devices
-              {filteredDevices.length !== devices.length
-                ? ` (${filteredDevices.length} of ${devices.length})`
-                : ` (${devices.length})`}
-            </span>
-            <div className="mon-panel-controls">
-              {refreshing && <span className="mon-refresh-status">Updating...</span>}
-              <select className="toolbar-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="all">All statuses</option>
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-                <option value="warning">Warning</option>
-                <option value="unknown">Unknown</option>
-                <option value="paused">Paused</option>
-              </select>
-              {groupOptions.length > 0 && (
-                <select className="toolbar-select" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
-                  <option value="all">All groups</option>
-                  {groupOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              )}
-              {siteOptions.length > 0 && (
-                <select className="toolbar-select" value={filterSite} onChange={(e) => setFilterSite(e.target.value)}>
-                  <option value="all">All sites</option>
-                  {siteOptions.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
-                </select>
-              )}
-              {vlanOptions.length > 0 && (
-                <select className="toolbar-select" value={filterVlan} onChange={(e) => setFilterVlan(e.target.value)}>
-                  <option value="all">All VLANs</option>
-                  {vlanOptions.map((v) => <option key={v} value={v}>VLAN {v}</option>)}
-                </select>
-              )}
+          <div className="dash-panel-header dash-panel-header--tabbed">
+            <div className="mon-panel-tabs">
               <button
                 type="button"
-                className={`inv-status-tab inv-fav-filter${favouriteFilter ? " active" : ""}`}
-                onClick={() => setFavouriteFilter((current) => !current)}
-                title={favouriteFilter ? "Show all devices" : "Show favourites only"}
+                className={`mon-panel-tab${viewTab === "devices" ? " active" : ""}`}
+                onClick={() => setViewTab("devices")}
               >
-                <Star size={13} fill={favouriteFilter ? "currentColor" : "none"} />
-                Favs
+                Devices
+                {filteredDevices.length !== devices.length
+                  ? ` (${filteredDevices.length} of ${devices.length})`
+                  : ` (${devices.length})`}
               </button>
-              {canManagePorts && (
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowPortsModal(true)}>
-                  Ports
-                </button>
-              )}
-              <div className="mon-search-wrap nm-search">
-                <Search size={13} className="nm-search-icon" />
-                <input
-                  className="mon-search nm-input"
-                  placeholder="Search devices…"
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                />
-              </div>
+              <button
+                type="button"
+                className={`mon-panel-tab${viewTab === "monitors" ? " active" : ""}`}
+                onClick={() => setViewTab("monitors")}
+              >
+                Monitors ({monitorStats.total})
+              </button>
             </div>
+            {viewTab === "devices" ? (
+              <div className="mon-panel-controls">
+                {refreshing && <span className="mon-refresh-status">Updating...</span>}
+                <select className="toolbar-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                  <option value="all">All statuses</option>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                  <option value="warning">Warning</option>
+                  <option value="unknown">Unknown</option>
+                  <option value="paused">Paused</option>
+                </select>
+                {groupOptions.length > 0 && (
+                  <select className="toolbar-select" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
+                    <option value="all">All groups</option>
+                    {groupOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                )}
+                {siteOptions.length > 0 && (
+                  <select className="toolbar-select" value={filterSite} onChange={(e) => setFilterSite(e.target.value)}>
+                    <option value="all">All sites</option>
+                    {siteOptions.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
+                  </select>
+                )}
+                {vlanOptions.length > 0 && (
+                  <select className="toolbar-select" value={filterVlan} onChange={(e) => setFilterVlan(e.target.value)}>
+                    <option value="all">All VLANs</option>
+                    {vlanOptions.map((v) => <option key={v} value={v}>VLAN {v}</option>)}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  className={`inv-status-tab inv-fav-filter${favouriteFilter ? " active" : ""}`}
+                  onClick={() => setFavouriteFilter((current) => !current)}
+                  title={favouriteFilter ? "Show all devices" : "Show favourites only"}
+                >
+                  <Star size={13} fill={favouriteFilter ? "currentColor" : "none"} />
+                  Favs
+                </button>
+                {canManagePorts && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowPortsModal(true)}>
+                    Ports
+                  </button>
+                )}
+                <div className="mon-search-wrap nm-search">
+                  <Search size={13} className="nm-search-icon" />
+                  <input
+                    className="mon-search nm-input"
+                    placeholder="Search devices…"
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="dash-panel-body mon-table-body">
-            {filteredDevices.length === 0 ? (
+            <div className={viewTab === "monitors" ? undefined : "mon-tab-hidden"}>
+              <MonitorsPanel
+                accessToken={accessToken}
+                canWrite={canManagePorts}
+                embedded
+                onStatsChange={setMonitorStats}
+              />
+            </div>
+            {viewTab === "devices" && (filteredDevices.length === 0 ? (
               <p className="dash-empty">
                 {devices.length === 0
                   ? `No data yet — the monitor polls every ${monitorIntervalLabel}.`
@@ -759,7 +819,11 @@ export function MonitoringWorkspace({
                         ) : (
                           <span className="mon-port-badges">
                             {d.latest_port_results.map((r) => (
-                              <span key={r.target_id ?? `${r.label}-${r.port}`} className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`} title={`${r.label} ${r.check_type.toUpperCase()}:${r.port}`}>{r.label}</span>
+                              <span
+                              key={r.target_id ?? `${r.label}-${r.port}`}
+                              className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`}
+                              title={`${r.label} ${r.check_type.toUpperCase()}:${r.port}${r.status_code !== null ? ` · HTTP ${r.status_code}` : ""}${r.response_time_ms !== null ? ` · ${Math.round(r.response_time_ms)} ms` : ""}`}
+                            >{r.label}</span>
                             ))}
                           </span>
                         )}
@@ -779,7 +843,7 @@ export function MonitoringWorkspace({
                   ))}
                 </tbody>
               </table>
-            )}
+            ))}
           </div>
         </div>
 
@@ -840,17 +904,81 @@ export function MonitoringWorkspace({
                     </select>
                   </label>
                   {(portFormProtocol === "http" || portFormProtocol === "https") && (
-                    <label className="mon-ports-field-label">
-                      Path (optional)
-                      <input
-                        type="text"
-                        className="mon-ports-input"
-                        placeholder="/health"
-                        value={portFormPath}
-                        onChange={(e) => setPortFormPath(e.target.value)}
-                        maxLength={200}
-                      />
-                    </label>
+                    <>
+                      <label className="mon-ports-field-label">
+                        Path (optional)
+                        <input
+                          type="text"
+                          className="mon-ports-input"
+                          placeholder="/health"
+                          value={portFormPath}
+                          onChange={(e) => setPortFormPath(e.target.value)}
+                          maxLength={200}
+                        />
+                      </label>
+                      <label className="mon-ports-field-label">
+                        Method
+                        <select
+                          className="mon-ports-input"
+                          value={portFormMethod}
+                          onChange={(e) => setPortFormMethod(e.target.value as HttpMethod)}
+                        >
+                          {["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"].map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="mon-ports-field-label">
+                        Expected status range
+                        <div className="mon-ports-range-row">
+                          <input
+                            type="number"
+                            className="mon-ports-input"
+                            min={100}
+                            max={599}
+                            value={portFormStatusMin}
+                            onChange={(e) => setPortFormStatusMin(e.target.value)}
+                          />
+                          <span>–</span>
+                          <input
+                            type="number"
+                            className="mon-ports-input"
+                            min={100}
+                            max={599}
+                            value={portFormStatusMax}
+                            onChange={(e) => setPortFormStatusMax(e.target.value)}
+                          />
+                        </div>
+                      </label>
+                      <label className="mon-ports-field-label">
+                        Timeout (seconds, optional)
+                        <input
+                          type="number"
+                          className="mon-ports-input"
+                          placeholder="default"
+                          min={1}
+                          max={30}
+                          value={portFormTimeout}
+                          onChange={(e) => setPortFormTimeout(e.target.value)}
+                        />
+                      </label>
+                      <label className="mon-ports-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={portFormVerifyTls}
+                          onChange={(e) => setPortFormVerifyTls(e.target.checked)}
+                        />
+                        Verify TLS certificate
+                      </label>
+                      <label className="mon-ports-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={portFormFollowRedirects}
+                          onChange={(e) => setPortFormFollowRedirects(e.target.checked)}
+                        />
+                        Follow redirects
+                      </label>
+                    </>
                   )}
                   <label className="mon-ports-field-label">
                     Scope
@@ -1139,7 +1267,11 @@ export function MonitoringWorkspace({
                           <div key={r.target_id ?? `${r.label}-${r.port}`} className="mon-port-row">
                             <span className={`mon-dot mon-dot-${r.open ? "online" : "offline"}`} />
                             <span className="mon-port-label">{r.label}</span>
-                            <span className="dash-panel-meta">{r.check_type.toUpperCase()} :{r.port}</span>
+                            <span className="dash-panel-meta">
+                              {r.check_type.toUpperCase()} :{r.port}
+                              {r.status_code !== null && ` · HTTP ${r.status_code}`}
+                              {r.response_time_ms !== null && ` · ${Math.round(r.response_time_ms)} ms`}
+                            </span>
                             <span className={`mon-port-status mon-port-status--${r.open ? "open" : "closed"}`}>
                               {r.open ? "Open" : "Closed"}
                             </span>
@@ -1298,7 +1430,6 @@ export function MonitoringWorkspace({
           </div>
         </div>
       )}
-
     </section>
   );
 }

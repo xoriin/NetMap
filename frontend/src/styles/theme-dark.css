@@ -957,6 +957,10 @@ body.theme-dark .overview-fav-search { background: #172839; border-color: rgba(7
 body.theme-dark .overview-fav-search input { color: #c9d9e6; background: transparent; border-color: transparent; }
 body.theme-dark .overview-fav-search input::placeholder { color: #6f8fa6; }
 
+body.theme-dark .mon-panel-tab { background: #101d29; border-color: rgba(40,70,90,0.6); color: #4a6478; }
+body.theme-dark .mon-panel-tab:hover { color: #c9d9e6; }
+body.theme-dark .mon-panel-tab.active { background: var(--nm-surface); color: #c9d9e6; border-bottom: 1px solid var(--nm-surface); }
+
 body.theme-dark .dash-health-label { color: #5a7a8e; }
 body.theme-dark .dash-health-track { background: rgba(40,70,90,0.5); }
 body.theme-dark .dash-health-count { color: #5a7a8e; }
