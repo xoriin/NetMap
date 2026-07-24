@@ -9,7 +9,10 @@ import {
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type Incident } from "../../types";
-import { MON_COL_WIDTHS_KEY, MON_COL_COUNT, MON_DEFAULT_COL_WIDTHS, computeIncidents, loadMonColWidths } from "../../utils/monitoring";
+import {
+  MON_COL_WIDTHS_KEY, MON_COL_COUNT, MON_DEFAULT_COL_WIDTHS, computeIncidents, loadMonColWidths,
+  MON_DEVICES_PAGE_SIZE_KEY, PAGE_SIZE_OPTIONS, loadPageSize,
+} from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
 import {
   AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge,
@@ -168,6 +171,8 @@ export function MonitoringWorkspace({
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
+  const [devicesPage, setDevicesPage] = useState(1);
+  const [devicesPageSize, setDevicesPageSize] = useState(() => loadPageSize(MON_DEVICES_PAGE_SIZE_KEY));
 
   useEffect(() => {
     if (cachedSnapshot) {
@@ -402,6 +407,18 @@ export function MonitoringWorkspace({
     return filtered;
   }, [devices, searchQ, filterGroup, filterSite, filterStatus, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
 
+  const paginatedDevices = useMemo(() => {
+    const start = (devicesPage - 1) * devicesPageSize;
+    return filteredDevices.slice(start, start + devicesPageSize);
+  }, [filteredDevices, devicesPage, devicesPageSize]);
+
+  useEffect(() => {
+    setDevicesPage(1);
+  }, [filteredDevices.length, devicesPageSize]);
+
+  useEffect(() => {
+    window.localStorage.setItem(MON_DEVICES_PAGE_SIZE_KEY, String(devicesPageSize));
+  }, [devicesPageSize]);
 
   const offlineDevices = useMemo(() => devices.filter((d) => d.status === "offline"), [devices]);
 
@@ -716,6 +733,7 @@ export function MonitoringWorkspace({
                 accessToken={accessToken}
                 canWrite={canManagePorts}
                 embedded
+                visible={viewTab === "monitors"}
                 onStatsChange={setMonitorStats}
               />
             </div>
@@ -791,7 +809,7 @@ export function MonitoringWorkspace({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDevices.map((d) => (
+                  {paginatedDevices.map((d) => (
                     <tr
                       key={d.device_id}
                       className={`mon-row${selectedId === d.device_id ? " mon-row--active" : ""}`}
@@ -845,6 +863,42 @@ export function MonitoringWorkspace({
               </table>
             ))}
           </div>
+          {viewTab === "devices" && filteredDevices.length > 0 && (
+            <div className="inv-pagination">
+              <span className="inv-pagination-info">
+                Showing {Math.min((devicesPage - 1) * devicesPageSize + 1, filteredDevices.length)}–{Math.min(devicesPage * devicesPageSize, filteredDevices.length)} of {filteredDevices.length} device{filteredDevices.length !== 1 ? "s" : ""}
+              </span>
+              <div className="inv-pagination-controls">
+                <span style={{ fontSize: 11, opacity: 0.7 }}>Per page:</span>
+                <select
+                  className="inv-pagination-select"
+                  value={devicesPageSize}
+                  onChange={(e) => setDevicesPageSize(Number(e.target.value))}
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button
+                  type="button"
+                  className="inv-pagination-btn"
+                  disabled={devicesPage <= 1}
+                  onClick={() => setDevicesPage((p) => p - 1)}
+                >
+                  ‹ Prev
+                </button>
+                <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                  {devicesPage} / {Math.max(1, Math.ceil(filteredDevices.length / devicesPageSize))}
+                </span>
+                <button
+                  type="button"
+                  className="inv-pagination-btn"
+                  disabled={devicesPage >= Math.ceil(filteredDevices.length / devicesPageSize)}
+                  onClick={() => setDevicesPage((p) => p + 1)}
+                >
+                  Next ›
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>{/* end mon-content */}
