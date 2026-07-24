@@ -314,6 +314,28 @@ def update_observation(
     return _observation_to_read(observation)
 
 
+@router.post("/observations/resolve-all", response_model=dict[str, int])
+def resolve_all_observations(
+    current_user: Annotated[User, Depends(require_topology_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, int]:
+    open_observations = db.scalars(
+        select(DiscoveryObservation).where(DiscoveryObservation.status.in_(("open", "acknowledged"))),
+    ).all()
+    now = datetime.now(timezone.utc)
+    for observation in open_observations:
+        observation.status = "resolved"
+        observation.resolved_at = now
+    write_audit(
+        db,
+        action="discovery.observations_resolved_all",
+        actor_user_id=current_user.id,
+        detail=f"count={len(open_observations)}",
+    )
+    db.commit()
+    return {"resolved": len(open_observations)}
+
+
 _APPLY_ALLOWED_FIELDS = {"ip_address", "hostname", "mac_address", "vendor", "device_type", "os_info", "os"}
 
 

@@ -159,6 +159,7 @@ export function DashboardView({
           onDeviceChange={onDeviceChange}
           onDevicesRemove={onDevicesRemove}
           onGraphChange={onGraphChange}
+          onNavigate={onNavigate}
           onObservationActioned={onObservationActioned}
           onToggleFavourite={onToggleFavourite}
           openObservationCount={openObservationCount}

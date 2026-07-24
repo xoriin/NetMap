@@ -4750,11 +4750,27 @@ body.theme-dark .ep-empty { color: #3a5a70; }
   overflow: hidden;
 }
 
+.obs-modal-hint-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .obs-modal-hint {
   margin: 0;
   font-size: 13px;
   color: #587183;
   line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.obs-modal-hint-row .obs-modal-hint {
+  flex: 1;
+}
+
+.obs-modal-hint-row .nm-btn {
   flex-shrink: 0;
 }
 
@@ -4784,6 +4800,12 @@ body.theme-dark .ep-empty { color: #3a5a70; }
   border-bottom: 1px solid #edf2f5;
 }
 .obs-row:last-child { border-bottom: 0; }
+
+.obs-row--clickable {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.obs-row--clickable:hover { background: var(--nm-row-hover); }
 
 .obs-row-type-badge {
   flex-shrink: 0;

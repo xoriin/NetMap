@@ -1,10 +1,12 @@
 import json
 from datetime import datetime, timedelta, timezone
+from unittest.mock import Mock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.v1.discovery import resolve_all_observations
 from app.db.session import Base
 from app.models.audit_log import AuditLog
 from app.models.device import Device
@@ -332,3 +334,47 @@ def test_intermittent_host_does_not_re_raise_disappeared():
     observations = create_observations_for_scan(db, schedule, misses[-1], misses[-2])
 
     assert [o for o in observations if o.observation_type == "disappeared"] == []
+
+
+def test_resolve_all_observations_resolves_open_and_acknowledged_only():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+
+    already_resolved = _observation(schedule.id, "new_device", status="resolved", ip="10.0.0.1", resolved_at=datetime.now(timezone.utc))
+    open_obs = _observation(schedule.id, "new_device", status="open", ip="10.0.0.2")
+    acked_obs = _observation(schedule.id, "disappeared", status="acknowledged", ip="10.0.0.3")
+    db.add_all([already_resolved, open_obs, acked_obs])
+    db.commit()
+
+    actor = Mock(id=1)
+    result = resolve_all_observations(actor, db)
+
+    assert result == {"resolved": 2}
+    db.refresh(open_obs)
+    db.refresh(acked_obs)
+    db.refresh(already_resolved)
+    assert open_obs.status == "resolved"
+    assert open_obs.resolved_at is not None
+    assert acked_obs.status == "resolved"
+    assert acked_obs.resolved_at is not None
+    # already-resolved observation's resolved_at is untouched by the bulk call
+    assert already_resolved.status == "resolved"
+
+    audit_events = db.query(AuditLog).filter(AuditLog.action == "discovery.observations_resolved_all").all()
+    assert len(audit_events) == 1
+    assert audit_events[0].detail == "count=2"
+
+
+def test_resolve_all_observations_is_a_noop_when_nothing_open():
+    db = _session()
+    schedule = _schedule()
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+
+    actor = Mock(id=1)
+    result = resolve_all_observations(actor, db)
+    assert result == {"resolved": 0}

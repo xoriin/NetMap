@@ -1,21 +1,34 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { IconArrowRight } from "@tabler/icons-react";
 import { api, type DiscoveryObservation } from "../api/client";
+import type { AppRoute } from "../routes";
 import { Modal } from "./Modal";
+import { useConfirm } from "./ConfirmDialog";
+
+const OBSERVATION_TARGET_ROUTE: Record<string, AppRoute> = {
+  new_device: "/inventory",
+  ip_change: "/inventory",
+  field_change: "/inventory",
+  disappeared: "/monitoring",
+};
 
 export function ObservationsAlert({
   accessToken,
   onObservationActioned,
   openObservationCount,
+  onNavigate,
 }: {
   accessToken: string | null;
   onObservationActioned?: () => void;
   openObservationCount?: number;
+  onNavigate?: (route: AppRoute) => void;
 }) {
   const [dismissed, setDismissed] = useState(false);
   const [obsBreakdown, setObsBreakdown] = useState<DiscoveryObservation[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [clearAllBusy, setClearAllBusy] = useState(false);
+  const confirmAction = useConfirm();
 
   useEffect(() => {
     if (!accessToken || !openObservationCount || openObservationCount === 0) { setObsBreakdown([]); return; }
@@ -61,6 +74,38 @@ export function ObservationsAlert({
     }
   }, [accessToken, onObservationActioned]);
 
+  const clearAll = useCallback(async () => {
+    if (!accessToken || openObs.length === 0) return;
+    const count = openObs.length;
+    const confirmed = await confirmAction({
+      title: "Clear all network changes",
+      message: `This resolves all ${count} pending network change${count !== 1 ? "s" : ""} at once.`,
+      detail: "Resolved changes are dismissed permanently and won't reappear.",
+      confirmLabel: "Clear all",
+      typeToConfirm: count >= 5 ? "clear" : undefined,
+    });
+    if (!confirmed) return;
+    setActionError(null);
+    setClearAllBusy(true);
+    try {
+      await api.resolveAllObservations(accessToken);
+      setObsBreakdown((prev) => prev.map((o) => o.status === "resolved" ? o : { ...o, status: "resolved" }));
+      onObservationActioned?.();
+      setModalOpen(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to clear all.");
+    } finally {
+      setClearAllBusy(false);
+    }
+  }, [accessToken, openObs.length, confirmAction, onObservationActioned]);
+
+  function goToObservation(obs: DiscoveryObservation) {
+    const route = OBSERVATION_TARGET_ROUTE[obs.observation_type];
+    if (!route || !onNavigate) return;
+    setModalOpen(false);
+    onNavigate(route);
+  }
+
   const count = openObs.length || openObservationCount || 0;
   if (!count || dismissed) return null;
 
@@ -93,9 +138,16 @@ export function ObservationsAlert({
         <Modal title="Network changes" wide onCancel={() => { setModalOpen(false); setActionError(null); }}>
           <div className="obs-modal-body">
             {actionError && <div className="error-banner">{actionError}</div>}
-            <p className="obs-modal-hint">
-              Scheduled scans detected the following changes on your network. Acknowledge to mark as seen, or resolve to dismiss permanently.
-            </p>
+            <div className="obs-modal-hint-row">
+              <p className="obs-modal-hint">
+                Scheduled scans detected the following changes on your network. Acknowledge to mark as seen, resolve to dismiss permanently, or click a row to jump to its device.
+              </p>
+              {openObs.length > 0 && (
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={clearAllBusy} onClick={() => void clearAll()}>
+                  {clearAllBusy ? "Clearing…" : "Clear all"}
+                </button>
+              )}
+            </div>
             {obsBreakdown.length === 0 && (
               <p className="obs-modal-empty">Loading…</p>
             )}
@@ -113,8 +165,14 @@ export function ObservationsAlert({
                   const canApply = canAddToInventory || (obs.device_id !== null && (obs.observation_type === "ip_change" || obs.observation_type === "field_change") && Object.keys(proposed).length > 0);
                   const applyLabel = obs.observation_type === "new_device" ? "Add to inventory" : "Apply to device";
                   const fieldLabels: Record<string, string> = { ip_address: "IP", hostname: "Hostname", mac_address: "MAC", vendor: "Vendor", device_type: "Type", os_info: "OS" };
+                  const targetRoute = onNavigate ? OBSERVATION_TARGET_ROUTE[obs.observation_type] : undefined;
                   return (
-                    <div key={obs.id} className="obs-row">
+                    <div
+                      key={obs.id}
+                      className={`obs-row${targetRoute ? " obs-row--clickable" : ""}`}
+                      onClick={targetRoute ? () => goToObservation(obs) : undefined}
+                      title={targetRoute ? `Go to ${targetRoute === "/inventory" ? "Inventory" : "Monitoring"}` : undefined}
+                    >
                       <span className={`obs-row-type-badge obs-row-type-badge--${obs.observation_type}`}>
                         {typeLabel[obs.observation_type] ?? obs.observation_type}
                       </span>
@@ -128,7 +186,7 @@ export function ObservationsAlert({
                         )}
                       </div>
                       <span className="obs-row-meta">{new Date(obs.last_seen_at).toLocaleString()}</span>
-                      <div className="obs-row-actions">
+                      <div className="obs-row-actions" onClick={(e) => e.stopPropagation()}>
                         {obs.status === "acknowledged" && (
                           <span className="obs-row-acked">Acknowledged</span>
                         )}
