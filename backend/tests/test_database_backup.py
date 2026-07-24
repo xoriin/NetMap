@@ -1,7 +1,7 @@
 import sqlite3
 from unittest.mock import Mock
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import sessionmaker
 
@@ -32,6 +32,46 @@ def test_backup_database_bytes_uses_active_sqlite_engine(tmp_path, monkeypatch):
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
     assert {"users", "system_settings", "devices", "device_relationships"}.issubset(tables)
+
+
+def test_validate_restore_bytes_reports_counts_without_touching_live_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "netmap.db"
+    test_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=test_engine)
+    SessionLocal = sessionmaker(bind=test_engine)
+    with SessionLocal() as seed_db:
+        from app.models.user import User
+        seed_db.add(User(username="alice", password_hash="x", role="admin"))
+        seed_db.commit()
+
+    monkeypatch.setattr(export_service, "engine", test_engine)
+    monkeypatch.setattr(secrets, "signing_secret", lambda: "test-secret")
+
+    _filename, payload = export_service.backup_database_bytes()
+
+    result = export_service.validate_restore_bytes(payload)
+
+    assert result["valid"] is True
+    assert result["users"] == 1
+    assert result["devices"] == 0
+    assert result["size_bytes"] > 0
+    assert result["table_count"] > 0
+
+    # the live db is untouched — still queryable via the original engine
+    with SessionLocal() as check_db:
+        assert check_db.execute(text("SELECT COUNT(*) FROM users")).scalar() == 1
+
+
+def test_validate_restore_bytes_rejects_bad_signature(tmp_path, monkeypatch):
+    monkeypatch.setattr(secrets, "signing_secret", lambda: "test-secret")
+    tampered = b"SQLite format 3\x00" + b"\x00" * 50 + b"\n--NETMAP-SIG-V1:" + b"0" * 64 + b"\n"
+
+    try:
+        export_service.validate_restore_bytes(tampered)
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised
 
 
 def test_network_report_pdf_skips_malformed_firewall_db(tmp_path):

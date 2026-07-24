@@ -4,6 +4,7 @@ from app.services.exports.service import (
     build_network_report_pdf,
     build_firewall_export,
     restore_database_bytes,
+    validate_restore_bytes,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "build_network_report_pdf",
     "build_firewall_export",
     "restore_database_bytes",
+    "validate_restore_bytes",
 ]

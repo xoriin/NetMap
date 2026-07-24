@@ -311,6 +311,37 @@ def backup_database_bytes() -> tuple[str, bytes]:
         temp_path.unlink(missing_ok=True)
 
 
+def validate_restore_bytes(payload: bytes) -> dict:
+    """Run the same checks as restore_database_bytes without touching the live database."""
+    from app.core.secrets import signing_secret
+    db_bytes = _verify_and_strip_backup(payload, signing_secret())
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as handle:
+        temp_path = Path(handle.name)
+        temp_path.write_bytes(db_bytes)
+    try:
+        _validate_backup_schema(temp_path)
+        with sqlite3.connect(temp_path) as conn:
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            if integrity != "ok":
+                raise ValueError(f"Backup failed SQLite integrity check: {integrity}")
+            table_names = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
+            counts = {}
+            for table, label in (("devices", "devices"), ("users", "users"), ("subnets", "subnets")):
+                if table in table_names:
+                    counts[label] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608
+        return {
+            "valid": True,
+            "size_bytes": len(db_bytes),
+            "table_count": len(table_names),
+            **counts,
+        }
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def restore_database_bytes(payload: bytes) -> None:
     from app.core.secrets import signing_secret
     db_bytes = _verify_and_strip_backup(payload, signing_secret())
