@@ -4,6 +4,7 @@ import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type Use
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { triggerDownload } from "../../../utils/download";
 
 type SsoFormState = {
   enabled: boolean;
@@ -384,6 +385,20 @@ export function SecurityTab({
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditUserFilter, setAuditUserFilter] = useState<number | null>(initialUserFilter);
   const [auditView, setAuditView] = useState<"all" | "login">("all");
+  const [exportBusy, setExportBusy] = useState(false);
+  const toast = useToast();
+
+  async function exportLoginHistory() {
+    setExportBusy(true);
+    try {
+      const result = await api.exportLoginHistory(accessToken, auditUserFilter ?? undefined);
+      triggerDownload(result);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   const auditQuery = useApiQuery(() => {
     const params: { limit: number; offset: number; actor_user_id?: number; category?: "login" } = { limit: 50, offset: auditOffset };
@@ -427,6 +442,11 @@ export function SecurityTab({
           <div className="admin-panel-actions">
             <button type="button" className={`nm-btn nm-btn--sm${auditView === "all" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("all"); setAuditOffset(0); }}>All activity</button>
             <button type="button" className={`nm-btn nm-btn--sm${auditView === "login" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("login"); setAuditOffset(0); }}>Login history</button>
+            {auditView === "login" && (
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={exportBusy} onClick={() => void exportLoginHistory()}>
+                {exportBusy ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
             {auditUserFilter && <button type="button" className="nm-btn" onClick={() => { setAuditUserFilter(null); setAuditOffset(0); }}>All users</button>}
             <button type="button" className="nm-btn" onClick={() => void auditQuery.reload()}>Refresh</button>
           </div>
