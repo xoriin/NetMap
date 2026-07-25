@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1.admin import get_public_settings, update_settings
 from app.api.v1.monitoring import _build_device_summaries, device_analysis, list_device_summaries
-from app.db.session import Base
+from app.db.session import Base, _migrate_monitor_history_uptime_index
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.site import Site
@@ -286,3 +286,82 @@ def test_admin_settings_persist_monitor_interval_seconds():
 
     assert updated.monitor_interval_seconds == 45
     assert get_public_settings(db).monitor_interval_seconds == 45
+
+
+def _uptime_aggregate_plans(db):
+    """Explain every per-device uptime rollup /monitoring/devices actually runs.
+
+    The statements are captured from a real _build_device_summaries call rather
+    than restated here, so the assertion can't drift away from the query the
+    endpoint issues.
+    """
+    from sqlalchemy import event
+
+    captured: list[tuple[str, tuple]] = []
+
+    def record(_conn, _cursor, statement, parameters, _context, _executemany):
+        captured.append((statement, parameters))
+
+    engine = db.get_bind()
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        _build_device_summaries(db, list(db.scalars(select(Device)).all()))
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    plans = []
+    for statement, parameters in captured:
+        # The two GROUP BY device_id rollups (24 h and 7 d), not the heartbeat
+        # window query or the site/group lookups.
+        if "GROUP BY device_monitor_history.device_id" not in statement:
+            continue
+        # exec_driver_sql, not execute(text(...)): these are the driver's own
+        # positional parameters, not named bindparams.
+        rows = db.connection().exec_driver_sql("EXPLAIN QUERY PLAN " + statement, parameters).all()
+        plans.append(" ".join(str(row[-1]) for row in rows))
+    return plans
+
+
+def test_uptime_rollups_are_covered_by_an_index():
+    """The 24 h/7 d rollups must not fall back to a table lookup per row.
+
+    ix_monitor_history_device_checked_at narrows to the right rows but omits
+    status/rtt_ms, so without the wider index every matching row costs a
+    scattered page read — hundreds of thousands of them across a week of fleet
+    history on each uncached load.
+    """
+    db = _session()
+    now = datetime.now(timezone.utc)
+    device = Device(
+        display_name="Indexed",
+        ip_address="10.0.0.40",
+        status="online",
+        monitor_status="online",
+        last_monitored_at=now,
+        updated_at=now,
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    db.add_all([
+        DeviceMonitorHistory(
+            device_id=device.id,
+            checked_at=now - timedelta(minutes=idx),
+            status="online",
+            rtt_ms=float(idx),
+            port_results="[]",
+        )
+        for idx in range(20)
+    ])
+    db.commit()
+
+    before = _uptime_aggregate_plans(db)
+    assert len(before) == 2, f"expected the 24h and 7d rollups, got {before}"
+
+    _migrate_monitor_history_uptime_index(db.connection(), inspect(db.get_bind()))
+    db.commit()
+
+    after = _uptime_aggregate_plans(db)
+    assert len(after) == 2
+    for plan in after:
+        assert "COVERING INDEX" in plan, plan

@@ -12,6 +12,7 @@ import { type Incident } from "../../types";
 import {
   MON_COL_WIDTHS_KEY, MON_COL_COUNT, MON_DEFAULT_COL_WIDTHS, computeIncidents, loadMonColWidths,
   MON_DEVICES_PAGE_SIZE_KEY, PAGE_SIZE_OPTIONS, loadPageSize,
+  MON_STATUS_COL_WIDTH, MON_FAVOURITE_COL_WIDTH, MON_MIN_COL_WIDTH,
 } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
 import {
@@ -89,11 +90,14 @@ export function MonitoringWorkspace({
     return `${diffMin} min ago`;
   }
 
+  // A handle sits at the right edge of column colIdx and resizes that column and
+  // nothing else. Widths come from the DOM on the first drag so the flexible
+  // columns freeze at exactly the width they were already rendering at.
   function startColResize(colIdx: number, e: React.MouseEvent) {
     e.preventDefault();
     const startX = e.clientX;
 
-    // Snapshot all 8 resizable column widths from the DOM (th[1]..th[8], skipping Status)
+    // Snapshot the 6 resizable column widths from the DOM (th[1]..th[6], skipping Status)
     const table = tableRef.current;
     const initialWidths: number[] = table
       ? Array.from(table.querySelectorAll<HTMLElement>("thead tr th"))
@@ -109,7 +113,7 @@ export function MonitoringWorkspace({
     function onMove(ev: MouseEvent) {
       if (!resizingRef.current) return;
       const { colIdx: ci, startX: sx, startWidth: sw } = resizingRef.current;
-      const next = Math.max(50, sw + (ev.clientX - sx));
+      const next = Math.max(MON_MIN_COL_WIDTH, sw + (ev.clientX - sx));
       const updated = [...initialWidths];
       updated[ci] = next;
       setColWidths(updated);
@@ -131,10 +135,27 @@ export function MonitoringWorkspace({
     document.addEventListener("mouseup", onUp);
   }
 
+  // Double-clicking any divider drops the saved widths entirely, which puts the
+  // table back on the stylesheet's flexible default layout rather than on a
+  // frozen copy of it.
+  function resetColWidths() {
+    window.localStorage.removeItem(MON_COL_WIDTHS_KEY);
+    setColWidths(null);
+  }
+
+  // null while the columns are still flexible (no user-set widths yet) — the
+  // stylesheet's width rule governs until the first drag freezes them.
+  const fleetTableWidth = colWidths
+    ? MON_STATUS_COL_WIDTH + colWidths.reduce((sum, w) => sum + w, 0) + MON_FAVOURITE_COL_WIDTH
+    : null;
+
   const cachedSnapshot = useMemo(getMonitoringSnapshot, []);
   const [fleet, setFleet] = useState<FleetSummary | null>(() => cachedSnapshot?.fleet ?? null);
   const [devices, setDevices] = useState<DeviceMonitorSummary[]>(() => cachedSnapshot?.devices ?? []);
   const [loading, setLoading] = useState(() => cachedSnapshot === null);
+  // Tracked apart from `loading` so the device table can show its own placeholder
+  // while the stat cards are already up.
+  const [devicesLoading, setDevicesLoading] = useState(() => cachedSnapshot === null);
   const devicesRef = useRef<DeviceMonitorSummary[]>(cachedSnapshot?.devices ?? []);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -190,40 +211,66 @@ export function MonitoringWorkspace({
   }, [portTargets]);
 
   useEffect(() => {
-    if (loading || fleet === null) return;
+    // `devicesLoading` matters as well as `loading`: the summary now lands (and
+    // clears `loading`) before the device rows do, and caching that in-between
+    // state would leave the next visit painting an empty table.
+    if (loading || devicesLoading || fleet === null) return;
     saveMonitoringSnapshot({
       fleet,
       devices,
       portTargets,
       cursor: monitorCursorRef.current,
     });
-  }, [devices, fleet, loading, portTargets]);
+  }, [devices, devicesLoading, fleet, loading, portTargets]);
 
   const loadAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
-    try {
-      const [f, d, p] = await Promise.all([
-        api.getMonitoringSummary(accessToken),
-        api.listMonitoringDevices(accessToken),
-        api.listPortTargets(accessToken),
-      ]);
-      setFleet(f);
+    setDevicesLoading(true);
+
+    // All three requests go out together, but the workspace no longer waits on
+    // the slowest of them. The fleet summary is a handful of aggregates and
+    // comes back well before the per-device 24 h/7 d rollups, so the stat cards
+    // and the toolbar paint while the table is still filling in. Settling each
+    // side to a nullable value keeps a rejection from the slow pair from
+    // surfacing as an unhandled rejection while we await the fast one.
+    const summaryPromise = api.getMonitoringSummary(accessToken).then(
+      (value) => value,
+      () => null,
+    );
+    const restPromise = Promise.all([
+      api.listMonitoringDevices(accessToken),
+      api.listPortTargets(accessToken),
+    ]).then((value) => value, () => null);
+
+    const f = await summaryPromise;
+    if (f) setFleet(f);
+    setLoading(false);
+
+    const rest = await restPromise;
+    if (rest) {
+      const [d, p] = rest;
       setDevices(d);
       setPortTargets(p);
       devicesRef.current = d;
       portTargetsRef.current = p;
+    }
+    if (f) {
       monitorCursorRef.current = f.last_checked;
       deltaPollsRef.current = 0;
-      saveMonitoringSnapshot({ fleet: f, devices: d, portTargets: p, cursor: f.last_checked });
-      setError(null);
-    } catch {
-      if (devicesRef.current.length === 0 && fleet === null) {
-        setError("Failed to load monitoring data");
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      saveMonitoringSnapshot({
+        fleet: f,
+        devices: rest ? rest[0] : devicesRef.current,
+        portTargets: rest ? rest[1] : portTargetsRef.current,
+        cursor: f.last_checked,
+      });
     }
+    if (f === null && rest === null) {
+      if (devicesRef.current.length === 0) setError("Failed to load monitoring data");
+    } else {
+      setError(null);
+    }
+    setDevicesLoading(false);
+    setRefreshing(false);
   }, [accessToken]);
 
   const loadDelta = useCallback(async () => {
@@ -739,18 +786,25 @@ export function MonitoringWorkspace({
             </div>
             {viewTab === "devices" && (filteredDevices.length === 0 ? (
               <p className="dash-empty">
-                {devices.length === 0
-                  ? `No data yet — the monitor polls every ${monitorIntervalLabel}.`
-                  : "No devices match your filter."}
+                {devicesLoading && devices.length === 0
+                  ? "Loading devices…"
+                  : devices.length === 0
+                    ? `No data yet — the monitor polls every ${monitorIntervalLabel}.`
+                    : "No devices match your filter."}
               </p>
             ) : (
               <table
                 className="mon-table mon-table--fleet"
                 ref={tableRef}
-                style={{ tableLayout: "fixed" }}
+                // Once the user has set widths the table must be exactly as wide
+                // as its columns add up to. Leaving it at the stylesheet's
+                // max(100%, 1580px) makes table-layout: fixed spread the
+                // difference over every column, so dragging one handle would
+                // visibly resize the others too.
+                style={{ tableLayout: "fixed", ...(fleetTableWidth !== null ? { width: fleetTableWidth } : null) }}
               >
                 <colgroup>
-                  <col style={{ width: 50 }} />
+                  <col style={{ width: MON_STATUS_COL_WIDTH }} />
                   {colWidths
                     ? colWidths.map((w, i) => <col key={i} style={{ width: w }} />)
                     : <>
@@ -762,11 +816,11 @@ export function MonitoringWorkspace({
                         <col />{/* Checked: equal share */}
                       </>
                   }
-                  <col style={{ width: 90 }} />
+                  <col style={{ width: MON_FAVOURITE_COL_WIDTH }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ width: 40 }}>
+                    <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "status" ? " active" : ""}`} onClick={() => toggleSort("status")} title="Sort by status">
                         {sortKey === "status" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
@@ -775,37 +829,67 @@ export function MonitoringWorkspace({
                       <button type="button" className={`inventory-sort-btn${sortKey === "name" ? " active" : ""}`} onClick={() => toggleSort("name")}>
                         Device{sortKey === "name" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(0, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(0, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "uptime24" ? " active" : ""}`} onClick={() => toggleSort("uptime24")}>
                         24 h{sortKey === "uptime24" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(1, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(1, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "uptime7" ? " active" : ""}`} onClick={() => toggleSort("uptime7")}>
                         7 d{sortKey === "uptime7" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(2, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(2, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "rtt" ? " active" : ""}`} onClick={() => toggleSort("rtt")}>
                         Avg RTT{sortKey === "rtt" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(3, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(3, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
                     <th>
                       Services
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(4, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(4, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "checked" ? " active" : ""}`} onClick={() => toggleSort("checked")}>
                         Checked{sortKey === "checked" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
-                      <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(5, e)} />
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(5, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
                     </th>
-                    <th style={{ width: 52 }} title="Favourite" />
+                    <th title="Favourite" />
                   </tr>
                 </thead>
                 <tbody>

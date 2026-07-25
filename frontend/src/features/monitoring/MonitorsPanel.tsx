@@ -114,29 +114,33 @@ export function MonitorsPanel({
     return () => observer.disconnect();
   }, [visible]);
 
-  // "Last checked" isn't user-resizable — it silently absorbs whatever space is
-  // left after the status column, the 5 resizable columns, and the actions
-  // column, so the table always spans the full wrapper width. Dragging one of
-  // the 5 resizable columns only ever changes that column and this filler.
+  // "Last checked" isn't user-resizable — it absorbs whatever slack is left
+  // after the status column, the 5 resizable columns, and the actions column so
+  // the table still spans the full wrapper when the columns are narrow. Once
+  // they add up to more than the wrapper it bottoms out at its minimum and the
+  // table overflows into the wrapper's horizontal scroll instead.
   const fillerWidth = Math.max(
     MONITORS_FILLER_MIN_WIDTH,
     containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - colWidths.reduce((sum, w) => sum + w, 0),
   );
 
+  // table-layout: fixed only honours the <col> widths when the table is exactly
+  // as wide as they add up to; anything else (a plain 100%, or the wrapper
+  // width) gets redistributed across every column, which is what made dragging
+  // one handle visibly shove its neighbours around.
+  const tableWidth =
+    MONITORS_STATUS_COL_WIDTH + colWidths.reduce((sum, w) => sum + w, 0) + fillerWidth + MONITORS_ACTIONS_COL_WIDTH;
+
   const MIN_COL_WIDTH = 60;
 
-  // A handle sits at the right edge of column colIdx and trades width with
-  // whatever is immediately to its right — the next resizable column, or the
-  // filler ("Last checked") if colIdx is the last one. Only that one pair
-  // ever changes; every other column keeps both its width and its position.
+  // A handle sits at the right edge of column colIdx and resizes that column and
+  // nothing else. Every other column keeps its width; the table as a whole grows
+  // or shrinks and the wrapper scrolls when it outgrows the viewport.
   function startColResize(colIdx: number, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startWidth = colWidths[colIdx];
-    const isLastResizable = colIdx === colWidths.length - 1;
-    const neighborStartWidth = isLastResizable ? fillerWidth : colWidths[colIdx + 1];
-    const neighborMin = isLastResizable ? MONITORS_FILLER_MIN_WIDTH : MIN_COL_WIDTH;
     resizingRef.current = { colIdx, startX, startWidth };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
@@ -144,13 +148,10 @@ export function MonitorsPanel({
     function onMove(ev: MouseEvent) {
       if (!resizingRef.current) return;
       const { colIdx: ci, startX: sx, startWidth: sw } = resizingRef.current;
-      const rawDelta = ev.clientX - sx;
-      // Clamp so neither side of the pair can shrink past its minimum.
-      const delta = Math.max(MIN_COL_WIDTH - sw, Math.min(neighborStartWidth - neighborMin, rawDelta));
+      const next = Math.max(MIN_COL_WIDTH, sw + (ev.clientX - sx));
       setColWidths((prev) => {
         const updated = [...prev];
-        updated[ci] = sw + delta;
-        if (!isLastResizable) updated[ci + 1] = neighborStartWidth - delta;
+        updated[ci] = next;
         return updated;
       });
     }
@@ -169,6 +170,12 @@ export function MonitorsPanel({
 
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+  }
+
+  // Double-clicking any divider puts every column back to its default width.
+  function resetColWidths() {
+    window.localStorage.removeItem(MONITORS_COL_WIDTHS_KEY);
+    setColWidths(MONITORS_DEFAULT_COL_WIDTHS);
   }
 
   async function load() {
@@ -326,7 +333,7 @@ export function MonitorsPanel({
             <table
               className="nm-table monitors-table"
               ref={tableRef}
-              style={{ tableLayout: "fixed", width: containerWidth }}
+              style={{ tableLayout: "fixed", width: tableWidth }}
             >
               <colgroup>
                 <col style={{ width: MONITORS_STATUS_COL_WIDTH }} />
@@ -339,23 +346,48 @@ export function MonitorsPanel({
                   <th></th>
                   <th>
                     Name
-                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(0, e)} />
+                    <div
+                      className="mon-col-resize-handle"
+                      onMouseDown={(e) => startColResize(0, e)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize · double-click to reset all columns"
+                    />
                   </th>
                   <th>
                     URL
-                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(1, e)} />
+                    <div
+                      className="mon-col-resize-handle"
+                      onMouseDown={(e) => startColResize(1, e)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize · double-click to reset all columns"
+                    />
                   </th>
                   <th>
                     Uptime 24h
-                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(2, e)} />
+                    <div
+                      className="mon-col-resize-handle"
+                      onMouseDown={(e) => startColResize(2, e)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize · double-click to reset all columns"
+                    />
                   </th>
                   <th>
                     Uptime 7d
-                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(3, e)} />
+                    <div
+                      className="mon-col-resize-handle"
+                      onMouseDown={(e) => startColResize(3, e)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize · double-click to reset all columns"
+                    />
                   </th>
                   <th>
                     Avg RTT
-                    <div className="mon-col-resize-handle" onMouseDown={(e) => startColResize(4, e)} />
+                    <div
+                      className="mon-col-resize-handle"
+                      onMouseDown={(e) => startColResize(4, e)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize · double-click to reset all columns"
+                    />
                   </th>
                   <th>Last checked</th>
                   <th></th>

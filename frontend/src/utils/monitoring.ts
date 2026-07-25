@@ -13,6 +13,12 @@ export const MON_COL_WIDTHS_KEY = "netmap.mon_col_widths_v8";
 // 6 resizable cols: Device | 24h | 7d | Avg RTT | Services | Checked  (Status+Fav fixed)
 export const MON_COL_COUNT = 6;
 export const MON_DEFAULT_COL_WIDTHS = [420, 100, 100, 100, 100, 100];
+// The two unresizable columns bracketing them. Kept here so the <col> widths and
+// the table's total width are always computed from the same numbers — under
+// table-layout: fixed any mismatch is redistributed across every column.
+export const MON_STATUS_COL_WIDTH = 50;
+export const MON_FAVOURITE_COL_WIDTH = 90;
+export const MON_MIN_COL_WIDTH = 50;
 
 export const MONITORS_COL_WIDTHS_KEY = "netmap.monitors_col_widths_v2";
 // 5 user-resizable cols: Name | URL | Uptime 24h | Uptime 7d | Avg RTT.

@@ -911,21 +911,26 @@ body:not(.theme-dark) .inv-toolbar-meta  { color: #5a7a90; }
 /* Shrink the stat value font when it holds a string (RTT / time) */
 .mon-stat-value { font-size: 20px; }
 
-/* Content grid */
+/* Content grid.
+
+   Sized by the flex column in .dash-layout rather than a calc() against the
+   viewport. Every hardcoded figure here was an estimate of the chrome stacked
+   above the panel (page header + stat cards + offline-alert bar), and it was
+   wrong whenever that chrome's real height differed — the alert bar appearing,
+   stat cards wrapping on a narrow window — which pushed the pagination footer
+   past the bottom of the viewport and made the whole page scroll. Letting the
+   panel take whatever is actually left over cannot drift out of sync. */
 .mon-content {
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 14px;
-  margin-bottom: 14px;
-  align-items: start;
-  /* 340px = page header + stat cards + offline-alert bar above this panel;
-     was 250px, which undershot by ~80px and pushed the pagination footer
-     below the fold, forcing a whole-page scroll to reach it. */
-  height: calc(100vh - 340px);
-  min-height: 420px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .mon-content > .dash-panel:first-child {
-  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

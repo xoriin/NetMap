@@ -154,6 +154,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0052_service_check_http_options", _migrate_service_check_http_options)
         _run_migration(conn, inspector, "0053_alert_rule_service_check", _migrate_alert_rule_service_check)
         _run_migration(conn, inspector, "0054_alert_rule_monitor", _migrate_alert_rule_monitor)
+        _run_migration(conn, inspector, "0055_monitor_history_uptime_index", _migrate_monitor_history_uptime_index)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -751,6 +752,24 @@ def _migrate_backend_hot_path_indexes(conn, inspector) -> None:
             "CREATE INDEX IF NOT EXISTS ix_ip_reservations_subnet_ip "
             "ON ip_reservations (subnet_id, ip_address)"
         ))
+
+
+def _migrate_monitor_history_uptime_index(conn, inspector) -> None:
+    """Make the monitoring uptime aggregates index-only.
+
+    ``ix_monitor_history_device_checked_at`` narrows to the right rows but does
+    not carry ``status``/``rtt_ms``, so the 24 h and 7 d uptime rollups do a
+    table lookup per matching row. Over a week of history for a whole fleet
+    that is hundreds of thousands of scattered page reads on every uncached
+    /monitoring/devices call. Widening the index makes both aggregates a
+    covering scan.
+    """
+    if "device_monitor_history" not in set(inspector.get_table_names()):
+        return
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_status "
+        "ON device_monitor_history (device_id, checked_at, status, rtt_ms)"
+    ))
 
 
 def _migrate_user_device_favourites(conn, inspector) -> None:

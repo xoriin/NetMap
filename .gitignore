@@ -15,6 +15,8 @@ backend/.pytest_cache/
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 
 # IDE / OS
 .DS_Store

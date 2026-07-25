@@ -617,6 +617,32 @@ body.route-inventory .topology-layout {
   min-height: 0;
 }
 
+/* Monitoring: pin the workspace to the viewport so the device table is the only
+   thing that scrolls. Without this the panel grows to fit its rows and the page
+   itself scrolls once the table runs past the fold. */
+body.route-monitoring .app-shell {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.route-monitoring .app-main {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.route-monitoring .workspace {
+  height: calc(100dvh - var(--nm-topbar-height));
+  overflow: hidden;
+}
+
+body.route-monitoring .dash-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* .workspace already supplies the 24px gutter. */
+  padding-bottom: 0;
+}
+
 body.route-vlans .workspace,
 body.route-locations .workspace {
   padding: 20px 24px 24px;
