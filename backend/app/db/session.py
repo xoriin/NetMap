@@ -17,6 +17,13 @@ engine_kwargs = {"connect_args": connect_args}
 
 if settings.database_url == "sqlite://":
     engine_kwargs["poolclass"] = StaticPool
+else:
+    # The default pool (5 + 10 overflow) is too small once the request
+    # threadpool competes with the alert monitor, standalone monitors, the
+    # scheduled-backup thread and scheduled discovery for connections.
+    engine_kwargs["pool_size"] = 20
+    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_timeout"] = 10
 
 engine = create_engine(settings.database_url, **engine_kwargs)
 
@@ -26,7 +33,10 @@ def _set_sqlite_pragmas(dbapi_conn, _rec):
     if isinstance(dbapi_conn, sqlite3.Connection):
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=5000")
+        # 5 s was not enough headroom for bursty writers (topology autosave,
+        # monitor history, retention purges) and surfaced as "database is
+        # locked" 500s on unrelated requests.
+        cur.execute("PRAGMA busy_timeout=20000")
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.close()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

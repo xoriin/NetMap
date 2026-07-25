@@ -350,3 +350,110 @@ def test_build_message_monitor_down_and_slow():
         response_time_ms=1234.0, threshold_ms=500,
     )
     assert "1234 ms" in slow and "500 ms" in slow
+
+
+def test_tick_holds_no_db_session_while_probing(monkeypatch):
+    """Network IO must run with every session closed.
+
+    A session held across a slow HTTP check pins a pooled connection (and any
+    transaction on it) for the whole timeout, which starved request handlers
+    and produced "database is locked" 500s elsewhere in the app.
+    """
+    db = _session()
+    monitor = _monitor(check_interval_seconds=30)
+    db.add(monitor)
+    db.commit()
+
+    open_sessions = {"count": 0, "max_during_check": 0}
+    real_factory = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
+
+    def tracking_factory():
+        session = real_factory()
+        open_sessions["count"] += 1
+        original_close = session.close
+
+        def close(*args, **kwargs):
+            open_sessions["count"] -= 1
+            return original_close(*args, **kwargs)
+
+        session.close = close
+        return session
+
+    def probing_check(*_args, **_kwargs):
+        open_sessions["max_during_check"] = max(
+            open_sessions["max_during_check"], open_sessions["count"],
+        )
+        return CheckResult(open=True, response_time_ms=10.0, status_code=200)
+
+    monkeypatch.setattr(monitors_service_module, "SessionLocal", tracking_factory)
+    monkeypatch.setattr(monitors_service_module, "check_url", probing_check)
+
+    StandaloneMonitorService()._tick()
+
+    assert open_sessions["max_during_check"] == 0
+    assert open_sessions["count"] == 0
+
+
+def test_tick_notifications_are_sent_outside_any_session(monkeypatch):
+    """Same invariant for the notification sends, which are also network IO."""
+    db = _session()
+    monitor = _monitor(check_interval_seconds=30, last_status="online")
+    db.add(monitor)
+    db.add(AlertRule(
+        name="down", event_type="monitor_down", enabled=True,
+        channels='["webhook"]', cooldown_minutes=0,
+    ))
+    db.commit()
+
+    open_sessions = {"count": 0, "max_during_send": 0}
+    real_factory = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
+
+    def tracking_factory():
+        session = real_factory()
+        open_sessions["count"] += 1
+        original_close = session.close
+
+        def close(*args, **kwargs):
+            open_sessions["count"] -= 1
+            return original_close(*args, **kwargs)
+
+        session.close = close
+        return session
+
+    def sending(*_args, **_kwargs):
+        open_sessions["max_during_send"] = max(
+            open_sessions["max_during_send"], open_sessions["count"],
+        )
+        return "ok"
+
+    monkeypatch.setattr(monitors_service_module, "SessionLocal", tracking_factory)
+    monkeypatch.setattr(monitors_service_module, "check_url", lambda *a, **k: CheckResult(open=False, response_time_ms=None, status_code=None))
+    monkeypatch.setattr(monitors_service_module, "send_notification_target", sending)
+
+    StandaloneMonitorService()._tick()
+
+    assert db.query(AlertEvent).filter(AlertEvent.event_type == "monitor_down").count() == 1
+    assert open_sessions["max_during_send"] == 0
+
+
+def test_tick_skips_history_for_a_monitor_deleted_mid_check(monkeypatch):
+    db = _session()
+    monitor = _monitor(check_interval_seconds=30)
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+    monitor_id = monitor.id
+
+    factory = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
+    monkeypatch.setattr(monitors_service_module, "SessionLocal", factory)
+
+    def delete_then_succeed(*_args, **_kwargs):
+        db.query(Monitor).filter(Monitor.id == monitor_id).delete()
+        db.commit()
+        return CheckResult(open=True, response_time_ms=5.0, status_code=200)
+
+    monkeypatch.setattr(monitors_service_module, "check_url", delete_then_succeed)
+
+    StandaloneMonitorService()._tick()
+
+    assert db.query(MonitorCheckHistory).count() == 0

@@ -564,13 +564,18 @@ def save_topology_layout(
         if payload.display_prefs is not None:
             layout.display_prefs_json = serialized_display_prefs
 
-    write_audit(
-        db,
-        action="topology.layout_saved",
-        actor_user_id=current_user.id,
-        target=f"layout:{layout.name}",
-        detail=f"nodes={len(payload.positions)} created={created}",
-    )
+    # The autosave row is rewritten every couple of seconds while a user drags
+    # the canvas. Auditing each one adds a second row to every one of those
+    # transactions and bloats audit_log without recording a deliberate action;
+    # explicit named-layout saves are still audited.
+    if layout.name != TOPOLOGY_AUTOSAVE_LAYOUT_NAME:
+        write_audit(
+            db,
+            action="topology.layout_saved",
+            actor_user_id=current_user.id,
+            target=f"layout:{layout.name}",
+            detail=f"nodes={len(payload.positions)} created={created}",
+        )
     db.commit()
     db.refresh(layout)
     return serialize_topology_layout(layout)

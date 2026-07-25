@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
 
+from app.db.retention import delete_rows_before
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
@@ -387,18 +388,9 @@ class AlertMonitorService:
         if self._last_pruned_at is not None and (now - self._last_pruned_at).total_seconds() < 86400:
             return
         try:
-            from sqlalchemy import text
             cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=HISTORY_RETAIN_DAYS)
-            with SessionLocal() as db:
-                db.execute(
-                    text("DELETE FROM device_monitor_history WHERE checked_at < :cutoff"),
-                    {"cutoff": cutoff.isoformat()},
-                )
-                db.execute(
-                    text("DELETE FROM notification_deliveries WHERE sent_at < :cutoff"),
-                    {"cutoff": cutoff.isoformat()},
-                )
-                db.commit()
+            delete_rows_before("device_monitor_history", "checked_at", cutoff)
+            delete_rows_before("notification_deliveries", "sent_at", cutoff)
             self._last_pruned_at = now
         except Exception:
             logger.exception("Failed to prune monitor history")

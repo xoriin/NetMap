@@ -36,7 +36,7 @@ def _set_firewall_pragmas(dbapi_conn, _rec):
     if isinstance(dbapi_conn, sqlite3.Connection):
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA busy_timeout=20000")
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.close()
 

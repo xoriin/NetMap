@@ -10,6 +10,7 @@ from app.api.v1.topology import (
     list_topology_layouts,
     preview_shared_layout,
     revoke_topology_layout_share,
+    save_topology_layout,
     share_topology_layout,
 )
 from app.db.session import Base
@@ -188,3 +189,25 @@ def test_import_with_unknown_code_returns_404():
             db=db,
         )
     assert exc.value.status_code == 404
+
+
+def test_autosave_layout_saves_are_not_audited_but_named_layouts_are():
+    """Autosave rewrites every couple of seconds while dragging; auditing each
+    one adds a second insert to every autosave transaction for no audit value."""
+    db, owner, _other, _layout, _autosave = _share_db()
+
+    save_topology_layout(
+        payload=TopologyLayoutCreate(name="__autosave__", positions={"device-1": {"x": 5, "y": 6}}),
+        current_user=owner,
+        db=db,
+    )
+    assert db.query(AuditLog).filter(AuditLog.action == "topology.layout_saved").count() == 0
+
+    save_topology_layout(
+        payload=TopologyLayoutCreate(name="Office", positions={"device-1": {"x": 5, "y": 6}}),
+        current_user=owner,
+        db=db,
+    )
+    entries = db.query(AuditLog).filter(AuditLog.action == "topology.layout_saved").all()
+    assert len(entries) == 1
+    assert entries[0].target == "layout:Office"
