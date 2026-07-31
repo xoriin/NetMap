@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { Search } from "lucide-react";
 import { IconGauge, IconPlugConnected, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { api, type HttpMethod, type Monitor, type MonitorCheckHistoryPoint, type MonitorPayload } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
@@ -6,21 +8,15 @@ import { Modal } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { MonitorDetails } from "./MonitorDetails";
+import { MonitorFormFields, type MonitorFormState } from "./MonitorFormFields";
 import {
-  MONITORS_COL_WIDTHS_KEY,
-  MONITORS_DEFAULT_COL_WIDTHS,
-  MONITORS_FILLER_MIN_WIDTH,
   MONITORS_PAGE_SIZE_KEY,
   PAGE_SIZE_OPTIONS,
   fmtMonitorRtt,
   fmtMonitorUptime,
   fmtMonitorWhen,
-  loadMonitorsColWidths,
   loadPageSize,
 } from "../../utils/monitoring";
-
-const MONITORS_STATUS_COL_WIDTH = 64;
-const MONITORS_ACTIONS_COL_WIDTH = 210;
 
 const HTTP_METHODS: HttpMethod[] = ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"];
 
@@ -34,9 +30,11 @@ const INTERVAL_OPTIONS = [
   { value: 3600, label: "1 hour" },
 ];
 
-function emptyForm(): MonitorPayload {
+function emptyForm(): MonitorFormState {
   return {
     name: "",
+    description: "",
+    tags_text: "",
     url: "",
     http_method: "GET",
     expected_status_min: 200,
@@ -44,8 +42,37 @@ function emptyForm(): MonitorPayload {
     timeout_seconds: 10,
     verify_tls: true,
     follow_redirects: true,
+    max_redirects: 10,
+    accepted_status_codes: "200-399",
+    request_headers_text: "",
+    request_body: "",
+    body_encoding: "json",
+    auth_type: "none",
+    auth_username: "",
+    auth_password: "",
+    bearer_token: "",
+    oauth_token_url: "",
+    oauth_client_id: "",
+    oauth_client_secret: "",
+    oauth_scopes: "",
+    oauth_audience: "",
+    oauth_auth_method: "client_secret_basic",
+    proxy_url: "",
+    tls_ca: "",
+    tls_cert: "",
+    tls_key: "",
+    keyword: "",
+    keyword_inverted: false,
+    json_path: "",
+    json_operator: "equals",
+    expected_value: "",
+    cache_bust: false,
+    upside_down: false,
     check_interval_seconds: 60,
     max_retries: 0,
+    retry_interval_seconds: 20,
+    certificate_expiry_alert: false,
+    certificate_expiry_days: 14,
     enabled: true,
   };
 }
@@ -56,17 +83,12 @@ export function MonitorsPanel({
   accessToken,
   canWrite,
   embedded = false,
-  visible = true,
   onStatsChange,
 }: {
   accessToken: string;
   canWrite: boolean;
   /** Renders just the toolbar + table + drilldown, for embedding inside another panel's body. */
   embedded?: boolean;
-  /** Whether this panel is the visible tab right now — the panel stays mounted-but-hidden
-   * (display:none) while on the other tab, and a hidden element reports zero size, so the
-   * table-width measurement needs to be redone once it's actually shown again. */
-  visible?: boolean;
   onStatsChange?: (stats: MonitorStats) => void;
 }) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -74,109 +96,18 @@ export function MonitorsPanel({
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState<MonitorPayload>(emptyForm());
+  const [form, setForm] = useState<MonitorFormState>(emptyForm());
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [history, setHistory] = useState<MonitorCheckHistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  // Always a fully-explicit 6-length array (never null/flexible <col>s) — mixing
-  // flexible and fixed columns meant the very first resize "froze" whatever
-  // inflated width the browser had given the flexible columns at that instant,
-  // producing a jarring jump. Explicit widths from the start make every drag
-  // change only the column being dragged.
-  const [colWidths, setColWidths] = useState<number[]>(() => loadMonitorsColWidths() ?? MONITORS_DEFAULT_COL_WIDTHS);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => loadPageSize(MONITORS_PAGE_SIZE_KEY));
-  const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
-  const tableRef = useRef<HTMLTableElement | null>(null);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState(1200);
   const confirmAction = useConfirm();
   const toast = useToast();
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    // The panel stays mounted (display:none) while on the other tab, so the
-    // observer attached back then saw a 0-width element and never fires again
-    // on its own once revealed. Re-measure directly whenever this becomes the
-    // active tab, then let the observer take over for actual resizes.
-    if (visible) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width) setContainerWidth(rect.width);
-    }
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width;
-      if (width) setContainerWidth(width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [visible]);
-
-  // "Last checked" isn't user-resizable — it absorbs whatever slack is left
-  // after the status column, the 5 resizable columns, and the actions column so
-  // the table still spans the full wrapper when the columns are narrow. Once
-  // they add up to more than the wrapper it bottoms out at its minimum and the
-  // table overflows into the wrapper's horizontal scroll instead.
-  const fillerWidth = Math.max(
-    MONITORS_FILLER_MIN_WIDTH,
-    containerWidth - MONITORS_STATUS_COL_WIDTH - MONITORS_ACTIONS_COL_WIDTH - colWidths.reduce((sum, w) => sum + w, 0),
-  );
-
-  // table-layout: fixed only honours the <col> widths when the table is exactly
-  // as wide as they add up to; anything else (a plain 100%, or the wrapper
-  // width) gets redistributed across every column, which is what made dragging
-  // one handle visibly shove its neighbours around.
-  const tableWidth =
-    MONITORS_STATUS_COL_WIDTH + colWidths.reduce((sum, w) => sum + w, 0) + fillerWidth + MONITORS_ACTIONS_COL_WIDTH;
-
-  const MIN_COL_WIDTH = 60;
-
-  // A handle sits at the right edge of column colIdx and resizes that column and
-  // nothing else. Every other column keeps its width; the table as a whole grows
-  // or shrinks and the wrapper scrolls when it outgrows the viewport.
-  function startColResize(colIdx: number, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startWidth = colWidths[colIdx];
-    resizingRef.current = { colIdx, startX, startWidth };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    function onMove(ev: MouseEvent) {
-      if (!resizingRef.current) return;
-      const { colIdx: ci, startX: sx, startWidth: sw } = resizingRef.current;
-      const next = Math.max(MIN_COL_WIDTH, sw + (ev.clientX - sx));
-      setColWidths((prev) => {
-        const updated = [...prev];
-        updated[ci] = next;
-        return updated;
-      });
-    }
-
-    function onUp() {
-      resizingRef.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      setColWidths((prev) => {
-        window.localStorage.setItem(MONITORS_COL_WIDTHS_KEY, JSON.stringify(prev));
-        return prev;
-      });
-    }
-
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }
-
-  // Double-clicking any divider puts every column back to its default width.
-  function resetColWidths() {
-    window.localStorage.removeItem(MONITORS_COL_WIDTHS_KEY);
-    setColWidths(MONITORS_DEFAULT_COL_WIDTHS);
-  }
 
   async function load() {
     try {
@@ -198,6 +129,7 @@ export function MonitorsPanel({
 
   useEffect(() => {
     if (selectedId === null) { setHistory([]); return; }
+    setHistory([]);
     setHistoryLoading(true);
     void api.getMonitorHistory(accessToken, selectedId, 24)
       .then(setHistory)
@@ -207,14 +139,23 @@ export function MonitorsPanel({
 
   const selectedMonitor = useMemo(() => monitors.find((m) => m.id === selectedId) ?? null, [monitors, selectedId]);
 
+  const filteredMonitors = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return monitors.filter((monitor) => {
+      const effectiveStatus = !monitor.enabled ? "paused" : monitor.last_status ?? "unknown";
+      if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
+      return !query || monitor.name.toLowerCase().includes(query) || monitor.url.toLowerCase().includes(query);
+    });
+  }, [monitors, searchQuery, statusFilter]);
+
   const paginatedMonitors = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return monitors.slice(start, start + pageSize);
-  }, [monitors, page, pageSize]);
+    return filteredMonitors.slice(start, start + pageSize);
+  }, [filteredMonitors, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [monitors.length, pageSize]);
+  }, [filteredMonitors.length, pageSize, searchQuery, statusFilter]);
 
   useEffect(() => {
     window.localStorage.setItem(MONITORS_PAGE_SIZE_KEY, String(pageSize));
@@ -247,6 +188,8 @@ export function MonitorsPanel({
     setEditingId(monitor.id);
     setForm({
       name: monitor.name,
+      description: monitor.description ?? "",
+      tags_text: monitor.tags.join(", "),
       url: monitor.url,
       http_method: monitor.http_method,
       expected_status_min: monitor.expected_status_min,
@@ -254,8 +197,37 @@ export function MonitorsPanel({
       timeout_seconds: monitor.timeout_seconds,
       verify_tls: monitor.verify_tls,
       follow_redirects: monitor.follow_redirects,
+      max_redirects: monitor.max_redirects,
+      accepted_status_codes: monitor.accepted_status_codes,
+      request_headers_text: "",
+      request_body: "",
+      body_encoding: monitor.body_encoding,
+      auth_type: monitor.auth_type,
+      auth_username: monitor.auth_username ?? "",
+      auth_password: "",
+      bearer_token: "",
+      oauth_token_url: monitor.oauth_token_url ?? "",
+      oauth_client_id: monitor.oauth_client_id ?? "",
+      oauth_client_secret: "",
+      oauth_scopes: monitor.oauth_scopes ?? "",
+      oauth_audience: monitor.oauth_audience ?? "",
+      oauth_auth_method: monitor.oauth_auth_method,
+      proxy_url: "",
+      tls_ca: "",
+      tls_cert: "",
+      tls_key: "",
+      keyword: monitor.keyword ?? "",
+      keyword_inverted: monitor.keyword_inverted,
+      json_path: monitor.json_path ?? "",
+      json_operator: monitor.json_operator,
+      expected_value: monitor.expected_value ?? "",
+      cache_bust: monitor.cache_bust,
+      upside_down: monitor.upside_down,
       check_interval_seconds: monitor.check_interval_seconds,
       max_retries: monitor.max_retries,
+      retry_interval_seconds: monitor.retry_interval_seconds,
+      certificate_expiry_alert: monitor.certificate_expiry_alert,
+      certificate_expiry_days: monitor.certificate_expiry_days,
       enabled: monitor.enabled,
     });
     setFormError(null);
@@ -265,14 +237,45 @@ export function MonitorsPanel({
   async function saveMonitor(e: FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.url.trim()) { setFormError("Name and URL are required"); return; }
+    let requestHeaders: Record<string, string> | undefined;
+    if (form.request_headers_text.trim()) {
+      try {
+        const parsed: unknown = JSON.parse(form.request_headers_text);
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== "object" || Object.values(parsed).some((value) => typeof value !== "string")) {
+          throw new Error("Headers must be a JSON object whose values are strings");
+        }
+        requestHeaders = parsed as Record<string, string>;
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Headers must be valid JSON");
+        return;
+      }
+    }
+    const payload: MonitorPayload = {
+      ...form,
+      description: form.description?.trim() || null,
+      tags: form.tags_text.split(",").map((tag) => tag.trim()).filter(Boolean),
+      keyword: form.keyword?.trim() || null,
+      json_path: form.json_path?.trim() || null,
+      expected_value: form.expected_value ?? null,
+      oauth_token_url: form.oauth_token_url?.trim() || null,
+      oauth_client_id: form.oauth_client_id?.trim() || null,
+      oauth_scopes: form.oauth_scopes?.trim() || null,
+      oauth_audience: form.oauth_audience?.trim() || null,
+    };
+    delete (payload as MonitorPayload & { tags_text?: string }).tags_text;
+    delete (payload as MonitorPayload & { request_headers_text?: string }).request_headers_text;
+    if (requestHeaders) payload.request_headers = requestHeaders;
+    for (const key of ["request_body", "auth_password", "bearer_token", "oauth_client_secret", "proxy_url", "tls_ca", "tls_cert", "tls_key"] as const) {
+      if (!payload[key]) delete payload[key];
+    }
     setFormBusy(true);
     setFormError(null);
     try {
       if (editingId !== null) {
-        await api.updateMonitor(accessToken, editingId, form);
+        await api.updateMonitor(accessToken, editingId, payload);
         toast.success(`Monitor "${form.name}" updated`);
       } else {
-        await api.createMonitor(accessToken, form);
+        await api.createMonitor(accessToken, payload);
         toast.success(`Monitor "${form.name}" created`);
       }
       setShowForm(false);
@@ -311,84 +314,67 @@ export function MonitorsPanel({
   }
 
   const body = (
-    <>
+    <div className={embedded ? "monitors-panel-content monitors-panel-content--embedded" : "monitors-panel-content"}>
       {error && <div className="form-error">{error}</div>}
 
-      <div className={embedded ? "monitors-toolbar monitors-toolbar--embedded" : "monitors-toolbar"}>
-        {embedded ? (
-          <span className="dash-panel-meta monitors-toolbar-hint">Standalone HTTP/HTTPS monitors, checked independently of inventory devices.</span>
-        ) : (
-          <p className="tool-note">Standalone HTTP/HTTPS monitors, checked independently of inventory devices.</p>
-        )}
-        {canWrite && <button type="button" className="nm-btn nm-btn--primary nm-btn--sm" onClick={openAddForm}>+ Add monitor</button>}
+      <div className="dash-panel-header monitors-table-toolbar">
+        <div className="monitors-table-toolbar-meta">
+          <strong>HTTP/HTTPS monitors</strong>
+          <span className="dash-panel-meta">
+            {filteredMonitors.length === monitors.length
+              ? `${monitors.length} endpoint${monitors.length === 1 ? "" : "s"}`
+              : `${filteredMonitors.length} of ${monitors.length}`}
+          </span>
+        </div>
+        <div className="mon-panel-controls">
+          <select className="toolbar-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter monitors by status">
+            <option value="all">All statuses</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+            <option value="paused">Paused</option>
+            <option value="unknown">Awaiting check</option>
+          </select>
+          <div className="mon-search-wrap nm-search monitors-search-wrap">
+            <Search size={13} className="nm-search-icon" />
+            <input
+              className="mon-search nm-input"
+              placeholder="Search name or URL…"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </div>
+          {canWrite && <button type="button" className="nm-btn nm-btn--primary nm-btn--sm" onClick={openAddForm}>+ Add monitor</button>}
+        </div>
       </div>
 
       {loading ? (
         <p className="dash-empty">Loading monitors…</p>
       ) : monitors.length === 0 ? (
         <p className="dash-empty">No standalone monitors yet. Add one to start tracking an HTTP/HTTPS endpoint.</p>
+      ) : filteredMonitors.length === 0 ? (
+        <p className="dash-empty">No monitors match the current filters.</p>
       ) : (
         <div className="monitors-layout">
-          <div className="nm-table-wrap monitors-table-wrap" ref={wrapRef}>
-            <table
-              className="nm-table monitors-table"
-              ref={tableRef}
-              style={{ tableLayout: "fixed", width: tableWidth }}
-            >
+          <div className="nm-table-wrap monitors-table-wrap">
+            <table className="nm-table monitors-table">
               <colgroup>
-                <col style={{ width: MONITORS_STATUS_COL_WIDTH }} />
-                {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
-                <col style={{ width: fillerWidth }} />
-                <col style={{ width: MONITORS_ACTIONS_COL_WIDTH }} />
+                <col className="monitors-col-status" />
+                <col className="monitors-col-name" />
+                <col className="monitors-col-url" />
+                <col className="monitors-col-uptime" />
+                <col className="monitors-col-uptime" />
+                <col className="monitors-col-rtt" />
+                <col className="monitors-col-checked" />
+                <col className="monitors-col-actions" />
               </colgroup>
               <thead>
                 <tr>
                   <th></th>
-                  <th>
-                    Name
-                    <div
-                      className="mon-col-resize-handle"
-                      onMouseDown={(e) => startColResize(0, e)}
-                      onDoubleClick={resetColWidths}
-                      title="Drag to resize · double-click to reset all columns"
-                    />
-                  </th>
-                  <th>
-                    URL
-                    <div
-                      className="mon-col-resize-handle"
-                      onMouseDown={(e) => startColResize(1, e)}
-                      onDoubleClick={resetColWidths}
-                      title="Drag to resize · double-click to reset all columns"
-                    />
-                  </th>
-                  <th>
-                    Uptime 24h
-                    <div
-                      className="mon-col-resize-handle"
-                      onMouseDown={(e) => startColResize(2, e)}
-                      onDoubleClick={resetColWidths}
-                      title="Drag to resize · double-click to reset all columns"
-                    />
-                  </th>
-                  <th>
-                    Uptime 7d
-                    <div
-                      className="mon-col-resize-handle"
-                      onMouseDown={(e) => startColResize(3, e)}
-                      onDoubleClick={resetColWidths}
-                      title="Drag to resize · double-click to reset all columns"
-                    />
-                  </th>
-                  <th>
-                    Avg RTT
-                    <div
-                      className="mon-col-resize-handle"
-                      onMouseDown={(e) => startColResize(4, e)}
-                      onDoubleClick={resetColWidths}
-                      title="Drag to resize · double-click to reset all columns"
-                    />
-                  </th>
+                  <th>Name</th>
+                  <th>URL</th>
+                  <th>Uptime 24h</th>
+                  <th>Uptime 7d</th>
+                  <th>Avg RTT</th>
                   <th>Last checked</th>
                   <th></th>
                 </tr>
@@ -425,23 +411,30 @@ export function MonitorsPanel({
             </table>
           </div>
 
-          {selectedMonitor && (
-            <aside className="details-panel monitors-details-panel">
+          {selectedMonitor && createPortal(
+            <div
+              className="mon-hero-backdrop monitor-http-backdrop"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${selectedMonitor.name} monitor overview`}
+              onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null); }}
+            >
               <MonitorDetails
                 monitor={selectedMonitor}
                 history={history}
                 historyLoading={historyLoading}
                 onClose={() => setSelectedId(null)}
               />
-            </aside>
+            </div>,
+            document.body,
           )}
         </div>
       )}
 
-      {monitors.length > 0 && (
+      {filteredMonitors.length > 0 && (
         <div className="inv-pagination">
           <span className="inv-pagination-info">
-            Showing {Math.min((page - 1) * pageSize + 1, monitors.length)}–{Math.min(page * pageSize, monitors.length)} of {monitors.length} monitor{monitors.length !== 1 ? "s" : ""}
+            Showing {Math.min((page - 1) * pageSize + 1, filteredMonitors.length)}–{Math.min(page * pageSize, filteredMonitors.length)} of {filteredMonitors.length} monitor{filteredMonitors.length !== 1 ? "s" : ""}
           </span>
           <div className="inv-pagination-controls">
             <span style={{ fontSize: 11, opacity: 0.7 }}>Per page:</span>
@@ -461,12 +454,12 @@ export function MonitorsPanel({
               ‹ Prev
             </button>
             <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-              {page} / {Math.max(1, Math.ceil(monitors.length / pageSize))}
+              {page} / {Math.max(1, Math.ceil(filteredMonitors.length / pageSize))}
             </span>
             <button
               type="button"
               className="inv-pagination-btn"
-              disabled={page >= Math.ceil(monitors.length / pageSize)}
+              disabled={page >= Math.ceil(filteredMonitors.length / pageSize)}
               onClick={() => setPage((p) => p + 1)}
             >
               Next ›
@@ -479,64 +472,25 @@ export function MonitorsPanel({
         <Modal
           title={editingId !== null ? "Edit monitor" : "Add monitor"}
           size="lg"
+          modalClassName="monitor-form-modal"
           onCancel={() => setShowForm(false)}
           headerSubmitFormId="monitor-form"
           headerSubmitLabel={formBusy ? "Saving…" : editingId !== null ? "Save" : "Add monitor"}
           headerSubmitDisabled={formBusy}
         >
-          <form id="monitor-form" className="tool-form modal-form" onSubmit={(e) => void saveMonitor(e)}>
+          <form id="monitor-form" className="modal-form monitor-form" onSubmit={(e) => void saveMonitor(e)}>
             {formError && <div className="form-error">{formError}</div>}
-            <label>Name
-              <input className="nm-input" maxLength={120} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Company website" autoFocus />
-            </label>
-            <label>URL
-              <input className="nm-input" maxLength={2048} value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://example.com/health" />
-            </label>
-            <div className="nm-form-row">
-              <label>Method
-                <select className="nm-select" value={form.http_method} onChange={(e) => setForm((f) => ({ ...f, http_method: e.target.value as HttpMethod }))}>
-                  {HTTP_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
-              <label>Check interval
-                <select className="nm-select" value={form.check_interval_seconds} onChange={(e) => setForm((f) => ({ ...f, check_interval_seconds: Number(e.target.value) }))}>
-                  {INTERVAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="nm-form-row">
-              <label>Expected status min
-                <input className="nm-input" type="number" min={100} max={599} value={form.expected_status_min} onChange={(e) => setForm((f) => ({ ...f, expected_status_min: Number(e.target.value) }))} />
-              </label>
-              <label>Expected status max
-                <input className="nm-input" type="number" min={100} max={599} value={form.expected_status_max} onChange={(e) => setForm((f) => ({ ...f, expected_status_max: Number(e.target.value) }))} />
-              </label>
-            </div>
-            <div className="nm-form-row">
-              <label>Timeout (seconds)
-                <input className="nm-input" type="number" min={1} max={60} value={form.timeout_seconds} onChange={(e) => setForm((f) => ({ ...f, timeout_seconds: Number(e.target.value) }))} />
-              </label>
-              <label>Retries before down
-                <input className="nm-input" type="number" min={0} max={10} value={form.max_retries} onChange={(e) => setForm((f) => ({ ...f, max_retries: Number(e.target.value) }))} />
-                <span className="tool-note tool-note--hint">Consecutive failures required before the monitor flips to down.</span>
-              </label>
-            </div>
-            <label className="tool-form-inline-check">
-              <input type="checkbox" checked={form.verify_tls} onChange={(e) => setForm((f) => ({ ...f, verify_tls: e.target.checked }))} />
-              Verify TLS certificate
-            </label>
-            <label className="tool-form-inline-check">
-              <input type="checkbox" checked={form.follow_redirects} onChange={(e) => setForm((f) => ({ ...f, follow_redirects: e.target.checked }))} />
-              Follow redirects
-            </label>
-            <label className="tool-form-inline-check">
-              <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} />
-              Enabled
-            </label>
+            <MonitorFormFields
+              form={form}
+              setForm={setForm}
+              editingMonitor={editingId === null ? null : selectedMonitor ?? monitors.find((monitor) => monitor.id === editingId) ?? null}
+              httpMethods={HTTP_METHODS}
+              intervalOptions={INTERVAL_OPTIONS}
+            />
           </form>
         </Modal>
       )}
-    </>
+    </div>
   );
 
   if (embedded) return body;

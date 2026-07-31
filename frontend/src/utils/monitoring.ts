@@ -20,15 +20,6 @@ export const MON_STATUS_COL_WIDTH = 50;
 export const MON_FAVOURITE_COL_WIDTH = 90;
 export const MON_MIN_COL_WIDTH = 50;
 
-export const MONITORS_COL_WIDTHS_KEY = "netmap.monitors_col_widths_v2";
-// 5 user-resizable cols: Name | URL | Uptime 24h | Uptime 7d | Avg RTT.
-// "Last checked" (Status+Actions also fixed) auto-fills whatever space is left
-// so the table always spans the full wrapper width without redistributing
-// every other column's width when one is dragged.
-export const MONITORS_COL_COUNT = 5;
-export const MONITORS_DEFAULT_COL_WIDTHS = [220, 320, 100, 100, 100];
-export const MONITORS_FILLER_MIN_WIDTH = 150;
-
 export const MON_DEVICES_PAGE_SIZE_KEY = "netmap.mon_devices_page_size";
 export const MONITORS_PAGE_SIZE_KEY = "netmap.monitors_page_size";
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -78,18 +69,6 @@ export function loadMonColWidths(): number[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (Array.isArray(parsed) && parsed.length === MON_COL_COUNT && parsed.every((v) => typeof v === "number" && v >= 40)) {
-      return parsed as number[];
-    }
-  } catch { /* ignore */ }
-  return null;
-}
-
-export function loadMonitorsColWidths(): number[] | null {
-  try {
-    const raw = window.localStorage.getItem(MONITORS_COL_WIDTHS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed) && parsed.length === MONITORS_COL_COUNT && parsed.every((v) => typeof v === "number" && v >= 50)) {
       return parsed as number[];
     }
   } catch { /* ignore */ }

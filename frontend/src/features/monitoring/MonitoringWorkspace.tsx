@@ -698,28 +698,34 @@ export function MonitoringWorkspace({
 
       {/* Device / Monitor list */}
       <div className="mon-content">
-        <div className="dash-panel">
-          <div className="dash-panel-header dash-panel-header--tabbed">
-            <div className="mon-panel-tabs">
-              <button
-                type="button"
-                className={`mon-panel-tab${viewTab === "devices" ? " active" : ""}`}
-                onClick={() => setViewTab("devices")}
-              >
-                Devices
-                {filteredDevices.length !== devices.length
-                  ? ` (${filteredDevices.length} of ${devices.length})`
-                  : ` (${devices.length})`}
-              </button>
-              <button
-                type="button"
-                className={`mon-panel-tab${viewTab === "monitors" ? " active" : ""}`}
-                onClick={() => setViewTab("monitors")}
-              >
-                Monitors ({monitorStats.total})
-              </button>
-            </div>
-            {viewTab === "devices" ? (
+        <div className="mon-view-switcher">
+          <div className="mon-panel-tabs" role="tablist" aria-label="Monitoring view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewTab === "devices"}
+              className={`mon-panel-tab${viewTab === "devices" ? " active" : ""}`}
+              onClick={() => setViewTab("devices")}
+            >
+              Devices
+              {filteredDevices.length !== devices.length
+                ? ` (${filteredDevices.length} of ${devices.length})`
+                : ` (${devices.length})`}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewTab === "monitors"}
+              className={`mon-panel-tab${viewTab === "monitors" ? " active" : ""}`}
+              onClick={() => setViewTab("monitors")}
+            >
+              Monitors ({monitorStats.total})
+            </button>
+          </div>
+        </div>
+
+        <div key={viewTab} className={`dash-panel mon-view-window mon-view-window--${viewTab}`}>
+          {viewTab === "devices" && <div className="dash-panel-header mon-device-window-header">
               <div className="mon-panel-controls">
                 {refreshing && <span className="mon-refresh-status">Updating...</span>}
                 <select className="toolbar-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -772,18 +778,16 @@ export function MonitoringWorkspace({
                   />
                 </div>
               </div>
-            ) : null}
-          </div>
+          </div>}
           <div className="dash-panel-body mon-table-body">
-            <div className={viewTab === "monitors" ? undefined : "mon-tab-hidden"}>
+            {viewTab === "monitors" && <div className="mon-tab-panel">
               <MonitorsPanel
                 accessToken={accessToken}
                 canWrite={canManagePorts}
                 embedded
-                visible={viewTab === "monitors"}
                 onStatsChange={setMonitorStats}
               />
-            </div>
+            </div>}
             {viewTab === "devices" && (filteredDevices.length === 0 ? (
               <p className="dash-empty">
                 {devicesLoading && devices.length === 0

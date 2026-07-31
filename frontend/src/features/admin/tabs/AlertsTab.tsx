@@ -140,6 +140,7 @@ export function AlertsTab({
                 <option value="service_slow">Service check response time above threshold</option>
                 <option value="monitor_down">Standalone monitor goes down</option>
                 <option value="monitor_slow">Standalone monitor response time above threshold</option>
+                <option value="monitor_certificate_expiry">Standalone monitor certificate nearing expiry</option>
               </select>
             </label>
             {alertForm.event_type === "rtt_above" && (
@@ -180,7 +181,7 @@ export function AlertsTab({
                   ))}
                 </select>
               </label>
-            ) : (alertForm.event_type === "monitor_down" || alertForm.event_type === "monitor_slow") ? (
+            ) : (["monitor_down", "monitor_slow", "monitor_certificate_expiry"] as AlertRuleEventType[]).includes(alertForm.event_type) ? (
               <label>Monitor
                 <select value={alertForm.monitor_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, monitor_id: e.target.value ? Number(e.target.value) : null}))}>
                   <option value="">Any monitor</option>
@@ -280,9 +281,10 @@ export function AlertsTab({
                   service_slow: rule.threshold_ms ? `Service response above ${rule.threshold_ms} ms` : "Service response above threshold",
                   monitor_down: "Monitor down",
                   monitor_slow: rule.threshold_ms ? `Monitor response above ${rule.threshold_ms} ms` : "Monitor response above threshold",
+                  monitor_certificate_expiry: "Monitor certificate nearing expiry",
                 };
                 const isServiceRule = rule.event_type === "service_down" || rule.event_type === "service_slow";
-                const isMonitorRule = rule.event_type === "monitor_down" || rule.event_type === "monitor_slow";
+                const isMonitorRule = (["monitor_down", "monitor_slow", "monitor_certificate_expiry"] as AlertRuleEventType[]).includes(rule.event_type);
                 const deviceName = isServiceRule
                   ? (rule.port_target_id
                       ? (() => { const t = portTargets.find(x => x.id === rule.port_target_id); return t ? serviceCheckLabel(t) : `Service check #${rule.port_target_id}`; })()
