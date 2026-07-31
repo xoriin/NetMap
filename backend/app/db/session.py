@@ -155,6 +155,9 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0053_alert_rule_service_check", _migrate_alert_rule_service_check)
         _run_migration(conn, inspector, "0054_alert_rule_monitor", _migrate_alert_rule_monitor)
         _run_migration(conn, inspector, "0055_monitor_history_uptime_index", _migrate_monitor_history_uptime_index)
+        _run_migration(conn, inspector, "0056_monitor_http_options", _migrate_monitor_http_options)
+        _run_migration(conn, inspector, "0057_topology_group_color", _migrate_topology_group_color)
+        _run_migration(conn, inspector, "0058_user_entity_colors", _migrate_user_entity_colors)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -772,6 +775,68 @@ def _migrate_monitor_history_uptime_index(conn, inspector) -> None:
     ))
 
 
+def _migrate_monitor_http_options(conn, inspector) -> None:
+    """Add the Uptime Kuma-style HTTP options without changing old monitors."""
+    tables = set(inspector.get_table_names())
+    if "monitors" not in tables:
+        return
+    existing = {col["name"] for col in inspector.get_columns("monitors")}
+    columns = {
+        "description": "TEXT",
+        "tags_json": "TEXT NOT NULL DEFAULT '[]'",
+        "max_redirects": "INTEGER NOT NULL DEFAULT 10",
+        "accepted_status_codes": "VARCHAR(255) NOT NULL DEFAULT '200-399'",
+        "request_headers_encrypted": "TEXT",
+        "request_body_encrypted": "TEXT",
+        "body_encoding": "VARCHAR(20) NOT NULL DEFAULT 'json'",
+        "auth_type": "VARCHAR(20) NOT NULL DEFAULT 'none'",
+        "auth_username": "VARCHAR(255)",
+        "auth_password_encrypted": "TEXT",
+        "bearer_token_encrypted": "TEXT",
+        "oauth_token_url": "VARCHAR(2048)",
+        "oauth_client_id": "VARCHAR(255)",
+        "oauth_client_secret_encrypted": "TEXT",
+        "oauth_scopes": "VARCHAR(1000)",
+        "oauth_audience": "VARCHAR(1000)",
+        "oauth_auth_method": "VARCHAR(30) NOT NULL DEFAULT 'client_secret_basic'",
+        "proxy_url_encrypted": "TEXT",
+        "tls_ca_encrypted": "TEXT",
+        "tls_cert_encrypted": "TEXT",
+        "tls_key_encrypted": "TEXT",
+        "keyword": "VARCHAR(1000)",
+        "keyword_inverted": "BOOLEAN NOT NULL DEFAULT 0",
+        "json_path": "VARCHAR(1000)",
+        "json_operator": "VARCHAR(20) NOT NULL DEFAULT 'equals'",
+        "expected_value": "VARCHAR(2000)",
+        "cache_bust": "BOOLEAN NOT NULL DEFAULT 0",
+        "upside_down": "BOOLEAN NOT NULL DEFAULT 0",
+        "retry_interval_seconds": "INTEGER NOT NULL DEFAULT 20",
+        "certificate_expiry_alert": "BOOLEAN NOT NULL DEFAULT 0",
+        "certificate_expiry_days": "INTEGER NOT NULL DEFAULT 14",
+        "last_cert_expires_at": "DATETIME",
+        "last_cert_issuer": "VARCHAR(255)",
+    }
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(text(f"ALTER TABLE monitors ADD COLUMN {name} {definition}"))
+    # Preserve custom ranges configured before flexible status-code support.
+    conn.execute(text(
+        "UPDATE monitors SET accepted_status_codes = "
+        "CAST(expected_status_min AS TEXT) || '-' || CAST(expected_status_max AS TEXT)"
+    ))
+
+    if "monitor_check_history" in tables:
+        history_existing = {col["name"] for col in inspector.get_columns("monitor_check_history")}
+        history_columns = {
+            "assertion_detail": "VARCHAR(255)",
+            "response_size_bytes": "INTEGER",
+            "cert_expires_at": "DATETIME",
+        }
+        for name, definition in history_columns.items():
+            if name not in history_existing:
+                conn.execute(text(f"ALTER TABLE monitor_check_history ADD COLUMN {name} {definition}"))
+
+
 def _migrate_user_device_favourites(conn, inspector) -> None:
     tables = set(inspector.get_table_names())
     if "user_device_favourites" not in tables:
@@ -1140,3 +1205,21 @@ def _migrate_alert_rule_monitor(conn, inspector) -> None:
     existing = {col["name"] for col in inspector.get_columns("alert_rules")}
     if "monitor_id" not in existing:
         conn.execute(text("ALTER TABLE alert_rules ADD COLUMN monitor_id INTEGER"))
+
+
+def _migrate_topology_group_color(conn, inspector) -> None:
+    if "topology_groups" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("topology_groups")}
+    if "color" not in existing:
+        conn.execute(text("ALTER TABLE topology_groups ADD COLUMN color VARCHAR(16)"))
+
+
+def _migrate_user_entity_colors(conn, inspector) -> None:
+    if "users" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("users")}
+    if "entity_colors_enabled" not in existing:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN entity_colors_enabled BOOLEAN NOT NULL DEFAULT 1"
+        ))
