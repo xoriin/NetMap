@@ -15,6 +15,8 @@ import {
   readDeviceTypeIconMap,
 } from "../../../icons";
 import { formatDeviceTypeLabel } from "../../../utils/format";
+import { autoEntityColor, isValidHexColor, resolveEntityColor } from "../../../utils/entityColor";
+import { EntityColorsPanel } from "./EntityColorsPanel";
 
 function deviceTypeValueFromLabel(label: string) {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -65,6 +67,28 @@ export function DeviceIconsTab({
     applyDeviceTypeIconMap(next);
     setTypeIconSaved(true);
     window.setTimeout(() => setTypeIconSaved(false), 2000);
+  }
+
+  // The endpoint replaces the whole map, so send every currently-set colour with
+  // the one being changed (or dropped) applied on top.
+  async function saveTypeColor(value: string, color: string | null) {
+    setBusy(`color:${value}`);
+    onError(null);
+    onSuccess(null);
+    try {
+      const colors: Record<string, string> = {};
+      for (const type of deviceTypesQuery.options) {
+        if (type.value !== value && isValidHexColor(type.color)) colors[type.value] = type.color as string;
+      }
+      if (color) colors[value] = color;
+      await api.updateDeviceTypeColors(accessToken, colors);
+      await deviceTypesQuery.reload();
+      onSuccess(color ? "Device type colour updated" : "Device type reset to automatic colour");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to save device type colour");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function createDeviceType(event: FormEvent<HTMLFormElement>) {
@@ -241,6 +265,27 @@ export function DeviceIconsTab({
                           currentIcon={currentIcon}
                           onSelect={(icon) => setTypeIconMap((current) => ({ ...current, [type.value]: icon }))}
                         />
+                        <span className="device-icons-color">
+                          <input
+                            type="color"
+                            className="entity-colors-input"
+                            aria-label={`Colour for ${type.label || type.value}`}
+                            disabled={busy === `color:${type.value}`}
+                            value={resolveEntityColor(type.color, type.value)}
+                            onChange={(event) => void saveTypeColor(type.value, event.target.value)}
+                          />
+                          {isValidHexColor(type.color) && (
+                            <button
+                              type="button"
+                              className="nm-btn nm-btn--sm nm-btn--secondary"
+                              disabled={busy === `color:${type.value}`}
+                              title={`Reset to the automatic colour (${autoEntityColor(type.value)})`}
+                              onClick={() => void saveTypeColor(type.value, null)}
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </span>
                         <div className="device-icons-actions">
                           {!type.is_builtin && (
                             <button type="button" className="nm-btn nm-btn--sm" disabled={Boolean(busy)} onClick={() => startEdit(type)}>
@@ -294,6 +339,8 @@ export function DeviceIconsTab({
               </button>
             </div>
           </section>
+
+          <EntityColorsPanel accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
         </div>
       </div>
 

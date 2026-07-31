@@ -5,6 +5,7 @@ import {
 } from "./api/client";
 import { useGraphData } from "./hooks/useGraphData";
 import { useTheme } from "./providers/ThemeProvider";
+import { EntityColorProvider } from "./providers/EntityColorProvider";
 import { storageKeys, readBool, writeBool } from "./utils/storage";
 import {
   type AppRoute,
@@ -369,6 +370,7 @@ export function App() {
   }
 
   return (
+    <EntityColorProvider enabled={user?.entity_colors_enabled ?? true}>
     <main className={sidebarCollapsed ? "app-shell app-shell--sidebar-collapsed" : "app-shell"}>
       <Sidebar
         canAccessAdmin={canAccessAdmin}
@@ -436,5 +438,6 @@ export function App() {
         </TopbarNoteCtx.Provider>
       </section>
     </main>
+    </EntityColorProvider>
   );
 }

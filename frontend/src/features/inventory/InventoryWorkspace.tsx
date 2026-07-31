@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext } from "react";
+import { useState, useEffect, useMemo, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
@@ -15,6 +15,13 @@ import type { AppRoute } from "../../routes";
 import { compareGroupLabels } from "../../utils/sort";
 import { deviceLabel, statusColor, formatDeviceTypeLabel } from "../../utils/format";
 import { isDeviceMonitoringPaused } from "../../utils/device";
+import { deviceTypeChipFor, groupChipFor, siteChipFor, resolveEntityColor } from "../../utils/entityColor";
+import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
+import { SwatchSelect, type SwatchOption } from "../../components/SwatchSelect";
+import {
+  INV_COL_COUNT, INV_COL_WIDTHS_KEY, INV_MIN_COL_WIDTH,
+  invGridTemplate, loadInvColWidths,
+} from "../../utils/inventoryColumns";
 import { ipSortKey } from "../../utils/ip";
 import { compareDevices } from "../../utils/sort";
 import { TopbarNoteCtx } from "../../context";
@@ -67,6 +74,7 @@ export function InventoryWorkspace({
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
   const [selectedSiteFilter, setSelectedSiteFilter] = useState('all');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<InventoryStatusFilter>("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
   const [bulkGroupId, setBulkGroupId] = useState('');
@@ -96,11 +104,176 @@ export function InventoryWorkspace({
     return saved ? Math.max(1, Number(saved)) : 25;
   });
 
+  const [colWidths, setColWidths] = useState<number[] | null>(loadInvColWidths);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  // A native <details> only closes via its own summary, so the bulk menu is
+  // controlled to let an outside click or Escape dismiss it.
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const bulkMenuRef = useRef<HTMLDetailsElement | null>(null);
+
   const selectedDevice = graph.devices.find((device) => device.id === selectedDeviceId) ?? null;
   const groupOptions = useMemo(
     () => [...new Set(graph.devices.map((device) => device.topology_group))].filter(Boolean).sort(compareGroupLabels),
     [graph.devices],
   );
+  useEffect(() => {
+    if (!bulkMenuOpen) return;
+    // The SwatchSelect popups render inside the <details>, so `contains` keeps
+    // the menu open while a picker is being used.
+    function onPointerDown(event: MouseEvent) {
+      if (!bulkMenuRef.current?.contains(event.target as Node)) setBulkMenuOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      // A picker's list only exists while it is open; let Escape dismiss that
+      // first rather than closing the whole menu out from under it. This must
+      // run on the capture phase — React flushes the picker's state update
+      // before a bubble-phase document listener runs, so by then the list has
+      // already left the DOM and the guard would never fire.
+      if (bulkMenuRef.current?.querySelector(".nm-swatch-list")) return;
+      setBulkMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [bulkMenuOpen]);
+
+  // A handle sits at the right edge of column colIdx and resizes that column
+  // only. Widths are read from the DOM on the first drag so the flexible `fr`
+  // columns freeze at exactly the width they were already rendering at.
+  function startColResize(colIdx: number, event: ReactMouseEvent) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const header = headerRef.current;
+    const initialWidths: number[] = header
+      ? Array.from(header.children)
+          .slice(1, 1 + INV_COL_COUNT)
+          .map((cell) => cell.getBoundingClientRect().width)
+      : (colWidths ?? []);
+    if (initialWidths.length !== INV_COL_COUNT) return;
+
+    function onMove(moveEvent: MouseEvent) {
+      const next = Math.max(INV_MIN_COL_WIDTH, initialWidths[colIdx] + (moveEvent.clientX - startX));
+      const updated = [...initialWidths];
+      updated[colIdx] = next;
+      setColWidths(updated);
+    }
+
+    function onUp() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setColWidths((previous) => {
+        if (previous) window.localStorage.setItem(INV_COL_WIDTHS_KEY, JSON.stringify(previous));
+        return previous;
+      });
+    }
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  // Double-clicking any divider drops the saved widths entirely, returning the
+  // table to the stylesheet's flexible default layout.
+  function resetColWidths() {
+    window.localStorage.removeItem(INV_COL_WIDTHS_KEY);
+    setColWidths(null);
+  }
+
+  // Filter dropdowns carry the same swatch colours as the table chips.
+  const groupFilterOptions = useMemo<SwatchOption[]>(
+    () => [
+      { value: "all", label: "All groups" },
+      ...groupOptions.map((name) => {
+        const group = groups.find((g) => g.name === name || g.display_name === name);
+        return { value: name, label: name, color: resolveEntityColor(group?.color, group?.name ?? name) };
+      }),
+    ],
+    [groupOptions, groups],
+  );
+  const siteFilterOptions = useMemo<SwatchOption[]>(
+    () => [
+      { value: "all", label: "All sites" },
+      { value: "unassigned", label: "Unassigned" },
+      ...sites.map((site) => ({
+        value: String(site.id),
+        label: site.display_name ?? site.name,
+        color: resolveEntityColor(site.color, site.name),
+      })),
+    ],
+    [sites],
+  );
+  // Bulk-edit menu: same marks as the table so a value is recognisable at a
+  // glance. "No change"/"Clear …" stay neutral — they are not entities.
+  const bulkGroupOptions = useMemo<SwatchOption[]>(
+    () => [
+      { value: "", label: "No change" },
+      { value: "0", label: "Clear group" },
+      ...groups.map((group) => ({
+        value: String(group.id),
+        label: group.display_name || group.name,
+        color: resolveEntityColor(group.color, group.name),
+      })),
+    ],
+    [groups],
+  );
+  const bulkSiteOptions = useMemo<SwatchOption[]>(
+    () => [
+      { value: "", label: "No change" },
+      { value: "unassign", label: "Clear location" },
+      ...sites.map((site) => ({
+        value: String(site.id),
+        label: site.display_name ?? site.name,
+        color: resolveEntityColor(site.color, site.name),
+      })),
+    ],
+    [sites],
+  );
+  const bulkDeviceTypeOptions = useMemo<SwatchOption[]>(
+    () => [
+      { value: "", label: "No change" },
+      ...deviceTypeOptions.map((type) => ({
+        value: type.value,
+        label: type.label || formatDeviceTypeLabel(type.value),
+        color: resolveEntityColor(type.color, type.value),
+        icon: <DeviceTypeIcon type={type.value} size={13} />,
+      })),
+    ],
+    [deviceTypeOptions],
+  );
+  // Only types actually in use — a filter offering all 17 built-ins when the
+  // fleet has three of them is mostly dead options.
+  const typeFilterOptions = useMemo<SwatchOption[]>(() => {
+    const inUse = new Set(graph.devices.map((device) => device.device_type).filter(Boolean) as string[]);
+    const hasUntyped = graph.devices.some((device) => !device.device_type);
+    return [
+      { value: "all", label: "All types" },
+      ...(hasUntyped ? [{ value: "none", label: "No type" }] : []),
+      ...deviceTypeOptions
+        .filter((type) => inUse.has(type.value))
+        .map((type) => ({
+          value: type.value,
+          label: type.label || formatDeviceTypeLabel(type.value),
+          color: resolveEntityColor(type.color, type.value),
+          icon: <DeviceTypeIcon type={type.value} size={13} />,
+        })),
+    ];
+  }, [graph.devices, deviceTypeOptions]);
+  // Retyping or deleting the last device of a type removes its option; without
+  // this the filter would stay set and silently hide every row.
+  useEffect(() => {
+    if (selectedTypeFilter === "all") return;
+    if (!typeFilterOptions.some((option) => option.value === selectedTypeFilter)) {
+      setSelectedTypeFilter("all");
+    }
+  }, [typeFilterOptions, selectedTypeFilter]);
+
   const liveStatusByDeviceId = useMemo<Map<number, DeviceLiveStatus>>(() => new Map(graph.devices.map((device) => {
     const status = device.status === "disabled"
       ? "disabled"
@@ -122,6 +295,11 @@ export function InventoryWorkspace({
     } else if (selectedSiteFilter !== 'all') {
       const siteId = Number(selectedSiteFilter);
       devs = devs.filter((d) => d.site_id === siteId);
+    }
+    if (selectedTypeFilter === 'none') {
+      devs = devs.filter((d) => !d.device_type);
+    } else if (selectedTypeFilter !== 'all') {
+      devs = devs.filter((d) => d.device_type === selectedTypeFilter);
     }
     if (statusFilter !== 'all') {
       devs = devs.filter((d) => {
@@ -148,7 +326,7 @@ export function InventoryWorkspace({
       );
     }
     return devs;
-  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, statusFilter, favouriteFilter, favouriteIds, inventorySearch, liveStatusByDeviceId, livePingEnabled]);
+  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, selectedTypeFilter, statusFilter, favouriteFilter, favouriteIds, inventorySearch, liveStatusByDeviceId, livePingEnabled]);
 
   const sortedDevices = useMemo(() => {
     return filteredDevices.slice().sort((a, b) => {
@@ -364,38 +542,6 @@ export function InventoryWorkspace({
     }
   }
 
-  async function updateDeviceGroup(deviceId: number, groupId: string) {
-    if (!canWrite) {
-      return;
-    }
-    setBusy(true);
-    setInventoryError(null);
-    try {
-      const updated = await api.updateDevice(accessToken, deviceId, {
-        topology_group_id: groupId ? Number(groupId) : null,
-      });
-      onDeviceChange(updated);
-    } catch (err) {
-      setInventoryError(err instanceof Error ? err.message : "Unable to update device group");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function updateDeviceSite(deviceId: number, siteIdStr: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    setInventoryError(null);
-    try {
-      const updated = await api.updateDevice(accessToken, deviceId, { site_id: siteIdStr ? Number(siteIdStr) : null });
-      onDeviceChange(updated);
-    } catch (err) {
-      setInventoryError(err instanceof Error ? err.message : 'Unable to update device location');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function submitDeviceUpdate(deviceId: number, payload: DevicePayload) {
     setBusy(true);
     setInventoryError(null);
@@ -496,15 +642,24 @@ export function InventoryWorkspace({
                 ? ` (${filteredDevices.length} of ${graph.devices.length})`
                 : ` (${graph.devices.length})`}
             </span>
-            <select className="inv-select" value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)}>
-              <option value="all">All groups</option>
-              {groupOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-            <select className="inv-select" value={selectedSiteFilter} onChange={(e) => setSelectedSiteFilter(e.target.value)}>
-              <option value="all">All sites</option>
-              <option value="unassigned">Unassigned</option>
-              {sites.map((s) => <option key={s.id} value={s.id}>{s.display_name ?? s.name}</option>)}
-            </select>
+            <SwatchSelect
+              ariaLabel="Filter by VLAN / group"
+              value={selectedGroupFilter}
+              options={groupFilterOptions}
+              onChange={setSelectedGroupFilter}
+            />
+            <SwatchSelect
+              ariaLabel="Filter by location"
+              value={selectedSiteFilter}
+              options={siteFilterOptions}
+              onChange={setSelectedSiteFilter}
+            />
+            <SwatchSelect
+              ariaLabel="Filter by device type"
+              value={selectedTypeFilter}
+              options={typeFilterOptions}
+              onChange={setSelectedTypeFilter}
+            />
             <select
               className="inv-select"
               value={statusFilter}
@@ -530,7 +685,12 @@ export function InventoryWorkspace({
             {canWrite && (
               <>
                 <span className="inv-sep" />
-                <details className="inv-bulk-menu">
+                <details
+                  className="inv-bulk-menu"
+                  ref={bulkMenuRef}
+                  open={bulkMenuOpen}
+                  onToggle={(event) => setBulkMenuOpen(event.currentTarget.open)}
+                >
                   <summary className="nm-btn">
                     {selectedDeviceIds.size > 0 ? `${selectedDeviceIds.size} selected` : "Bulk"}
                     <ChevronDown size={13} />
@@ -555,29 +715,35 @@ export function InventoryWorkspace({
                       </button>
                     </div>
                     <div className="inv-bulk-menu-grid">
-                      <label>
-                        VLAN / Group
-                        <select className="inv-select" value={bulkGroupId} onChange={(e) => setBulkGroupId(e.target.value)}>
-                          <option value="">No change</option>
-                          <option value="0">Clear group</option>
-                          {groups.map((g) => <option key={g.id} value={String(g.id)}>{g.display_name || g.name}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        Device type
-                        <select className="inv-select" value={bulkDeviceType} onChange={(e) => setBulkDeviceType(e.target.value)}>
-                          <option value="">No change</option>
-                          {deviceTypeOptions.map((t) => <option key={t.value} value={t.value}>{t.label || formatDeviceTypeLabel(t.value)}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        Location
-                        <select className="inv-select" value={bulkSiteId} onChange={(e) => setBulkSiteId(e.target.value)}>
-                          <option value="">No change</option>
-                          <option value="unassign">Clear location</option>
-                          {sites.map((s) => <option key={s.id} value={String(s.id)}>{s.display_name ?? s.name}</option>)}
-                        </select>
-                      </label>
+                      {/* Same swatches and icons as the table rows, so a value
+                          is recognisable here without reading every label. */}
+                      <div className="inv-bulk-menu-field">
+                        <span>VLAN / Group</span>
+                        <SwatchSelect
+                          ariaLabel="Bulk set VLAN / group"
+                          value={bulkGroupId}
+                          options={bulkGroupOptions}
+                          onChange={setBulkGroupId}
+                        />
+                      </div>
+                      <div className="inv-bulk-menu-field">
+                        <span>Device type</span>
+                        <SwatchSelect
+                          ariaLabel="Bulk set device type"
+                          value={bulkDeviceType}
+                          options={bulkDeviceTypeOptions}
+                          onChange={setBulkDeviceType}
+                        />
+                      </div>
+                      <div className="inv-bulk-menu-field">
+                        <span>Location</span>
+                        <SwatchSelect
+                          ariaLabel="Bulk set location"
+                          value={bulkSiteId}
+                          options={bulkSiteOptions}
+                          onChange={setBulkSiteId}
+                        />
+                      </div>
                     </div>
                     <div className="inv-bulk-menu-actions">
                       <button type="button" className="inv-status-tab" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void applyBulkActions()}>
@@ -617,22 +783,36 @@ export function InventoryWorkspace({
               />
             </div>
           </div>
-          <div className="inventory-table">
-            <div className="inventory-table-header">
+          <div
+            className={`inventory-table${colWidths ? " inventory-table--fixed" : ""}`}
+            style={colWidths ? ({ "--inv-grid-template": invGridTemplate(colWidths) } as CSSProperties) : undefined}
+          >
+            <div className="inventory-table-header" ref={headerRef}>
               <span>Select</span>
               {["device", "ip", "type", "status", "latency", "group", "location"].map((key, i) => {
                 const labels = ["Device", "IP", "Device Type", "Status", "Latency", "VLAN / Group", "Location"];
                 const active = inventorySortKey === key;
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`inventory-sort-btn${active ? " active" : ""}`}
-                    onClick={() => toggleSort(key)}
-                  >
-                    {labels[i]}
-                    {active && (inventorySortDir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
-                  </button>
+                  <span key={key} className="inventory-th">
+                    <button
+                      type="button"
+                      className={`inventory-sort-btn${active ? " active" : ""}`}
+                      onClick={() => toggleSort(key)}
+                    >
+                      {labels[i]}
+                      {active && (inventorySortDir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
+                    </button>
+                    {i < INV_COL_COUNT - 1 && (
+                      <span
+                        role="separator"
+                        aria-orientation="vertical"
+                        className="inventory-col-resize-handle"
+                        title="Drag to resize · double-click to reset all columns"
+                        onMouseDown={(event) => startColResize(i, event)}
+                        onDoubleClick={resetColWidths}
+                      />
+                    )}
+                  </span>
                 );
               })}
             </div>
@@ -646,6 +826,9 @@ export function InventoryWorkspace({
                   : isDeviceMonitoringPaused(device) || !livePingEnabled
                   ? "paused"
                   : (liveStatus?.status ?? device.monitor_status ?? device.status);
+                const groupChip = groupChipFor(device, groups);
+                const siteChip = siteChipFor(device, sites);
+                const typeChip = deviceTypeChipFor(device.device_type, deviceTypeOptions);
                 return (
                   <button key={device.id} className={device.id === selectedDeviceId ? 'inventory-row active' : 'inventory-row'} type="button" onClick={() => setSelectedDeviceId(device.id)}>
                     <span className="inventory-row-check">
@@ -675,39 +858,29 @@ export function InventoryWorkspace({
                       <span>{deviceLabel(device)}</span>
                     </span>
                     <span>{device.ip_address || '—'}</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <DeviceTypeIcon type={device.device_type} size={13} />
-                      {device.device_type ? formatDeviceTypeLabel(device.device_type) : iconLabel(device.icon)}
+                    <span>
+                      <EntityChip
+                        label={device.device_type ? formatDeviceTypeLabel(device.device_type) : iconLabel(device.icon)}
+                        color={typeChip?.color}
+                        colorKey={typeChip?.key ?? device.device_type ?? device.icon}
+                        icon={<DeviceTypeIcon type={device.device_type} size={13} />}
+                      />
                     </span>
                     <span className={`status-pill ${status}`}>{status === "paused" ? "paused" : status}</span>
                     <span>{livePingEnabled && liveStatus?.latency_ms != null ? `${liveStatus.latency_ms.toFixed(1)} ms` : '—'}</span>
                     <span>
-                      {canWrite ? (
-                        <select
-                          className="inventory-group-select"
-                          value={device.topology_group_id ? String(device.topology_group_id) : ""}
-                          disabled={busy}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => { e.stopPropagation(); void updateDeviceGroup(device.id, e.target.value); }}
-                        >
-                          <option value="">Inferred</option>
-                          {groups.map((g) => <option key={`rg-${device.id}-${g.id}`} value={g.id}>{g.display_name || g.name}</option>)}
-                        </select>
-                      ) : (device.topology_group || "—")}
+                      {groupChip ? (
+                        <EntityChip label={groupChip.label} color={groupChip.color} colorKey={groupChip.key} />
+                      ) : (
+                        <EntityChipEmpty />
+                      )}
                     </span>
                     <span>
-                      {canWrite ? (
-                        <select
-                          className="inventory-group-select"
-                          value={device.site_id ? String(device.site_id) : ""}
-                          disabled={busy}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => { e.stopPropagation(); void updateDeviceSite(device.id, e.target.value); }}
-                        >
-                          <option value="">No location</option>
-                          {sites.map((s) => <option key={`rs-${device.id}-${s.id}`} value={s.id}>{s.display_name ?? s.name}</option>)}
-                        </select>
-                      ) : ((() => { const s = sites.find((x) => x.id === device.site_id); return s ? (s.display_name ?? s.name) : "—"; })())}
+                      {siteChip ? (
+                        <EntityChip label={siteChip.label} color={siteChip.color} colorKey={siteChip.key} />
+                      ) : (
+                        <EntityChipEmpty />
+                      )}
                     </span>
                   </button>
                 );

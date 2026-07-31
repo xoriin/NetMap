@@ -14,6 +14,9 @@ import { formatDeviceTypeLabel, blankToNull, initialDeviceName } from "../../uti
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { Modal } from "../../components/Modal";
+import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
+import { SwatchSelect, type SwatchOption } from "../../components/SwatchSelect";
+import { resolveEntityColor } from "../../utils/entityColor";
 
 export function DeviceForm({
   busy,
@@ -41,6 +44,16 @@ export function DeviceForm({
     ? deviceTypes
     : deviceTypeOptions.map((value) => ({ value, label: formatDeviceTypeLabel(value), icon: value === "other" ? "device" : value }));
   const typeValues = typeOptions.map((option) => option.value);
+  // The built-in fallback list carries no colour, so resolve against the name.
+  const deviceTypeSelectOptions: SwatchOption[] = [
+    ...typeOptions.map((type) => ({
+      value: type.value,
+      label: type.label || formatDeviceTypeLabel(type.value),
+      color: resolveEntityColor((type as DeviceTypeOption).color, type.value),
+      icon: <DeviceTypeIcon type={type.value} size={13} />,
+    })),
+    { value: "__custom__", label: "Custom…" },
+  ];
   const [form, setForm] = useState({
     display_name: device?.display_name ?? cloneSource?.display_name ?? "",
     hostname: initialDeviceName(device, cloneSource),
@@ -151,24 +164,20 @@ export function DeviceForm({
               <div className="modal-form-row">
                 <label>
                   Device type
-                  <select
+                  {/* Same icons and colours as the inventory table rows. */}
+                  <SwatchSelect
+                    ariaLabel="Device type"
                     value={customType ? "__custom__" : form.device_type}
-                    onChange={(event) => {
-                      if (event.target.value === "__custom__") {
+                    options={deviceTypeSelectOptions}
+                    onChange={(value) => {
+                      if (value === "__custom__") {
                         setCustomType(true);
                       } else {
                         setCustomType(false);
-                        update("device_type", event.target.value);
+                        update("device_type", value);
                       }
                     }}
-                  >
-                    {typeOptions.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label || formatDeviceTypeLabel(type.value)}
-                      </option>
-                    ))}
-                    <option value="__custom__">Custom…</option>
-                  </select>
+                  />
                 </label>
                 <label>
                   Status

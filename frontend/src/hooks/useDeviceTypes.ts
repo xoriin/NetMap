@@ -18,6 +18,7 @@ export function useDeviceTypes(accessToken: string | null) {
       label: value,
       icon: value === "other" ? "device" : value,
       is_builtin: true,
+      color: null,
     }));
   }, [query.data]);
 

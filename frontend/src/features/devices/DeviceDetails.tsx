@@ -29,6 +29,8 @@ import {
 } from "../../api/client";
 import { deviceLabel, statusColor, formatDeviceTypeLabel, deviceVlanDisplay, formatEventTime } from "../../utils/format";
 import { buildDevicePayload, isDeviceMonitoringPaused } from "../../utils/device";
+import { deviceTypeChipFor, groupChipFor, siteChipFor } from "../../utils/entityColor";
+import { EntityChip } from "../../components/EntityChip";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
@@ -117,6 +119,9 @@ export function DeviceDetails({
   const monitoringPaused = isDeviceMonitoringPaused(device);
   const dotStatus = monitoringPaused ? "paused" : (liveStatus?.status ?? device.monitor_status ?? device.status);
   const assignedSnmpProfile = snmpProfiles.find((profile) => profile.id === device.snmp_profile_id) ?? null;
+  const groupChip = groupChipFor(device, groups);
+  const siteChip = siteChipFor(device, sites);
+  const typeChip = deviceTypeChipFor(device.device_type, deviceTypes ?? []);
 
   async function previewSnmpEnrichment() {
     setSnmpBusy(true);
@@ -331,10 +336,17 @@ export function DeviceDetails({
                 ))}
               </select>
             </span>
+          ) : typeChip ? (
+            <EntityChip
+              label={typeChip.label}
+              color={typeChip.color}
+              colorKey={typeChip.key}
+              icon={<DeviceTypeIcon type={device.device_type} size={13} />}
+            />
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <DeviceTypeIcon type={device.device_type} size={13} />
-              {device.device_type ? formatDeviceTypeLabel(device.device_type) : "Not set"}
+              Not set
             </span>
           )}
         </dd>
@@ -404,7 +416,12 @@ export function DeviceDetails({
                 <option key={group.id} value={String(group.id)}>{group.display_name || group.name}</option>
               ))}
             </select>
-          ) : deviceVlanDisplay(device)}
+          ) : groupChip ? (
+            // Keep the richer "VLAN - group" label; colour it by the group.
+            <EntityChip label={deviceVlanDisplay(device)} color={groupChip.color} colorKey={groupChip.key} />
+          ) : (
+            deviceVlanDisplay(device)
+          )}
         </dd>
         <dt><span className="details-field-icon"><MapPin size={12} /></span>Location</dt>
         <dd
@@ -428,10 +445,10 @@ export function DeviceDetails({
                 <option key={site.id} value={String(site.id)}>{site.display_name ?? site.name}</option>
               ))}
             </select>
+          ) : siteChip ? (
+            <EntityChip label={siteChip.label} color={siteChip.color} colorKey={siteChip.key} />
           ) : (
-            sites.find((s) => s.id === device.site_id)
-              ? (sites.find((s) => s.id === device.site_id)!.display_name ?? sites.find((s) => s.id === device.site_id)!.name)
-              : "—"
+            "—"
           )}
         </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>SNMP profile</dt>

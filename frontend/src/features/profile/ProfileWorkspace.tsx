@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Copy } from "lucide-react";
+import { EntityChip } from "../../components/EntityChip";
 import { api, type ApiKey, type ApiKeyExpiryDays, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -79,6 +81,16 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
     }
   }
 
+  /** Only the prefix exists after creation — useful for matching audit entries. */
+  async function copyPrefix(key: ApiKey) {
+    try {
+      await navigator.clipboard.writeText(`nm_${key.prefix}`);
+      toast.success("Key prefix copied — the full key is only shown at creation");
+    } catch {
+      toast.error("Could not copy the key prefix");
+    }
+  }
+
   async function copyCreatedKey() {
     if (!createdKey) return;
     try {
@@ -92,8 +104,13 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
   const activeKeys = keys.filter((key) => key.revoked_at === null);
 
   return (
-    <section className="panel profile-panel">
-      <h2>API keys</h2>
+    <div className="profile-section">
+      <div className="profile-section-header">
+        <h2>API keys</h2>
+        <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowCreateModal(true)}>
+          Create API key
+        </button>
+      </div>
       <p className="auth-field-hint">
         API keys let external scripts and integrations call the NetMap API with your permissions. Send the key in
         an <code>X-API-Key</code> header.
@@ -118,7 +135,23 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
                 {activeKeys.map((key) => (
                   <tr key={key.id}>
                     <td>{key.name}</td>
-                    <td className="nm-table-mono">nm_{key.prefix}…</td>
+                    <td>
+                      <span className="profile-key-cell">
+                        {/* The secret is never stored, so only the prefix can be
+                            shown — the mask stands in for the unknown remainder. */}
+                        <span className="profile-key-mask nm-table-mono">•••• •••• •••• ••••</span>
+                        <span className="nm-table-mono">{key.prefix.slice(-4)}</span>
+                        <button
+                          type="button"
+                          className="nm-btn nm-btn--sm nm-btn--ghost nm-btn--icon"
+                          title="Copy key prefix"
+                          aria-label={`Copy the key prefix for ${key.name}`}
+                          onClick={() => void copyPrefix(key)}
+                        >
+                          <Copy size={13} />
+                        </button>
+                      </span>
+                    </td>
                     <td>{formatKeyDate(key.created_at)}</td>
                     <td>{key.expires_at ? formatKeyDate(key.expires_at) : "Never"}</td>
                     <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}</td>
@@ -138,11 +171,6 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
             </table>
           </div>
         )}
-      <div className="profile-form-actions">
-        <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowCreateModal(true)}>
-          Create new key
-        </button>
-      </div>
 
       {showCreateModal && (
         <Modal
@@ -201,7 +229,7 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
           </div>
         </Modal>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -218,6 +246,8 @@ export function ProfileWorkspace({
   const [displayName, setDisplayName] = useState(user.display_name ?? "");
   const [profileEmail, setProfileEmail] = useState(user.email ?? "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_data ?? null);
+  const [colorPrefBusy, setColorPrefBusy] = useState(false);
+  const entityColorsEnabled = user.entity_colors_enabled !== false;
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -264,6 +294,22 @@ export function ProfileWorkspace({
     }
   }
 
+  // Saved immediately rather than on "Save profile" — it's a preference the
+  // user wants to see take effect, not a form field.
+  async function saveColorPreference(next: boolean) {
+    setColorPrefBusy(true);
+    setProfileError(null);
+    try {
+      const updated = await api.updateProfile(accessToken, { entity_colors_enabled: next });
+      onUserUpdate(updated);
+      toast.success(next ? "Colour-coded columns on" : "Colour-coded columns off");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to save preference");
+    } finally {
+      setColorPrefBusy(false);
+    }
+  }
+
   async function changePassword(event: FormEvent) {
     event.preventDefault();
     if (newPassword !== confirmPassword) {
@@ -287,42 +333,57 @@ export function ProfileWorkspace({
 
   const initials = (user.display_name || user.username).slice(0, 2).toUpperCase();
 
+  const roleLabel = user.role.replace(/_/g, " ");
+
   return (
     <section className="profile-layout">
-      <div className="profile-grid">
-        <section className="panel profile-panel">
+      {/* One panel, divided into sections. These are all settings for the same
+          page — giving each its own card added chrome without adding meaning. */}
+      <div className="panel profile-panel">
+        {/* Identity is stated once, up front. It used to be two disabled inputs
+            buried among the editable fields, which read as broken form fields. */}
+        <header className="profile-identity">
+          <div className="profile-avatar">
+            {avatarPreview
+              ? <img src={avatarPreview} alt="Profile avatar" className="profile-avatar-img" />
+              : <span className="profile-avatar-initials">{initials}</span>
+            }
+          </div>
+          <div className="profile-identity-text">
+            <h1 className="profile-identity-name">{user.display_name || user.username}</h1>
+            <span className="profile-identity-username">@{user.username}</span>
+            <div className="profile-identity-tags">
+              <span className="nm-pill nm-pill--role">{roleLabel}</span>
+              {user.auth_source === "oidc" && <span className="nm-pill nm-pill--sso">SSO</span>}
+              {user.email && <span className="profile-identity-email">{user.email}</span>}
+            </div>
+          </div>
+          <div className="profile-avatar-actions">
+            <label className="profile-avatar-upload-btn">
+              {avatarPreview ? "Change photo" : "Upload photo"}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
+              />
+            </label>
+            {avatarPreview && (
+              <button type="button" className="profile-avatar-remove-btn" onClick={() => setAvatarPreview(null)}>
+                Remove photo
+              </button>
+            )}
+            <span className="profile-avatar-hint">Saved with account details</span>
+          </div>
+        </header>
+
+        {/* One column. A profile is a short list of unrelated settings; side-by-side
+            panels can never balance in height and leave dead space beside the
+            shorter one. */}
+        <div className="profile-split">
+        <div className="profile-section">
           <h2>Account details</h2>
           <form className="profile-form" onSubmit={saveProfile}>
-            <div className="profile-avatar-row">
-              <div className="profile-avatar">
-                {avatarPreview
-                  ? <img src={avatarPreview} alt="Profile avatar" className="profile-avatar-img" />
-                  : <span className="profile-avatar-initials">{initials}</span>
-                }
-              </div>
-              <div className="profile-avatar-actions">
-                <label className="profile-avatar-upload-btn">
-                  Upload photo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
-                  />
-                </label>
-                {avatarPreview && (
-                  <button type="button" className="profile-avatar-remove-btn" onClick={() => setAvatarPreview(null)}>
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <label className="profile-field-label">
-              Username
-              <input value={user.username} disabled className="profile-input" />
-            </label>
-
             <label className="profile-field-label">
               Display name
               <input
@@ -332,6 +393,7 @@ export function ProfileWorkspace({
                 maxLength={100}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
+              <span className="profile-field-hint">Shown instead of your username across NetMap.</span>
             </label>
 
             <label className="profile-field-label">
@@ -340,78 +402,103 @@ export function ProfileWorkspace({
                 className="profile-input"
                 type="email"
                 maxLength={254}
-                placeholder="Optional — used for password reset notifications"
+                placeholder="you@example.com"
                 value={profileEmail}
                 onChange={(e) => setProfileEmail(e.target.value)}
               />
-            </label>
-
-            <label className="profile-field-label">
-              Role
-              <input value={user.role} disabled className="profile-input" />
+              <span className="profile-field-hint">Optional — used for password reset notifications.</span>
             </label>
 
             {profileError && <div className="form-error">{profileError}</div>}
 
             <div className="profile-form-actions">
               <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy}>
-                {profileBusy ? "Saving…" : "Save profile"}
+                {profileBusy ? "Saving…" : "Save account details"}
               </button>
             </div>
           </form>
-        </section>
+        </div>
 
-        <section className="panel profile-panel">
-          <h2>Change password</h2>
+        <div className="profile-section">
+          <h2>Preferences</h2>
+          <div className="profile-pref-row">
+            <div className="profile-pref-text">
+              <strong>Colour-coded columns</strong>
+              <span>
+                Show VLAN / group, location, and device type as coloured chips in the inventory
+                table and device details. Turn this off for neutral grey chips instead.
+              </span>
+            </div>
+            <div className="profile-pref-control">
+              <EntityChip label="Servers" colorKey="Servers" />
+              <button
+                type="button"
+                className={`nm-btn nm-btn--sm${entityColorsEnabled ? "" : " nm-btn--secondary"}`}
+                disabled={colorPrefBusy}
+                aria-pressed={entityColorsEnabled}
+                onClick={() => void saveColorPreference(!entityColorsEnabled)}
+              >
+                {colorPrefBusy ? "Saving…" : entityColorsEnabled ? "On" : "Off"}
+              </button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div className="profile-section">
+          <h2>Password</h2>
           <form className="profile-form" onSubmit={changePassword}>
-            <label className="profile-field-label">
-              Current password
-              <input
-                className="profile-input"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-              />
-            </label>
+          <div className="profile-field-row">
+          <label className="profile-field-label">
+            Current password
+            <input
+              className="profile-input"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          </label>
 
-            <label className="profile-field-label">
-              New password
-              <input
-                className="profile-input"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                minLength={12}
-                required
-              />
-            </label>
+          <label className="profile-field-label">
+            New password
+            <input
+              className="profile-input"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              minLength={12}
+              required
+            />
+          </label>
 
-            <label className="profile-field-label">
-              Confirm new password
-              <input
-                className="profile-input"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </label>
+          <label className="profile-field-label">
+            Confirm new password
+            <input
+              className="profile-input"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </label>
+          </div>
 
-            {pwError && <div className="form-error">{pwError}</div>}
+          {pwError && <div className="form-error">{pwError}</div>}
 
-            <div className="profile-form-actions">
-              <button type="submit" className="nm-btn nm-btn--primary" disabled={pwBusy}>
-                {pwBusy ? "Updating…" : "Change password"}
-              </button>
-            </div>
+          <div className="profile-form-actions">
+            <button type="submit" className="nm-btn nm-btn--primary" disabled={pwBusy}>
+              {pwBusy ? "Updating…" : "Change password"}
+            </button>
+          </div>
           </form>
-        </section>
+        </div>
+
+        <ApiKeysPanel accessToken={accessToken} />
       </div>
-      <ApiKeysPanel accessToken={accessToken} />
     </section>
   );
 }
