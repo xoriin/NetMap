@@ -541,32 +541,184 @@
 
 /* ── Profile workspace ── */
 
+/* One full-width card. Settings are grouped into bands inside it rather than
+   into separate panels — see .profile-split and .profile-field-row. */
 .profile-layout {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 20px 28px 32px;
-  max-width: 900px;
+  gap: 16px;
+  /* No padding of its own — `.workspace` already pads 24px, and adding more
+     inset the card twice as far as every other workspace's content. */
+  padding: 0;
+  width: 100%;
 }
 
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+/* Identity header: avatar, name, and the read-only facts (username, role, auth
+   source) that used to sit as disabled inputs inside the edit form. No top rule
+   and no tint — the rule below it is enough separation, and a tinted bar read
+   as a detached header. */
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
 }
 
+.profile-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Scoped to .profile-identity to outrank `.workspace h1` in shell.css, which
+   otherwise forces 28px and `--nm-shell` — a near-black navy that disappears
+   against the panel in dark mode. */
+.profile-identity .profile-identity-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--nm-text);
+  letter-spacing: normal;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.profile-identity-username {
+  font-size: var(--nm-text-md);
+  color: var(--nm-text-muted);
+}
+
+.profile-identity-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.profile-identity-email {
+  font-size: var(--nm-text-sm);
+  color: var(--nm-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.nm-pill--role {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+  border-color: rgba(29, 154, 176, 0.25);
+  text-transform: capitalize;
+}
+
+.profile-avatar-hint {
+  font-size: var(--nm-text-xs);
+  color: var(--nm-text-faint);
+}
+
+@media (max-width: 720px) {
+  .profile-identity {
+    flex-wrap: wrap;
+  }
+
+  .profile-avatar-actions {
+    width: 100%;
+  }
+}
+
+/* Fill the workspace height. The shared `body.route-* .workspace > :last-child`
+   rule in shell.css doesn't cover /profile, so the card sized to its content and
+   left the space below it empty.
+   `1 0 auto` rather than `1 1 auto`: the card grows into spare space but must
+   never shrink below its content, because .profile-panel sets overflow: hidden
+   and would clip the API keys table out of reach. */
+.workspace > .profile-layout {
+  flex: 1 0 auto;
+}
+
+/* One card for the whole page; the sections inside are separated by rules
+   rather than each being its own floating panel. */
 .profile-panel {
-  padding: 24px;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* dashboard.css declares `.panel` twice; the second adds `max-width: 760px`
+     and `margin-top: 22px`. Both must be cleared explicitly — this rule only
+     wins on source order, so anything it doesn't name still applies. */
+  max-width: none;
+  margin-top: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-.profile-panel h2 {
+.profile-section {
+  padding: 20px;
+  border-top: 1px solid var(--nm-border);
+  min-width: 0;
+}
+
+/* Account details and Preferences share one band, split by a vertical rule.
+   Both children keep their top border so the rule above reads as continuous. */
+.profile-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+}
+
+.profile-split > .profile-section + .profile-section {
+  border-left: 1px solid var(--nm-border);
+}
+
+/* Password: three fields across rather than stacked. */
+.profile-field-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Section heading with a right-aligned action (API keys → Create API key). */
+.profile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-4);
+  margin-bottom: 14px;
+}
+
+.profile-section-header h2 {
+  margin: 0;
+}
+
+.profile-key-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-key-mask {
+  color: var(--nm-text-faint);
+  letter-spacing: 1px;
+}
+
+@media (max-width: 1100px) {
+  .profile-split {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-split > .profile-section + .profile-section {
+    border-left: 0;
+  }
+
+  .profile-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-section h2 {
   font-size: 15px;
   font-weight: 800;
   color: #1c3040;
-  margin: 0 0 18px;
+  margin: 0 0 14px;
 }
 
 .profile-form {
@@ -607,9 +759,17 @@
   object-fit: cover;
 }
 
+
+/* Right-aligned stack at the far end of the identity row. Stretch so the
+   button, the remove link and the hint share one edge — mixed intrinsic widths
+   made the stack read as ragged. */
 .profile-avatar-actions {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  margin-left: auto;
+  flex: 0 0 auto;
   gap: 6px;
 }
 
@@ -639,7 +799,7 @@
   border: none;
   cursor: pointer;
   padding: 0;
-  text-align: left;
+  text-align: center;
 }
 
 .profile-avatar-remove-btn:hover {
@@ -652,6 +812,12 @@
   font-size: 14px;
   font-weight: 750;
   color: #314656;
+}
+
+.profile-field-hint {
+  font-size: var(--nm-text-sm);
+  font-weight: 500;
+  color: var(--nm-text-muted);
 }
 
 .profile-input {
@@ -795,7 +961,7 @@ body.theme-dark .empty-results {
 
 /* ── Dark mode: profile page ── */
 
-body.theme-dark .profile-panel h2 {
+body.theme-dark .profile-section h2 {
   color: var(--nm-text);
 }
 
@@ -921,15 +1087,15 @@ body:not(.theme-dark) .inv-toolbar-meta  { color: #5a7a90; }
    past the bottom of the viewport and made the whole page scroll. Letting the
    panel take whatever is actually left over cannot drift out of sync. */
 .mon-content {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: minmax(0, 1fr);
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   align-items: stretch;
   flex: 1 1 auto;
   min-height: 0;
 }
-.mon-content > .dash-panel:first-child {
+.mon-content > .dash-panel {
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -3860,48 +4026,75 @@ button.dash-stat {
 .theme-dark .mon-flap-badge { color: #fbbf24; background: rgba(217, 154, 34, 0.22); }
 .theme-dark .ipam-expired-badge { color: #fca5a5; background: rgba(220, 38, 38, 0.25); }
 
-/* Folder-style Devices/Monitors tabs, replacing the panel title */
-.dash-panel-header--tabbed {
+/* Separate Devices/Monitors window selector. The switcher is deliberately a
+   sibling above the active panel rather than a folder tab attached to it. */
+.mon-view-switcher {
+  display: flex;
   align-items: flex-end;
-  padding-left: 0;
-  padding-bottom: 0;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+.mon-view-window {
+  margin-top: -1px;
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
 }
 .mon-panel-tabs {
   display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  margin-left: 8px;
+  align-items: center;
+  gap: 6px;
 }
 .mon-panel-tab {
   appearance: none;
-  border: 1px solid rgba(209, 220, 230, 0.7);
-  border-bottom: none;
-  background: #f3f7fa;
-  color: #7a96a8;
+  border: 1px solid var(--nm-border);
+  border-bottom: 0;
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-muted);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 9px 16px 10px;
-  border-radius: 10px 10px 0 0;
+  padding: 8px 15px 9px;
+  border-radius: var(--nm-radius-lg) var(--nm-radius-lg) 0 0;
   cursor: pointer;
-  position: relative;
-  top: 1px;
-  transition: color 0.13s, background 0.13s;
+  transition: color 0.13s, background 0.13s, border-color 0.13s;
   white-space: nowrap;
 }
-.mon-panel-tab:hover { color: #2a4860; }
+.mon-panel-tab:hover {
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-tab-hover-text);
+  border-color: var(--nm-tab-hover-border);
+}
+.mon-panel-tab:focus-visible {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
 .mon-panel-tab.active {
-  background: #ffffff;
-  color: #1a2e3d;
-  border-bottom: 1px solid #ffffff;
+  background: var(--nm-tab-active-bg);
+  color: var(--nm-tab-active-text);
+  border-color: var(--nm-tab-active-border);
+  padding-bottom: 10px;
+  margin-bottom: -1px;
 }
-.mon-panel-controls .tool-note {
-  margin: 0;
-  padding-right: 8px;
+.mon-device-window-header {
+  justify-content: flex-end;
 }
-.mon-tab-hidden {
-  display: none;
+.mon-tab-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+.mon-view-window--monitors .mon-table-body {
+  display: flex;
+  overflow: hidden;
 }
 
 /* ── Standalone monitors panel ─────────────────────────────────────────── */
@@ -3913,29 +4106,71 @@ button.dash-stat {
 .monitors-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
-.monitors-toolbar--embedded {
-  margin-bottom: 4px;
-  padding-left: 16px;
+.monitors-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
-.monitors-toolbar-hint {
-  flex: 1;
-  min-width: 0;
+.monitors-panel-content--embedded {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 .monitors-layout {
+  display: block;
+  width: 100%;
+}
+.monitors-panel-content--embedded .monitors-layout {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-height: 0;
+}
+.monitors-table-toolbar {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+}
+.monitors-table-toolbar-meta {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--nm-text);
+  font-size: 13px;
+}
+.monitors-search-wrap {
+  width: 240px;
 }
 .monitors-table-wrap {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   /* Clearance for the status dot's glow lives on the cell itself (see
      td.monitors-dot-cell below), not here — padding on the wrapper insets
      the whole table, including the header row's background bar, leaving a
      gap before it reaches the wrapper's left edge. */
+}
+.monitors-panel-content--embedded .monitors-table-wrap {
+  height: 100%;
+  min-height: 0;
+}
+.monitors-table {
+  width: max(100%, 1320px);
+  table-layout: fixed;
+}
+.monitors-table .monitors-col-status { width: 56px; }
+.monitors-table .monitors-col-name { width: 220px; }
+.monitors-table .monitors-col-url { width: auto; }
+.monitors-table .monitors-col-uptime { width: 112px; }
+.monitors-table .monitors-col-rtt { width: 112px; }
+.monitors-table .monitors-col-checked { width: 180px; }
+.monitors-table .monitors-col-actions { width: 220px; }
+.monitors-table td:nth-child(2),
+.monitors-table td:nth-child(3),
+.monitors-table td:nth-child(7) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .monitors-table-wrap tr.is-active {
   background: var(--nm-accent-soft);
@@ -3945,9 +4180,6 @@ button.dash-stat {
 .monitors-table-wrap tr.is-active:hover {
   background: var(--nm-accent-soft);
 }
-/* Table width is set inline from the live column widths (see MonitorsPanel.tsx)
-   rather than here — a static CSS floor would fight the resize logic and make
-   every column wobble whenever one is dragged. */
 /* Higher specificity than components.css's later-loaded `.nm-table .nm-table-num`
    (equal 2-class specificity would otherwise lose the cascade tie to import order):
    the extra `table` type selector guarantees these win regardless of file order. */
@@ -3968,45 +4200,337 @@ button.dash-stat {
 .monitors-table-wrap table.nm-table th:nth-child(6) {
   text-align: center;
 }
-/* Own dedicated details module, styled like Inventory's device-details sidebar
-   (.details-panel gives the shared border/background/shadow treatment). */
-.monitors-details-panel {
+.monitor-http-hero {
+  width: min(1120px, calc(100vw - 48px));
+}
+.monitor-http-backdrop {
+  backdrop-filter: none;
+  background: rgba(8, 16, 26, 0.72);
+}
+.monitor-http-url {
+  max-width: 720px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+.monitor-http-status--online {
+  color: var(--nm-success);
+  background: var(--nm-success-soft);
+  border-color: rgba(45, 157, 120, 0.25);
+}
+.monitor-http-status--offline {
+  color: var(--nm-danger);
+  background: var(--nm-danger-soft);
+  border-color: rgba(217, 75, 75, 0.25);
+}
+.monitor-http-status--paused,
+.monitor-http-status--unknown {
+  color: var(--nm-text-muted);
+  background: var(--nm-surface-soft);
+  border-color: var(--nm-border);
+}
+.monitor-http-cols {
+  grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.35fr);
+}
+.monitor-http-heartbeat {
+  justify-content: flex-start;
+}
+.monitor-http-history {
+  max-height: 330px;
+  overflow-y: auto;
+}
+.monitor-http-history-row {
+  display: grid;
+  grid-template-columns: 12px 145px 90px 75px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--nm-border);
+  font-size: 12px;
+}
+.monitor-http-history-row:last-child { border-bottom: 0; }
+.monitor-http-history-time,
+.monitor-http-code {
+  white-space: nowrap;
+}
+.monitor-http-code {
+  color: var(--nm-text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-weight: 650;
+}
+.monitor-http-history-error {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--nm-danger);
+}
+.monitor-http-issuer {
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.monitor-form-shell {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 340px);
-  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
-.monitors-details-close {
-  flex-shrink: 0;
-}
-.monitors-details-url {
-  overflow-wrap: anywhere;
-}
-/* Nudge the leading pulsing status dot away from the panel edge — its glow
-   halo was getting clipped when flush against the flex row's start. */
-.monitors-details-panel .details-heading > .mon-dot {
-  margin-left: 16px;
-}
-.monitors-history-row .mon-dot {
-  margin-left: 14px;
-}
-.monitors-drilldown-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-}
-.monitors-drilldown-stats > div {
+.modal.monitor-form-modal {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  height: min(760px, calc(100dvh - 40px));
+  border: 1px solid var(--nm-border);
+  background: var(--nm-modal-shell);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2), var(--nm-shadow-md);
+  overflow: hidden;
 }
-.monitors-drilldown-stats strong {
-  font-size: 13px;
+.monitor-form-modal .modal-header {
+  flex: 0 0 auto;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+.monitor-form-modal .monitor-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--nm-modal-shell);
+  overflow: hidden;
+}
+.monitor-form-modal .monitor-form label {
+  gap: 7px;
   color: var(--nm-text);
+  font-size: 13px;
+  font-weight: 600;
 }
+.monitor-form-modal .monitor-form .nm-input,
+.monitor-form-modal .monitor-form .nm-select {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-surface);
+  color: var(--nm-text);
+  font-size: 13px;
+}
+.monitor-form-modal .monitor-form .nm-input::placeholder {
+  color: var(--nm-text-faint);
+}
+.monitor-form-intro {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-surface-soft);
+}
+.monitor-form-intro-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--nm-accent-strong);
+  background: color-mix(in srgb, var(--nm-accent) 9%, var(--nm-surface));
+  border: 1px solid color-mix(in srgb, var(--nm-accent) 20%, var(--nm-border));
+}
+.monitor-form-intro strong,
+.monitor-form-intro span {
+  display: block;
+}
+.monitor-form-intro > div:nth-child(2) > strong {
+  margin-bottom: 3px;
+  color: var(--nm-text);
+  font-size: 14px;
+}
+.monitor-form-intro > div:nth-child(2) > span {
+  color: var(--nm-text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.monitor-form-state--enabled {
+  color: var(--nm-success);
+  background: var(--nm-success-soft);
+  border-color: color-mix(in srgb, var(--nm-success) 28%, transparent);
+}
+.monitor-form-state--paused {
+  color: var(--nm-text-muted);
+  background: var(--nm-surface-soft);
+  border-color: var(--nm-border);
+}
+.monitor-form-tabbed-window {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.monitor-form-nav.mon-panel-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 10px;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+.monitor-form-nav .monitor-form-nav-item {
+  flex: 0 0 auto;
+}
+.monitor-form-window {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: -1px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-surface);
+  overflow: hidden;
+}
+.monitor-form-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 0;
+}
+.monitor-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 18px;
+  border: 0;
+  border-radius: 0;
+  background: var(--nm-surface);
+  box-shadow: none;
+}
+.monitor-form-section + .monitor-form-section {
+  border-top: 1px solid var(--nm-border);
+}
+.monitor-form-section-title {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--nm-border);
+  color: var(--nm-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.monitor-form-row--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.monitor-form-row--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.monitor-form-row--name-method {
+  grid-template-columns: minmax(0, 2fr) minmax(140px, .7fr);
+}
+.monitor-form-option-cell {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding-top: 17px;
+}
+.monitor-form-sections--general {
+  overflow-y: hidden;
+}
+.monitor-form-check-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+.monitor-form-textarea {
+  min-height: 105px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+.monitor-form-textarea--short { min-height: 70px; font-family: inherit; }
+.monitor-form-textarea--pem { min-height: 130px; }
+.monitor-form-pem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body.theme-dark .modal.monitor-form-modal {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-shell);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.48), 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+body.theme-dark .monitor-form-modal .modal-header {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+body.theme-dark .monitor-form-modal .monitor-form {
+  background: var(--nm-modal-shell);
+}
+body.theme-dark .monitor-form-intro,
+body.theme-dark .monitor-form-window,
+body.theme-dark .monitor-form-section {
+  background: var(--nm-modal-section);
+}
+body.theme-dark .monitor-form-modal .monitor-form label {
+  color: var(--nm-modal-label);
+}
+body.theme-dark .monitor-form-modal .monitor-form .nm-input,
+body.theme-dark .monitor-form-modal .monitor-form .nm-select {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+  color-scheme: dark;
+}
+body.theme-dark .monitor-form-modal .monitor-form .nm-input:hover,
+body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
+  border-color: color-mix(in srgb, var(--nm-accent) 34%, var(--nm-border-strong));
+}
+
+@media (max-width: 960px) {
+  .monitors-table-wrap {
+    min-height: 300px;
+  }
+  .monitor-http-cols {
+    grid-template-columns: 1fr;
+  }
+  .monitor-http-history-row {
+    grid-template-columns: 12px 1fr 80px 70px;
+  }
+  .monitor-http-history-error {
+    grid-column: 2 / -1;
+  }
+  .monitor-form-row--three,
+  .monitor-form-row--four,
+  .monitor-form-row--name-method,
+  .monitor-form-check-grid,
+  .monitor-form-pem-grid {
+    grid-template-columns: 1fr;
+  }
+  .monitor-form-sections--general {
+    overflow-y: auto;
+  }
+  .monitor-form-nav.mon-panel-tabs {
+    gap: 4px;
+    padding: 0 5px;
+    overflow-x: auto;
+  }
+  .monitor-form-nav .monitor-form-nav-item {
+    padding-inline: 10px;
+  }
+  .monitor-form-intro {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .monitor-form-intro > .nm-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 .monitors-heartbeat-strip {
   overflow-x: auto;
 }

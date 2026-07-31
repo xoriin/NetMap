@@ -17,6 +17,17 @@ body.theme-dark {
   --nm-accent: #22c0cf;
   --nm-accent-strong: #55d6e1;
   --nm-accent-soft: rgba(34, 192, 207, 0.12);
+  --nm-tab-hover-bg: rgba(29, 154, 176, 0.1);
+  --nm-tab-active-bg: rgba(29, 154, 176, 0.15);
+  --nm-tab-hover-border: rgba(29, 154, 176, 0.2);
+  --nm-tab-active-border: rgba(29, 154, 176, 0.3);
+  --nm-tab-hover-text: #4db8cc;
+  --nm-tab-active-text: #40d4ea;
+  --nm-modal-shell: #121c27;
+  --nm-modal-header: #182635;
+  --nm-modal-section: #15212e;
+  --nm-modal-input: var(--nm-shell);
+  --nm-modal-label: #c8dae8;
   --nm-danger-soft: rgba(217, 75, 75, 0.15);
   --nm-warning-soft: rgba(212, 145, 44, 0.15);
   --nm-success-soft: rgba(45, 157, 120, 0.15);
@@ -957,9 +968,6 @@ body.theme-dark .overview-fav-search { background: #172839; border-color: rgba(7
 body.theme-dark .overview-fav-search input { color: #c9d9e6; background: transparent; border-color: transparent; }
 body.theme-dark .overview-fav-search input::placeholder { color: #6f8fa6; }
 
-body.theme-dark .mon-panel-tab { background: #101d29; border-color: rgba(40,70,90,0.6); color: #4a6478; }
-body.theme-dark .mon-panel-tab:hover { color: #c9d9e6; }
-body.theme-dark .mon-panel-tab.active { background: var(--nm-surface); color: #c9d9e6; border-bottom: 1px solid var(--nm-surface); }
 
 body.theme-dark .inventory-table,
 body.theme-dark .dash-panel-body,
@@ -969,7 +977,6 @@ body.theme-dark .mon-ports-sidebar,
 body.theme-dark .mon-ports-form-col .ep-list,
 body.theme-dark .ipam-modal-body,
 body.theme-dark .obs-list,
-body.theme-dark .monitors-details-panel,
 body.theme-dark .monitors-history-list {
   scrollbar-color: rgba(90, 122, 149, 0.5) transparent;
 }
@@ -981,7 +988,6 @@ body.theme-dark .mon-ports-sidebar:hover,
 body.theme-dark .mon-ports-form-col .ep-list:hover,
 body.theme-dark .ipam-modal-body:hover,
 body.theme-dark .obs-list:hover,
-body.theme-dark .monitors-details-panel:hover,
 body.theme-dark .monitors-history-list:hover {
   scrollbar-color: rgba(77, 184, 204, 0.55) transparent;
 }
@@ -993,7 +999,6 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-track,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-track,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-track,
 body.theme-dark .obs-list::-webkit-scrollbar-track,
-body.theme-dark .monitors-details-panel::-webkit-scrollbar-track,
 body.theme-dark .monitors-history-list::-webkit-scrollbar-track {
   background: rgba(20, 35, 48, 0.5);
 }
@@ -1005,7 +1010,6 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb,
 body.theme-dark .obs-list::-webkit-scrollbar-thumb,
-body.theme-dark .monitors-details-panel::-webkit-scrollbar-thumb,
 body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb {
   background-color: rgba(90, 122, 149, 0.5);
 }
@@ -1017,7 +1021,6 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb:hover,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb:hover,
 body.theme-dark .obs-list::-webkit-scrollbar-thumb:hover,
-body.theme-dark .monitors-details-panel::-webkit-scrollbar-thumb:hover,
 body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb:hover {
   background-color: rgba(77, 184, 204, 0.6);
 }

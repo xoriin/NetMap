@@ -20,6 +20,17 @@
   --nm-accent: #1d9ab0;
   --nm-accent-strong: #1d6472;
   --nm-accent-soft: rgba(29, 154, 176, 0.12);
+  --nm-tab-hover-bg: rgba(29, 154, 176, 0.07);
+  --nm-tab-active-bg: rgba(29, 154, 176, 0.11);
+  --nm-tab-hover-border: rgba(29, 154, 176, 0.18);
+  --nm-tab-active-border: rgba(29, 154, 176, 0.3);
+  --nm-tab-hover-text: var(--nm-accent-strong);
+  --nm-tab-active-text: var(--nm-accent);
+  --nm-modal-shell: var(--nm-bg-elevated);
+  --nm-modal-header: var(--nm-surface);
+  --nm-modal-section: var(--nm-surface);
+  --nm-modal-input: #ffffff;
+  --nm-modal-label: var(--nm-text);
   --nm-danger: #d94b4b;
   --nm-warning: #d4912c;
   --nm-success: #2d9d78;
@@ -49,4 +60,3 @@
   color: var(--nm-text);
   background: var(--nm-bg);
 }
-

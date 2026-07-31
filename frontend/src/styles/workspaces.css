@@ -278,8 +278,8 @@
   min-height: unset;
   white-space: nowrap;
 }
-.inv-status-tab:hover { background: rgba(29,154,176,0.07); border-color: rgba(29,154,176,0.18); color: var(--nm-accent-strong); }
-.inv-status-tab.active { background: rgba(29,154,176,0.11); border-color: rgba(29,154,176,0.3); color: var(--nm-accent); }
+.inv-status-tab:hover { background: var(--nm-tab-hover-bg); border-color: var(--nm-tab-hover-border); color: var(--nm-tab-hover-text); }
+.inv-status-tab.active { background: var(--nm-tab-active-bg); border-color: var(--nm-tab-active-border); color: var(--nm-tab-active-text); }
 .inv-fav-filter {
   display: inline-flex;
   align-items: center;
@@ -441,7 +441,8 @@
   gap: 10px;
 }
 
-.inv-bulk-menu-grid label {
+.inv-bulk-menu-grid label,
+.inv-bulk-menu-field {
   display: grid;
   gap: 5px;
   min-width: 0;
@@ -454,6 +455,19 @@
 
 .inv-bulk-menu-grid .inv-select {
   width: 100%;
+  max-width: none;
+}
+
+/* The bulk fields are full-width columns, unlike the compact filter-row use. */
+.inv-bulk-menu-field .nm-swatch-trigger {
+  width: 100%;
+  max-width: none;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inv-bulk-menu-field .nm-swatch-list {
   max-width: none;
 }
 
@@ -646,8 +660,8 @@ body.theme-dark .inv-panel-title { color: #c9d9e6; }
 body.theme-dark .inv-sep { background: rgba(255,255,255,0.09); }
 body.theme-dark .inv-bulk-selection { border-bottom-color: rgba(40,70,90,0.45); }
 body.theme-dark .inv-status-tab { color: #3a5870; }
-body.theme-dark .inv-status-tab:hover { background: rgba(29,154,176,0.1); color: #4db8cc; border-color: rgba(29,154,176,0.2); }
-body.theme-dark .inv-status-tab.active { background: rgba(29,154,176,0.15); border-color: rgba(29,154,176,0.3); color: #40d4ea; }
+body.theme-dark .inv-status-tab:hover { background: var(--nm-tab-hover-bg); color: var(--nm-tab-hover-text); border-color: var(--nm-tab-hover-border); }
+body.theme-dark .inv-status-tab.active { background: var(--nm-tab-active-bg); border-color: var(--nm-tab-active-border); color: var(--nm-tab-active-text); }
 body.theme-dark .inv-status-tab--muted { color: #2e4a5e; }
 body.theme-dark .inventory-live-banner {
   background: rgba(224,80,80,0.1);
@@ -1589,7 +1603,12 @@ body.theme-dark .topology-overlay-label {
 .inventory-table-header,
 .inventory-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 0.75fr) minmax(0, 1.1fr) minmax(0, 1.1fr);
+  /* --inv-grid-template is set once the user drags a column divider; until then
+     the columns stay flexible. See utils/inventoryColumns.ts. */
+  grid-template-columns: var(
+    --inv-grid-template,
+    48px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 0.75fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+  );
   gap: 12px;
   align-items: center;
   width: 100%;
@@ -1628,6 +1647,62 @@ body.theme-dark .topology-overlay-label {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+/* Frozen pixel columns can total more than the viewport, so rows size to their
+   content and the container scrolls horizontally. min-width keeps row
+   backgrounds full-bleed when the columns are narrower than the panel. */
+.inventory-table--fixed .inventory-table-header,
+.inventory-table--fixed .inventory-row {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Header cell wrapper: anchors the column resize handle. */
+.inventory-th {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.inventory-col-resize-handle {
+  position: absolute;
+  top: -11px;
+  right: -6px;
+  bottom: -11px;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+  user-select: none;
+  border-radius: 0 3px 3px 0;
+  transition: background 0.12s;
+}
+
+.inventory-col-resize-handle:hover { background: rgba(29, 154, 176, 0.35); }
+.inventory-col-resize-handle:active { background: rgba(29, 154, 176, 0.55); }
+
+/* Grip affordance so it reads as draggable rather than a stray edge. */
+.inventory-col-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background-image: radial-gradient(circle, currentColor 1px, transparent 1.2px);
+  background-size: 3px 4px;
+  background-repeat: repeat-y;
+  color: var(--nm-text-faint);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.inventory-col-resize-handle:hover::after {
+  color: var(--nm-accent);
+  opacity: 1;
 }
 
 .inventory-sort-btn {
