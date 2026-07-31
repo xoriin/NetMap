@@ -37,3 +37,6 @@ class User(Base):
     avatar_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     whats_new_acknowledged_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Per-user opt-out for the coloured VLAN/group, location, and device type
+    # chips. Off falls back to neutral grey chips, not to plain text.
+    entity_colors_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

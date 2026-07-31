@@ -273,6 +273,8 @@ def update_profile(
         current_user.avatar_data = avatar
     if "email" in updates:
         current_user.email = updates["email"] or None
+    if updates.get("entity_colors_enabled") is not None:
+        current_user.entity_colors_enabled = bool(updates["entity_colors_enabled"])
     write_audit(
         db,
         action="auth.profile_updated",

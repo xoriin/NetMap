@@ -14,6 +14,7 @@ from app.models.device_type import DeviceType
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.admin import (
+    DeviceTypeColorsUpdate,
     DeviceTypeCreate,
     DeviceTypeRead,
     DeviceTypeUpdate,
@@ -130,6 +131,24 @@ def load_settings(db: Session) -> dict[str, str]:
     return _load(db, DEFAULTS)
 
 
+DEVICE_TYPE_COLORS_KEY = "device_type_colors"
+
+
+def _load_device_type_colors(db: Session) -> dict[str, str]:
+    """Colour per device type value. Kept in system_settings rather than on
+    `device_types` because built-in types are code constants with no DB row."""
+    row = db.get(SystemSetting, DEVICE_TYPE_COLORS_KEY)
+    if row is None or not row.value:
+        return {}
+    try:
+        parsed = json.loads(row.value)
+    except ValueError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(key): str(value) for key, value in parsed.items() if isinstance(value, str)}
+
+
 def _device_type_read(row: DeviceType) -> DeviceTypeRead:
     return DeviceTypeRead(
         id=row.id,
@@ -141,9 +160,15 @@ def _device_type_read(row: DeviceType) -> DeviceTypeRead:
 
 
 def _list_device_types(db: Session) -> list[DeviceTypeRead]:
+    colors = _load_device_type_colors(db)
     custom = [_device_type_read(row) for row in db.scalars(select(DeviceType).order_by(DeviceType.label)).all()]
     custom_by_value = {row.value: row for row in custom}
-    return [*BUILT_IN_DEVICE_TYPES, *[row for row in custom if row.value not in BUILT_IN_DEVICE_TYPE_VALUES and row.value in custom_by_value]]
+    merged = [
+        *BUILT_IN_DEVICE_TYPES,
+        *[row for row in custom if row.value not in BUILT_IN_DEVICE_TYPE_VALUES and row.value in custom_by_value],
+    ]
+    # Copy the built-in constants so stamping a colour never mutates them.
+    return [entry.model_copy(update={"color": colors.get(entry.value)}) for entry in merged]
 
 
 @router.get("/device-types", response_model=list[DeviceTypeRead])
@@ -151,6 +176,33 @@ def list_device_types(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DeviceTypeRead]:
+    return _list_device_types(db)
+
+
+@router.put("/device-type-colors", response_model=list[DeviceTypeRead])
+def update_device_type_colors(
+    payload: DeviceTypeColorsUpdate,
+    _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[DeviceTypeRead]:
+    """Replace the whole colour map. Values not listed fall back to the
+    name-derived automatic colour on the client."""
+    known = {entry.value for entry in _list_device_types(db)}
+    unknown = set(payload.colors) - known
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown device type(s): {', '.join(sorted(unknown))}",
+        )
+    now = datetime.now(timezone.utc)
+    serialized = json.dumps(payload.colors)
+    existing = db.get(SystemSetting, DEVICE_TYPE_COLORS_KEY)
+    if existing:
+        existing.value = serialized
+        existing.updated_at = now
+    else:
+        db.add(SystemSetting(key=DEVICE_TYPE_COLORS_KEY, value=serialized, updated_at=now))
+    db.commit()
     return _list_device_types(db)
 
 

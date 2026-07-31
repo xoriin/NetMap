@@ -169,6 +169,27 @@ class DeviceTypeRead(BaseModel):
     label: str
     icon: str = "device"
     is_builtin: bool = False
+    # Merged in from the `device_type_colors` system setting rather than stored
+    # per row: built-in types have no DB row to carry a colour on.
+    color: str | None = None
+
+
+class DeviceTypeColorsUpdate(BaseModel):
+    colors: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("colors")
+    @classmethod
+    def normalize_colors(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for key, color in value.items():
+            type_value = normalize_device_type_value(key)
+            candidate = (color or "").strip()
+            if not candidate:
+                continue
+            if not re.fullmatch(r"#[0-9A-Fa-f]{6}", candidate):
+                raise ValueError(f"Invalid colour for device type '{type_value}'")
+            normalized[type_value] = candidate.lower()
+        return normalized
 
 
 class DeviceTypeCreate(BaseModel):

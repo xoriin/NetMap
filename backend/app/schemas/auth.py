@@ -51,6 +51,7 @@ class ProfileUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
     avatar_data: str | None = None
     email: str | None = Field(default=None, max_length=254)
+    entity_colors_enabled: bool | None = None
 
 
 class WhatsNewAckRequest(BaseModel):
@@ -74,6 +75,7 @@ class UserRead(BaseModel):
     sso_issuer: str | None = None
     sso_last_login_at: datetime | None = None
     whats_new_acknowledged_version: str | None = None
+    entity_colors_enabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

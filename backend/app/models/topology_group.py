@@ -19,6 +19,7 @@ class TopologyGroup(Base):
     dhcp_end: Mapped[str | None] = mapped_column(String(64), nullable=True)
     dns_servers: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    color: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

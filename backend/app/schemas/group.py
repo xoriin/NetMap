@@ -16,6 +16,7 @@ class TopologyGroupBase(BaseModel):
     dhcp_end: str | None = Field(default=None, max_length=64)
     dns_servers: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     @field_validator("name")
     @classmethod
@@ -79,6 +80,7 @@ class TopologyGroupUpdate(BaseModel):
     dhcp_end: str | None = Field(default=None, max_length=64)
     dns_servers: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     @field_validator("name")
     @classmethod
