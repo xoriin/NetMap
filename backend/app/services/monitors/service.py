@@ -15,6 +15,7 @@ from app.models.alert_rule import AlertRule
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.services.monitoring.port_checker import check_url
+from app.core.secrets import decrypt_secret
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -71,7 +72,11 @@ class StandaloneMonitorService:
             due = [
                 m for m in monitors
                 if m.last_checked_at is None
-                or (now - self._as_aware(m.last_checked_at)).total_seconds() >= m.check_interval_seconds
+                or (now - self._as_aware(m.last_checked_at)).total_seconds() >= (
+                    m.retry_interval_seconds
+                    if m.consecutive_failures > 0 and m.check_interval_seconds > 0
+                    else m.check_interval_seconds
+                )
             ]
             if not due:
                 self._prune_history()
@@ -79,7 +84,7 @@ class StandaloneMonitorService:
 
             rules = db.scalars(select(AlertRule).where(
                 AlertRule.enabled == True,  # noqa: E712
-                AlertRule.event_type.in_(("monitor_down", "monitor_slow")),
+                AlertRule.event_type.in_(("monitor_down", "monitor_slow", "monitor_certificate_expiry")),
             )).all()
             notif_settings = load_notification_settings(db)
             profiles = {
@@ -98,7 +103,25 @@ class StandaloneMonitorService:
                     check_url, m.url, m.timeout_seconds,
                     method=m.http_method, expected_status_min=m.expected_status_min,
                     expected_status_max=m.expected_status_max, verify_tls=m.verify_tls,
-                    follow_redirects=m.follow_redirects,
+                    follow_redirects=m.follow_redirects, max_redirects=m.max_redirects,
+                    accepted_status_codes=m.accepted_status_codes,
+                    headers=self._decrypt_json(m.request_headers_encrypted),
+                    body=self._decrypt(m.request_body_encrypted), body_encoding=m.body_encoding,
+                    auth_type=m.auth_type, auth_username=m.auth_username,
+                    auth_password=self._decrypt(m.auth_password_encrypted),
+                    bearer_token=self._decrypt(m.bearer_token_encrypted),
+                    oauth_token_url=m.oauth_token_url, oauth_client_id=m.oauth_client_id,
+                    oauth_client_secret=self._decrypt(m.oauth_client_secret_encrypted),
+                    oauth_scopes=m.oauth_scopes, oauth_audience=m.oauth_audience,
+                    oauth_auth_method=m.oauth_auth_method,
+                    proxy_url=self._decrypt(m.proxy_url_encrypted),
+                    tls_ca=self._decrypt(m.tls_ca_encrypted),
+                    tls_cert=self._decrypt(m.tls_cert_encrypted),
+                    tls_key=self._decrypt(m.tls_key_encrypted),
+                    keyword=m.keyword, keyword_inverted=m.keyword_inverted,
+                    json_path=m.json_path, json_operator=m.json_operator,
+                    expected_value=m.expected_value, cache_bust=m.cache_bust,
+                    upside_down=m.upside_down,
                 ): m.id
                 for m in due
             }
@@ -161,7 +184,10 @@ class StandaloneMonitorService:
                 "status": raw_status,
                 "response_time_ms": round(result.response_time_ms, 2) if result.response_time_ms is not None else None,
                 "status_code": result.status_code,
-                "error": None if result.open else "Check failed (timeout, connection error, or unexpected status)",
+                "error": None if result.open else (result.error or "Check failed")[:255],
+                "assertion_detail": result.assertion_detail,
+                "response_size_bytes": result.response_size_bytes,
+                "cert_expires_at": result.cert_expires_at,
             })
 
             if was_status != "offline" and new_status == "offline":
@@ -191,6 +217,22 @@ class StandaloneMonitorService:
                         response_time_ms=result.response_time_ms, threshold_ms=rule.threshold_ms,
                     ))
 
+            if monitor.certificate_expiry_alert and result.cert_expires_at is not None:
+                expires_at = self._as_aware(result.cert_expires_at)
+                days_remaining = max(0, int((expires_at - now).total_seconds() // 86400))
+                if expires_at <= now + timedelta(days=monitor.certificate_expiry_days):
+                    for rule in rules:
+                        if rule.event_type != "monitor_certificate_expiry":
+                            continue
+                        if rule.monitor_id is not None and rule.monitor_id != monitor.id:
+                            continue
+                        if not self._cooldown_ok(rule, now):
+                            continue
+                        fire(rule, monitor, self._build_message(
+                            "monitor_certificate_expiry", monitor.name, monitor.url,
+                            "online", app_name, certificate_days_remaining=days_remaining,
+                        ))
+
         # Phase 3 — one short write transaction for everything the tick produced.
         with SessionLocal() as db:
             live_ids: set[int] = set()
@@ -202,6 +244,10 @@ class StandaloneMonitorService:
                 row.consecutive_failures = failures
                 row.last_status = last_status
                 row.last_checked_at = now
+                result = results.get(monitor_id)
+                if result is not None and result.cert_expires_at is not None:
+                    row.last_cert_expires_at = result.cert_expires_at
+                    row.last_cert_issuer = result.cert_issuer
             history_rows = [row for row in history_rows if row["monitor_id"] in live_ids]
             if history_rows:
                 db.bulk_insert_mappings(MonitorCheckHistory, history_rows)
@@ -237,6 +283,7 @@ class StandaloneMonitorService:
         app_name: str,
         response_time_ms: float | None = None,
         threshold_ms: int | None = None,
+        certificate_days_remaining: int | None = None,
     ) -> str:
         if event_type == "monitor_down":
             body = f"🔻 Monitor \"{name}\" ({url}) is DOWN"
@@ -244,6 +291,10 @@ class StandaloneMonitorService:
         if event_type == "monitor_slow":
             rtt_text = f"{response_time_ms:.0f}" if response_time_ms is not None else "?"
             body = f"🐢 Monitor \"{name}\" ({url}) response time {rtt_text} ms is above the {threshold_ms} ms threshold"
+            return f"{app_name} Alert\n\n{body}"
+        if event_type == "monitor_certificate_expiry":
+            days = "?" if certificate_days_remaining is None else str(certificate_days_remaining)
+            body = f"🔐 Monitor \"{name}\" ({url}) certificate expires in {days} day(s)"
             return f"{app_name} Alert\n\n{body}"
         return f"{app_name} Alert\n\n{name} ({url}) status: {status}"
 
@@ -268,6 +319,27 @@ class StandaloneMonitorService:
             return row.value if row else "NetMap"
         except Exception:
             return "NetMap"
+
+    @staticmethod
+    def _decrypt(value: str | None) -> str | None:
+        if not value:
+            return None
+        try:
+            return decrypt_secret(value)
+        except Exception:
+            logger.error("Unable to decrypt a standalone monitor secret")
+            return None
+
+    @classmethod
+    def _decrypt_json(cls, value: str | None) -> dict[str, str] | None:
+        plaintext = cls._decrypt(value)
+        if not plaintext:
+            return None
+        try:
+            parsed = json.loads(plaintext)
+            return parsed if isinstance(parsed, dict) else None
+        except ValueError:
+            return None
 
 
 standalone_monitor_service = StandaloneMonitorService()

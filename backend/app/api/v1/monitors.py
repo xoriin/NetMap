@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,6 +17,7 @@ from app.schemas.monitor import (
     MonitorUpdate,
 )
 from app.services.audit.service import write_audit
+from app.core.secrets import encrypt_secret
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
 
@@ -64,6 +66,19 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
     reads = []
     for monitor in monitors:
         read = MonitorRead.model_validate(monitor)
+        try:
+            read.tags = json.loads(monitor.tags_json or "[]")
+        except (TypeError, ValueError):
+            read.tags = []
+        read.has_request_headers = bool(monitor.request_headers_encrypted)
+        read.has_request_body = bool(monitor.request_body_encrypted)
+        read.has_auth_password = bool(monitor.auth_password_encrypted)
+        read.has_bearer_token = bool(monitor.bearer_token_encrypted)
+        read.has_oauth_client_secret = bool(monitor.oauth_client_secret_encrypted)
+        read.has_proxy_url = bool(monitor.proxy_url_encrypted)
+        read.has_tls_ca = bool(monitor.tls_ca_encrypted)
+        read.has_tls_cert = bool(monitor.tls_cert_encrypted)
+        read.has_tls_key = bool(monitor.tls_key_encrypted)
         read.uptime_24h = round(uptime_24h_map[monitor.id], 1) if monitor.id in uptime_24h_map else None
         read.uptime_7d = round(uptime_7d_map[monitor.id], 1) if monitor.id in uptime_7d_map else None
         read.avg_response_time_24h = avg_rtt_map.get(monitor.id)
@@ -87,7 +102,25 @@ def create_monitor(
     db: Annotated[Session, Depends(get_db)],
 ) -> MonitorRead:
     _require_write(current_user)
-    monitor = Monitor(**payload.model_dump())
+    values = payload.model_dump(exclude={
+        "tags", "request_headers", "request_body", "auth_password", "bearer_token",
+        "oauth_client_secret", "proxy_url", "tls_ca", "tls_cert", "tls_key",
+    })
+    if "accepted_status_codes" not in payload.model_fields_set and (
+        payload.expected_status_min != 200 or payload.expected_status_max != 399
+    ):
+        values["accepted_status_codes"] = f"{payload.expected_status_min}-{payload.expected_status_max}"
+    values["tags_json"] = json.dumps(payload.tags)
+    _set_encrypted(values, "request_headers_encrypted", json.dumps(payload.request_headers) if payload.request_headers else None)
+    _set_encrypted(values, "request_body_encrypted", payload.request_body)
+    _set_encrypted(values, "auth_password_encrypted", payload.auth_password)
+    _set_encrypted(values, "bearer_token_encrypted", payload.bearer_token)
+    _set_encrypted(values, "oauth_client_secret_encrypted", payload.oauth_client_secret)
+    _set_encrypted(values, "proxy_url_encrypted", payload.proxy_url)
+    _set_encrypted(values, "tls_ca_encrypted", payload.tls_ca)
+    _set_encrypted(values, "tls_cert_encrypted", payload.tls_cert)
+    _set_encrypted(values, "tls_key_encrypted", payload.tls_key)
+    monitor = Monitor(**values)
     db.add(monitor)
     write_audit(
         db,
@@ -111,7 +144,40 @@ def update_monitor(
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Monitor not found")
-    updates = payload.model_dump(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True, exclude={
+        "tags", "request_headers", "request_body", "auth_password", "bearer_token",
+        "oauth_client_secret", "proxy_url", "tls_ca", "tls_cert", "tls_key",
+    })
+    if "tags" in payload.model_fields_set and payload.tags is not None:
+        updates["tags_json"] = json.dumps(payload.tags)
+    secret_updates = {
+        "request_headers_encrypted": json.dumps(payload.request_headers) if payload.request_headers is not None else None,
+        "request_body_encrypted": payload.request_body,
+        "auth_password_encrypted": payload.auth_password,
+        "bearer_token_encrypted": payload.bearer_token,
+        "oauth_client_secret_encrypted": payload.oauth_client_secret,
+        "proxy_url_encrypted": payload.proxy_url,
+        "tls_ca_encrypted": payload.tls_ca,
+        "tls_cert_encrypted": payload.tls_cert,
+        "tls_key_encrypted": payload.tls_key,
+    }
+    source_names = {
+        "request_headers_encrypted": "request_headers", "request_body_encrypted": "request_body",
+        "auth_password_encrypted": "auth_password", "bearer_token_encrypted": "bearer_token",
+        "oauth_client_secret_encrypted": "oauth_client_secret", "proxy_url_encrypted": "proxy_url",
+        "tls_ca_encrypted": "tls_ca", "tls_cert_encrypted": "tls_cert", "tls_key_encrypted": "tls_key",
+    }
+    for target, value in secret_updates.items():
+        if source_names[target] in payload.model_fields_set and value is not None:
+            _set_encrypted(updates, target, value)
+    merged_min = updates.get("expected_status_min", monitor.expected_status_min)
+    merged_max = updates.get("expected_status_max", monitor.expected_status_max)
+    if merged_min > merged_max:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="expected_status_min must be <= expected_status_max")
+    if "accepted_status_codes" not in updates and (
+        "expected_status_min" in updates or "expected_status_max" in updates
+    ):
+        updates["accepted_status_codes"] = f"{merged_min}-{merged_max}"
     for key, value in updates.items():
         setattr(monitor, key, value)
     write_audit(
@@ -123,6 +189,11 @@ def update_monitor(
     db.commit()
     db.refresh(monitor)
     return _build_reads(db, [monitor])[0]
+
+
+def _set_encrypted(values: dict, key: str, value: str | None) -> None:
+    if value:
+        values[key] = encrypt_secret(value)
 
 
 @router.delete("/{monitor_id}", status_code=status.HTTP_204_NO_CONTENT)

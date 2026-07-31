@@ -182,12 +182,13 @@ def test_rule(
         "service_slow": "online",
         "monitor_down": "offline",
         "monitor_slow": "online",
+        "monitor_certificate_expiry": "online",
     }
     status = event_status_map.get(rule.event_type, "unknown")
     threshold = rule.threshold_ms or 100
     loss_threshold = rule.loss_pct_threshold or 50.0
 
-    if rule.event_type in ("monitor_down", "monitor_slow"):
+    if rule.event_type in ("monitor_down", "monitor_slow", "monitor_certificate_expiry"):
         if rule.monitor_id is not None:
             monitor = db.get(Monitor, rule.monitor_id)
             monitor_name = monitor.name if monitor else f"Monitor #{rule.monitor_id}"
@@ -197,6 +198,7 @@ def test_rule(
         body = StandaloneMonitorService._build_message(
             rule.event_type, monitor_name, monitor_url, status, app_name,
             response_time_ms=float(threshold) + 25, threshold_ms=threshold,
+            certificate_days_remaining=7,
         )
     else:
         body = AlertMonitorService._build_message(

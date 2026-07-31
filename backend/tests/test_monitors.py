@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
 import threading
 from unittest.mock import Mock
 
@@ -63,6 +64,16 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"ok")
 
+    def do_POST(self):  # noqa: N802
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length).decode()
+        payload = json.dumps({"status": "healthy", "received": body, "key": self.headers.get("X-Health-Key")}).encode()
+        self.send_response(201)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def log_message(self, *args):
         pass
 
@@ -94,6 +105,39 @@ def test_check_url_up_down_and_invalid_scheme():
         server.shutdown()
 
     assert check_url("ftp://example.com/", 3.0).open is False
+
+
+def test_check_url_supports_request_options_and_response_assertions():
+    server = _http_server()
+    port = server.server_address[1]
+    try:
+        result = check_url(
+            f"http://127.0.0.1:{port}/api", 3.0,
+            method="POST", accepted_status_codes="200,201,204",
+            headers={"X-Health-Key": "secret"}, body='{"probe":true}',
+            body_encoding="json", keyword='"healthy"',
+            json_path="$.key", json_operator="equals", expected_value="secret",
+        )
+        assert result.open is True
+        assert result.status_code == 201
+        assert result.response_size_bytes and result.response_size_bytes > 0
+        assert result.assertion_detail == "Response assertions passed"
+
+        failed = check_url(
+            f"http://127.0.0.1:{port}/api", 3.0,
+            method="POST", accepted_status_codes="201",
+            json_path="$.status", json_operator="equals", expected_value="down",
+        )
+        assert failed.open is False
+        assert failed.error == "JSON assertion failed at $.status"
+
+        inverted = check_url(
+            f"http://127.0.0.1:{port}/broken", 3.0,
+            accepted_status_codes="200-299", upside_down=True,
+        )
+        assert inverted.open is True
+    finally:
+        server.shutdown()
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +193,30 @@ def test_monitor_crud_lifecycle():
 
     delete_monitor(created.id, actor, db)
     assert list_monitors(actor, db) == []
+
+
+def test_monitor_secrets_are_encrypted_and_redacted_from_reads():
+    db = _session()
+    actor = Mock(id=1, role="SuperAdmin")
+    created = create_monitor(MonitorCreate(
+        name="Secured", url="https://example.com/", auth_type="basic",
+        auth_username="probe", auth_password="correct horse",
+        request_headers={"X-Key": "header secret"}, request_body='{"token":"body secret"}',
+        tags=["production", "api"],
+    ), actor, db)
+    row = db.get(Monitor, created.id)
+    assert row.auth_password_encrypted != "correct horse"
+    assert "header secret" not in (row.request_headers_encrypted or "")
+    assert "body secret" not in (row.request_body_encrypted or "")
+    assert created.has_auth_password is True
+    assert created.has_request_headers is True
+    assert created.has_request_body is True
+    assert created.tags == ["production", "api"]
+    assert not hasattr(created, "auth_password")
+
+    update_monitor(created.id, MonitorUpdate(description="Health endpoint"), actor, db)
+    db.refresh(row)
+    assert row.auth_password_encrypted is not None
 
 
 def test_monitor_crud_requires_write_permission():
@@ -291,7 +359,6 @@ def test_tick_fires_monitor_down_alert_only_on_transition(monkeypatch):
     db.add(monitor)
     db.commit()
     db.refresh(monitor)
-    monitor_id = monitor.id
 
     rule = AlertRule(
         name="Monitor down", enabled=True, event_type="monitor_down", channels='["profile:1"]',

@@ -591,6 +591,7 @@ dependencies = [
     { name = "defusedxml" },
     { name = "dnspython" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "reportlab" },
@@ -601,7 +602,6 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -615,7 +615,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "dnspython", specifier = ">=2.7.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "pydantic-settings", specifier = ">=2.4.0" },
     { name = "pyjwt", specifier = ">=2.10.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },

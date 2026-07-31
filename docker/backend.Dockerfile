@@ -28,7 +28,8 @@ RUN pip install --no-cache-dir --upgrade pip \
        "python-jose[cryptography]~=3.3" \
        "dnspython~=2.7" \
        "reportlab~=4.4" \
-       "apprise~=1.9"
+       "apprise~=1.9" \
+       "httpx>=0.27.0"
 
 COPY backend/app ./app
 

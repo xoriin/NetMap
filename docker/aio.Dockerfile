@@ -62,7 +62,8 @@ RUN pip install --no-cache-dir --upgrade pip \
        "starlette>=1.3.1" \
        "dnspython~=2.7" \
        "reportlab~=4.4" \
-       "apprise~=1.9"
+       "apprise~=1.9" \
+       "httpx>=0.27.0"
 
 COPY backend/app ./app
 COPY VERSION /app/VERSION
