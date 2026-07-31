@@ -12,6 +12,8 @@ export type User = {
   sso_issuer?: string | null;
   sso_last_login_at?: string | null;
   whats_new_acknowledged_version?: string | null;
+  /** Per-user opt-out for coloured entity chips. Defaults to on. */
+  entity_colors_enabled?: boolean;
 };
 
 export type OidcStatus = {
@@ -112,6 +114,8 @@ export type DeviceTypeOption = {
   label: string;
   icon: string;
   is_builtin: boolean;
+  /** Explicit chip colour; null falls back to the name-derived palette colour. */
+  color: string | null;
 };
 
 export type Device = {
@@ -255,6 +259,7 @@ export type TopologyGroup = {
   dhcp_end: string | null;
   dns_servers: string | null;
   description: string | null;
+  color: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -687,7 +692,7 @@ export type NotificationProfilePayload = {
   config: Record<string, string>;
 };
 
-export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow" | "monitor_down" | "monitor_slow";
+export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow" | "monitor_down" | "monitor_slow" | "monitor_certificate_expiry";
 
 export type AlertRule = {
   id: number;
@@ -818,6 +823,8 @@ export type MonitorStatus = "online" | "offline" | null;
 export type Monitor = {
   id: number;
   name: string;
+  description: string | null;
+  tags: string[];
   url: string;
   http_method: HttpMethod;
   expected_status_min: number;
@@ -825,12 +832,43 @@ export type Monitor = {
   timeout_seconds: number;
   verify_tls: boolean;
   follow_redirects: boolean;
+  max_redirects: number;
+  accepted_status_codes: string;
+  body_encoding: MonitorBodyEncoding;
+  auth_type: MonitorAuthType;
+  auth_username: string | null;
+  oauth_token_url: string | null;
+  oauth_client_id: string | null;
+  oauth_scopes: string | null;
+  oauth_audience: string | null;
+  oauth_auth_method: MonitorOauthAuthMethod;
+  keyword: string | null;
+  keyword_inverted: boolean;
+  json_path: string | null;
+  json_operator: MonitorJsonOperator;
+  expected_value: string | null;
+  cache_bust: boolean;
+  upside_down: boolean;
   check_interval_seconds: number;
   max_retries: number;
+  retry_interval_seconds: number;
+  certificate_expiry_alert: boolean;
+  certificate_expiry_days: number;
+  has_request_headers: boolean;
+  has_request_body: boolean;
+  has_auth_password: boolean;
+  has_bearer_token: boolean;
+  has_oauth_client_secret: boolean;
+  has_proxy_url: boolean;
+  has_tls_ca: boolean;
+  has_tls_cert: boolean;
+  has_tls_key: boolean;
   enabled: boolean;
   consecutive_failures: number;
   last_status: MonitorStatus;
   last_checked_at: string | null;
+  last_cert_expires_at: string | null;
+  last_cert_issuer: string | null;
   uptime_24h: number | null;
   uptime_7d: number | null;
   avg_response_time_24h: number | null;
@@ -838,17 +876,53 @@ export type Monitor = {
   updated_at: string;
 };
 
+export type MonitorBodyEncoding = "json" | "text" | "form" | "xml";
+export type MonitorAuthType = "none" | "basic" | "bearer" | "oauth2" | "mtls";
+export type MonitorOauthAuthMethod = "client_secret_basic" | "client_secret_post";
+export type MonitorJsonOperator = "equals" | "not_equals" | "contains" | "not_contains" | "exists" | "not_exists" | "gt" | "gte" | "lt" | "lte";
+
 export type MonitorPayload = {
   name: string;
   url: string;
+  description?: string | null;
+  tags?: string[];
   http_method?: HttpMethod;
   expected_status_min?: number;
   expected_status_max?: number;
   timeout_seconds?: number;
   verify_tls?: boolean;
   follow_redirects?: boolean;
+  max_redirects?: number;
+  accepted_status_codes?: string;
+  request_headers?: Record<string, string> | null;
+  request_body?: string | null;
+  body_encoding?: MonitorBodyEncoding;
+  auth_type?: MonitorAuthType;
+  auth_username?: string | null;
+  auth_password?: string | null;
+  bearer_token?: string | null;
+  oauth_token_url?: string | null;
+  oauth_client_id?: string | null;
+  oauth_client_secret?: string | null;
+  oauth_scopes?: string | null;
+  oauth_audience?: string | null;
+  oauth_auth_method?: MonitorOauthAuthMethod;
+  proxy_url?: string | null;
+  tls_ca?: string | null;
+  tls_cert?: string | null;
+  tls_key?: string | null;
+  keyword?: string | null;
+  keyword_inverted?: boolean;
+  json_path?: string | null;
+  json_operator?: MonitorJsonOperator;
+  expected_value?: string | null;
+  cache_bust?: boolean;
+  upside_down?: boolean;
   check_interval_seconds?: number;
   max_retries?: number;
+  retry_interval_seconds?: number;
+  certificate_expiry_alert?: boolean;
+  certificate_expiry_days?: number;
   enabled?: boolean;
 };
 
@@ -859,6 +933,9 @@ export type MonitorCheckHistoryPoint = {
   response_time_ms: number | null;
   status_code: number | null;
   error: string | null;
+  assertion_detail: string | null;
+  response_size_bytes: number | null;
+  cert_expires_at: string | null;
 };
 
 export type DeviceAnalysis = {
@@ -1260,7 +1337,7 @@ export const api = {
       body: JSON.stringify({}),
     }),
   me: (token: string) => request<User>("/api/v1/auth/me", { token }),
-  updateProfile: (token: string, payload: { display_name?: string | null; avatar_data?: string | null; email?: string | null }) =>
+  updateProfile: (token: string, payload: { display_name?: string | null; avatar_data?: string | null; email?: string | null; entity_colors_enabled?: boolean }) =>
     request<User>("/api/v1/auth/me", {
       method: "PATCH",
       token,
@@ -1358,7 +1435,7 @@ export const api = {
   updateTopologyGroup: (
     token: string,
     groupId: number,
-    payload: Partial<{ name: string; display_name: string | null; vlan_id: string | null; ip_range: string | null; gateway: string | null; dhcp_start: string | null; dhcp_end: string | null; dns_servers: string | null; description: string | null }>,
+    payload: Partial<{ name: string; display_name: string | null; vlan_id: string | null; ip_range: string | null; gateway: string | null; dhcp_start: string | null; dhcp_end: string | null; dns_servers: string | null; description: string | null; color: string | null }>,
   ) =>
     request<TopologyGroup>(`/api/v1/topology/groups/${groupId}`, {
       method: "PATCH",
@@ -1754,6 +1831,13 @@ export const api = {
     }),
   deleteDeviceType: (token: string, value: string) =>
     request<void>(`/api/v1/admin/device-types/${encodeURIComponent(value)}`, { method: "DELETE", token }),
+  /** Replaces the whole map; omitted types fall back to their automatic colour. */
+  updateDeviceTypeColors: (token: string, colors: Record<string, string>) =>
+    request<DeviceTypeOption[]>("/api/v1/admin/device-type-colors", {
+      method: "PUT",
+      token,
+      body: JSON.stringify({ colors }),
+    }),
   listAlertRules: (token: string) =>
     request<AlertRule[]>("/api/v1/alerts/rules", { token }),
   createAlertRule: (token: string, payload: AlertRulePayload) =>
