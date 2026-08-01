@@ -125,14 +125,17 @@ test("Link details use the finished route hierarchy without moving canvas select
   expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThanOrEqual(1);
 });
 
-test("Topology device marks follow canvas zoom and use the reduced size range", async ({ page }) => {
+test("Topology device marks follow canvas zoom and use the expanded size range", async ({ page }) => {
   await setupThemedTopology(page, "dark");
 
   const displayButton = page.getByRole("button", { name: "Display" });
   await displayButton.click();
   const sizeSlider = page.locator(".toolbar-display-panel label", { hasText: "Node size" }).locator('input[type="range"]');
-  await expect(sizeSlider).toHaveAttribute("min", "70");
-  await expect(sizeSlider).toHaveAttribute("max", "140");
+  await expect(sizeSlider).toHaveAttribute("min", "75");
+  await expect(sizeSlider).toHaveAttribute("max", "180");
+  const labelSlider = page.locator(".toolbar-display-panel label", { hasText: "Device labels" }).locator('input[type="range"]');
+  await expect(labelSlider).toHaveAttribute("min", "10");
+  await expect(labelSlider).toHaveAttribute("max", "28");
 
   const firstNode = page.locator(".topology-overlay-node").first();
   const beforeLayout = await firstNode.getAttribute("style");
@@ -162,6 +165,34 @@ test("Topology device marks follow canvas zoom and use the reduced size range", 
   await graph.hover({ position: { x: 500, y: 350 } });
   await page.mouse.wheel(0, 600);
   await expect.poll(async () => Number(await node.evaluate((element) => element.style.getPropertyValue("--topology-device-zoom")))).not.toBe(before);
+});
+
+test("Topology device label sizes can be adjusted independently per group", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [
+    mockDevice({ id: 1, hostname: "router-01", ip_address: "192.168.1.1", topology_group: "Core" }),
+    mockDevice({ id: 2, hostname: "switch-01", ip_address: "192.168.2.1", topology_group: "Edge" }),
+  ]);
+  await page.goto("/topology");
+  await expect(page.locator(".topology-overlay-node")).toHaveCount(2, { timeout: 8000 });
+
+  await page.getByRole("button", { name: "Display" }).click();
+  const groupSelect = page.locator(".toolbar-display-panel select");
+  const labelSlider = page.locator(".toolbar-display-panel label", { hasText: "Device labels" }).locator('input[type="range"]');
+  const coreLabel = page.locator('.topology-overlay-node[title="router-01"] .topology-overlay-label');
+  const edgeLabel = page.locator('.topology-overlay-node[title="switch-01"] .topology-overlay-label');
+
+  await groupSelect.selectOption("Core");
+  await labelSlider.fill("24");
+  await expect(coreLabel).toHaveCSS("font-size", "24px");
+  await expect(edgeLabel).toHaveCSS("font-size", "13px");
+
+  await groupSelect.selectOption("Edge");
+  await expect(labelSlider).toHaveValue("13");
+  await labelSlider.fill("18");
+  await expect(edgeLabel).toHaveCSS("font-size", "18px");
+  await expect(coreLabel).toHaveCSS("font-size", "24px");
 });
 
 test("Topology announcement and map share the narrow full-bleed canvas gutter", async ({ page }) => {
