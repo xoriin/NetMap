@@ -177,8 +177,8 @@ export function DeviceIconsTab({
     <div className="admin-tab-content">
       <div className="system-tab-grid">
         <div className="system-tab-col">
-          <section className="panel admin-panel">
-            <div className="system-icon-header">
+          <section className="panel admin-panel nm-app-panel">
+            <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
               <div>
                 <h2 className="admin-section-title" style={{ margin: 0 }}><IconDeviceDesktop size={16} />Device types</h2>
                 <p className="tool-note" style={{ margin: "2px 0 0" }}>
@@ -325,8 +325,8 @@ export function DeviceIconsTab({
         </div>
 
         <div className="system-tab-col">
-          <section className="panel admin-panel">
-            <div className="system-icon-header">
+          <section className="panel admin-panel nm-app-panel">
+            <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
               <div>
                 <h2 className="admin-section-title" style={{ margin: 0 }}><IconPalette size={16} />Icon packs</h2>
                 <p className="tool-note" style={{ margin: "2px 0 0" }}>

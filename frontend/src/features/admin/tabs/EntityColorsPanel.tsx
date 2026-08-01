@@ -132,8 +132,8 @@ export function EntityColorsPanel({
   }
 
   return (
-    <section className="panel admin-panel">
-      <div className="system-icon-header">
+    <section className="panel admin-panel nm-app-panel">
+      <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
         <div>
           <h2 className="admin-section-title" style={{ margin: 0 }}>
             <IconPalette size={16} />Group &amp; location colours
