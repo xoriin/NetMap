@@ -1,0 +1,372 @@
+/* ── Security approved workspace migration ─────────────────────────────
+   Solid operational panels, compact 44px identities, and one full-height
+   event table. Legacy security selectors remain behavioural only. */
+.security-summary-grid {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+body.route-security .security-layout {
+  gap: var(--nm-workspace-section-gap);
+}
+
+body.route-security .security-layout > .form-error {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 0;
+}
+
+.security-summary-card.nm-app-panel {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  padding: 12px 14px;
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.security-summary-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--security-card-accent, var(--nm-accent));
+  content: "";
+  opacity: 0.75;
+}
+
+.security-summary-card.is-stored { --security-card-accent: var(--nm-accent); }
+.security-summary-card.is-success { --security-card-accent: var(--nm-success); }
+.security-summary-card.is-warning { --security-card-accent: var(--nm-warning); }
+.security-summary-card.is-danger { --security-card-accent: var(--nm-danger); }
+
+.security-summary-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.security-summary-icon.is-success { background: var(--nm-success-soft); color: var(--nm-success); }
+.security-summary-icon.is-warning { background: color-mix(in srgb, var(--nm-warning) 12%, transparent); color: var(--nm-warning); }
+.security-summary-icon.is-danger { background: var(--nm-danger-soft); color: var(--nm-danger); }
+
+.security-summary-card > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.security-summary-card small { color: var(--nm-modal-label); font-size: var(--nm-text-sm); font-weight: 700; }
+.security-summary-card strong { color: var(--nm-text); font-size: 22px; line-height: 1.05; }
+.security-summary-card em { overflow: hidden; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+
+body.route-security .security-content {
+  display: flex;
+  min-width: 0;
+  gap: 16px;
+  margin-top: 0;
+}
+
+body.route-security .security-topbar-controls .inline-toggle,
+body.theme-dark.route-security .security-topbar-controls .inline-toggle {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+body.route-security .security-filters.nm-app-panel,
+body.route-security .security-results.nm-app-panel,
+body.theme-dark.route-security .security-filters.nm-app-panel,
+body.theme-dark.route-security .security-results.nm-app-panel {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  background-image: none;
+  box-shadow: var(--nm-shadow-sm);
+}
+
+body.route-security .security-filters {
+  flex: 0 0 300px;
+  gap: 11px;
+  padding: 16px;
+  border-radius: var(--nm-radius-lg);
+  scrollbar-color: var(--nm-border-strong) transparent;
+}
+
+.security-panel-header.nm-app-panel-header,
+.security-results-meta {
+  min-height: 44px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.security-panel-header.nm-app-panel-header {
+  margin: -16px -16px 2px;
+  padding: 6px 16px;
+}
+
+.security-panel-identity {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--nm-text-faint);
+}
+
+.security-panel-identity strong {
+  overflow: hidden;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.security-panel-identity > small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.security-panel-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.security-panel-header > small {
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+  font-size: 10px;
+}
+
+body.route-security .security-filters label {
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+}
+
+body.route-security .security-filters input,
+body.theme-dark.route-security .security-filters input,
+body.route-security .security-saved-searches select {
+  min-height: var(--nm-control-lg);
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+body.route-security .security-filters input:hover,
+body.route-security .security-saved-searches select:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+body.route-security .security-filters input:focus,
+body.theme-dark.route-security .security-filters input:focus,
+body.route-security .security-saved-searches select:focus {
+  border-color: var(--nm-accent);
+  background: var(--nm-modal-input);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+body.route-security .security-search {
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  background: var(--nm-modal-input);
+}
+
+body.route-security .security-search input,
+body.route-security .security-search input:focus,
+body.theme-dark.route-security .security-search input,
+body.theme-dark.route-security .security-search input:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.route-security .security-search:focus-within {
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+body.route-security .quick-filters {
+  gap: 6px;
+}
+
+body.route-security .quick-filters .nm-btn {
+  min-height: var(--nm-control-sm);
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+body.route-security .quick-filter-block.nm-btn {
+  border-color: color-mix(in srgb, var(--nm-danger) 28%, var(--nm-border)) !important;
+  background: var(--nm-danger-soft) !important;
+  color: var(--nm-danger) !important;
+}
+
+body.route-security .quick-filter-pass.nm-btn {
+  border-color: color-mix(in srgb, var(--nm-success) 28%, var(--nm-border)) !important;
+  background: var(--nm-success-soft) !important;
+  color: var(--nm-success) !important;
+}
+
+body.route-security .security-filter-actions {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 5px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nm-border);
+}
+
+body.route-security .security-filter-actions .nm-btn,
+body.route-security .security-saved-searches .nm-btn {
+  min-height: var(--nm-control-md);
+  padding: 5px 9px;
+  font-size: var(--nm-text-xs);
+}
+
+body.route-security .security-saved-searches {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+body.route-security .security-saved-searches select {
+  grid-column: 1 / -1;
+  width: 100%;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  padding: 5px 8px;
+}
+
+body.route-security .security-results {
+  border-radius: var(--nm-radius-lg);
+}
+
+body.route-security .security-results-meta {
+  flex: 0 0 44px;
+  padding: 6px 12px;
+  color: var(--nm-text-muted);
+}
+
+.security-results-range {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+body.route-security .security-table {
+  background: var(--nm-modal-section);
+  scrollbar-color: var(--nm-border-strong) transparent;
+}
+
+body.route-security .security-table-header,
+body.theme-dark.route-security .security-table-header {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-color: var(--nm-border);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+}
+
+body.route-security .security-row-group {
+  border-bottom-color: var(--nm-border);
+}
+
+body.route-security .security-row,
+body.theme-dark.route-security .security-row {
+  min-height: 42px;
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+  font-size: var(--nm-text-xs);
+}
+
+body.route-security .security-row:hover,
+body.theme-dark.route-security .security-row:hover {
+  background: var(--nm-row-hover);
+}
+
+body.route-security .clickable-cell:hover {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+}
+
+body.route-security .related-devices {
+  color: var(--nm-text-muted);
+  background: var(--nm-modal-shell);
+}
+
+body.route-security .topology-jump-button {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-surface-soft);
+  color: var(--nm-accent-strong);
+}
+
+body.route-security .raw-log {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+body.route-security .security-empty {
+  color: var(--nm-text-muted);
+}
+
+body.route-security .security-pagination {
+  min-height: 44px;
+  flex: 0 0 44px;
+  border-color: var(--nm-border);
+  padding: 7px 12px;
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+body.route-security .security-pagination > div {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 1100px) {
+  .security-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.route-security .security-filters { flex-basis: 270px; }
+}
+
+@media (max-width: 760px) {
+  body.route-security .workspace { height: auto; min-height: calc(100dvh - var(--nm-topbar-height)); overflow-y: auto; }
+  body.route-security .security-content { display: grid; overflow: visible; }
+  body.route-security .security-filters { max-height: none; overflow: visible; }
+  body.route-security .security-results { min-height: 520px; }
+}
+
+@media (max-width: 560px) {
+  .security-summary-grid { grid-template-columns: 1fr; }
+  .security-results-range { display: none; }
+}
+

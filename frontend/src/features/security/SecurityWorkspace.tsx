@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useContext } from "react";
-import { Search, Pause, Play, ChevronDown, ChevronRight } from "lucide-react";
+import "./security.css";
+import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties } from "lucide-react";
 import { api, type FirewallEvent, type FirewallEventList, type SavedSecuritySearch, type SyslogStatus, type Device, type TopologyGraph } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type SecurityFilters, emptySecurityFilters } from "../../types";
@@ -247,15 +248,37 @@ export function SecurityWorkspace({
   return (
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
+      <div className="security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
+        <div className="security-summary-card nm-app-panel is-stored">
+          <span className="security-summary-icon"><Database size={19} /></span>
+          <span><small>Stored events</small><strong>{(status?.stored_events ?? status?.total_events ?? 0).toLocaleString()}</strong><em>{status?.retention_days ?? 7} day retention</em></span>
+        </div>
+        <div className="security-summary-card nm-app-panel is-success">
+          <span className="security-summary-icon is-success"><Radio size={19} /></span>
+          <span><small>Received packets</small><strong>{(status?.received_packets ?? 0).toLocaleString()}</strong><em>{liveTail ? "Live stream active" : "Live stream paused"}</em></span>
+        </div>
+        <div className="security-summary-card nm-app-panel is-warning">
+          <span className="security-summary-icon is-warning"><ShieldAlert size={19} /></span>
+          <span><small>Unparsed packets</small><strong>{(status?.dropped_unparsed ?? 0).toLocaleString()}</strong><em>Could not be indexed</em></span>
+        </div>
+        <div className="security-summary-card nm-app-panel is-danger">
+          <span className="security-summary-icon is-danger"><Ban size={19} /></span>
+          <span><small>Denied senders</small><strong>{(status?.denied_senders ?? 0).toLocaleString()}</strong><em>Rejected by allowlist</em></span>
+        </div>
+      </div>
       <div className="security-content">
         <form
-          className="security-filters"
+          className="security-filters nm-app-panel"
           aria-label="Firewall event filters"
           onSubmit={(event) => {
             event.preventDefault();
             applyDraftFilters();
           }}
         >
+          <div className="security-panel-header nm-app-panel-header">
+            <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><span aria-hidden="true">-</span><strong>Event filters</strong></span>
+            <small>{savedSearches.length} saved</small>
+          </div>
           <label className="security-search">
             <Search size={16} aria-hidden="true" />
             <input
@@ -265,11 +288,11 @@ export function SecurityWorkspace({
             />
           </label>
           <div className="quick-filters">
-            <button type="button" className="quick-filter-block" onClick={() => applyQuickFilter("blocked")}>Blocked</button>
-            <button type="button" className="quick-filter-pass" onClick={() => applyQuickFilter("passed")}>Passed</button>
-            <button type="button" onClick={() => applyQuickFilter("wan")}>WAN</button>
-            <button type="button" onClick={() => applyQuickFilter("hour")}>Last Hour</button>
-            <button type="button" onClick={() => applyQuickFilter("day")}>Last 24h</button>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary quick-filter-block" onClick={() => applyQuickFilter("blocked")}>Blocked</button>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary quick-filter-pass" onClick={() => applyQuickFilter("passed")}>Passed</button>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => applyQuickFilter("wan")}>WAN</button>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => applyQuickFilter("hour")}>Last hour</button>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => applyQuickFilter("day")}>Last 24h</button>
           </div>
           <SecurityFilterInput label="Source IP" value={draftFilters.src_ip} onChange={(value) => updateDraftFilter("src_ip", value)} />
           <SecurityFilterInput label="Destination IP" value={draftFilters.dst_ip} onChange={(value) => updateDraftFilter("dst_ip", value)} />
@@ -287,11 +310,11 @@ export function SecurityWorkspace({
             <input type="datetime-local" value={draftFilters.end_time} onChange={(event) => updateDraftFilter("end_time", event.target.value)} />
           </label>
           <div className="security-filter-actions">
-            <button className="security-search-btn" type="submit">
+            <button className="security-search-btn nm-btn nm-btn--primary" type="submit">
               <Search size={15} aria-hidden="true" />
               Search
             </button>
-            <button className="clear-filters" type="button" onClick={() => { setOffset(0); setSelectedSearchId(""); setDraftFilters(emptySecurityFilters); setFilters(emptySecurityFilters); }}>
+            <button className="clear-filters nm-btn nm-btn--secondary" type="button" onClick={() => { setOffset(0); setSelectedSearchId(""); setDraftFilters(emptySecurityFilters); setFilters(emptySecurityFilters); }}>
               Clear filters
             </button>
           </div>
@@ -310,22 +333,20 @@ export function SecurityWorkspace({
                 <option key={s.id} value={String(s.id)}>{s.name}</option>
               ))}
             </select>
-            <button type="button" className="clear-filters" onClick={() => { setSaveSearchName(""); setShowSaveSearchModal(true); }} title="Save the current filters as a named search">
+            <button type="button" className="clear-filters nm-btn nm-btn--secondary" onClick={() => { setSaveSearchName(""); setShowSaveSearchModal(true); }} title="Save the current filters as a named search">
               Save search
             </button>
             {selectedSearchId !== "" && (
-              <button type="button" className="clear-filters" onClick={() => void deleteSelectedSearch()} title="Delete the selected saved search">
+              <button type="button" className="clear-filters nm-btn nm-btn--danger" onClick={() => void deleteSelectedSearch()} title="Delete the selected saved search">
                 Delete
               </button>
             )}
           </div>
         </form>
-        <div className="security-results">
+        <div className="security-results nm-app-panel">
           <div className="security-results-meta">
-            <span>{loading ? "Searching..." : `${total} matching events`}</span>
-            <span>
-              Showing {total === 0 ? 0 : offset + 1}-{Math.min(offset + pageSize, total)}
-            </span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><TableProperties size={18} /></span><span aria-hidden="true">-</span><strong>Firewall events</strong><small>{loading ? "Searching…" : `${total.toLocaleString()} results`}</small></span>
+            <span className="security-results-range">Showing {total === 0 ? 0 : offset + 1}-{Math.min(offset + pageSize, total)}</span>
           </div>
           <div className="security-table" ref={tableRef}>
             <div className="security-table-header">
@@ -408,12 +429,15 @@ export function SecurityWorkspace({
             )}
           </div>
           <div className="security-pagination">
-            <button type="button" disabled={!canPrevious} onClick={() => setOffset(Math.max(0, offset - pageSize))}>
+            <span>{total === 0 ? "No results" : `Page ${Math.floor(offset / pageSize) + 1} of ${Math.max(1, Math.ceil(total / pageSize))}`}</span>
+            <div>
+            <button className="nm-btn nm-btn--sm nm-btn--secondary" type="button" disabled={!canPrevious} onClick={() => setOffset(Math.max(0, offset - pageSize))}>
               Previous
             </button>
-            <button type="button" disabled={!canNext} onClick={() => setOffset(offset + pageSize)}>
+            <button className="nm-btn nm-btn--sm nm-btn--secondary" type="button" disabled={!canNext} onClick={() => setOffset(offset + pageSize)}>
               Next
             </button>
+            </div>
           </div>
         </div>
       </div>
