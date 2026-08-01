@@ -1,0 +1,264 @@
+/* ── Inventory approved workspace migration ──────────────────────────────
+   Inventory is the first fleet workspace to use the same solid hierarchy as
+   the canonical popup treatment: distinct shell/header/section surfaces,
+   tokenised controls, and a full-width table that retains its row canvas when
+   columns are resized. */
+.inventory-layout .inventory-surface.nm-app-panel {
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.inventory-layout .inventory-panel-header.nm-app-panel-header {
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.inventory-layout .inv-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  color: var(--nm-modal-label);
+  font-size: 14px;
+}
+
+.inventory-layout .inv-panel-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.inventory-layout .inv-panel-count {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+}
+
+.inventory-layout .inv-sep {
+  background: var(--nm-border);
+}
+
+.inventory-layout .inventory-panel-header .inv-select,
+.inventory-layout .inventory-panel-header .nm-swatch-trigger,
+.inventory-layout .inv-pagination-select,
+.inventory-layout .inv-pagination-btn {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+}
+
+.inventory-layout .inventory-panel-header .inv-select:hover,
+.inventory-layout .inventory-panel-header .nm-swatch-trigger:hover,
+.inventory-layout .inv-pagination-select:hover,
+.inventory-layout .inv-pagination-btn:hover:not(:disabled) {
+  border-color: var(--nm-tab-hover-border);
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-tab-hover-text);
+}
+
+.inventory-layout .inv-search-box {
+  border: 0;
+  background: transparent;
+}
+
+.inventory-layout .inv-search-box .nm-input {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+.inventory-layout .inv-search-box .nm-input:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+.inventory-layout .inv-search-box .nm-input:focus {
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+.inventory-layout .inv-bulk-menu-panel {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-shell);
+  box-shadow: var(--nm-shadow-md);
+}
+
+.inventory-layout .inv-bulk-selection,
+.inventory-layout .inv-bulk-menu-actions {
+  border-color: var(--nm-border);
+}
+
+.inventory-layout .inv-bulk-menu-field {
+  color: var(--nm-modal-label);
+}
+
+.inventory-layout .inventory-table {
+  background: var(--nm-modal-section);
+}
+
+.inventory-layout .inventory-table-header {
+  border-bottom-color: var(--nm-border-strong);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+}
+
+.inventory-layout .inventory-row,
+body:not(.theme-dark) .inventory-layout .inventory-row:not(.active) {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+}
+
+.inventory-layout .inventory-row:hover,
+body:not(.theme-dark) .inventory-layout .inventory-row:hover:not(.active) {
+  border-left-color: var(--nm-tab-active-border);
+  background: var(--nm-row-hover);
+  box-shadow: inset 3px 0 0 var(--nm-tab-active-border);
+}
+
+.inventory-layout .inventory-row.active,
+body:not(.theme-dark) .inventory-layout .inventory-row.active {
+  border-left-color: var(--nm-accent);
+  background: var(--nm-accent-soft);
+}
+
+.inventory-layout .inventory-empty {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  color: var(--nm-text-muted);
+}
+
+.inventory-layout .inv-pagination {
+  border-top-color: var(--nm-border);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+}
+
+.inventory-layout .inv-pagination-btn:disabled {
+  color: var(--nm-text-faint);
+}
+
+.inventory-layout .inventory-device-sidebar.details-panel {
+  position: static;
+  display: flex;
+  width: 380px;
+  max-width: 380px;
+  min-height: 0;
+  flex: 0 0 380px;
+  align-self: stretch;
+  flex-direction: column;
+  overflow: hidden;
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  padding: 0;
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.inventory-device-sidebar-header {
+  display: flex;
+  min-height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-3);
+  padding: 6px 10px 6px 12px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.inventory-device-sidebar-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--nm-space-2);
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  font-weight: 700;
+}
+
+.inventory-device-sidebar-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 18px;
+  background: var(--nm-modal-section);
+}
+
+.inventory-device-sidebar-body .details-heading {
+  border-bottom-color: var(--nm-border);
+}
+
+.inventory-device-sidebar-body .details-heading h3,
+.inventory-device-sidebar-body dt {
+  color: var(--nm-modal-label);
+}
+
+.inventory-device-sidebar-body dd {
+  color: var(--nm-text-muted);
+}
+
+.inventory-device-sidebar-body .device-detail-tabs {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.inventory-device-sidebar-body .device-detail-tab {
+  color: var(--nm-text-muted);
+}
+
+.inventory-device-sidebar-body .device-detail-tab:hover {
+  color: var(--nm-tab-hover-text);
+}
+
+.inventory-device-sidebar-body .device-detail-tab.active {
+  border-bottom-color: var(--nm-accent);
+  color: var(--nm-tab-active-text);
+}
+
+@media (max-width: 980px) {
+  .inventory-layout .topology-content.details-open {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .inventory-layout .inventory-device-sidebar.details-panel {
+    width: 100%;
+    max-width: none;
+    min-height: 420px;
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 1400px) {
+  .inventory-layout .inventory-panel-header.nm-app-panel-header {
+    flex-wrap: wrap;
+  }
+
+  .inventory-layout .inv-search-box {
+    flex: 1 1 180px;
+  }
+}
+
+@media (max-width: 560px) {
+  .inventory-layout .inventory-panel-header .inv-panel-title {
+    display: inline-flex;
+  }
+
+  .inventory-layout .inv-panel-title > span:nth-child(2),
+  .inventory-layout .inv-panel-count {
+    display: none;
+  }
+}
+

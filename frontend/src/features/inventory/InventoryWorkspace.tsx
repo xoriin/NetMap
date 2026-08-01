@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import "./inventory.css";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { Search, Star, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, Star, ChevronUp, ChevronDown, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -70,7 +71,7 @@ export function InventoryWorkspace({
   const toast = useToast();
   const deviceTypesQuery = useDeviceTypes(accessToken);
   const deviceTypeOptions = deviceTypesQuery.options;
-  const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(graph.devices[0]?.id ?? null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
   const [selectedSiteFilter, setSelectedSiteFilter] = useState('all');
@@ -408,8 +409,8 @@ export function InventoryWorkspace({
   }, [accessToken, graph.devices]);
 
   useEffect(() => {
-    if ((!selectedDeviceId || !graph.devices.some((device) => device.id === selectedDeviceId)) && graph.devices.length > 0) {
-      setSelectedDeviceId(graph.devices[0].id);
+    if (selectedDeviceId && !graph.devices.some((device) => device.id === selectedDeviceId)) {
+      setSelectedDeviceId(null);
     }
   }, [graph.devices, selectedDeviceId]);
 
@@ -594,7 +595,7 @@ export function InventoryWorkspace({
 
   return (
     <section className="topology-layout inventory-layout">
-      <div className="dash-stats inventory-stats">
+      <div className="dash-stats inventory-stats nm-summary-band">
         <DashStat
           label="Devices"
           value={graph.devices.length}
@@ -632,15 +633,18 @@ export function InventoryWorkspace({
       />
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
-      {/* ── Table + details panel ──────────────────────────────────────── */}
+      {/* ── Purpose-built inventory table ─────────────────────────────── */}
       <div className={selectedDevice ? "topology-content details-open" : "topology-content"}>
-        <div className="inventory-surface">
-          <div className="inventory-panel-header">
+        <div className="inventory-surface nm-app-panel">
+          <div className="inventory-panel-header nm-app-panel-header">
             <span className="inv-panel-title">
-              Devices
-              {filteredDevices.length !== graph.devices.length
-                ? ` (${filteredDevices.length} of ${graph.devices.length})`
-                : ` (${graph.devices.length})`}
+              <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
+              <span>Devices</span>
+              <span className="inv-panel-count">
+                {filteredDevices.length !== graph.devices.length
+                  ? `${filteredDevices.length} of ${graph.devices.length}`
+                  : graph.devices.length}
+              </span>
             </span>
             <SwatchSelect
               ariaLabel="Filter by VLAN / group"
@@ -699,7 +703,7 @@ export function InventoryWorkspace({
                     <div className="inv-bulk-selection">
                       <button
                         type="button"
-                        className="inv-status-tab inv-status-tab--muted"
+                        className="nm-btn nm-btn--sm nm-btn--secondary"
                         disabled={filteredDevices.length === 0}
                         onClick={selectAllFiltered}
                       >
@@ -707,7 +711,7 @@ export function InventoryWorkspace({
                       </button>
                       <button
                         type="button"
-                        className="inv-status-tab inv-status-tab--muted"
+                        className="nm-btn nm-btn--sm nm-btn--secondary"
                         disabled={selectedDeviceIds.size === 0}
                         onClick={clearSelection}
                       >
@@ -746,16 +750,16 @@ export function InventoryWorkspace({
                       </div>
                     </div>
                     <div className="inv-bulk-menu-actions">
-                      <button type="button" className="inv-status-tab" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void applyBulkActions()}>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void applyBulkActions()}>
                         Apply changes
                       </button>
-                      <button type="button" className="inv-status-tab" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void updateSelectedStatus("online")}>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void updateSelectedStatus("online")}>
                         Enable
                       </button>
-                      <button type="button" className="inv-status-tab" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void updateSelectedStatus("disabled")}>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void updateSelectedStatus("disabled")}>
                         Disable
                       </button>
-                      <button type="button" className="inv-status-tab inv-status-tab--danger" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void deleteSelected()}>
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busy || selectedDeviceIds.size === 0} onClick={() => void deleteSelected()}>
                         Delete
                       </button>
                     </div>
@@ -926,23 +930,39 @@ export function InventoryWorkspace({
         </div>
 
         {selectedDevice && (
-          <aside className="details-panel">
-            <DeviceDetails
-              canViewSecurity={canViewSecurity}
-              canWrite={canWrite}
-              accessToken={accessToken}
-              device={selectedDevice}
-              deviceTypes={deviceTypeOptions}
-              disabled={busy}
-              groups={groups}
-              snmpProfiles={snmpProfiles}
-              sites={sites}
-              onGraphChange={onGraphChange}
-              liveStatus={selectedDeviceLive}
-              onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
-              securityLoading={deviceSecurityLoading}
-              securitySummary={deviceSecuritySummary}
-            />
+          <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
+            <div className="inventory-device-sidebar-header">
+              <span className="inventory-device-sidebar-title">
+                <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
+                <span>Device overview</span>
+              </span>
+              <button
+                type="button"
+                className="nm-btn nm-btn--icon"
+                aria-label="Close device overview"
+                onClick={() => setSelectedDeviceId(null)}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="inventory-device-sidebar-body">
+              <DeviceDetails
+                canViewSecurity={canViewSecurity}
+                canWrite={canWrite}
+                accessToken={accessToken}
+                device={selectedDevice}
+                deviceTypes={deviceTypeOptions}
+                disabled={busy}
+                groups={groups}
+                snmpProfiles={snmpProfiles}
+                sites={sites}
+                onGraphChange={onGraphChange}
+                liveStatus={selectedDeviceLive}
+                onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
+                securityLoading={deviceSecurityLoading}
+                securitySummary={deviceSecuritySummary}
+              />
+            </div>
           </aside>
         )}
       </div>
