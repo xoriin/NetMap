@@ -57,8 +57,8 @@ export function CredentialsTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconServer size={16} />SNMP profiles</h2>
           <button type="button" className="nm-btn" disabled={snmpProfilesBusy} onClick={() => void snmpQuery.reload()}>
             Refresh
