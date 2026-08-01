@@ -9,9 +9,16 @@ export type GroupDisplayPref = {
   nodeScalePercent: number;
   spacingScalePercent: number;
   maxDevicesPerRow: number;
+  labelFontSize?: number;
   layoutShape?: GroupLayoutShape;
   maxRings?: number;
 };
+
+export const MIN_NODE_SCALE_PERCENT = 75;
+export const MAX_NODE_SCALE_PERCENT = 180;
+export const DEFAULT_NODE_SCALE_PERCENT = 125;
+export const MIN_NODE_LABEL_FONT_SIZE = 10;
+export const MAX_NODE_LABEL_FONT_SIZE = 28;
 
 /**
  * Topology ribbon toolbar: site filter, status chips, view/export actions,
@@ -171,7 +178,6 @@ export function TopologyToolbar({
   onSpacingChange,
   onMaxPerRowChange,
   onZoneOpacityChange,
-  onNodeLabelSizeChange,
   onEdgeLabelSizeChange,
   onAddDevice,
   onScan,
@@ -213,7 +219,6 @@ export function TopologyToolbar({
   onSpacingChange: (spacingScalePercent: number) => void;
   onMaxPerRowChange: (maxDevicesPerRow: number) => void;
   onZoneOpacityChange: (percent: number) => void;
-  onNodeLabelSizeChange: (size: number) => void;
   onEdgeLabelSizeChange: (size: number) => void;
   onAddDevice: () => void;
   onScan: () => void;
@@ -388,7 +393,7 @@ export function TopologyToolbar({
                 </div>
                 <label>
                   Node size <span>{activeGroupDisplay.nodeScalePercent}%</span>
-                  <input type="range" min={70} max={140} step={5} value={activeGroupDisplay.nodeScalePercent}
+                  <input type="range" min={MIN_NODE_SCALE_PERCENT} max={MAX_NODE_SCALE_PERCENT} step={5} value={activeGroupDisplay.nodeScalePercent}
                     onChange={(e) => onSetGroupPref({ nodeScalePercent: Number(e.target.value) })} />
                 </label>
                 <label>
@@ -414,9 +419,9 @@ export function TopologyToolbar({
                     onChange={(e) => onZoneOpacityChange(Number(e.target.value))} />
                 </label>
                 <label>
-                  Device labels <span>{nodeLabelFontSize}px</span>
-                  <input type="range" min={9} max={20} step={1} value={nodeLabelFontSize}
-                    onChange={(e) => onNodeLabelSizeChange(Number(e.target.value))} />
+                  Device labels <span>{activeGroupDisplay.labelFontSize ?? nodeLabelFontSize}px</span>
+                  <input type="range" min={MIN_NODE_LABEL_FONT_SIZE} max={MAX_NODE_LABEL_FONT_SIZE} step={1} value={activeGroupDisplay.labelFontSize ?? nodeLabelFontSize}
+                    onChange={(e) => onSetGroupPref({ labelFontSize: Number(e.target.value) })} />
                 </label>
                 <label>
                   Link labels <span>{edgeLabelFontSize}px</span>

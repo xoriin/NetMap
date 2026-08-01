@@ -227,7 +227,14 @@ export type LayoutPosition = {
 };
 
 export type TopologyDisplayPrefs = {
-  groupDisplayPrefs?: Record<string, { nodeScalePercent: number; spacingScalePercent: number; maxDevicesPerRow: number }>;
+  groupDisplayPrefs?: Record<string, {
+    nodeScalePercent: number;
+    spacingScalePercent: number;
+    maxDevicesPerRow: number;
+    labelFontSize?: number;
+    layoutShape?: "grid" | "radial";
+    maxRings?: number;
+  }>;
   edgeLabelFontSize?: number;
   nodeLabelFontSize?: number;
   groupZoneOpacityPercent?: number;

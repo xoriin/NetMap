@@ -32,12 +32,22 @@ import { MiniMap, type MiniMapExtent, type MiniMapNode } from "./MiniMap";
 import { buildCytoscapeStylesheet, linkSpeedEdgeWidth } from "./cytoscapeStyles";
 import { exportTopologyPng, exportTopologySvg, exportTopologyPdf } from "./topologyExport";
 import { EntityList } from "./EntityList";
-import { TopologyCanvasControls, TopologyToolbar, type GroupDisplayPref } from "./TopologyToolbar";
+import {
+  DEFAULT_NODE_SCALE_PERCENT,
+  MAX_NODE_LABEL_FONT_SIZE,
+  MAX_NODE_SCALE_PERCENT,
+  MIN_NODE_LABEL_FONT_SIZE,
+  MIN_NODE_SCALE_PERCENT,
+  TopologyCanvasControls,
+  TopologyToolbar,
+  type GroupDisplayPref,
+} from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 
 const DEFAULT_EDGE_LABEL_FONT_SIZE = 15;
-const DEFAULT_NODE_LABEL_FONT_SIZE = 11;
+const DEFAULT_NODE_LABEL_FONT_SIZE = 13;
+const BASE_DEVICE_ICON_SIZE = 38;
 
 export function TopologyWorkspace({
   accessToken,
@@ -125,7 +135,7 @@ export function TopologyWorkspace({
   const [selectedGroupForDisplay, setSelectedGroupForDisplay] = useState("Ungrouped");
   const [groupDisplayPrefs, setGroupDisplayPrefs] = useState<Record<string, GroupDisplayPref>>({});
   const [overlayNodes, setOverlayNodes] = useState<
-    Array<{ id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; status: string }>
+    Array<{ id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; labelFontSize: number; status: string }>
   >([]);
   const [overlayGroups, setOverlayGroups] = useState<
     Array<{ id: string; label: string; x: number; y: number; width: number; online: number }>
@@ -627,10 +637,14 @@ export function TopologyWorkspace({
     return { online, offline };
   }, [filteredGraph.devices, liveStatusByDeviceId]);
   const storedActiveGroupDisplay =
-    groupDisplayPrefs[selectedGroupForDisplay] ?? { nodeScalePercent: 110, spacingScalePercent: 120, maxDevicesPerRow: 4 };
+    groupDisplayPrefs[selectedGroupForDisplay] ?? { nodeScalePercent: DEFAULT_NODE_SCALE_PERCENT, spacingScalePercent: 120, maxDevicesPerRow: 4 };
   const activeGroupDisplay = {
     ...storedActiveGroupDisplay,
-    nodeScalePercent: Math.max(70, Math.min(140, storedActiveGroupDisplay.nodeScalePercent)),
+    nodeScalePercent: Math.max(MIN_NODE_SCALE_PERCENT, Math.min(MAX_NODE_SCALE_PERCENT, storedActiveGroupDisplay.nodeScalePercent)),
+    labelFontSize: Math.max(
+      MIN_NODE_LABEL_FONT_SIZE,
+      Math.min(MAX_NODE_LABEL_FONT_SIZE, storedActiveGroupDisplay.labelFontSize ?? nodeLabelFontSize),
+    ),
   };
 
   const refreshOverlayNodes = useCallback(() => {
@@ -647,7 +661,15 @@ export function TopologyWorkspace({
         }
         const position = node.renderedPosition();
         const label = deviceLabel(device);
-        const nodeScale = Math.max(0.7, Math.min(1.4, Number(node.data("nodeScale") ?? 1.1)));
+        const groupName = device.topology_group ?? "Ungrouped";
+        const nodeScale = Math.max(
+          MIN_NODE_SCALE_PERCENT / 100,
+          Math.min(MAX_NODE_SCALE_PERCENT / 100, Number(node.data("nodeScale") ?? DEFAULT_NODE_SCALE_PERCENT / 100)),
+        );
+        const labelFontSize = Math.max(
+          MIN_NODE_LABEL_FONT_SIZE,
+          Math.min(MAX_NODE_LABEL_FONT_SIZE, groupDisplayPrefs[groupName]?.labelFontSize ?? nodeLabelFontSize),
+        );
         const liveStatus = isDeviceMonitoringPaused(device) || !livePingEnabled
           ? "paused"
           : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? device.status);
@@ -662,11 +684,12 @@ export function TopologyWorkspace({
           lines: label.split("\n"),
           color,
           icon: resolveDeviceIcon(device.icon),
-          size: Math.round(34 * nodeScale),
+          size: Math.round(BASE_DEVICE_ICON_SIZE * nodeScale),
+          labelFontSize,
           status: liveStatus,
         };
       })
-      .filter((row): row is { id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; status: string } => row !== null);
+      .filter((row): row is { id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; labelFontSize: number; status: string } => row !== null);
     setOverlayNodes(nextNodes);
     const nextGroups = cy.$("node.zone").map((zone) => {
       const label = String(zone.data("label") ?? "Ungrouped");
@@ -705,7 +728,7 @@ export function TopologyWorkspace({
     setMinimapNodes(nextMiniNodes);
     const extent = cy.extent();
     setMinimapExtent({ x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 });
-  }, [activeIconPackId, filteredGraph.devices, livePingEnabled, liveStatusByDeviceId]);
+  }, [activeIconPackId, filteredGraph.devices, groupDisplayPrefs, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
 
   useEffect(() => {
     refreshOverlayNodesRef.current = refreshOverlayNodes;
@@ -987,8 +1010,9 @@ export function TopologyWorkspace({
           : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? "unknown");
         const colorStatus = liveStatus === "paused" ? "unknown" : liveStatus;
         const nodeColor = device.color || statusColor(colorStatus);
-        const nodeScale = (groupDisplayPrefs[device.topology_group]?.nodeScalePercent ?? 110) / 100;
-        const iconSize = Math.round(34 * Math.max(0.7, Math.min(1.4, nodeScale)));
+        const groupName = device.topology_group ?? "Ungrouped";
+        const nodeScale = (groupDisplayPrefs[groupName]?.nodeScalePercent ?? DEFAULT_NODE_SCALE_PERCENT) / 100;
+        const iconSize = Math.round(BASE_DEVICE_ICON_SIZE * Math.max(MIN_NODE_SCALE_PERCENT / 100, Math.min(MAX_NODE_SCALE_PERCENT / 100, nodeScale)));
         const hitSize = Math.max(36, iconSize + 14);
         return {
           group: "nodes" as const,
@@ -1687,11 +1711,6 @@ export function TopologyWorkspace({
     setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxDevicesPerRow: value } }));
   }
 
-  function handleNodeLabelSizeChange(size: number) {
-    setNodeLabelFontSize(size);
-    try { localStorage.setItem(`netmap.node-label-size.${userId}`, String(size)); } catch {}
-  }
-
   function handleEdgeLabelSizeChange(size: number) {
     setEdgeLabelFontSize(size);
     try { localStorage.setItem(`netmap.edge-label-size.${userId}`, String(size)); } catch {}
@@ -1738,7 +1757,6 @@ export function TopologyWorkspace({
         onSpacingChange={applySpacingChange}
         onMaxPerRowChange={applyMaxPerRowChange}
         onZoneOpacityChange={setGroupZoneOpacityPercent}
-        onNodeLabelSizeChange={handleNodeLabelSizeChange}
         onEdgeLabelSizeChange={handleEdgeLabelSizeChange}
         onAddDevice={() => setShowDeviceForm(true)}
         onScan={() => setShowScanModal(true)}
@@ -1834,7 +1852,7 @@ export function TopologyWorkspace({
                   </span>
                 )}
                 {showNodeLabels && cyZoom >= 0.35 && (
-                  <span className="topology-overlay-label" style={{ fontSize: `${nodeLabelFontSize}px` }}>
+                  <span className="topology-overlay-label" style={{ fontSize: `${node.labelFontSize}px` }}>
                     {(cyZoom < 0.6 ? node.lines.slice(0, 1) : node.lines).map((line, index) => (
                       <span key={`${node.id}-line-${index}`}>
                         {cyZoom < 0.6 && line.length > 14 ? `${line.slice(0, 14)}…` : line}
