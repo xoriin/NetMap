@@ -1,8 +1,22 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { type AppRoute, appRoutes, appRouteByHref, appRouteCopy } from "./routes";
 import { type User, type VersionInfo } from "./api/client";
 import { useTheme } from "./providers/ThemeProvider";
+import {
+  ADMIN_TAB_CHANGE_EVENT,
+  adminTabs,
+  navigateToAdminTab,
+  readAdminTabFromLocation,
+  type AdminTabId,
+} from "./features/admin/adminNavigation";
+import {
+  MONITORING_VIEW_CHANGE_EVENT,
+  monitoringViews,
+  navigateToMonitoringView,
+  readMonitoringViewFromLocation,
+  type MonitoringViewId,
+} from "./features/monitoring/monitoringNavigation";
 
 export function Sidebar({
   canAccessAdmin,
@@ -28,9 +42,51 @@ export function Sidebar({
   versionInfo: VersionInfo | null;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminTabId>(() => readAdminTabFromLocation());
+  const [adminMenuExpanded, setAdminMenuExpanded] = useState(currentRoute === "/admin");
+  const [activeMonitoringView, setActiveMonitoringView] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
+  const [monitoringMenuExpanded, setMonitoringMenuExpanded] = useState(currentRoute === "/monitoring");
   const versionLabel = versionInfo
     ? `${versionInfo.channel ? `${versionInfo.channel}: ` : "v"}${versionInfo.current}`
     : "";
+
+  useEffect(() => {
+    const syncAdminTab = () => setActiveAdminTab(readAdminTabFromLocation());
+    window.addEventListener("popstate", syncAdminTab);
+    window.addEventListener("hashchange", syncAdminTab);
+    window.addEventListener(ADMIN_TAB_CHANGE_EVENT, syncAdminTab);
+    return () => {
+      window.removeEventListener("popstate", syncAdminTab);
+      window.removeEventListener("hashchange", syncAdminTab);
+      window.removeEventListener(ADMIN_TAB_CHANGE_EVENT, syncAdminTab);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncMonitoringView = () => setActiveMonitoringView(readMonitoringViewFromLocation());
+    window.addEventListener("popstate", syncMonitoringView);
+    window.addEventListener("hashchange", syncMonitoringView);
+    window.addEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
+    return () => {
+      window.removeEventListener("popstate", syncMonitoringView);
+      window.removeEventListener("hashchange", syncMonitoringView);
+      window.removeEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (currentRoute === "/admin") {
+      setActiveAdminTab(readAdminTabFromLocation());
+      setAdminMenuExpanded(true);
+    }
+  }, [currentRoute]);
+
+  useEffect(() => {
+    if (currentRoute === "/monitoring") {
+      setActiveMonitoringView(readMonitoringViewFromLocation());
+      setMonitoringMenuExpanded(true);
+    }
+  }, [currentRoute]);
 
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Primary navigation">
@@ -52,6 +108,11 @@ export function Sidebar({
           .filter((route) => route.href !== "/exports" || canAccessExports)
           .map((route) => {
             const Icon = route.icon;
+            const isAdminParent = route.href === "/admin" && currentRoute === "/admin";
+            const isMonitoringParent = route.href === "/monitoring" && currentRoute === "/monitoring";
+            const isContextParent = isAdminParent || isMonitoringParent;
+            const isContextRoute = route.href === "/admin" || route.href === "/monitoring";
+            const isContextExpanded = isAdminParent ? adminMenuExpanded : isMonitoringParent ? monitoringMenuExpanded : false;
             return (
               <div key={route.href}>
 	                {route.section && !collapsed && (
@@ -61,19 +122,75 @@ export function Sidebar({
 	                  </>
 	                )}
                 <button
-                  className={route.href === currentRoute ? "sidebar-link active" : "sidebar-link"}
+                  className={`${route.href === currentRoute ? "sidebar-link active" : "sidebar-link"}${isContextParent ? " sidebar-link--parent" : ""}`}
                   type="button"
                   title={collapsed ? route.label : undefined}
-                  onClick={() => onNavigate(route.href)}
+                  onClick={() => {
+                    if (route.href === "/admin" && currentRoute === "/admin" && !collapsed) {
+                      setAdminMenuExpanded((expanded) => !expanded);
+                      return;
+                    }
+                    if (route.href === "/monitoring" && currentRoute === "/monitoring" && !collapsed) {
+                      setMonitoringMenuExpanded((expanded) => !expanded);
+                      return;
+                    }
+                    if (route.href === "/admin") setAdminMenuExpanded(true);
+                    if (route.href === "/monitoring") setMonitoringMenuExpanded(true);
+                    onNavigate(route.href);
+                  }}
+                  aria-expanded={isContextParent && !collapsed ? isContextExpanded : undefined}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  {!collapsed && route.label}
+                  {!collapsed && <span className="sidebar-link-label">{route.label}</span>}
                   {route.href === "/inventory" && openObservationCount && openObservationCount > 0 ? (
                     <span className="sidebar-badge" aria-label={`${openObservationCount} open network changes`}>
                       {openObservationCount > 99 ? "99+" : openObservationCount}
                     </span>
                   ) : null}
+                  {isContextRoute && !collapsed && (
+                    <ChevronDown className={`sidebar-parent-chevron${isContextExpanded ? " is-expanded" : ""}`} size={14} aria-hidden="true" />
+                  )}
                 </button>
+                {route.href === "/admin" && currentRoute === "/admin" && !collapsed && adminMenuExpanded && (
+                  <div className="sidebar-admin-subnav" aria-label="Administration sections">
+                    {adminTabs.map(({ id, label, Icon: AdminIcon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={activeAdminTab === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={activeAdminTab === id ? "page" : undefined}
+                        onClick={() => {
+                          navigateToAdminTab(id);
+                          setActiveAdminTab(id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <AdminIcon size={14} aria-hidden="true" />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {route.href === "/monitoring" && currentRoute === "/monitoring" && !collapsed && monitoringMenuExpanded && (
+                  <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Monitoring sections">
+                    {monitoringViews.map(({ id, label, Icon: MonitoringIcon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={activeMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={activeMonitoringView === id ? "page" : undefined}
+                        onClick={() => {
+                          navigateToMonitoringView(id);
+                          setActiveMonitoringView(id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <MonitoringIcon size={14} aria-hidden="true" />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
