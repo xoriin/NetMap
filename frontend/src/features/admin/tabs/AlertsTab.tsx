@@ -108,8 +108,8 @@ export function AlertsTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconAlertCircle size={16} />Alert Rules</h2>
           <div className="admin-panel-actions">
             <button type="button" className="nm-btn nm-btn--primary" onClick={() => {
@@ -123,7 +123,7 @@ export function AlertsTab({
         {alertRulesError && <div className="form-error">{alertRulesError}</div>}
 
         {showAlertForm && (
-          <div className="tool-form" style={{ marginBottom: 16, padding: '14px 16px', background: 'rgba(29,154,176,0.04)', borderRadius: 8, border: '1px solid rgba(29,154,176,0.15)' }}>
+          <div className="tool-form admin-inline-form">
             <label>Rule name
               <input value={alertForm.name} maxLength={120} onChange={(e) => setAlertForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Core router offline" />
             </label>
@@ -138,9 +138,9 @@ export function AlertsTab({
                 <option value="ping_loss_above">Ping loss above threshold</option>
                 <option value="service_down">Service check goes down</option>
                 <option value="service_slow">Service check response time above threshold</option>
-                <option value="monitor_down">Standalone monitor goes down</option>
-                <option value="monitor_slow">Standalone monitor response time above threshold</option>
-                <option value="monitor_certificate_expiry">Standalone monitor certificate nearing expiry</option>
+                <option value="monitor_down">HTTP/HTTPS endpoint goes down</option>
+                <option value="monitor_slow">HTTP/HTTPS endpoint response time above threshold</option>
+                <option value="monitor_certificate_expiry">HTTP/HTTPS endpoint certificate nearing expiry</option>
               </select>
             </label>
             {alertForm.event_type === "rtt_above" && (
@@ -184,7 +184,7 @@ export function AlertsTab({
             ) : (["monitor_down", "monitor_slow", "monitor_certificate_expiry"] as AlertRuleEventType[]).includes(alertForm.event_type) ? (
               <label>Monitor
                 <select value={alertForm.monitor_id ?? ""} onChange={(e) => setAlertForm(f => ({...f, monitor_id: e.target.value ? Number(e.target.value) : null}))}>
-                  <option value="">Any monitor</option>
+                  <option value="">Any endpoint</option>
                   {monitors.map(m => (
                     <option key={m.id} value={m.id}>{m.name} ({m.url})</option>
                   ))}
@@ -200,8 +200,8 @@ export function AlertsTab({
                 </select>
               </label>
             )}
-            <fieldset style={{ border: '1px solid #d0dde6', borderRadius: 6, padding: '8px 12px' }}>
-              <legend style={{ fontSize: 12, fontWeight: 700, color: '#314656', padding: '0 4px' }}>Notify via saved methods</legend>
+            <fieldset className="admin-fieldset">
+              <legend>Notify via saved methods</legend>
               {alertForm.channels.filter((channel) => !channel.startsWith("profile:")).map(ch => (
                 <label key={ch} className="tool-form-inline-check" style={{ marginBottom: 4 }}>
                   <input type="checkbox" checked
@@ -255,16 +255,11 @@ export function AlertsTab({
         {alertRules.length === 0 ? (
           <p className="tool-note">No alert rules yet. Add one to start receiving automated notifications.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="nm-table-wrap admin-data-table-wrap">
+          <table className="nm-table admin-data-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid rgba(175,198,216,0.5)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Name</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Trigger</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Device / Service</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Channels</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Cooldown</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Status</th>
-                <th style={{ padding: '8px 10px' }}></th>
+              <tr>
+                <th>Name</th><th>Trigger</th><th>Device / Service</th><th>Channels</th><th>Cooldown</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -279,9 +274,9 @@ export function AlertsTab({
                   ping_loss_above: rule.loss_pct_threshold ? `Ping loss above ${rule.loss_pct_threshold}%` : "Ping loss above threshold",
                   service_down: "Service check down",
                   service_slow: rule.threshold_ms ? `Service response above ${rule.threshold_ms} ms` : "Service response above threshold",
-                  monitor_down: "Monitor down",
-                  monitor_slow: rule.threshold_ms ? `Monitor response above ${rule.threshold_ms} ms` : "Monitor response above threshold",
-                  monitor_certificate_expiry: "Monitor certificate nearing expiry",
+                  monitor_down: "Endpoint down",
+                  monitor_slow: rule.threshold_ms ? `Endpoint response above ${rule.threshold_ms} ms` : "Endpoint response above threshold",
+                  monitor_certificate_expiry: "Endpoint certificate nearing expiry",
                 };
                 const isServiceRule = rule.event_type === "service_down" || rule.event_type === "service_slow";
                 const isMonitorRule = (["monitor_down", "monitor_slow", "monitor_certificate_expiry"] as AlertRuleEventType[]).includes(rule.event_type);
@@ -292,24 +287,24 @@ export function AlertsTab({
                   : isMonitorRule
                   ? (rule.monitor_id
                       ? (() => { const m = monitors.find(x => x.id === rule.monitor_id); return m ? `${m.name} (${m.url})` : `Monitor #${rule.monitor_id}`; })()
-                      : "Any monitor")
+                      : "Any endpoint")
                   : (rule.device_id
                       ? (() => { const d = graph.devices.find(x => x.id === rule.device_id); return d ? (d.display_name || d.hostname || d.ip_address) : `#${rule.device_id}`; })()
                       : "All devices");
                 const testResult = alertTestResults[rule.id];
                 return (
-                  <tr key={rule.id} style={{ borderBottom: '1px solid rgba(175,198,216,0.3)' }}>
-                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{rule.name}</td>
-                    <td style={{ padding: '10px 10px', color: '#4a6474' }}>{triggerLabels[rule.event_type] ?? rule.event_type}</td>
-                    <td style={{ padding: '10px 10px', color: '#4a6474', fontSize: 12 }}>{deviceName}</td>
-                    <td style={{ padding: '10px 10px', fontSize: 12 }}>{rule.channels.map(targetLabel).join(", ") || "—"}</td>
-                    <td style={{ padding: '10px 10px', color: '#4a6474', fontSize: 12 }}>{rule.cooldown_minutes >= 60 ? `${rule.cooldown_minutes / 60}h` : `${rule.cooldown_minutes}m`}</td>
-                    <td style={{ padding: '10px 10px' }}>
+                  <tr key={rule.id}>
+                    <td><strong>{rule.name}</strong></td>
+                    <td>{triggerLabels[rule.event_type] ?? rule.event_type}</td>
+                    <td>{deviceName}</td>
+                    <td>{rule.channels.map(targetLabel).join(", ") || "—"}</td>
+                    <td>{rule.cooldown_minutes >= 60 ? `${rule.cooldown_minutes / 60}h` : `${rule.cooldown_minutes}m`}</td>
+                    <td>
                       <span className={`alert-status-pill${rule.enabled ? " alert-status-pill--active" : ""}`}>
                         {rule.enabled ? "Active" : "Paused"}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 10px' }}>
+                    <td>
                       <div className="admin-panel-actions">
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={alertTestBusy === rule.id} onClick={() => void runAlertTest(rule.id)}>
                           {alertTestBusy === rule.id ? "Testing…" : "Test"}
@@ -339,33 +334,32 @@ export function AlertsTab({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
-      <section className="panel admin-panel admin-alert-delivery-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconAlertCircle size={16} />Delivery history</h2>
         </div>
         <p className="tool-note">The most recent alert notification attempts and whether each provider accepted them. Kept for 30 days.</p>
         {deliveries.length === 0 ? (
           <p className="tool-note">No notifications have been sent yet.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="nm-table-wrap admin-data-table-wrap">
+          <table className="nm-table admin-data-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid rgba(175,198,216,0.5)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Sent</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Rule</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Target</th>
-                <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#7a96a8' }}>Result</th>
+              <tr>
+                <th>Sent</th><th>Rule</th><th>Target</th><th>Result</th>
               </tr>
             </thead>
             <tbody>
               {deliveries.map((d) => (
-                <tr key={d.id} style={{ borderBottom: '1px solid rgba(175,198,216,0.3)' }}>
-                  <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: '#4a6474' }}>{formatEventTime(d.sent_at)}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 600 }}>{d.rule_name || "—"}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 12 }}>{targetLabel(d.target)}</td>
-                  <td style={{ padding: '8px 10px' }}>
+                <tr key={d.id}>
+                  <td className="admin-table-nowrap">{formatEventTime(d.sent_at)}</td>
+                  <td><strong>{d.rule_name || "—"}</strong></td>
+                  <td>{targetLabel(d.target)}</td>
+                  <td>
                     <span className={`notif-result${d.status === "sent" ? " ok" : " err"}`}>
                       {d.status === "sent" ? "Sent" : d.detail || "Failed"}
                     </span>
@@ -374,6 +368,7 @@ export function AlertsTab({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>
