@@ -76,10 +76,10 @@ export function GroupsTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconShieldCheck size={16} />Role Permissions</h2>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="admin-panel-actions">
             <button type="button" className="nm-btn" onClick={() => { setShowNewGroupForm((v) => !v); setNewGroupName(""); }}>
               {showNewGroupForm ? "Cancel" : "+ New group"}
             </button>
