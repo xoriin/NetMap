@@ -1,0 +1,529 @@
+/* ── IPAM approved workspace migration ─────────────────────────────────── */
+.ipam-workspace {
+  --ipam-device: #4d9578;
+  --ipam-dhcp: #6484ad;
+  --ipam-reserved: #8174a3;
+  --ipam-gateway: #ad8248;
+  --ipam-system: #71808e;
+}
+
+.ipam-workspace .ipam-panel.nm-app-panel {
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.ipam-workspace > .ipam-panel,
+.ipam-workspace > .ipam-subnets-panel-wrap {
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+
+.ipam-workspace .ipam-panel-header.nm-app-panel-header {
+  min-height: 44px;
+  padding: 6px 14px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.ipam-panel-identity {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--nm-space-2);
+}
+
+.ipam-panel-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.ipam-panel-title-wrap {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--nm-space-2);
+}
+
+.ipam-panel-title {
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.ipam-panel-meta {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ipam-workspace .ipam-panel > .dash-panel-body {
+  overflow: auto;
+  background: var(--nm-modal-section);
+}
+
+.ipam-workspace .ipam-reservations-panel {
+  border-color: var(--nm-border);
+}
+
+.ipam-workspace .ipam-reservation-filter {
+  color: var(--nm-modal-label);
+}
+
+.ipam-workspace .ipam-reservation-filter .inv-select {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+}
+
+.ipam-workspace .ipam-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+}
+
+.ipam-workspace .ipam-data-table th {
+  border-right: 0;
+  border-bottom: 1px solid var(--nm-border-strong);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+}
+
+.ipam-workspace .ipam-data-table td {
+  border-right: 0;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+}
+
+.ipam-workspace .ipam-data-table tbody tr:hover td {
+  background: var(--nm-row-hover);
+}
+
+.ipam-workspace .ipam-data-table .mon-row--active td {
+  background: var(--nm-accent-soft);
+}
+
+.ipam-workspace .ipam-dhcp-importer,
+.ipam-subnet-form-modal-body {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.ipam-workspace .ipam-lease-textarea {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+.ipam-workspace .ipam-lease-textarea:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+.ipam-workspace .ipam-lease-textarea:focus {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+.ipam-workspace .ipam-conflict-row {
+  border-bottom-color: var(--nm-border);
+}
+
+.ipam-workspace .ipam-conflict-desc {
+  color: var(--nm-text);
+}
+
+.ipam-detail-modal.modal {
+  width: min(96vw, 1380px);
+  max-height: min(92dvh, 940px);
+  border-color: var(--nm-border);
+  background: var(--nm-modal-shell);
+}
+
+.ipam-detail-modal .ipam-detail-modal-shell,
+.ipam-detail-modal .ipam-modal-body {
+  background: var(--nm-modal-shell);
+}
+
+.ipam-detail-modal .ipam-modal-stats {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.ipam-detail-modal .ipam-modal-stat {
+  border-right-color: var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.ipam-detail-modal .ipam-modal-stat-label {
+  color: var(--nm-text-muted);
+}
+
+.ipam-detail-modal .ipam-modal-stat-val {
+  color: var(--nm-modal-label);
+}
+
+.ipam-detail-modal .ipam-modal-stat-of {
+  color: var(--nm-text-faint);
+}
+
+.ipam-detail-modal .ipam-modal-util {
+  background: var(--nm-modal-section);
+}
+
+.ipam-detail-modal .ipam-addr-tabs {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.ipam-detail-modal .ipam-addr-tab {
+  color: var(--nm-text-muted);
+}
+
+.ipam-detail-modal .ipam-addr-tab:hover {
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-tab-hover-text);
+}
+
+.ipam-detail-modal .ipam-addr-tab.active {
+  border-bottom-color: var(--nm-accent);
+  color: var(--nm-tab-active-text);
+}
+
+.ipam-detail-modal .ipam-addr-tab-count {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+}
+
+.ipam-detail-modal .ipam-modal-body-inner {
+  padding: 0 18px;
+}
+
+.ipam-detail-modal .ipam-addr-table {
+  background: var(--nm-modal-section);
+}
+
+.ipam-detail-modal .ipam-addr-table th {
+  border-bottom-color: var(--nm-border-strong);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+}
+
+.ipam-detail-modal .ipam-addr-table td {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.ipam-detail-modal .ipam-addr-row:hover,
+.ipam-detail-modal .ipam-addr-row:hover td {
+  background: var(--nm-row-hover);
+}
+
+.ipam-detail-modal .ipam-addr-label {
+  color: var(--nm-text);
+}
+
+/* Full /24 dense map: eight rows of 32 cells, no scaling and no overflow. */
+.ipam-detail-modal .ipam-grid {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  --ipam-device: #4d9578;
+  --ipam-dhcp: #6484ad;
+  --ipam-reserved: #8174a3;
+  --ipam-gateway: #ad8248;
+  --ipam-system: #71808e;
+}
+
+.ipam-grid-map-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-3);
+  margin-bottom: 8px;
+  color: var(--nm-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.ipam-grid-map-label small {
+  color: var(--nm-text-faint);
+  font: inherit;
+}
+
+.ipam-grid-map {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  overflow: visible;
+}
+
+.ipam-detail-modal .ipam-grid-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.ipam-detail-modal .ipam-grid-row-label {
+  width: auto;
+  color: var(--nm-text-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ipam-detail-modal .ipam-grid-row-cells {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(0, 1fr));
+  min-width: 0;
+  gap: 2px;
+}
+
+.ipam-detail-modal .ipam-grid-cell {
+  appearance: none;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 27px;
+  border: 1px solid var(--nm-border);
+  border-radius: 2px;
+  padding: 0;
+  background: var(--nm-surface-soft);
+  cursor: default;
+  transform: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.ipam-grid-cell-label {
+  display: block;
+  overflow: hidden;
+  color: var(--nm-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(7px, 0.66vw, 10px);
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.ipam-detail-modal .ipam-grid-cell--device .ipam-grid-cell-label,
+.ipam-detail-modal .ipam-grid-cell--dhcp .ipam-grid-cell-label,
+.ipam-detail-modal .ipam-grid-cell--dhcp-pool .ipam-grid-cell-label,
+.ipam-detail-modal .ipam-grid-cell--reserved .ipam-grid-cell-label,
+.ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-label {
+  color: var(--nm-text);
+}
+
+.ipam-detail-modal .ipam-grid-cell:hover,
+.ipam-detail-modal .ipam-grid-cell:focus-visible,
+.ipam-detail-modal .ipam-grid-cell.is-inspected,
+.ipam-detail-modal .ipam-grid-cell--reservable:hover {
+  z-index: 1;
+  position: relative;
+  border-color: var(--nm-text);
+  outline: none;
+  background: inherit;
+  box-shadow: inset 0 0 0 1px var(--nm-text), 0 0 0 1px var(--nm-modal-shell);
+  filter: brightness(1.18);
+  transform: none;
+}
+
+.ipam-detail-modal .ipam-grid-cell--device {
+  border-color: color-mix(in srgb, var(--ipam-device) 74%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-device) 38%, var(--nm-surface-soft));
+}
+
+.ipam-detail-modal .ipam-grid-cell--dhcp,
+.ipam-detail-modal .ipam-grid-cell--dhcp-pool {
+  border-color: color-mix(in srgb, var(--ipam-dhcp) 72%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-dhcp) 36%, var(--nm-surface-soft));
+}
+
+.ipam-detail-modal .ipam-grid-cell--reserved {
+  border-color: color-mix(in srgb, var(--ipam-reserved) 74%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft));
+}
+
+.ipam-detail-modal .ipam-grid-cell--gateway {
+  border-color: color-mix(in srgb, var(--ipam-gateway) 76%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft));
+}
+
+.ipam-detail-modal .ipam-grid-cell--network,
+.ipam-detail-modal .ipam-grid-cell--broadcast {
+  opacity: 0.8;
+  border-color: color-mix(in srgb, var(--ipam-system) 62%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-system) 32%, var(--nm-surface-soft));
+}
+
+.ipam-detail-modal .ipam-grid-cell--dhcp-range {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ipam-dhcp) 58%, transparent);
+}
+
+.ipam-detail-modal .ipam-grid-cell--reservable {
+  cursor: crosshair;
+}
+
+.ipam-grid-detail-card.ipam-tooltip-card {
+  position: fixed;
+  z-index: 9999;
+  width: 270px;
+  height: auto;
+  min-width: 270px;
+  min-height: 122px;
+  max-width: 270px;
+  max-height: min(220px, calc(100dvh - 20px));
+  margin: 0;
+  border-color: var(--nm-border-strong);
+  padding: 0;
+  background: var(--nm-modal-header);
+  box-shadow: var(--nm-shadow-md);
+  color: var(--nm-text-muted);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--device {
+  border-color: color-mix(in srgb, var(--ipam-device) 88%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-device) 56%, var(--nm-surface-soft));
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp-pool {
+  border-color: color-mix(in srgb, var(--ipam-dhcp) 86%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-dhcp) 52%, var(--nm-surface-soft));
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--reserved {
+  border-color: color-mix(in srgb, var(--ipam-reserved) 86%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-reserved) 54%, var(--nm-surface-soft));
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway {
+  border-color: color-mix(in srgb, var(--ipam-gateway) 88%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-gateway) 56%, var(--nm-surface-soft));
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--network,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--broadcast {
+  border-color: color-mix(in srgb, var(--ipam-system) 78%, var(--nm-border));
+  background: color-mix(in srgb, var(--ipam-system) 46%, var(--nm-surface-soft));
+}
+
+body.theme-dark .ipam-grid-cell-label {
+  color: #91a6b8;
+}
+
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--device .ipam-grid-cell-label,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp .ipam-grid-cell-label,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp-pool .ipam-grid-cell-label,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--reserved .ipam-grid-cell-label,
+body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-label {
+  color: #edf5fa;
+}
+
+.ipam-grid-detail-card .ipam-tooltip-header {
+  min-height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  border-bottom-color: var(--nm-border);
+}
+
+.ipam-grid-detail-card .ipam-tooltip-ip {
+  color: var(--nm-text);
+}
+
+.ipam-grid-detail-card .ipam-tooltip-kind {
+  color: var(--nm-accent-strong);
+}
+
+.ipam-grid-detail-card .ipam-tooltip-row {
+  padding: 3px 10px;
+  color: var(--nm-text-muted);
+}
+
+.ipam-grid-detail-card .ipam-tooltip-row:last-child {
+  padding-bottom: 8px;
+}
+
+.ipam-tooltip-kind-dot--device { background: var(--ipam-device); }
+.ipam-tooltip-kind-dot--dhcp,
+.ipam-tooltip-kind-dot--dhcp-pool { background: var(--ipam-dhcp); }
+.ipam-tooltip-kind-dot--reserved { background: var(--ipam-reserved); }
+.ipam-tooltip-kind-dot--gateway { background: var(--ipam-gateway); }
+.ipam-tooltip-kind-dot--network,
+.ipam-tooltip-kind-dot--broadcast { background: var(--ipam-system); }
+.ipam-tooltip-kind-dot--free { background: var(--nm-text-faint); }
+
+.ipam-detail-modal .ipam-grid-legend {
+  margin-top: 10px;
+  color: var(--nm-text-faint);
+}
+
+.ipam-detail-modal .ipam-legend-dot {
+  border-color: var(--nm-border);
+  background: var(--nm-surface-soft);
+}
+
+.ipam-legend-dot--device { border-color: var(--ipam-device); background: color-mix(in srgb, var(--ipam-device) 42%, var(--nm-surface-soft)); }
+.ipam-legend-dot--dhcp,
+.ipam-legend-dot--dhcp-pool { border-color: var(--ipam-dhcp); background: color-mix(in srgb, var(--ipam-dhcp) 38%, var(--nm-surface-soft)); }
+.ipam-legend-dot--reserved { border-color: var(--ipam-reserved); background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft)); }
+.ipam-legend-dot--gateway { border-color: var(--ipam-gateway); background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft)); }
+.ipam-legend-dot--system { border-color: var(--ipam-system); background: color-mix(in srgb, var(--ipam-system) 28%, var(--nm-surface-soft)); }
+.ipam-legend-dot--free { border-color: var(--nm-border); background: var(--nm-surface-soft); }
+
+@media (max-width: 980px) {
+  .ipam-workspace .ipam-panel-header.nm-app-panel-header {
+    flex-wrap: wrap;
+  }
+
+  .ipam-workspace .ipam-reservations-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+}
+
+@media (max-width: 620px) {
+  .ipam-panel-title-wrap {
+    display: grid;
+    gap: 1px;
+  }
+
+  .ipam-grid-map-label small {
+    display: none;
+  }
+
+  .ipam-detail-modal .ipam-grid-row {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .ipam-detail-modal .ipam-grid-row-cells {
+    gap: 1px;
+  }
+}
+

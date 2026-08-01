@@ -1,21 +1,33 @@
 import { useState } from "react";
 import type { IpAddressEntry } from "../api/client";
 
-const IP_KIND_COLOR: Record<string, string> = {
-  network: "#94a3b8", broadcast: "#94a3b8", gateway: "#f59e0b",
-  device: "#2dba7c", dhcp: "#3b80d0", reserved: "#115e59", free: "#e8edf3",
-};
 const IP_KIND_LABEL: Record<string, string> = {
   network: "Network", broadcast: "Broadcast", gateway: "Gateway",
   device: "Device", dhcp: "DHCP lease", reserved: "Reserved", free: "Free",
 };
-const IP_NO_TOOLTIP = new Set(["network", "broadcast"]);
+
+function mapKind(entry: IpAddressEntry) {
+  if (entry.kind === "free" && entry.dhcp_range) return "dhcp-pool";
+  return entry.kind;
+}
+
+function displayKind(entry: IpAddressEntry) {
+  if (entry.kind === "free" && entry.dhcp_range) return "DHCP pool";
+  return IP_KIND_LABEL[entry.kind] ?? entry.kind;
+}
+
+function addressOctet(entry: IpAddressEntry) {
+  const parts = entry.ip.split(".");
+  return parts[parts.length - 1] ?? entry.ip;
+}
 
 export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEntry[]; onReserve?: (ip: string) => void; canWrite?: boolean }) {
-  const [hovered, setHovered] = useState<IpAddressEntry | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [inspectedIp, setInspectedIp] = useState<string | null>(null);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
 
   if (!entries.length) return <p className="dash-empty">Subnet too large to enumerate - showing summary only.</p>;
+
+  const inspected = entries.find((entry) => entry.ip === inspectedIp) ?? null;
 
   const rowSize = entries.length <= 32 ? entries.length : 32;
   const rows: IpAddressEntry[][] = [];
@@ -26,51 +38,69 @@ export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEnt
   return (
     <div
       className="ipam-grid"
-      onMouseMove={(e) => setPos({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setHovered(null)}
+      onMouseMove={(event) => setPointerPosition({ x: event.clientX, y: event.clientY })}
+      onMouseLeave={() => setInspectedIp(null)}
     >
-      {rows.map((row, rowIdx) => {
-        const parts = row[0].ip.split(".");
-        const label = "." + (parts[parts.length - 1] ?? "");
-        return (
-          <div key={rowIdx} className="ipam-grid-row">
-            <span className="ipam-grid-row-label">{label}</span>
-            <div className="ipam-grid-row-cells">
-              {row.map((e) => (
-                <span
-                  key={e.ip}
-                  className={`ipam-grid-cell${e.dhcp_range ? " ipam-grid-cell--dhcp-range" : ""}${!IP_NO_TOOLTIP.has(e.kind) ? " ipam-grid-cell--has-tip" : ""}${canWrite && e.kind === "free" ? " ipam-grid-cell--reservable" : ""}`}
-                  style={{ background: IP_KIND_COLOR[e.kind] ?? "#e8edf3" }}
-                  onMouseEnter={() => { if (!IP_NO_TOOLTIP.has(e.kind)) setHovered(e); }}
-                  onMouseLeave={() => setHovered(null)}
-                  onClick={() => { if (canWrite && e.kind === "free" && onReserve) onReserve(e.ip); }}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-      {hovered && (
-        <IpTooltipCard entry={hovered} x={pos.x} y={pos.y} canWrite={canWrite} />
-      )}
+      <div className="ipam-grid-map-label">
+        <span>All {entries.length} positions</span>
+        <small>{rows.length} row{rows.length === 1 ? "" : "s"} · up to 32 addresses per row · hover for details</small>
+      </div>
+      <div className="ipam-grid-map">
+          {rows.map((row, rowIdx) => {
+            const firstParts = row[0].ip.split(".");
+            const lastParts = row[row.length - 1].ip.split(".");
+            const firstOctet = firstParts[firstParts.length - 1] ?? "";
+            const lastOctet = lastParts[lastParts.length - 1] ?? firstOctet;
+            return (
+              <div key={rowIdx} className="ipam-grid-row">
+                <span className="ipam-grid-row-label">{firstOctet}–{lastOctet}</span>
+                <div className="ipam-grid-row-cells">
+                  {row.map((entry) => (
+                    <button
+                      key={entry.ip}
+                      type="button"
+                      aria-label={`${entry.ip} · ${displayKind(entry)}`}
+                      aria-pressed={inspected?.ip === entry.ip}
+                      className={`ipam-grid-cell ipam-grid-cell--${mapKind(entry)}${entry.dhcp_range ? " ipam-grid-cell--dhcp-range" : ""}${canWrite && entry.kind === "free" ? " ipam-grid-cell--reservable" : ""}${inspected?.ip === entry.ip ? " is-inspected" : ""}`}
+                      onMouseEnter={() => setInspectedIp(entry.ip)}
+                      onFocus={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setPointerPosition({ x: rect.right, y: rect.top + rect.height / 2 });
+                        setInspectedIp(entry.ip);
+                      }}
+                      onClick={() => { if (canWrite && entry.kind === "free" && onReserve) onReserve(entry.ip); }}
+                    >
+                      <span className="ipam-grid-cell-label">{addressOctet(entry)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+      </div>
+      {inspected && <IpDetailCard entry={inspected} canWrite={canWrite} x={pointerPosition.x} y={pointerPosition.y} />}
     </div>
   );
 }
 
-function IpTooltipCard({ entry, x, y, canWrite }: { entry: IpAddressEntry; x: number; y: number; canWrite?: boolean }) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const cardW = 220;
-  const cardH = 130;
-  const left = x + 14 + cardW > vw ? x - cardW - 8 : x + 14;
-  const top = y + 14 + cardH > vh ? y - cardH - 8 : y + 14;
-
+function IpDetailCard({ entry, canWrite, x, y }: { entry: IpAddressEntry; canWrite?: boolean; x: number; y: number }) {
+  const cardWidth = 270;
+  // Four metadata rows (DHCP range, name, MAC and vendor) are possible. Use
+  // the maximum expected card height for edge avoidance while allowing the
+  // actual card to size naturally to shorter content.
+  const cardHeightAllowance = 190;
+  const preferredLeft = x + 14 + cardWidth > window.innerWidth ? x - cardWidth - 10 : x + 14;
+  const preferredTop = y + 14 + cardHeightAllowance > window.innerHeight
+    ? y - cardHeightAllowance - 10
+    : y + 14;
+  const left = Math.max(10, Math.min(preferredLeft, window.innerWidth - cardWidth - 10));
+  const top = Math.max(10, preferredTop);
   return (
-    <div className="ipam-tooltip-card" style={{ left, top }}>
+    <div className="ipam-tooltip-card ipam-grid-detail-card" style={{ left, top }} aria-live="polite">
       <div className="ipam-tooltip-header">
-        <span className="ipam-tooltip-kind-dot" style={{ background: IP_KIND_COLOR[entry.kind] ?? "#94a3b8" }} />
+        <span className={`ipam-tooltip-kind-dot ipam-tooltip-kind-dot--${mapKind(entry)}`} />
         <span className="ipam-tooltip-ip">{entry.ip}</span>
-        <span className="ipam-tooltip-kind">{IP_KIND_LABEL[entry.kind] ?? entry.kind}</span>
+        <span className="ipam-tooltip-kind">{displayKind(entry)}</span>
       </div>
       {entry.kind === "free" ? (
         <>

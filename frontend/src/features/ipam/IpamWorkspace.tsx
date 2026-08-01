@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent, type ReactNode } from "react";
+import "./ipam.css";
 import { Network, Activity, X, ChevronUp, ChevronDown } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMapPin, IconAlertCircle, IconArrowRight,
@@ -37,6 +38,18 @@ function defaultReservationExpiryDate() {
   date.setDate(date.getDate() + 90);
   const localTime = date.getTime() - date.getTimezoneOffset() * 60_000;
   return new Date(localTime).toISOString().slice(0, 10);
+}
+
+function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: string; meta?: ReactNode }) {
+  return (
+    <span className="ipam-panel-identity">
+      <span className="ipam-panel-icon" aria-hidden="true">{icon}</span>
+      <span className="ipam-panel-title-wrap">
+        <span className="ipam-panel-title">{title}</span>
+        {meta !== undefined ? <span className="ipam-panel-meta">{meta}</span> : null}
+      </span>
+    </span>
+  );
 }
 
 export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; canWrite: boolean }) {
@@ -412,10 +425,10 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
 
   return (
-    <section className="dash-layout">
+    <section className="dash-layout ipam-workspace">
 
       {/* Stat cards */}
-      <div className="dash-stats">
+      <div className="dash-stats ipam-stats nm-summary-band">
         <DashStat label="Subnets" value={summary?.subnet_count ?? 0} sub="defined" icon={<Network size={20} />} accent="teal" />
         <DashStat label="Total hosts" value={summary?.total_hosts ?? 0} sub="across all subnets" icon={<IconServer size={20} />} accent="blue" />
         <DashStat label="Used" value={summary?.used ?? 0} sub="addresses assigned" icon={<IconWifi size={20} />} accent="green" />
@@ -441,10 +454,9 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* Conflict list */}
       {showConflicts && conflicts.length > 0 && (
-        <div className="dash-panel" style={{ marginBottom: 14 }}>
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Conflicts</span>
-            <span className="dash-panel-meta">{conflicts.length} total</span>
+        <div className="dash-panel nm-app-panel ipam-panel ipam-conflicts-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<IconAlertCircle size={18} />} title="Conflicts" meta={`${conflicts.length} total`} />
           </div>
           <div className="dash-panel-body" style={{ padding: "10px 18px" }}>
             {conflicts.map((c, i) => (
@@ -459,9 +471,9 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* VLAN import picker */}
       {showVlanImport && (
-        <div className="dash-panel" style={{ marginBottom: 14 }}>
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Import subnets from VLANs</span>
+        <div className="dash-panel nm-app-panel ipam-panel ipam-vlan-import-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<IconTag size={18} />} title="Import subnets from VLANs" meta="Review available ranges" />
             <button type="button" className="dash-panel-link" onClick={() => { setShowVlanImport(false); setVlanMsg(null); }}>
               <X size={14} />
             </button>
@@ -471,7 +483,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
               <p className="dash-empty">No VLANs with an IP range configured. Set an IP range on a VLAN in the topology settings.</p>
             ) : (
               <>
-                <table className="mon-table" style={{ marginBottom: 10 }}>
+                <table className="mon-table ipam-data-table" style={{ marginBottom: 10 }}>
                   <thead>
                     <tr>
                       <th style={{ width: 32 }} />
@@ -523,8 +535,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* Add subnet modal */}
       {showSubnetForm && !editingSubnet && (
-        <Modal title="Add subnet" onCancel={() => { setShowSubnetForm(false); setFormError(null); }}>
-          <div style={{ padding: "14px 18px" }}>
+        <Modal title="Add subnet" titleIcon={<Network size={18} />} onCancel={() => { setShowSubnetForm(false); setFormError(null); }}>
+          <div className="ipam-subnet-form-modal-body">
             <SubnetForm
               showVlanSync
               onSave={(p, createVlanGroup) => void saveSubnet(p, createVlanGroup)}
@@ -538,8 +550,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* Edit subnet modal */}
       {editingSubnet && (
-        <Modal title="Edit subnet" onCancel={() => { setEditingSubnet(null); setFormError(null); }}>
-          <div style={{ padding: "14px 18px" }}>
+        <Modal title="Edit subnet" titleIcon={<Network size={18} />} onCancel={() => { setEditingSubnet(null); setFormError(null); }}>
+          <div className="ipam-subnet-form-modal-body">
             <SubnetForm
               initial={editingSubnet}
               onSave={(p) => void saveSubnet(p, false)}
@@ -552,14 +564,13 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       )}
 
       {/* Reservations panel */}
-      <div className="dash-panel ipam-reservations-panel">
-        <div className="dash-panel-header ipam-reservations-header">
-          <div className="ipam-reservations-heading">
-            <span className="dash-panel-title">IP Reservations</span>
-            <span className="dash-panel-meta">
-              {resSubnetFilter === "all" ? `${reservations.length} reserved` : `${filteredReservations.length} of ${reservations.length} shown`}
-            </span>
-          </div>
+      <div className="dash-panel nm-app-panel ipam-panel ipam-reservations-panel">
+        <div className="dash-panel-header nm-app-panel-header ipam-panel-header ipam-reservations-header">
+          <IpamPanelIdentity
+            icon={<IconMapPin size={18} />}
+            title="IP reservations"
+            meta={resSubnetFilter === "all" ? `${reservations.length} reserved` : `${filteredReservations.length} of ${reservations.length} shown`}
+          />
           <div className="ipam-reservations-actions">
             {subnets.length > 0 && (
               <label className="ipam-reservation-filter">
@@ -614,7 +625,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             {filteredReservations.length === 0 ? (
               <p className="dash-empty">{reservations.length === 0 ? "No IP reservations yet. Click a free address in any subnet detail to reserve it." : "No reservations match the selected subnet."}</p>
             ) : (
-              <table className="mon-table ipam-reservations-table">
+              <table className="mon-table ipam-data-table ipam-reservations-table">
                 <thead>
                   <tr>
                     <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
@@ -660,9 +671,9 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
       {/* Subnet list */}
       <div className="ipam-subnets-panel-wrap">
-        <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Subnets ({subnets.length})</span>
+        <div className="dash-panel nm-app-panel ipam-panel ipam-subnets-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<Network size={18} />} title="Subnets" meta={`${subnets.length} defined`} />
             {canWrite && !showSubnetForm && (
               <span style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="nm-btn" onClick={() => void openVlanImport()}>
@@ -678,7 +689,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             {subnets.length === 0 ? (
               <p className="dash-empty">No subnets defined yet. Add one to start tracking utilization.</p>
             ) : (
-              <table className="mon-table">
+              <table className="mon-table ipam-data-table ipam-subnets-table">
                 <thead>
                   <tr>
                     <th><button type="button" className={`inventory-sort-btn${ipamSortKey === "name" ? " active" : ""}`} onClick={() => toggleIpamSort("name")}>Name{ipamSortKey === "name" && (ipamSortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}</button></th>
@@ -748,6 +759,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       {selectedSubnet && (
         <Modal
           title={selectedSubnet.name}
+          titleIcon={<Network size={18} />}
           onCancel={() => setSelectedSubnet(null)}
           modalClassName="ipam-detail-modal"
           bodyClassName="ipam-detail-modal-shell modal-body--flush"
@@ -836,8 +848,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
               <div className="ipam-modal-body-inner">
                 <IpGrid entries={addresses} onReserve={openReserveDialog} canWrite={canWrite} />
                 <div className="ipam-grid-legend">
-                  {[["device","#2dba7c","Device"], ["dhcp","#3b80d0","DHCP lease"], ["range","#dbeafe","DHCP range"], ["reserved","#115e59","Reserved"], ["gateway","#f59e0b","Gateway"], ["free","#2dba7c","Free"], ["network","#94a3b8","Net/Bcast"]].map(([k, c, l]) => (
-                    <span key={k} className="ipam-legend-item"><span className="ipam-legend-dot" style={{ background: c }} />{l}</span>
+                  {[["device","Device"], ["dhcp","DHCP lease"], ["dhcp-pool","DHCP range"], ["reserved","Reserved"], ["gateway","Gateway"], ["free","Free"], ["system","Net/Bcast"]].map(([kind, label]) => (
+                    <span key={kind} className="ipam-legend-item"><span className={`ipam-legend-dot ipam-legend-dot--${kind}`} />{label}</span>
                   ))}
                   {canWrite && <span className="ipam-legend-tip">· click a free address to reserve it</span>}
                 </div>
@@ -878,6 +890,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       {reserveIp !== null && (
         <Modal
           title={editingReservation ? "Edit reservation" : "Reserve IP address"}
+          titleIcon={<IconMapPin size={18} />}
           onCancel={closeReserveDialog}
           size="sm"
           footer={(
@@ -997,10 +1010,9 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       )}
 
       {/* DHCP leases panel */}
-      <div className="dash-panel ipam-dhcp-panel">
-        <div className="dash-panel-header">
-          <span className="dash-panel-title">DHCP leases ({dhcpLeases.length})</span>
-          <span className="dash-panel-meta">paste lease file to import</span>
+      <div className="dash-panel nm-app-panel ipam-panel ipam-dhcp-panel">
+        <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+          <IpamPanelIdentity icon={<Activity size={18} />} title="DHCP leases" meta={`${dhcpLeases.length} imported`} />
           <button type="button" className="dash-panel-link" onClick={() => setShowDhcp((v) => !v)} style={{ marginLeft: 12 }}>
             {showDhcp ? "Hide importer" : "Import leases"}
           </button>
@@ -1012,7 +1024,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
         </div>
 
         {showDhcp && (
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(209,220,230,0.6)" }}>
+          <div className="ipam-dhcp-importer">
             <form onSubmit={(e) => void importDhcp(e)}>
               <textarea
                 className="ipam-lease-textarea"
@@ -1022,7 +1034,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
                 onChange={(e) => setDhcpText(e.target.value)}
               />
               <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                <button type="submit" disabled={dhcpBusy || !dhcpText.trim()}>
+                <button type="submit" className="nm-btn nm-btn--primary" disabled={dhcpBusy || !dhcpText.trim()}>
                   {dhcpBusy ? "Importing…" : "Import"}
                 </button>
                 {dhcpMsg && <span className="dash-panel-meta">{dhcpMsg}</span>}
@@ -1035,7 +1047,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
           {dhcpLeases.length === 0 ? (
             <p className="dash-empty">No DHCP leases imported yet.</p>
           ) : (
-            <table className="mon-table">
+            <table className="mon-table ipam-data-table ipam-dhcp-table">
               <thead>
                 <tr>
                 <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
