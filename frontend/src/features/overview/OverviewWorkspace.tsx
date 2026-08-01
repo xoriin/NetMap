@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+import "./overview.css";
 import { Search, Star } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
@@ -33,11 +34,23 @@ import { computeIncidents } from "../../utils/monitoring";
 import { readJson, writeJson } from "../../utils/storage";
 import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
+import { resolveEntityColor } from "../../utils/entityColor";
 
 type OverviewFavouriteSnapshot = {
   updatedAt: string;
   devices: DeviceMonitorSummary[];
 };
+
+function OverviewPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: string; meta?: ReactNode }) {
+  return (
+    <span className="overview-panel-identity">
+      <span className="overview-panel-icon" aria-hidden="true">{icon}</span>
+      <span className="overview-panel-separator" aria-hidden="true">-</span>
+      <span className="overview-panel-title">{title}</span>
+      {meta !== undefined && <span className="overview-panel-meta">{meta}</span>}
+    </span>
+  );
+}
 
 function readFavouriteSnapshot(key: string): DeviceMonitorSummary[] {
   const snapshot = readJson<OverviewFavouriteSnapshot>(key);
@@ -90,20 +103,23 @@ export function OverviewWorkspace({
   const monLoading = monQuery.isLoading;
   const favouriteSnapshotKey = `netmap.overview.favourites.${user.id}`;
 
+  const groupsQuery = useApiQuery(
+    accessToken ? () => api.topologyGroups(accessToken) : null,
+    [accessToken],
+  );
   const formOptionsQuery = useApiQuery(
     accessToken && canWrite
       ? async () => {
-          const [groups, sites, snmpProfiles] = await Promise.all([
-            api.topologyGroups(accessToken),
+          const [sites, snmpProfiles] = await Promise.all([
             api.sites(accessToken),
             api.listSnmpProfiles(accessToken),
           ]);
-          return { groups, sites, snmpProfiles };
+          return { sites, snmpProfiles };
         }
       : null,
     [accessToken, canWrite],
   );
-  const groups = formOptionsQuery.data?.groups ?? [];
+  const groups = groupsQuery.data ?? [];
   const sites = formOptionsQuery.data?.sites ?? [];
   const snmpProfiles = formOptionsQuery.data?.snmpProfiles ?? [];
 
@@ -190,6 +206,20 @@ export function OverviewWorkspace({
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [graph.devices]);
+
+  const deviceTypeColors = useMemo(() => new Map(
+    deviceTypeOptions.map((option) => [option.value, resolveEntityColor(option.color, option.value)]),
+  ), [deviceTypeOptions]);
+
+  const groupColors = useMemo(() => {
+    const colors = new Map<string, string>();
+    for (const group of groups) {
+      const color = resolveEntityColor(group.color, group.name);
+      colors.set(group.name, color);
+      if (group.display_name) colors.set(group.display_name, color);
+    }
+    return colors;
+  }, [groups]);
 
   const groupBreakdown = useMemo(() => {
     const m = new Map<string, number>();
@@ -303,9 +333,9 @@ export function OverviewWorkspace({
   }
 
   return (
-    <section className="dash-layout">
+    <section className="dash-layout overview-workspace">
       {/* Stat row */}
-      <div className="dash-stats">
+      <div className="dash-stats nm-summary-band">
         <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${onlinePct}% reachable`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
         <DashStat label="Online" value={statusCounts.online} sub="reachable" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
         <DashStat
@@ -349,11 +379,10 @@ export function OverviewWorkspace({
       )}
 
       {showOfflineList && offlineDevices.length > 0 && !alertDismissed && (
-        <div className="dash-panel" style={{ marginBottom: 14 }}>
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Offline devices</span>
-            <span className="dash-panel-meta">{offlineDevices.length} total</span>
-            <button type="button" className="dash-panel-link" onClick={() => onNavigate("/inventory")}>
+        <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Offline devices" meta={`${offlineDevices.length} total`} />
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
               View inventory <IconArrowRight size={13} />
             </button>
           </div>
@@ -393,10 +422,9 @@ export function OverviewWorkspace({
       <div className="dash-grid-3">
 
         {/* Network health */}
-        <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Network health</span>
-            <span className="dash-panel-meta">{total} device{total !== 1 ? "s" : ""}</span>
+        <div className="dash-panel nm-app-panel overview-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconGauge size={18} />} title="Network health" meta={`${total} device${total !== 1 ? "s" : ""}`} />
           </div>
           <div className="dash-panel-body">
             {total === 0 ? (
@@ -404,7 +432,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconServer size={22} /></div>
                 <div className="dash-empty-title">No devices yet</div>
                 <div className="dash-empty-desc">Add devices from the Inventory tab to see health here.</div>
-                <button type="button" className="dash-empty-action" onClick={() => onNavigate("/inventory")}>Go to Inventory</button>
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/inventory")}>Go to Inventory</button>
               </div>
             ) : (
               <div className="dash-health-with-donut">
@@ -436,10 +464,9 @@ export function OverviewWorkspace({
         </div>
 
         {/* Device types */}
-        <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Device types</span>
-            <span className="dash-panel-meta">{typeBreakdown.length} types</span>
+        <div className="dash-panel nm-app-panel overview-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconChartBar size={18} />} title="Device types" meta={`${typeBreakdown.length} types`} />
           </div>
           <div className="dash-panel-body">
             {typeBreakdown.length === 0 ? (
@@ -455,7 +482,13 @@ export function OverviewWorkspace({
                     <div key={type} className="dash-breakdown-row">
                       <span className="dash-breakdown-label">{formatDeviceTypeLabel(type)}</span>
                       <div className="dash-mini-track">
-                        <div className="dash-mini-fill" style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} />
+                        <div
+                          className="dash-mini-fill overview-device-type-fill"
+                          style={{
+                            width: `${total > 0 ? (count / total) * 100 : 0}%`,
+                            "--overview-type-color": deviceTypeColors.get(type) ?? resolveEntityColor(null, type),
+                          } as CSSProperties}
+                        />
                       </div>
                       <span className="dash-breakdown-count">{count}</span>
                     </div>
@@ -478,10 +511,10 @@ export function OverviewWorkspace({
         </div>
 
         {/* Top groups */}
-        <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Top groups</span>
-            <button type="button" className="dash-panel-link" onClick={() => onNavigate("/vlans")}>
+        <div className="dash-panel nm-app-panel overview-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconMap size={18} />} title="Top groups" />
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/vlans")}>
               Manage <IconArrowRight size={12} />
             </button>
           </div>
@@ -491,7 +524,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconMap size={22} /></div>
                 <div className="dash-empty-title">No groups yet</div>
                 <div className="dash-empty-desc">Assign topology groups to devices to segment your network.</div>
-                <button type="button" className="dash-empty-action" onClick={() => onNavigate("/vlans")}>Manage groups</button>
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/vlans")}>Manage groups</button>
               </div>
             ) : (
               <div className="dash-breakdown">
@@ -499,7 +532,13 @@ export function OverviewWorkspace({
                   <div key={group} className="dash-breakdown-row">
                     <span className="dash-breakdown-label">{group}</span>
                     <div className="dash-mini-track">
-                      <div className="dash-mini-fill dash-mini-fill--purple" style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} />
+                      <div
+                        className="dash-mini-fill overview-group-fill"
+                        style={{
+                          width: `${total > 0 ? (count / total) * 100 : 0}%`,
+                          "--overview-group-color": groupColors.get(group) ?? resolveEntityColor(null, group),
+                        } as CSSProperties}
+                      />
                     </div>
                     <span className="dash-breakdown-count">{count}</span>
                   </div>
@@ -515,9 +554,9 @@ export function OverviewWorkspace({
       <div className="dash-grid-2">
 
         {/* Recently updated */}
-        <div className="dash-panel">
-          <div className="dash-panel-header">
-            <span className="dash-panel-title">Recently updated</span>
+        <div className="dash-panel nm-app-panel overview-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconDeviceDesktop size={18} />} title="Recently updated" />
             <div className="dash-panel-actions">
               {canWrite && (
                 <>
@@ -529,7 +568,7 @@ export function OverviewWorkspace({
                   </button>
                 </>
               )}
-              <button type="button" className="dash-panel-link" onClick={() => onNavigate("/inventory")}>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
                 View all <IconArrowRight size={12} />
               </button>
             </div>
@@ -547,7 +586,7 @@ export function OverviewWorkspace({
                     <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>
                   </div>
                 ) : (
-                  <button type="button" className="dash-empty-action" onClick={() => onNavigate("/inventory")}>View inventory</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/inventory")}>View inventory</button>
                 )}
               </div>
             ) : (
@@ -572,20 +611,22 @@ export function OverviewWorkspace({
         </div>
 
         {/* Monitoring snapshot */}
-        <div className="dash-panel">
-          <div className="dash-panel-header dash-panel-header--favourites">
-            <span className="dash-panel-title">Favourites</span>
+        <div className="dash-panel nm-app-panel overview-panel">
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header dash-panel-header--favourites">
+            <OverviewPanelIdentity icon={<Star size={18} />} title="Favourites" />
             <div className="dash-panel-actions">
-              <div className="overview-fav-search">
+              <div className="overview-fav-search nm-search nm-search--toolbar">
                 <Search size={13} aria-hidden="true" />
                 <input
+                  className="nm-input"
                   type="search"
+                  aria-label="Search favourites"
                   value={favouriteSearch}
                   onChange={(e) => setFavouriteSearch(e.target.value)}
                   placeholder="Search favourites"
                 />
               </div>
-              <button type="button" className="dash-panel-link" onClick={() => onNavigate("/monitoring")}>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/monitoring")}>
                 View all <IconArrowRight size={12} />
               </button>
             </div>
@@ -615,7 +656,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconShieldCheck size={22} /></div>
                 <div className="dash-empty-title">No favourites yet</div>
                 <div className="dash-empty-desc">Star devices in monitoring or inventory to pin them here.</div>
-                <button type="button" className="dash-empty-action" onClick={() => onNavigate("/monitoring")}>Go to Monitoring</button>
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/monitoring")}>Go to Monitoring</button>
               </div>
             ) : visibleFavouriteDevices.length === 0 ? (
               <div className="dash-empty-state">
