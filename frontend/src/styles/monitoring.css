@@ -1118,6 +1118,11 @@ body.route-monitoring .dash-alert {
   line-height: 1.35;
 }
 
+body.route-monitoring .workspace > .dash-alert--announcement,
+body.route-ipam .workspace > .dash-alert--announcement {
+  margin: 0 0 var(--nm-workspace-section-gap);
+}
+
 .mon-ports-sidebar {
   position: sticky;
   top: 48px;
@@ -1134,35 +1139,51 @@ body.route-monitoring .dash-alert {
 /* Device list table */
 .mon-table-body { flex: 1; overflow: auto; min-height: 0; }
 
+/* The saved columns retain exact pixel widths. When their total is narrower
+   than the viewport, the table's empty filler column absorbs only the spare
+   width so the real row surface and divider continue behind the fixed action
+   column. */
+.mon-table-body--fleet {
+  background: var(--nm-modal-section);
+}
+
 .mon-table {
   width: max(100%, 1580px);
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12.5px;
+  background: var(--nm-modal-section);
 }
 
 .mon-table th {
+  height: 38px;
   text-align: left;
-  padding: 9px 14px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #7a96a8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(209, 220, 230, 0.6);
+  padding: 11px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nm-text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--nm-border);
   white-space: nowrap;
-  background: #f3f7fa;
+  background: var(--nm-modal-section);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .mon-row {
+  height: 50px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(209, 220, 230, 0.5);
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-section);
   transition: background 0.1s;
 }
 
-.mon-row td { padding: 10px 14px; vertical-align: middle; overflow: hidden; }
+.mon-row td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  overflow: hidden;
+}
 
 .mon-table th:first-child,
 .mon-row td:first-child,
@@ -1176,6 +1197,33 @@ body.route-monitoring .dash-alert {
 .mon-table--fleet th:last-child,
 .mon-table--fleet .mon-row td:last-child {
   text-align: center;
+}
+
+.mon-table--fleet .mon-table-filler {
+  padding: 0;
+  text-align: left;
+}
+
+/* Favourite is a row action rather than data, so resizing or horizontally
+   scrolling the data columns must not dislodge it from the right edge. */
+.mon-table--fleet th:last-child,
+.mon-table--fleet .mon-row td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--nm-modal-section);
+}
+
+.mon-table--fleet .mon-row:hover td:last-child {
+  background: var(--nm-row-hover);
+}
+
+.mon-table--fleet .mon-row--active td:last-child {
+  background: rgba(29, 154, 176, 0.07);
+}
+
+.mon-table--fleet .mon-row--active:hover td:last-child {
+  background: rgba(29, 154, 176, 0.10);
 }
 
 .mon-table th:nth-child(n+3),
@@ -1669,6 +1717,10 @@ body.theme-dark .mon-checks-group-label { color: #4a7a96; }
   flex-wrap: wrap;
 }
 
+.mon-table--fleet .nm-chip {
+  max-width: 100%;
+}
+
 .mon-refresh-status {
   color: var(--nm-text-faint);
   font-size: 11px;
@@ -2066,8 +2118,8 @@ body.theme-dark .modal-close:hover { background: rgba(90, 122, 149, 0.30); color
 body.theme-dark .ipam-modal-close { background: rgba(90, 122, 149, 0.18); color: #8ab4cc; }
 body.theme-dark .ipam-modal-close:hover { background: rgba(90, 122, 149, 0.30); color: #c8dff0; }
 
-body.theme-dark .mon-table th { background: #1a2535; color: var(--nm-text-faint); border-color: var(--nm-border-strong); }
-body.theme-dark .mon-row { border-color: #253545; }
+body.theme-dark .mon-table th { background: var(--nm-modal-section); color: var(--nm-text-muted); border-color: var(--nm-border-strong); }
+body.theme-dark .mon-row { background: var(--nm-modal-section); border-color: var(--nm-border-strong); }
 body.theme-dark .mon-row--active { background: rgba(29,154,176,0.12); }
 body.theme-dark .mon-device-name { color: #d8eaf5; }
 body.theme-dark .mon-device-ip { color: var(--nm-text-faint); }
@@ -2344,7 +2396,7 @@ body.theme-dark .ipam-btn--primary:hover:not(:disabled) {
   font-size: 11px;
 }
 
-body.route-ipam .dash-alert {
+body.route-ipam .ipam-workspace .dash-alert {
   margin: 0 0 14px;
 }
 
@@ -4026,8 +4078,8 @@ button.dash-stat {
 .theme-dark .mon-flap-badge { color: #fbbf24; background: rgba(217, 154, 34, 0.22); }
 .theme-dark .ipam-expired-badge { color: #fca5a5; background: rgba(220, 38, 38, 0.25); }
 
-/* Separate Devices/Monitors window selector. The switcher is deliberately a
-   sibling above the active panel rather than a folder tab attached to it. */
+/* Legacy in-page monitoring switcher retained for the endpoint form's attached tabs.
+   Primary Devices/Endpoints navigation now lives under Monitoring in the app sidebar. */
 .mon-view-switcher {
   display: flex;
   align-items: flex-end;
@@ -4041,9 +4093,9 @@ button.dash-stat {
   z-index: 1;
 }
 .mon-view-window {
-  margin-top: -1px;
+  margin-top: 0;
   border-color: var(--nm-border);
-  border-radius: var(--nm-radius-lg);
+  border-radius: var(--nm-radius-sm);
 }
 .mon-panel-tabs {
   display: flex;
@@ -4084,7 +4136,26 @@ button.dash-stat {
   margin-bottom: -1px;
 }
 .mon-device-window-header {
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 12px;
+  background: var(--nm-modal-section);
+}
+.mon-table-toolbar-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.mon-table-toolbar-meta strong {
+  color: var(--nm-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.mon-table-toolbar-meta span {
+  color: var(--nm-text-muted);
+  font-size: 11px;
 }
 .mon-tab-panel {
   display: flex;
@@ -4092,9 +4163,40 @@ button.dash-stat {
   min-height: 0;
   width: 100%;
 }
-.mon-view-window--monitors .mon-table-body {
+.mon-view-window--endpoints .mon-table-body {
   display: flex;
   overflow: hidden;
+}
+
+.mon-view-window--endpoints .monitors-table-wrap {
+  border-radius: 0;
+  border-inline: 0;
+}
+
+.mon-view-window--endpoints .nm-table {
+  background: var(--nm-modal-section);
+  font-size: 12.5px;
+}
+
+.mon-view-window--endpoints .nm-table th {
+  padding: 11px 12px;
+  background: var(--nm-modal-section);
+  color: var(--nm-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.mon-view-window--endpoints .nm-table td {
+  padding: 10px 12px;
+  background: var(--nm-modal-section);
+}
+
+body.theme-dark .mon-view-window--endpoints .nm-table th,
+body.theme-dark .mon-view-window--endpoints .nm-table td {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-section);
 }
 
 /* ── Standalone monitors panel ─────────────────────────────────────────── */

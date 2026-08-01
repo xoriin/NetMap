@@ -333,20 +333,20 @@
 }
 
 .inventory-layout .dash-alert--overview-bar {
-  margin: 0 18px;
+  margin: 0 var(--nm-workspace-gutter-x);
   width: auto;
 }
 
 .inventory-stats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 16px 18px 0;
+  margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0;
 }
 
 .inventory-live-banner {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: -4px 18px 0;
+  margin: -4px var(--nm-workspace-gutter-x) 0;
   padding: 9px 14px;
   border: 1px solid rgba(224, 80, 80, 0.28);
   border-radius: 8px;
@@ -488,8 +488,8 @@
   }
 
   body.route-inventory .topology-content {
-    padding-left: 18px;
-    padding-right: 18px;
+    padding-left: var(--nm-workspace-gutter-x);
+    padding-right: var(--nm-workspace-gutter-x);
   }
 }
 
@@ -2920,7 +2920,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
   color: var(--nm-accent-strong);
 }
 
-.admin-panel-header button {
+.admin-panel-header button:not(.nm-btn) {
   min-height: 36px;
   border: 0;
   border-radius: 8px;
@@ -2933,7 +2933,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
   transition: opacity 0.15s;
 }
 
-.admin-panel-header button:hover {
+.admin-panel-header button:not(.nm-btn):hover {
   opacity: 0.9;
 }
 
