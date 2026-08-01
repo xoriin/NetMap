@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { setupCoreMocks } from "./helpers/api-mocks";
 
+test.skip(process.env.NETMAP_UI_PREVIEW_TESTS !== "1", "Theme preview is available only from the Vite development server");
+
 for (const theme of ["light", "dark"] as const) {
   test(`theme preview renders the panel review board in ${theme} mode`, async ({ page }) => {
     await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));

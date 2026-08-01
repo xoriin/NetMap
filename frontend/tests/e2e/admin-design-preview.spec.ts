@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
+test.skip(process.env.NETMAP_UI_PREVIEW_TESTS !== "1", "Admin design previews are available only from the Vite development server");
+
 for (const theme of ["light", "dark"] as const) {
   test(`Admin design alternatives render in ${theme} mode`, async ({ page }) => {
     await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
