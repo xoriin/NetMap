@@ -9,10 +9,11 @@ export const BEAT_COLOR: Record<string, string> = {
 
 export const HB_MAX_BEATS = 120;
 
-export const MON_COL_WIDTHS_KEY = "netmap.mon_col_widths_v8";
-// 6 resizable cols: Device | 24h | 7d | Avg RTT | Services | Checked  (Status+Fav fixed)
-export const MON_COL_COUNT = 6;
-export const MON_DEFAULT_COL_WIDTHS = [420, 100, 100, 100, 100, 100];
+export const MON_COL_WIDTHS_KEY = "netmap.mon_col_widths_v9";
+// 7 resizable cols: Device | Type | 24h | 7d | Avg RTT | Services | Checked
+// (Status + Favourite stay fixed at the outside edges.)
+export const MON_COL_COUNT = 7;
+export const MON_DEFAULT_COL_WIDTHS = [380, 140, 100, 100, 100, 100, 100];
 // The two unresizable columns bracketing them. Kept here so the <col> widths and
 // the table's total width are always computed from the same numbers — under
 // table-layout: fixed any mismatch is redistributed across every column.
