@@ -107,8 +107,8 @@ export function NotificationsTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel" style={{ marginBottom: 16 }}>
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel admin-panel-separated">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification methods</h2>
           <div className="admin-panel-actions">
             <button
