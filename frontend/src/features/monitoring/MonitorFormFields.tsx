@@ -96,13 +96,13 @@ export function MonitorFormFields({ form, setForm, editingMonitor, httpMethods, 
     <div className="monitor-form-intro">
       <div className="monitor-form-intro-icon"><Globe2 size={21} /></div>
       <div>
-        <strong>{editingMonitor ? "Configure endpoint monitor" : "Create an endpoint monitor"}</strong>
+        <strong>{editingMonitor ? "Configure endpoint check" : "Create an endpoint check"}</strong>
         <span>Start with the target, then add only the request and validation options this endpoint needs.</span>
       </div>
       <span className={`nm-pill ${form.enabled ? "monitor-form-state--enabled" : "monitor-form-state--paused"}`}>{form.enabled ? "Enabled" : "Paused"}</span>
     </div>
     <div className="monitor-form-tabbed-window">
-      <nav className="mon-panel-tabs monitor-form-nav" role="tablist" aria-label="Monitor settings sections">
+      <nav className="mon-panel-tabs monitor-form-nav" role="tablist" aria-label="Endpoint settings sections">
         {sections.map(({ id, label }) => <button
           key={id}
           type="button"
@@ -247,7 +247,7 @@ export function MonitorFormFields({ form, setForm, editingMonitor, httpMethods, 
           <span className="tool-note tool-note--hint">Comma-separated codes or ranges.</span>
         </label>
         <div className="monitor-form-option-cell">
-          <Check label="Invert the final monitor result" checked={form.upside_down} onChange={(value) => update("upside_down", value)} />
+          <Check label="Invert the final check result" checked={form.upside_down} onChange={(value) => update("upside_down", value)} />
         </div>
       </div>
       <label>Required keyword

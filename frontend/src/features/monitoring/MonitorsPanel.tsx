@@ -114,7 +114,7 @@ export function MonitorsPanel({
       setMonitors(await api.listMonitors(accessToken));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load monitors");
+      setError(err instanceof Error ? err.message : "Failed to load endpoints");
     } finally {
       setLoading(false);
     }
@@ -281,7 +281,7 @@ export function MonitorsPanel({
       setShowForm(false);
       await load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to save monitor");
+      setFormError(err instanceof Error ? err.message : "Failed to save endpoint");
     } finally {
       setFormBusy(false);
     }
@@ -289,18 +289,18 @@ export function MonitorsPanel({
 
   async function deleteMonitor(monitor: Monitor) {
     const confirmed = await confirmAction({
-      title: "Delete monitor",
+      title: "Delete endpoint",
       message: `This permanently deletes "${monitor.name}" and its check history.`,
-      confirmLabel: "Delete monitor",
+      confirmLabel: "Delete endpoint",
     });
     if (!confirmed) return;
     try {
       await api.deleteMonitor(accessToken, monitor.id);
       if (selectedId === monitor.id) setSelectedId(null);
-      toast.success(`Monitor "${monitor.name}" deleted`);
+      toast.success(`Endpoint "${monitor.name}" deleted`);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete monitor");
+      toast.error(err instanceof Error ? err.message : "Failed to delete endpoint");
     }
   }
 
@@ -309,7 +309,7 @@ export function MonitorsPanel({
       await api.updateMonitor(accessToken, monitor.id, { enabled: !monitor.enabled });
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update monitor");
+      toast.error(err instanceof Error ? err.message : "Failed to update endpoint");
     }
   }
 
@@ -319,7 +319,7 @@ export function MonitorsPanel({
 
       <div className="dash-panel-header monitors-table-toolbar">
         <div className="monitors-table-toolbar-meta">
-          <strong>HTTP/HTTPS monitors</strong>
+          <strong>HTTP/HTTPS endpoints</strong>
           <span className="dash-panel-meta">
             {filteredMonitors.length === monitors.length
               ? `${monitors.length} endpoint${monitors.length === 1 ? "" : "s"}`
@@ -327,7 +327,7 @@ export function MonitorsPanel({
           </span>
         </div>
         <div className="mon-panel-controls">
-          <select className="toolbar-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter monitors by status">
+          <select className="toolbar-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter endpoints by status">
             <option value="all">All statuses</option>
             <option value="online">Online</option>
             <option value="offline">Offline</option>
@@ -343,16 +343,16 @@ export function MonitorsPanel({
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-          {canWrite && <button type="button" className="nm-btn nm-btn--primary nm-btn--sm" onClick={openAddForm}>+ Add monitor</button>}
+          {canWrite && <button type="button" className="nm-btn nm-btn--primary nm-btn--sm" onClick={openAddForm}>+ Add endpoint</button>}
         </div>
       </div>
 
       {loading ? (
-        <p className="dash-empty">Loading monitors…</p>
+        <p className="dash-empty">Loading endpoints…</p>
       ) : monitors.length === 0 ? (
-        <p className="dash-empty">No standalone monitors yet. Add one to start tracking an HTTP/HTTPS endpoint.</p>
+        <p className="dash-empty">No HTTP/HTTPS endpoints yet. Add one to start tracking availability and response time.</p>
       ) : filteredMonitors.length === 0 ? (
-        <p className="dash-empty">No monitors match the current filters.</p>
+        <p className="dash-empty">No endpoints match the current filters.</p>
       ) : (
         <div className="monitors-layout">
           <div className="nm-table-wrap monitors-table-wrap">
@@ -434,7 +434,7 @@ export function MonitorsPanel({
       {filteredMonitors.length > 0 && (
         <div className="inv-pagination">
           <span className="inv-pagination-info">
-            Showing {Math.min((page - 1) * pageSize + 1, filteredMonitors.length)}–{Math.min(page * pageSize, filteredMonitors.length)} of {filteredMonitors.length} monitor{filteredMonitors.length !== 1 ? "s" : ""}
+              Showing {Math.min((page - 1) * pageSize + 1, filteredMonitors.length)}–{Math.min(page * pageSize, filteredMonitors.length)} of {filteredMonitors.length} endpoint{filteredMonitors.length !== 1 ? "s" : ""}
           </span>
           <div className="inv-pagination-controls">
             <span style={{ fontSize: 11, opacity: 0.7 }}>Per page:</span>
@@ -470,12 +470,12 @@ export function MonitorsPanel({
 
       {showForm && (
         <Modal
-          title={editingId !== null ? "Edit monitor" : "Add monitor"}
+          title={editingId !== null ? "Edit endpoint" : "Add endpoint"}
           size="lg"
           modalClassName="monitor-form-modal"
           onCancel={() => setShowForm(false)}
           headerSubmitFormId="monitor-form"
-          headerSubmitLabel={formBusy ? "Saving…" : editingId !== null ? "Save" : "Add monitor"}
+          headerSubmitLabel={formBusy ? "Saving…" : editingId !== null ? "Save" : "Add endpoint"}
           headerSubmitDisabled={formBusy}
         >
           <form id="monitor-form" className="modal-form monitor-form" onSubmit={(e) => void saveMonitor(e)}>
@@ -498,7 +498,7 @@ export function MonitorsPanel({
   return (
     <div className="monitors-panel">
       <div className="dash-stats">
-        <DashStat label="Monitors" value={stats.total} sub={stats.total === 0 ? "none yet" : "standalone targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
+        <DashStat label="Endpoints" value={stats.total} sub={stats.total === 0 ? "none yet" : "HTTP/HTTPS targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
         <DashStat label="Up" value={stats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
         <DashStat label="Down" value={stats.offline} sub={stats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={stats.offline > 0 ? "red" : "green"} />
         <DashStat label="Avg response" value={fmtMonitorRtt(stats.avgRtt)} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
