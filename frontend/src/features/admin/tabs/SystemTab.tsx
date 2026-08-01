@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Settings, UserCircle } from "lucide-react";
+import { Settings } from "lucide-react";
 import {
-  IconUsers, IconCloud, IconDatabase, IconDeviceDesktop, IconBolt,
+  IconCloud, IconDatabase,
   IconServer,
 } from "@tabler/icons-react";
 import {
   api,
   type SystemSettings, type SystemDiagnostics, type VersionInfo, type RestoreValidationResult,
-  type DashboardSummary, type TopologyGraph, type ScheduledBackup,
+  type ScheduledBackup,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
@@ -16,9 +16,6 @@ import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from ".
 
 export function SystemTab({
   accessToken,
-  graph,
-  summary,
-  userCount,
   versionInfo,
   onOpenWhatsNew,
   onSettingsChange,
@@ -26,9 +23,6 @@ export function SystemTab({
   onSuccess,
 }: {
   accessToken: string;
-  graph: TopologyGraph;
-  summary: DashboardSummary | null;
-  userCount: number;
   versionInfo: VersionInfo | null;
   onOpenWhatsNew: () => void;
   onSettingsChange: (settings: SystemSettings) => void;
@@ -218,42 +212,14 @@ export function SystemTab({
   }
 
   return (
-    <div className="admin-tab-content">
-      <div className="admin-system-stats">
-        <div className="admin-system-stat">
-          <span className="admin-system-stat-icon admin-system-stat-icon--teal"><IconDeviceDesktop size={22} /></span>
-          <div>
-            <strong>{summary?.device_count ?? graph.devices.length}</strong>
-            <span>Devices</span>
-          </div>
-        </div>
-        <div className="admin-system-stat">
-          <span className="admin-system-stat-icon admin-system-stat-icon--blue"><IconBolt size={22} /></span>
-          <div>
-            <strong>{summary?.relationship_count ?? graph.relationships.length}</strong>
-            <span>Links</span>
-          </div>
-        </div>
-        <div className="admin-system-stat">
-          <span className="admin-system-stat-icon admin-system-stat-icon--purple"><IconUsers size={22} /></span>
-          <div>
-            <strong>{summary?.group_count ?? new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size}</strong>
-            <span>Groups</span>
-          </div>
-        </div>
-        <div className="admin-system-stat">
-          <span className="admin-system-stat-icon admin-system-stat-icon--teal"><UserCircle size={22} /></span>
-          <div>
-            <strong>{userCount}</strong>
-            <span>Users</span>
-          </div>
-        </div>
-      </div>
+    <div className="admin-tab-content admin-system-page">
       <div className="system-tab-grid">
         <div className="system-tab-col">
-          <section className="panel admin-panel">
-            <h2 className="admin-section-title"><Settings size={16} />App settings</h2>
-            <form className="tool-form" onSubmit={saveSettings}>
+          <section className="panel admin-panel nm-app-panel admin-system-card">
+            <div className="admin-system-card-header nm-app-panel-header">
+              <h2 className="admin-section-title"><Settings size={16} />App settings</h2>
+            </div>
+            <form className="tool-form admin-system-card-body" onSubmit={saveSettings}>
               <label>App name <input maxLength={80} value={settingsForm.app_name} onChange={(e) => setSettingsForm((c) => ({ ...c, app_name: e.target.value }))} /></label>
               <label>Login page message <textarea maxLength={300} rows={2} value={settingsForm.login_message} onChange={(e) => setSettingsForm((c) => ({ ...c, login_message: e.target.value }))} /></label>
               <label>
@@ -338,8 +304,8 @@ export function SystemTab({
                       <option value={30}>30 days</option>
                     </select>
                   </label>
-                  <fieldset style={{ border: '1px solid #d0dde6', borderRadius: 6, padding: '8px 12px' }}>
-                    <legend style={{ fontSize: 12, fontWeight: 700, color: '#314656', padding: '0 4px' }}>Notify via saved methods</legend>
+                  <fieldset className="admin-system-fieldset">
+                    <legend>Notify via saved methods</legend>
                     {settingsForm.ip_reservation_reminder_channels.filter((channel) => !channel.startsWith("profile:")).map(ch => (
                       <label key={ch} className="tool-form-inline-check" style={{ marginBottom: 4 }}>
                         <input type="checkbox" checked
@@ -406,10 +372,13 @@ export function SystemTab({
               </button>
             </form>
           </section>
-          <section className="panel admin-panel">
-            <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
-            <p className="tool-note">SuperAdmin only. Operates directly on the SQLite database file.</p>
-            <div className="tool-form">
+          <section className="panel admin-panel nm-app-panel admin-system-card">
+            <div className="admin-system-card-header nm-app-panel-header">
+              <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
+            </div>
+            <div className="admin-system-card-body">
+              <p className="tool-note">SuperAdmin only. Operates directly on the SQLite database file.</p>
+              <div className="tool-form">
               <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
                 {backupBusy === "backup" ? "Preparing…" : "Download backup"}
               </button>
@@ -444,12 +413,16 @@ export function SystemTab({
                   </button>
                 </>
               )}
+              </div>
             </div>
           </section>
-          <section className="panel admin-panel">
-            <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
-            <p className="tool-note">Automatically writes a signed backup to disk on a schedule and prunes older copies.</p>
-            <div className="tool-form">
+          <section className="panel admin-panel nm-app-panel admin-system-card">
+            <div className="admin-system-card-header nm-app-panel-header">
+              <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
+            </div>
+            <div className="admin-system-card-body">
+              <p className="tool-note">Automatically writes a signed backup to disk on a schedule and prunes older copies.</p>
+              <div className="tool-form">
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.backup_schedule_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_enabled: e.target.checked }))} />
                 <span className="tool-form-check-copy">
@@ -480,39 +453,40 @@ export function SystemTab({
               <button type="button" className="nm-btn nm-btn--primary" disabled={scheduleBusy} onClick={() => void saveBackupSchedule()}>
                 {scheduleBusy ? "Saving…" : "Save schedule"}
               </button>
-            </div>
-            {scheduledBackups.length > 0 ? (
-              <div className="mon-port-rows" style={{ marginTop: 12 }}>
-                {scheduledBackups.map((b) => (
-                  <div key={b.filename} className="mon-port-row">
-                    <span className="mon-port-label" style={{ fontFamily: "monospace", fontSize: 12 }}>{b.filename}</span>
-                    <span className="dash-panel-meta">{fmtBytes(b.size_bytes)} · {new Date(b.created_at).toLocaleString()}</span>
-                    <div className="admin-panel-actions">
-                      <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void downloadScheduledBackupFile(b.filename)}>
-                        Download
-                      </button>
-                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void deleteScheduledBackupFile(b.filename)}>
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
               </div>
-            ) : (
-              <p className="tool-note" style={{ marginTop: 12 }}>No scheduled backups yet.</p>
-            )}
+              {scheduledBackups.length > 0 ? (
+                <div className="mon-port-rows" style={{ marginTop: 12 }}>
+                  {scheduledBackups.map((b) => (
+                    <div key={b.filename} className="mon-port-row">
+                      <span className="mon-port-label" style={{ fontFamily: "monospace", fontSize: 12 }}>{b.filename}</span>
+                      <span className="dash-panel-meta">{fmtBytes(b.size_bytes)} · {new Date(b.created_at).toLocaleString()}</span>
+                      <div className="admin-panel-actions">
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void downloadScheduledBackupFile(b.filename)}>
+                          Download
+                        </button>
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={scheduledBackupsBusyName === b.filename} onClick={() => void deleteScheduledBackupFile(b.filename)}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="tool-note" style={{ marginTop: 12 }}>No scheduled backups yet.</p>
+              )}
+            </div>
           </section>
         </div>
         <div className="system-tab-col">
           {versionInfo && (
-            <section className="panel admin-panel">
-              <div className="system-icon-header">
+            <section className="panel admin-panel nm-app-panel admin-system-card">
+              <div className="system-icon-header admin-system-card-header nm-app-panel-header">
                 <h2 className="admin-section-title" style={{ margin: 0 }}><IconCloud size={16} />Version</h2>
                 <button type="button" className="nm-btn nm-btn--primary" onClick={onOpenWhatsNew}>
                   What&apos;s new
                 </button>
               </div>
-              <dl className="admin-config-grid">
+              <dl className="admin-config-grid admin-system-card-body">
                 <dt>Installed</dt>
                 <dd>{versionInfo.channel ? `${versionInfo.channel}: ` : "v"}{versionInfo.current}</dd>
                 <dt>Latest</dt>
@@ -532,10 +506,13 @@ export function SystemTab({
               </dl>
             </section>
           )}
-          <section className="panel admin-panel">
-            <h2 className="admin-section-title"><IconDatabase size={16} />Syslog configuration</h2>
-            {syslogStatus ? (
-              <dl className="admin-config-grid">
+          <section className="panel admin-panel nm-app-panel admin-system-card">
+            <div className="admin-system-card-header nm-app-panel-header">
+              <h2 className="admin-section-title"><IconDatabase size={16} />Syslog configuration</h2>
+            </div>
+            <div className="admin-system-card-body">
+              {syslogStatus ? (
+                <dl className="admin-config-grid">
                 <dt>Firewall retention</dt><dd>{syslogStatus.retention_days} days</dd>
                 <dt>UDP listener</dt><dd>{syslogStatus.udp_enabled ? `enabled :${syslogStatus.udp_port}` : "disabled"}</dd>
                 <dt>TCP listener</dt><dd>{syslogStatus.tcp_enabled ? `enabled :${syslogStatus.tcp_port}` : "disabled"}</dd>
@@ -556,18 +533,20 @@ export function SystemTab({
                 )}
                 <dt>Last cleanup</dt><dd>{syslogStatus.retention_last_run_at ? new Date(syslogStatus.retention_last_run_at).toLocaleString() : "n/a"}</dd>
                 <dt>Last event</dt><dd>{syslogStatus.last_event_received_at ? new Date(syslogStatus.last_event_received_at).toLocaleString() : "n/a"}</dd>
-              </dl>
-            ) : <p>Loading…</p>}
+                </dl>
+              ) : <p>Loading…</p>}
+            </div>
           </section>
-          <section className="panel admin-panel">
-            <div className="system-icon-header">
+          <section className="panel admin-panel nm-app-panel admin-system-card">
+            <div className="system-icon-header admin-system-card-header nm-app-panel-header">
               <h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2>
               <button type="button" className="nm-btn nm-btn--primary" disabled={diagBusy} onClick={() => void loadDiagnostics()}>
                 {diagBusy ? "Loading…" : diagnostics ? "Refresh" : "Load"}
               </button>
             </div>
-            {diagnostics ? (
-              <dl className="admin-config-grid">
+            <div className="admin-system-card-body">
+              {diagnostics ? (
+                <dl className="admin-config-grid">
                 <dt>Main DB</dt>
                 <dd>{fmtBytes(diagnostics.database.main.total_bytes)}{diagnostics.database.main.wal_bytes > 0 ? ` (WAL: ${fmtBytes(diagnostics.database.main.wal_bytes)})` : ""}</dd>
                 <dt>Firewall DB</dt>
@@ -600,10 +579,11 @@ export function SystemTab({
                 <dd>{diagnostics.process.pid}</dd>
                 <dt>Generated</dt>
                 <dd style={{ opacity: 0.7 }}>{new Date(diagnostics.generated_at).toLocaleString()}</dd>
-              </dl>
-            ) : (
-              <p className="tool-note">Click Load to fetch current runtime diagnostics.</p>
-            )}
+                </dl>
+              ) : (
+                <p className="tool-note">Click Load to fetch current runtime diagnostics.</p>
+              )}
+            </div>
           </section>
         </div>
       </div>
