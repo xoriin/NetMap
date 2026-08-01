@@ -1,13 +1,9 @@
-import { useCallback, useState } from "react";
-import { Settings, Shield } from "lucide-react";
-import {
-  IconUsers, IconShieldCheck, IconCloud, IconAlertCircle,
-  IconServer, IconCalendarClock, IconPalette,
-} from "@tabler/icons-react";
+import { useCallback, useEffect, useState } from "react";
+import "./admin.css";
 import {
   api,
   type SystemSettings, type VersionInfo,
-  type DashboardSummary, type TopologyGraph,
+  type TopologyGraph,
 } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useToast } from "../../components/Toast";
@@ -21,49 +17,54 @@ import { GroupsTab } from "./tabs/GroupsTab";
 import { CredentialsTab } from "./tabs/CredentialsTab";
 import { AutomationTab } from "./tabs/AutomationTab";
 import { DeviceIconsTab } from "./tabs/DeviceIconsTab";
-
-type AdminTabId = "system" | "devices-icons" | "users" | "security" | "notifications" | "alerts" | "groups" | "credentials" | "automation";
-
-const adminTabs = [
-  { id: "system", label: "System", Icon: Settings },
-  { id: "devices-icons", label: "Devices & Icons", Icon: IconPalette },
-  { id: "users", label: "Users", Icon: IconUsers },
-  { id: "groups", label: "Groups", Icon: IconShieldCheck },
-  { id: "credentials", label: "SNMP Profiles", Icon: IconServer },
-  { id: "notifications", label: "Notifications", Icon: IconCloud },
-  { id: "alerts", label: "Alerts", Icon: IconAlertCircle },
-  { id: "automation", label: "Automation", Icon: IconCalendarClock },
-  { id: "security", label: "Security", Icon: Shield },
-] as const;
+import {
+  ADMIN_TAB_CHANGE_EVENT,
+  navigateToAdminTab,
+  readAdminTabFromLocation,
+  type AdminTabId,
+} from "./adminNavigation";
 
 export function AdminWorkspace({
   accessToken,
   graph,
-  summary,
   onSettingsChange,
   onOpenWhatsNew,
   versionInfo,
 }: {
   accessToken: string;
   graph: TopologyGraph;
-  summary: DashboardSummary | null;
   onSettingsChange: (settings: SystemSettings) => void;
   onOpenWhatsNew: () => void;
   versionInfo: VersionInfo | null;
 }) {
-  const [activeTab, setActiveTab] = useState<AdminTabId>("system");
+  const [activeTab, setActiveTab] = useState<AdminTabId>(() => readAdminTabFromLocation());
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
-  // Set when the Users tab jumps to Security with a per-user audit filter;
-  // cleared on any direct tab-bar navigation.
+  // Set when the Users section jumps to Security with a per-user audit filter;
+  // cleared whenever navigation selects another Admin section.
   const [auditFocusUserId, setAuditFocusUserId] = useState<number | null>(null);
 
   const usersQuery = useApiQuery(() => api.listUsers(accessToken), [accessToken]);
   const users = usersQuery.data ?? [];
 
+  useEffect(() => {
+    const syncAdminTab = () => {
+      setAuditFocusUserId(null);
+      setActiveTab(readAdminTabFromLocation());
+    };
+    window.addEventListener("popstate", syncAdminTab);
+    window.addEventListener("hashchange", syncAdminTab);
+    window.addEventListener(ADMIN_TAB_CHANGE_EVENT, syncAdminTab);
+    return () => {
+      window.removeEventListener("popstate", syncAdminTab);
+      window.removeEventListener("hashchange", syncAdminTab);
+      window.removeEventListener(ADMIN_TAB_CHANGE_EVENT, syncAdminTab);
+    };
+  }, []);
+
   function showUserAudit(userId: number) {
+    navigateToAdminTab("security");
     setAuditFocusUserId(userId);
-    setActiveTab("security");
   }
 
   const showSuccess = useCallback((message: string | null) => {
@@ -71,74 +72,59 @@ export function AdminWorkspace({
   }, [toast]);
 
   return (
-    <section className="admin-layout">
-      <div className="admin-tabs">
-        {adminTabs.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className={`admin-tab-btn${activeTab === id ? " active" : ""}`}
-            onClick={() => { setAuditFocusUserId(null); setActiveTab(id); }}
-          >
-            <Icon size={14} aria-hidden="true" />
-            {label}
-          </button>
-        ))}
+    <section className="admin-layout nm-admin-workspace">
+      <div className="admin-purpose-content">
+        {error && <div className="form-error">{error}</div>}
+        {usersQuery.error && <div className="form-error">{usersQuery.error}</div>}
+
+        {activeTab === "system" && (
+          <SystemTab
+            accessToken={accessToken}
+            versionInfo={versionInfo}
+            onOpenWhatsNew={onOpenWhatsNew}
+            onSettingsChange={onSettingsChange}
+            onError={setError}
+            onSuccess={showSuccess}
+          />
+        )}
+        {activeTab === "users" && (
+          <UsersTab
+            accessToken={accessToken}
+            users={users}
+            usersLoading={usersQuery.isLoading}
+            setUsers={usersQuery.setData}
+            onReloadUsers={() => void usersQuery.reload()}
+            onShowUserAudit={showUserAudit}
+            onError={setError}
+            onSuccess={showSuccess}
+          />
+        )}
+        {activeTab === "devices-icons" && (
+          <DeviceIconsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
+        {activeTab === "security" && (
+          <SecurityTab
+            accessToken={accessToken}
+            users={users}
+            initialUserFilter={auditFocusUserId}
+          />
+        )}
+        {activeTab === "notifications" && (
+          <NotificationsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
+        {activeTab === "alerts" && (
+          <AlertsTab accessToken={accessToken} graph={graph} />
+        )}
+        {activeTab === "groups" && (
+          <GroupsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
+        {activeTab === "credentials" && (
+          <CredentialsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
+        {activeTab === "automation" && (
+          <AutomationTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
       </div>
-
-      {error && <div className="form-error">{error}</div>}
-      {usersQuery.error && <div className="form-error">{usersQuery.error}</div>}
-
-      {activeTab === "system" && (
-        <SystemTab
-          accessToken={accessToken}
-          graph={graph}
-          summary={summary}
-          userCount={users.length}
-          versionInfo={versionInfo}
-          onOpenWhatsNew={onOpenWhatsNew}
-          onSettingsChange={onSettingsChange}
-          onError={setError}
-          onSuccess={showSuccess}
-        />
-      )}
-      {activeTab === "users" && (
-        <UsersTab
-          accessToken={accessToken}
-          users={users}
-          usersLoading={usersQuery.isLoading}
-          setUsers={usersQuery.setData}
-          onReloadUsers={() => void usersQuery.reload()}
-          onShowUserAudit={showUserAudit}
-          onError={setError}
-          onSuccess={showSuccess}
-        />
-      )}
-      {activeTab === "devices-icons" && (
-        <DeviceIconsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-      )}
-      {activeTab === "security" && (
-        <SecurityTab
-          accessToken={accessToken}
-          users={users}
-          initialUserFilter={auditFocusUserId}
-        />
-      )}
-      {activeTab === "notifications" && (
-        <NotificationsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-      )}
-      {activeTab === "alerts" && (
-        <AlertsTab accessToken={accessToken} graph={graph} />
-      )}
-      {activeTab === "groups" && (
-        <GroupsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-      )}
-      {activeTab === "credentials" && (
-        <CredentialsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-      )}
-      {activeTab === "automation" && (
-        <AutomationTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-      )}
     </section>
   );
 }

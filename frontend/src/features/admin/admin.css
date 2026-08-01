@@ -1,0 +1,891 @@
+/* Admin -> Device icons: group/location colour list. */
+.entity-colors-heading {
+  margin: var(--nm-space-4) 0 var(--nm-space-2);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nm-text-muted);
+}
+
+.entity-colors-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nm-space-1);
+}
+
+.entity-colors-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  padding: var(--nm-space-1) 0;
+}
+
+.entity-colors-row .nm-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.entity-colors-note {
+  flex: 0 0 auto;
+  font-size: var(--nm-text-xs);
+  font-family: ui-monospace, monospace;
+  color: var(--nm-text-faint);
+}
+
+/* Colour cell in the Admin -> Device icons device-type rows. */
+.device-icons-color {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  flex: 0 0 auto;
+}
+
+.entity-colors-input {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Auth-source badge (Admin -> Users): linked single sign-on identity. */
+.nm-pill--sso {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+  border-color: rgba(29, 154, 176, 0.25);
+}
+
+.admin-user-name .nm-pill--sso {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── SSO provider test results (Admin -> Security) ──────────────────────── */
+.sso-check-list {
+  display: grid;
+  gap: var(--nm-space-1);
+  margin: var(--nm-space-2) 0;
+}
+
+.sso-check-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nm-space-2);
+  padding: 6px 10px;
+  border-radius: var(--nm-radius-sm);
+  border: 1px solid var(--nm-border);
+  background: var(--nm-surface-soft);
+  font-size: var(--nm-text-sm);
+  color: var(--nm-text);
+}
+
+.sso-check-row.ok .sso-check-status { color: var(--nm-success); }
+.sso-check-row.err {
+  border-color: rgba(217, 75, 75, 0.25);
+  background: var(--nm-danger-soft);
+}
+.sso-check-row.err .sso-check-status { color: var(--nm-danger); }
+
+.sso-check-status { font-weight: 700; }
+
+.sso-check-name {
+  min-width: 110px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.sso-check-message { color: var(--nm-text-muted); }
+
+.sso-require-block {
+  margin-top: var(--nm-space-3);
+  padding-top: var(--nm-space-3);
+  border-top: 1px solid var(--nm-border);
+}
+
+.mon-table-body,
+.nm-table-wrap {
+  scrollbar-gutter: stable;
+}
+
+.auth-field-hint {
+  display: block;
+  font-size: var(--nm-text-xs);
+  color: var(--nm-text-faint);
+  margin: 2px 0 4px;
+}
+
+/* Admin > System panel-palette trial. This deliberately borrows the popup
+   surface hierarchy at a lower elevation while remaining scoped to one page. */
+.admin-system-page .admin-system-stat {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.admin-system-page .admin-system-stat:hover {
+  border-color: var(--nm-tab-hover-border);
+  box-shadow: var(--nm-shadow-md);
+  transform: translateY(-1px);
+}
+
+.admin-system-page .admin-system-stat strong {
+  color: var(--nm-text);
+}
+
+.admin-system-page .admin-system-stat > div > span {
+  color: var(--nm-text-muted);
+}
+
+.admin-system-page .admin-panel {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.admin-system-page .admin-system-card {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  background: var(--nm-modal-shell);
+}
+
+.admin-system-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-3);
+  min-height: 56px;
+  padding: var(--nm-space-3) var(--nm-space-5);
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.admin-system-card-body {
+  padding: var(--nm-space-5);
+  background: var(--nm-modal-section);
+}
+
+.admin-system-card-body > :first-child {
+  margin-top: 0;
+}
+
+.admin-system-card-body > :last-child {
+  margin-bottom: 0;
+}
+
+.admin-system-page .admin-section-title,
+.admin-system-page .tool-form label,
+.admin-system-page .admin-config-grid dd {
+  color: var(--nm-modal-label);
+}
+
+.admin-system-page .admin-config-grid dt,
+.admin-system-page .tool-note {
+  color: var(--nm-text-muted);
+}
+
+.admin-system-page .tool-form input:not([type="checkbox"]),
+.admin-system-page .tool-form select,
+.admin-system-page .tool-form textarea {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+.admin-system-page .tool-form input:not([type="checkbox"]):hover,
+.admin-system-page .tool-form select:hover,
+.admin-system-page .tool-form textarea:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+.admin-system-page .tool-form input:not([type="checkbox"]):focus,
+.admin-system-page .tool-form select:focus,
+.admin-system-page .tool-form textarea:focus {
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  outline: none;
+}
+
+.admin-system-page .tool-form input::placeholder,
+.admin-system-page .tool-form textarea::placeholder {
+  color: var(--nm-text-faint);
+}
+
+.admin-system-fieldset {
+  margin: 0;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: var(--nm-space-3) var(--nm-space-4);
+  background: var(--nm-surface-soft);
+}
+
+.admin-system-fieldset legend {
+  padding: 0 var(--nm-space-1);
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-sm);
+  font-weight: 700;
+}
+
+/* Admin is the first full workspace migration onto the approved hierarchy. */
+.admin-layout.nm-admin-workspace {
+  min-width: 0;
+  margin-top: 0;
+  color: var(--nm-text);
+}
+
+.admin-layout .admin-purpose-content {
+  min-width: 0;
+}
+
+.admin-layout .admin-tab-content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 0;
+}
+
+.admin-layout .admin-panel.nm-app-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0;
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  padding: 0 16px 16px;
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header {
+  height: 44px;
+  min-height: 44px;
+  margin: 0 -16px;
+  padding: 0 18px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header--copy {
+  height: auto;
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.admin-layout .admin-panel.nm-app-panel.admin-system-card {
+  display: block;
+  padding: 0;
+  background: var(--nm-modal-shell);
+}
+
+.admin-layout.nm-admin-workspace .admin-system-card > .nm-app-panel-header {
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 18px;
+}
+
+.admin-layout .admin-system-card-body {
+  padding: 16px;
+  background: var(--nm-modal-section);
+}
+
+.admin-layout .admin-section-title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  margin: 0;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-layout .admin-section-title::after {
+  content: "-";
+  position: absolute;
+  left: 38px;
+  color: var(--nm-text-faint);
+  font-weight: 600;
+}
+
+.admin-layout .admin-section-title svg {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border-radius: var(--nm-radius-sm);
+  padding: 6px;
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+}
+
+.admin-layout .nm-app-panel-header > :last-child:not(:first-child) {
+  margin-left: 16px;
+}
+
+.admin-layout .nm-app-panel-header .tool-note {
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .tool-note,
+.admin-layout .dash-panel-meta,
+.admin-layout .auth-field-hint {
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .tool-form label,
+.admin-layout .nm-field,
+.admin-layout .notif-modal-type-section label {
+  color: var(--nm-modal-label);
+}
+
+.admin-layout .tool-form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.admin-layout .tool-form select,
+.admin-layout .tool-form textarea,
+.admin-layout .nm-input,
+.admin-layout .admin-search,
+.admin-layout .admin-users-row select,
+.admin-layout .rbac-new-group-input,
+.admin-layout .notif-modal-type-section select {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+.admin-layout .tool-form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):hover,
+.admin-layout .tool-form select:hover,
+.admin-layout .tool-form textarea:hover,
+.admin-layout .nm-input:hover,
+.admin-layout .admin-search:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+.admin-layout .tool-form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
+.admin-layout .tool-form select:focus,
+.admin-layout .tool-form textarea:focus,
+.admin-layout .nm-input:focus,
+.admin-layout .admin-search:focus {
+  border-color: var(--nm-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+.admin-layout input::placeholder,
+.admin-layout textarea::placeholder {
+  color: var(--nm-text-faint);
+}
+
+.admin-layout .tool-form-inline-check,
+.admin-layout .checkbox-label {
+  color: var(--nm-text);
+}
+
+.admin-layout .admin-inline-form,
+.admin-layout .admin-create-form,
+.admin-layout .admin-reset-form,
+.admin-layout .rbac-new-group-form {
+  margin: 0;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: 14px;
+  background: var(--nm-modal-shell);
+}
+
+.admin-layout .admin-create-form,
+.admin-layout .admin-reset-form {
+  border-top: 1px solid var(--nm-border);
+}
+
+.admin-layout .admin-fieldset,
+.admin-layout .admin-system-fieldset {
+  margin: 0;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: 10px 12px;
+  background: var(--nm-surface-soft);
+}
+
+.admin-layout .admin-fieldset legend,
+.admin-layout .admin-system-fieldset legend {
+  padding: 0 5px;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+}
+
+.admin-layout .admin-panel-actions,
+.admin-layout .admin-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-layout .admin-panel-spaced,
+.admin-layout .admin-alert-delivery-panel,
+.admin-layout .admin-security-audit-panel {
+  margin-top: 0;
+}
+
+.admin-layout .admin-panel-separated {
+  margin-bottom: 16px;
+}
+
+.admin-layout .admin-data-table-wrap,
+.admin-layout .admin-users-table,
+.admin-layout .notif-methods-table,
+.admin-layout .audit-log-table {
+  overflow-x: auto;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-section);
+  box-shadow: none;
+}
+
+.admin-layout .admin-data-table-wrap {
+  margin: 0;
+}
+
+.admin-layout .admin-data-table {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+  color: var(--nm-text);
+  font-size: var(--nm-text-sm);
+}
+
+.admin-layout .admin-data-table th,
+.admin-layout .admin-data-table td {
+  height: 40px;
+  border-bottom: 1px solid var(--nm-border);
+  padding: 7px 10px;
+  color: var(--nm-text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-layout .admin-data-table th {
+  height: 34px;
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-faint);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-layout .admin-data-table td strong { color: var(--nm-text); }
+.admin-layout .admin-data-table tbody tr:hover td { background: var(--nm-row-hover); }
+.admin-layout .admin-data-table tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3); }
+.admin-layout .admin-table-nowrap { white-space: nowrap; }
+
+.admin-layout .admin-users-header,
+.admin-layout .audit-log-header {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-faint);
+}
+
+.admin-layout .admin-users-row,
+.admin-layout .audit-log-row,
+.admin-layout .notif-method-row {
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .admin-users-row:last-child,
+.admin-layout .audit-log-row:last-child,
+.admin-layout .notif-method-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-layout .admin-users-row:hover,
+.admin-layout .audit-log-row:hover,
+.admin-layout .notif-method-row:hover,
+.admin-layout .device-icons-row:hover,
+.admin-layout .entity-colors-row:hover {
+  background: var(--nm-row-hover);
+  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+}
+
+.admin-layout .admin-users-row--editing {
+  border-left: 3px solid var(--nm-accent);
+  background: var(--nm-accent-soft);
+}
+
+.admin-layout .admin-user-name,
+.admin-layout .notif-method-name,
+.admin-layout .audit-action,
+.admin-layout .audit-actor,
+.admin-layout .audit-target,
+.admin-layout .rbac-perm-label-text strong,
+.admin-layout .device-icons-meta strong,
+.admin-layout .entity-colors-heading {
+  color: var(--nm-text);
+}
+
+.admin-layout .admin-user-email,
+.admin-layout .notif-method-meta,
+.admin-layout .audit-detail,
+.admin-layout .audit-time,
+.admin-layout .rbac-perm-desc,
+.admin-layout .device-icons-meta span,
+.admin-layout .entity-colors-note {
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .notif-methods-table { margin-top: 0; }
+
+.admin-layout .notif-method-row,
+.admin-layout .device-icons-row,
+.admin-layout .entity-colors-row {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.admin-layout .notif-method-card,
+.admin-layout .rbac-role-card {
+  border-color: var(--nm-border);
+  background: var(--nm-surface-soft);
+}
+
+.admin-layout .notif-method-card:hover,
+.admin-layout .notif-method-card--selected {
+  border-color: var(--nm-tab-active-border);
+  background: var(--nm-tab-active-bg);
+}
+
+.admin-layout .notif-method-card-label,
+.admin-layout .rbac-role-name {
+  color: var(--nm-modal-label);
+}
+
+.admin-layout .notif-method-card-desc,
+.admin-layout .notif-apprise-details summary {
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .rbac-role-card--custom {
+  border-color: color-mix(in srgb, #8174a3 32%, var(--nm-border));
+  background: color-mix(in srgb, #8174a3 6%, var(--nm-surface-soft));
+}
+
+.admin-layout .admin-automation-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(380px, 0.95fr);
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+}
+
+.admin-layout .admin-automation-split > .admin-create-form {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.admin-layout .admin-schedule-library {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 260px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-shell);
+}
+
+.admin-layout .admin-schedule-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.admin-layout .admin-schedule-library-header h3 {
+  margin: 0;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  font-weight: 750;
+}
+
+.admin-layout .admin-schedule-library-header span {
+  display: block;
+  margin-top: 2px;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+.admin-layout .admin-schedule-card-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  max-height: 460px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.admin-layout .admin-schedule-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: 11px;
+  background: var(--nm-modal-section);
+}
+
+.admin-layout .admin-schedule-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-layout .admin-schedule-card-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-layout .admin-schedule-card-heading strong {
+  overflow: hidden;
+  color: var(--nm-modal-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-schedule-card-heading .mono {
+  overflow: hidden;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-schedule-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.admin-layout .admin-schedule-card-meta > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-layout .admin-schedule-card-meta small {
+  color: var(--nm-text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-layout .admin-schedule-card-meta strong {
+  overflow: hidden;
+  color: var(--nm-text);
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-schedule-card > .admin-row-actions {
+  padding-top: 9px;
+  border-top: 1px solid var(--nm-border);
+}
+
+.admin-layout .admin-schedule-empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-sm);
+  text-align: center;
+}
+
+.admin-layout .admin-schedule-error { margin-left: 4px; color: var(--nm-danger); }
+
+.admin-layout .admin-role-select {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .admin-role-select--superadmin {
+  border-color: color-mix(in srgb, var(--nm-danger) 34%, var(--nm-border));
+  background: var(--nm-danger-soft);
+  color: var(--nm-danger);
+}
+
+.admin-layout .admin-role-select--networkadmin {
+  border-color: var(--nm-tab-active-border);
+  background: var(--nm-tab-active-bg);
+  color: var(--nm-accent-strong);
+}
+
+.admin-layout .admin-role-select--securityanalyst {
+  border-color: color-mix(in srgb, var(--nm-warning) 36%, var(--nm-border));
+  background: var(--nm-warning-soft);
+  color: color-mix(in srgb, var(--nm-warning) 82%, var(--nm-text));
+}
+
+.admin-layout .admin-role-select--viewer {
+  border-color: var(--nm-border);
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .admin-status-pill.active,
+.admin-layout .notif-status-badge--active,
+.admin-layout .alert-status-pill--active {
+  border-color: color-mix(in srgb, var(--nm-success) 34%, var(--nm-border));
+  background: var(--nm-success-soft);
+  color: var(--nm-success);
+}
+
+.admin-layout .admin-status-pill.suspended {
+  border-color: color-mix(in srgb, var(--nm-danger) 34%, var(--nm-border));
+  background: var(--nm-danger-soft);
+  color: var(--nm-danger);
+}
+
+.admin-layout .notif-status-badge--off,
+.admin-layout .alert-status-pill {
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .admin-email-input {
+  border-color: var(--nm-accent);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+.admin-layout .admin-email-btn {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .admin-email-btn--save {
+  border-color: color-mix(in srgb, var(--nm-success) 34%, var(--nm-border));
+  background: var(--nm-success-soft);
+  color: var(--nm-success);
+}
+
+.admin-layout .audit-category-badge--auth {
+  border-color: var(--nm-tab-active-border);
+  background: var(--nm-tab-active-bg);
+  color: var(--nm-accent-strong);
+}
+
+.admin-layout .audit-category-badge--network,
+.admin-layout .audit-category-badge--device,
+.admin-layout .audit-category-badge--topology {
+  border-color: var(--nm-tab-hover-border);
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-accent-strong);
+}
+
+.admin-layout .audit-category-badge--security {
+  border-color: color-mix(in srgb, var(--nm-warning) 36%, var(--nm-border));
+  background: var(--nm-warning-soft);
+  color: color-mix(in srgb, var(--nm-warning) 82%, var(--nm-text));
+}
+
+.admin-layout .audit-category-badge--system {
+  border-color: var(--nm-border);
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-muted);
+}
+
+.admin-layout .scan-observation-row {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+}
+
+.admin-layout .scan-observation-row span { color: var(--nm-text-muted); }
+.admin-layout .scan-observation-badge {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong) !important;
+}
+.admin-layout .scan-observation-badge--ip_change {
+  background: var(--nm-warning-soft);
+  color: color-mix(in srgb, var(--nm-warning) 82%, var(--nm-text)) !important;
+}
+.admin-layout .scan-observation-badge--disappeared {
+  background: var(--nm-danger-soft);
+  color: var(--nm-danger) !important;
+}
+
+.admin-layout .admin-config-grid dt { color: var(--nm-text-muted); }
+.admin-layout .admin-config-grid dd { color: var(--nm-modal-label); }
+
+.admin-layout .admin-system-stats {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-layout .admin-system-stat {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+
+.admin-layout .admin-system-stat:hover {
+  border-color: var(--nm-tab-hover-border);
+  box-shadow: var(--nm-shadow-md);
+  transform: translateY(-1px);
+}
+
+.admin-layout .admin-system-stat strong { color: var(--nm-text); }
+.admin-layout .admin-system-stat > div > span { color: var(--nm-text-muted); }
+
+.admin-layout .form-error {
+  border: 1px solid color-mix(in srgb, var(--nm-danger) 34%, var(--nm-border));
+  border-radius: var(--nm-radius-md);
+  background: color-mix(in srgb, var(--nm-danger) 7%, var(--nm-modal-section));
+  color: var(--nm-danger);
+}
+
+@media (max-width: 760px) {
+  .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel > .nm-app-panel-header {
+    height: auto;
+    min-height: 44px;
+    align-items: flex-start;
+    flex-direction: column;
+    padding-block: 8px;
+  }
+
+  .admin-layout .nm-app-panel-header > :last-child:not(:first-child) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .admin-layout .admin-panel-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 1050px) {
+  .admin-layout .admin-automation-split {
+    grid-template-columns: 1fr;
+  }
+}
+
