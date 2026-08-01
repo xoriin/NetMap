@@ -3,6 +3,52 @@
   box-sizing: border-box;
 }
 
+html {
+  background: var(--nm-bg);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 143, 160, 0.58) var(--nm-bg);
+}
+
+html:has(body.theme-dark) {
+  color-scheme: dark;
+  background: #0c1118;
+  scrollbar-color: rgba(90, 122, 149, 0.62) #0c1118;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: var(--nm-bg);
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  border: 2px solid var(--nm-bg);
+  border-radius: 999px;
+  background: rgba(120, 143, 160, 0.58);
+}
+
+html:has(body.theme-dark)::-webkit-scrollbar-track,
+body.theme-dark::-webkit-scrollbar-track {
+  background: #0c1118;
+}
+
+html:has(body.theme-dark)::-webkit-scrollbar-thumb,
+body.theme-dark::-webkit-scrollbar-thumb {
+  border-color: #0c1118;
+  background: rgba(90, 122, 149, 0.62);
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(29, 154, 176, 0.72);
+}
+
 body {
   margin: 0;
   background: var(--nm-bg);
@@ -43,4 +89,3 @@ textarea {
   min-height: 100vh;
   background: var(--nm-bg);
 }
-
