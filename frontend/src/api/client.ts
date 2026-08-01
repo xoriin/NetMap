@@ -531,6 +531,7 @@ export type DnsRecordType = "A" | "AAAA" | "MX" | "TXT" | "NS" | "CNAME";
 
 export type DnsRecord = {
   value: string;
+  ttl: number | null;
 };
 
 export type DnsLookupResult = {
@@ -538,6 +539,9 @@ export type DnsLookupResult = {
   record_type: DnsRecordType;
   records: DnsRecord[];
   source: string;
+  dns_server: string | null;
+  response_code: string;
+  canonical_name: string | null;
   duration_ms: number;
 };
 
@@ -770,6 +774,8 @@ export type DeviceMonitorSummary = {
   display_name: string | null;
   hostname: string | null;
   ip_address: string;
+  device_type: string | null;
+  icon: DeviceIcon | null;
   status: string;
   lifecycle: DeviceLifecycle;
   monitoring_paused: boolean;
@@ -1241,6 +1247,15 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
 export type DownloadResult = {
   blob: Blob;
   filename: string;
+};
+
+export type ExportSummary = {
+  inventory_rows: number | null;
+  firewall_events: number | null;
+  exports_last_30_days: number;
+  last_export_at: string | null;
+  last_export_type: string | null;
+  last_export_detail: string | null;
 };
 
 async function requestBlob(path: string, options: RequestOptions = {}, isRetry = false): Promise<DownloadResult> {
@@ -1724,6 +1739,7 @@ export const api = {
     }),
   downloadInventory: (token: string, format: "csv" | "json") =>
     requestBlob(`/api/v1/exports/inventory?format=${format}`, { token }),
+  getExportSummary: (token: string) => request<ExportSummary>("/api/v1/exports/summary", { token }),
   downloadFirewallExport: (token: string, params: FirewallEventSearchParams & { format: "csv" | "json"; limit?: number }) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
