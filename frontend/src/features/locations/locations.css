@@ -1,0 +1,364 @@
+/* ── Locations approved workspace migration ─────────────────────────────
+   Simple stat cards remain above one full-height location library. Search,
+   sorting and creation live in its attached header; the card canvas scrolls
+   internally and the result footer remains anchored. */
+body.route-locations .app-shell,
+body.route-locations .app-main {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.route-locations .workspace {
+  height: calc(100dvh - var(--nm-topbar-height));
+  overflow: hidden;
+}
+
+.locations-workspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.locations-workspace .loc-stats {
+  flex: 0 0 auto;
+}
+
+.locations-panel.nm-app-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  background: var(--nm-modal-section);
+}
+
+.locations-panel-header.nm-app-panel-header {
+  min-height: 44px;
+  flex: 0 0 auto;
+  gap: 16px;
+  padding: 6px 14px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.locations-panel-title,
+.locations-panel-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.locations-panel-title {
+  flex: 0 1 auto;
+  gap: 8px;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.locations-panel-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.locations-panel-separator,
+.locations-panel-count {
+  color: var(--nm-text-faint);
+}
+
+.locations-panel-count {
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+}
+
+.locations-panel-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.locations-sort-select.nm-select {
+  width: 142px;
+  flex: 0 0 142px;
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+}
+
+.locations-sort-direction {
+  min-width: 48px;
+}
+
+.locations-search.nm-search {
+  width: min(260px, 100%);
+  flex: 0 1 260px;
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+}
+
+.locations-sort-select.nm-select:hover,
+.locations-search.nm-search:hover {
+  border-color: var(--nm-tab-hover-border);
+}
+
+.locations-search .nm-input,
+body.theme-dark .locations-search .nm-input,
+body.theme-dark .locations-search .nm-input:focus {
+  background: transparent;
+}
+
+.locations-panel-body {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 16px;
+  background: var(--nm-modal-shell);
+}
+
+.locations-card-grid.loc-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 0;
+}
+
+.locations-workspace .loc-card,
+body.theme-dark .locations-workspace .loc-card {
+  position: relative;
+  min-height: 152px;
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+  transform: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.locations-workspace .loc-card:hover,
+body.theme-dark .locations-workspace .loc-card:hover {
+  border-color: var(--nm-tab-hover-border);
+  background: var(--nm-row-hover);
+  box-shadow: inset 3px 0 0 var(--nm-tab-active-border), var(--nm-shadow-sm);
+  transform: none;
+}
+
+.locations-workspace .loc-card:focus-visible {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft), var(--nm-shadow-sm);
+}
+
+.locations-workspace .loc-card--selected,
+body.theme-dark .locations-workspace .loc-card--selected {
+  border-color: var(--nm-accent);
+  background: var(--nm-accent-soft);
+  box-shadow: inset 3px 0 0 var(--nm-accent), var(--nm-shadow-sm);
+}
+
+.locations-workspace .loc-card-accent {
+  height: 3px;
+  background: var(--nm-accent);
+}
+
+.locations-workspace .loc-card-body {
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.locations-workspace .loc-card-name,
+body.theme-dark .locations-workspace .loc-card-name {
+  color: var(--nm-text);
+  font-size: var(--nm-text-lg);
+}
+
+.locations-workspace .loc-card-sub,
+body.theme-dark .locations-workspace .loc-card-sub {
+  color: var(--nm-text-muted);
+}
+
+.locations-workspace .loc-card-addr,
+body.theme-dark .locations-workspace .loc-card-addr {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--nm-text-muted);
+}
+
+.locations-workspace .loc-card-footer,
+body.theme-dark .locations-workspace .loc-card-footer {
+  min-height: 45px;
+  padding: 8px 14px;
+  border-top-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.locations-workspace .loc-item-badge,
+body.theme-dark .locations-workspace .loc-item-badge {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+}
+
+.locations-workspace .loc-item-badge--zero,
+body.theme-dark .locations-workspace .loc-item-badge--zero {
+  background: var(--nm-surface-soft);
+  color: var(--nm-text-faint);
+}
+
+.loc-card--loading {
+  cursor: default;
+}
+
+.loc-skeleton-title {
+  width: 60%;
+  height: 14px;
+}
+
+.loc-skeleton-copy {
+  width: 40%;
+  height: 11px;
+  margin-top: 6px;
+}
+
+.locations-empty-state {
+  min-height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.locations-panel-footer {
+  display: flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 7px 14px;
+  border-top: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+.location-modal-body {
+  padding: 16px 18px 18px;
+  background: var(--nm-modal-shell);
+}
+
+.location-modal-form,
+.location-modal-form .vlan-form-grid {
+  margin: 0;
+}
+
+.location-modal-form .nm-input {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+}
+
+.loc-colour-field {
+  display: flex;
+  min-height: var(--nm-control-md);
+  align-items: center;
+  gap: 8px;
+}
+
+.loc-colour-input {
+  width: 44px;
+  height: 32px;
+  flex: 0 0 44px;
+  cursor: pointer;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  padding: 2px;
+  background: var(--nm-modal-input);
+}
+
+.loc-colour-input:focus-visible {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+.loc-colour-value {
+  color: var(--nm-text-muted);
+  font-family: 'SF Mono', 'Fira Mono', Consolas, monospace;
+  font-size: var(--nm-text-sm);
+}
+
+.loc-detail-body {
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+}
+
+.loc-detail-meta dt {
+  color: var(--nm-modal-label);
+}
+
+.loc-detail-meta dd {
+  color: var(--nm-text-muted);
+}
+
+.loc-detail-map {
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-md);
+}
+
+@media (max-width: 1100px) {
+  .locations-panel-header.nm-app-panel-header {
+    flex-wrap: wrap;
+  }
+
+  .locations-panel-actions {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  body.route-locations .app-shell,
+  body.route-locations .app-main,
+  body.route-locations .workspace {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .locations-workspace {
+    overflow: visible;
+  }
+
+  .locations-panel-header.nm-app-panel-header,
+  .locations-panel-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .locations-panel-actions,
+  .locations-search.nm-search,
+  .locations-sort-select.nm-select {
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+  }
+
+  .locations-panel-body {
+    overflow: visible;
+  }
+
+  .location-modal-form .vlan-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .location-modal-form .vlan-form-grid__full {
+    grid-column: auto;
+  }
+}
+

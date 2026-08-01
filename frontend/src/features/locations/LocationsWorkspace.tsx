@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef, useMemo, useContext, type FormEvent } from "react";
+import { useState, useRef, useMemo, type FormEvent, type KeyboardEvent } from "react";
+import "./locations.css";
 import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useSortableData } from "../../hooks/useSortableData";
 import { Search } from "lucide-react";
 import { IconMapPin, IconServer, IconDeviceDesktop, IconBolt } from "@tabler/icons-react";
 import { api, type Site, type TopologyGraph } from "../../api/client";
-import { TopbarNoteCtx } from "../../context";
 import { blankToNull } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
-import { Modal } from "../../components/Modal";
+import { Modal, ModalFooterActions } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 
 export function LocationsWorkspace({
@@ -30,11 +30,10 @@ export function LocationsWorkspace({
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', display_name: '', description: '', address: '', color: '' });
   const [search, setSearch] = useState('');
-  const { sortKey, sortDir } = useSortableData<string>('name');
+  const { sortKey, sortDir, toggleSort } = useSortableData<string>('name');
   const [detailSite, setDetailSite] = useState<Site | null>(null);
   const [geocodeResult, setGeocodeResult] = useState<{ lat: number; lon: number } | null | 'loading'>(null);
   const geocodeCache = useRef<Map<number, { lat: number; lon: number } | null>>(new Map());
-  const setTopbarNote = useContext(TopbarNoteCtx);
 
   const deviceCountBySite = useMemo(() => {
     const counts = new Map<number, number>();
@@ -187,30 +186,24 @@ export function LocationsWorkspace({
     if (detailSite?.id === siteId) setDetailSite(null);
   }
 
-  const sortCols: { key: string; label: string; sortable?: boolean }[] = [
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'address', label: 'Address', sortable: true },
-    { key: 'devices', label: 'Devices', sortable: true },
-  ];
-
   const locationFormFields = (
     <div className="vlan-form-grid">
-      <label className="ipam-form-label">Name *
-        <input className="ipam-form-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Name *</span>
+        <input className="nm-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Display name
-        <input className="ipam-form-input" placeholder="e.g. London HQ" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Display name</span>
+        <input className="nm-input" placeholder="e.g. London HQ" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
       </label>
-      <label className="ipam-form-label vlan-form-grid__full">Address
-        <input className="ipam-form-input" placeholder="e.g. 123 Main St, London, UK" value={form.address} onChange={(event) => setForm((c) => ({ ...c, address: event.target.value }))} />
+      <label className="nm-field vlan-form-grid__full"><span className="nm-field-label">Address</span>
+        <input className="nm-input" placeholder="e.g. 123 Main St, London, UK" value={form.address} onChange={(event) => setForm((c) => ({ ...c, address: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Description
-        <input className="ipam-form-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Description</span>
+        <input className="nm-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Colour
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <input type="color" value={form.color || '#6366f1'} style={{ width: 44, height: 34, padding: 2, cursor: 'pointer', borderRadius: 6, border: '1px solid var(--border)' }} onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
-          <span style={{ fontFamily: 'monospace', fontSize: 12, opacity: 0.7 }}>{form.color || '#6366f1'}</span>
+      <label className="nm-field"><span className="nm-field-label">Colour</span>
+        <div className="loc-colour-field">
+          <input className="loc-colour-input" type="color" value={form.color || '#6366f1'} aria-label="Location colour" onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
+          <span className="loc-colour-value">{form.color || '#6366f1'}</span>
           {form.color && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
         </div>
       </label>
@@ -218,36 +211,16 @@ export function LocationsWorkspace({
     </div>
   );
 
-  useEffect(() => {
-    return () => setTopbarNote("");
-  }, [setTopbarNote]);
-
-  useEffect(() => {
-    setTopbarNote(
-      <div className="loc-topbar-actions">
-        <div className="nm-search nm-search--toolbar loc-topbar-search">
-          <Search size={14} className="nm-search-icon" aria-hidden="true" />
-          <input
-            className="nm-input"
-            type="search"
-            placeholder="Search locations..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        {canWrite && (
-          <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={openCreateForm}>
-            + New location
-          </button>
-        )}
-      </div>
-    );
-  }, [busy, canWrite, search, setTopbarNote]);
+  function inspectFromKeyboard(event: KeyboardEvent<HTMLDivElement>, site: Site) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    void showSiteDetail(site);
+  }
 
   return (
-    <section className="dash-layout">
+    <section className="dash-layout locations-workspace">
       {!sitesLoading && (
-        <div className="dash-stats loc-stats">
+        <div className="dash-stats loc-stats nm-summary-band">
           <DashStat label="Total sites" value={sites.length} sub="locations configured" icon={<IconMapPin size={20} />} accent="teal" />
           <DashStat label="Assigned devices" value={[...deviceCountBySite.values()].reduce((a, b) => a + b, 0)} sub="with a location" icon={<IconServer size={20} />} accent="green" />
           <DashStat label="Unassigned" value={unassignedDeviceCount} sub={unassignedDeviceCount > 0 ? "no location set" : "all assigned"} icon={<IconDeviceDesktop size={20} />} accent={unassignedDeviceCount > 0 ? "red" : "teal"} />
@@ -257,72 +230,107 @@ export function LocationsWorkspace({
 
       {sitesQuery.error && <div className="error-banner">{sitesQuery.error}</div>}
 
-      {/* Card grid */}
-      {sitesLoading ? (
-        <div className="loc-grid">
-          {[1,2,3].map((n) => (
-            <div key={n} className="loc-card" style={{ cursor: 'default' }}>
-              <div className="loc-card-accent" />
-              <div className="loc-card-body">
-                <div className="skeleton-line" style={{ height: 14, width: '60%' }} />
-                <div className="skeleton-line" style={{ height: 11, width: '40%', marginTop: 6 }} />
-              </div>
+      <div className="nm-app-panel locations-panel">
+        <div className="nm-app-panel-header locations-panel-header">
+          <span className="locations-panel-title">
+            <span className="locations-panel-icon" aria-hidden="true"><IconMapPin size={18} /></span>
+            <span className="locations-panel-separator">-</span>
+            <span>Locations</span>
+            <span className="locations-panel-count">
+              {filteredSortedSites.length !== sites.length
+                ? `${filteredSortedSites.length} of ${sites.length}`
+                : sites.length}
+            </span>
+          </span>
+          <div className="locations-panel-actions">
+            <select
+              className="nm-select locations-sort-select"
+              aria-label="Sort locations"
+              value={sortKey}
+              onChange={(event) => {
+                if (event.target.value !== sortKey) toggleSort(event.target.value);
+              }}
+            >
+              <option value="name">Sort by name</option>
+              <option value="address">Sort by address</option>
+              <option value="devices">Sort by devices</option>
+            </select>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost locations-sort-direction" onClick={() => toggleSort(sortKey)} aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}>
+              {sortDir === 'asc' ? 'A–Z' : 'Z–A'}
+            </button>
+            <div className="nm-search nm-search--toolbar locations-search">
+              <Search size={14} className="nm-search-icon" aria-hidden="true" />
+              <input className="nm-input" type="search" aria-label="Search locations" placeholder="Search locations…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-          ))}
+            {canWrite && (
+              <button type="button" className="nm-btn nm-btn--primary" disabled={busy} onClick={openCreateForm}>+ New location</button>
+            )}
+          </div>
         </div>
-      ) : filteredSortedSites.length === 0 ? (
-        <div className="dash-empty-state" style={{ flex: 1 }}>
-          <div className="dash-empty-icon"><IconMapPin size={22} /></div>
-          <div className="dash-empty-title">
-            {search ? 'No locations match your search' : 'No locations yet'}
-          </div>
-          <div className="dash-empty-desc">
-            {search ? 'Try a different search term.' : 'Create a location to start organising your multi-site topology.'}
-          </div>
-          {!search && canWrite && (
-            <button type="button" className="dash-empty-action" onClick={openCreateForm}>Add location</button>
+        <div className="locations-panel-body">
+          {sitesLoading ? (
+            <div className="loc-grid locations-card-grid">
+              {[1,2,3].map((n) => (
+                <div key={n} className="loc-card loc-card--loading">
+                  <div className="loc-card-accent" />
+                  <div className="loc-card-body">
+                    <div className="skeleton-line loc-skeleton-title" />
+                    <div className="skeleton-line loc-skeleton-copy" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredSortedSites.length === 0 ? (
+            <div className="dash-empty-state locations-empty-state">
+              <div className="dash-empty-icon"><IconMapPin size={22} /></div>
+              <div className="dash-empty-title">{search ? 'No locations match your search' : 'No locations yet'}</div>
+              <div className="dash-empty-desc">{search ? 'Try a different search term.' : 'Create a location to start organising your multi-site topology.'}</div>
+              {!search && canWrite && <button type="button" className="nm-btn nm-btn--primary" onClick={openCreateForm}>Add location</button>}
+            </div>
+          ) : (
+            <div className="loc-grid locations-card-grid">
+              {filteredSortedSites.map((site) => {
+                const deviceCount = deviceCountBySite.get(site.id) ?? 0;
+                const isSelected = detailSite?.id === site.id && !showForm;
+                return (
+                  <div
+                    key={site.id}
+                    className={`loc-card${isSelected ? ' loc-card--selected' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${site.display_name ?? site.name}`}
+                    onClick={() => void showSiteDetail(site)}
+                    onKeyDown={(event) => inspectFromKeyboard(event, site)}
+                  >
+                    <div className="loc-card-accent" style={{ background: site.color || undefined }} />
+                    <div className="loc-card-body">
+                      <div className="loc-card-name">{site.display_name ?? site.name}</div>
+                      {site.display_name && site.display_name !== site.name && <div className="loc-card-sub">{site.name}</div>}
+                      {site.description && <div className="loc-card-sub">{site.description}</div>}
+                      {site.address && <div className="loc-card-addr"><IconMapPin size={11} aria-hidden="true" />{site.address}</div>}
+                    </div>
+                    <div className="loc-card-footer">
+                      <span className={`loc-item-badge${deviceCount === 0 ? ' loc-item-badge--zero' : ''}`}>{deviceCount} {deviceCount === 1 ? 'device' : 'devices'}</span>
+                      {canWrite && (
+                        <div className="loc-card-actions" onClick={(event) => event.stopPropagation()}>
+                          <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => openEditForm(site)}>Edit</button>
+                          <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busy} onClick={() => void handleDeleteSite(site.id, site.display_name ?? site.name)}>Delete</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-      ) : (
-        <div className="loc-grid">
-          {filteredSortedSites.map((site) => {
-            const deviceCount = deviceCountBySite.get(site.id) ?? 0;
-            const isSelected = detailSite?.id === site.id && !showForm;
-            return (
-              <div
-                key={site.id}
-                className={`loc-card${isSelected ? ' loc-card--selected' : ''}`}
-                onClick={() => void showSiteDetail(site)}
-              >
-                <div className="loc-card-accent" style={{ background: site.color || undefined }} />
-                <div className="loc-card-body">
-                  <div className="loc-card-name">{site.display_name ?? site.name}</div>
-                  {site.display_name && site.display_name !== site.name && (
-                    <div className="loc-card-sub">{site.name}</div>
-                  )}
-                  {site.description && <div className="loc-card-sub">{site.description}</div>}
-                  {site.address && <div className="loc-card-addr"><IconMapPin size={10} style={{ marginRight: 4, verticalAlign: 'middle', flexShrink: 0 }} />{site.address}</div>}
-                </div>
-                <div className="loc-card-footer">
-                  <span className={`loc-item-badge${deviceCount === 0 ? ' loc-item-badge--zero' : ''}`}>
-                    {deviceCount} {deviceCount === 1 ? 'device' : 'devices'}
-                  </span>
-                  {canWrite && (
-                    <div className="loc-card-actions" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => openEditForm(site)}>Edit</button>
-                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busy} onClick={() => void handleDeleteSite(site.id, site.display_name ?? site.name)}>Delete</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+        <div className="locations-panel-footer">Showing {filteredSortedSites.length} of {sites.length} locations</div>
+      </div>
 
       {detailSite && !showForm && (
         <Modal
           title={detailSite.display_name ?? detailSite.name}
+          titleIcon={<IconMapPin size={18} />}
           onCancel={() => setDetailSite(null)}
           size="sm"
           headerExtra={detailSite.color ? (
@@ -368,17 +376,19 @@ export function LocationsWorkspace({
       {showForm && (
         <Modal
           title={editingId !== null ? 'Edit location' : 'New location'}
+          titleIcon={<IconMapPin size={18} />}
           onCancel={closeForm}
           footer={(
-            <div className="nm-btn-row" style={{ width: '100%', justifyContent: 'flex-end' }}>
-              <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-              <button type="submit" form="location-form" className="nm-btn nm-btn--primary" disabled={busy}>
-                {editingId !== null ? 'Save changes' : 'Create location'}
-              </button>
-            </div>
+            <ModalFooterActions
+              formId="location-form"
+              onCancel={closeForm}
+              primaryDisabled={busy}
+              primaryLabel={editingId !== null ? 'Save changes' : 'Create location'}
+            />
           )}
+          bodyClassName="location-modal-body"
         >
-          <form id="location-form" className="modal-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
+          <form id="location-form" className="modal-form location-modal-form" onSubmit={(e) => void handleFormSubmit(e)}>
             {locationFormFields}
           </form>
         </Modal>
