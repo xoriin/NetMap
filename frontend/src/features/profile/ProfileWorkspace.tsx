@@ -1,5 +1,16 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Copy } from "lucide-react";
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import "./profile.css";
+import {
+  AlertTriangle,
+  Camera,
+  CircleUserRound,
+  KeyRound,
+  LockKeyhole,
+  Palette,
+  ShieldCheck,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import { EntityChip } from "../../components/EntityChip";
 import { api, type ApiKey, type ApiKeyExpiryDays, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
@@ -17,7 +28,28 @@ function formatKeyDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : "—";
 }
 
-function ApiKeysPanel({ accessToken }: { accessToken: string }) {
+function ProfilePanelHeader({
+  icon: Icon,
+  title,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  action?: ReactNode;
+}) {
+  return (
+    <header className="profile-panel-header nm-app-panel-header">
+      <span className="profile-panel-title">
+        <span className="profile-panel-icon"><Icon size={18} /></span>
+        <span aria-hidden="true">-</span>
+        <strong>{title}</strong>
+      </span>
+      {action && <span className="profile-panel-action">{action}</span>}
+    </header>
+  );
+}
+
+function ApiKeysPanel({ accessToken, onActiveCountChange }: { accessToken: string; onActiveCountChange: (count: number) => void }) {
   const toast = useToast();
   const confirmAction = useConfirm();
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -30,7 +62,9 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
 
   async function loadKeys() {
     try {
-      setKeys(await api.listApiKeys(accessToken));
+      const loaded = await api.listApiKeys(accessToken);
+      setKeys(loaded);
+      onActiveCountChange(loaded.filter((key) => key.revoked_at === null).length);
       setKeysError(null);
     } catch (err) {
       setKeysError(err instanceof Error ? err.message : "Failed to load API keys");
@@ -40,7 +74,7 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
   useEffect(() => {
     void loadKeys();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken]);
+  }, [accessToken, onActiveCountChange]);
 
   async function createKey(event: FormEvent) {
     event.preventDefault();
@@ -81,16 +115,6 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
     }
   }
 
-  /** Only the prefix exists after creation — useful for matching audit entries. */
-  async function copyPrefix(key: ApiKey) {
-    try {
-      await navigator.clipboard.writeText(`nm_${key.prefix}`);
-      toast.success("Key prefix copied — the full key is only shown at creation");
-    } catch {
-      toast.error("Could not copy the key prefix");
-    }
-  }
-
   async function copyCreatedKey() {
     if (!createdKey) return;
     try {
@@ -104,22 +128,34 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
   const activeKeys = keys.filter((key) => key.revoked_at === null);
 
   return (
-    <div className="profile-section">
-      <div className="profile-section-header">
-        <h2>API keys</h2>
-        <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowCreateModal(true)}>
-          Create API key
-        </button>
-      </div>
-      <p className="auth-field-hint">
-        API keys let external scripts and integrations call the NetMap API with your permissions. Send the key in
-        an <code>X-API-Key</code> header.
-      </p>
+    <section className="profile-api-panel profile-panel nm-app-panel">
+      <ProfilePanelHeader
+        icon={KeyRound}
+        title="API access"
+        action={(
+          <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowCreateModal(true)}>
+            Create API key
+          </button>
+        )}
+      />
+      <div className="profile-panel-body">
+        <div className="profile-section-intro">
+          <span className="profile-intro-icon"><ShieldCheck size={18} /></span>
+          <span>
+            <strong>Authenticated external access</strong>
+            <small>Use an <code>X-API-Key</code> header to call NetMap with your current account permissions.</small>
+          </span>
+        </div>
       {keysError && <div className="form-error">{keysError}</div>}
       {activeKeys.length === 0
-        ? <p className="auth-field-hint">You have no active API keys.</p>
+        ? (
+          <div className="profile-empty-state">
+            <KeyRound size={22} />
+            <span><strong>No active API keys</strong><small>Create a key when a script or integration needs access.</small></span>
+          </div>
+        )
         : (
-          <div className="nm-table-wrap">
+          <div className="profile-key-table nm-table-wrap">
             <table className="nm-table">
               <thead>
                 <tr>
@@ -137,19 +173,7 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
                     <td>{key.name}</td>
                     <td>
                       <span className="profile-key-cell">
-                        {/* The secret is never stored, so only the prefix can be
-                            shown — the mask stands in for the unknown remainder. */}
                         <span className="profile-key-mask nm-table-mono">•••• •••• •••• ••••</span>
-                        <span className="nm-table-mono">{key.prefix.slice(-4)}</span>
-                        <button
-                          type="button"
-                          className="nm-btn nm-btn--sm nm-btn--ghost nm-btn--icon"
-                          title="Copy key prefix"
-                          aria-label={`Copy the key prefix for ${key.name}`}
-                          onClick={() => void copyPrefix(key)}
-                        >
-                          <Copy size={13} />
-                        </button>
                       </span>
                     </td>
                     <td>{formatKeyDate(key.created_at)}</td>
@@ -171,6 +195,7 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
             </table>
           </div>
         )}
+      </div>
 
       {showCreateModal && (
         <Modal
@@ -181,6 +206,10 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
           headerSubmitDisabled={keysBusy || !newKeyName.trim()}
         >
           <form id="api-key-create-form" className="modal-form" onSubmit={(e) => void createKey(e)}>
+            <div className="nm-alert nm-alert--warning" role="note">
+              <AlertTriangle size={17} aria-hidden="true" />
+              <span>The complete key will be shown once after creation. Copy it before closing that window because it cannot be retrieved later.</span>
+            </div>
             <label>
               Name
               <input
@@ -211,9 +240,10 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
       {createdKey && (
         <Modal title="API key created" onCancel={() => setCreatedKey(null)}>
           <div className="modal-form">
-            <p className="form-error">
-              Copy this key now — it will not be shown again.
-            </p>
+            <div className="nm-alert nm-alert--warning" role="alert">
+              <AlertTriangle size={17} aria-hidden="true" />
+              <span><strong>Copy this key now.</strong> It will never be shown again and cannot be recovered after this window closes.</span>
+            </div>
             <label>
               Your new API key
               <input className="nm-table-mono" readOnly value={createdKey} onFocus={(e) => e.target.select()} />
@@ -229,7 +259,7 @@ function ApiKeysPanel({ accessToken }: { accessToken: string }) {
           </div>
         </Modal>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -256,6 +286,7 @@ export function ProfileWorkspace({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+  const [activeKeyCount, setActiveKeyCount] = useState<number | null>(null);
 
   function handleAvatarFile(file: File) {
     if (!file.type.startsWith("image/")) {
@@ -334,15 +365,14 @@ export function ProfileWorkspace({
   const initials = (user.display_name || user.username).slice(0, 2).toUpperCase();
 
   const roleLabel = user.role.replace(/_/g, " ");
+  const completedProfileFields = [displayName.trim(), profileEmail.trim(), avatarPreview].filter(Boolean).length;
+  const profileCompleteness = Math.round((completedProfileFields / 3) * 100);
+  const signInLabel = user.auth_source === "oidc" ? "Single sign-on" : "Local password";
 
   return (
     <section className="profile-layout">
-      {/* One panel, divided into sections. These are all settings for the same
-          page — giving each its own card added chrome without adding meaning. */}
-      <div className="panel profile-panel">
-        {/* Identity is stated once, up front. It used to be two disabled inputs
-            buried among the editable fields, which read as broken form fields. */}
-        <header className="profile-identity">
+      <section className="profile-identity-panel nm-app-panel">
+        <div className="profile-identity">
           <div className="profile-avatar">
             {avatarPreview
               ? <img src={avatarPreview} alt="Profile avatar" className="profile-avatar-img" />
@@ -350,155 +380,205 @@ export function ProfileWorkspace({
             }
           </div>
           <div className="profile-identity-text">
-            <h1 className="profile-identity-name">{user.display_name || user.username}</h1>
+            <h2 className="profile-identity-name">{user.display_name || user.username}</h2>
             <span className="profile-identity-username">@{user.username}</span>
             <div className="profile-identity-tags">
               <span className="nm-pill nm-pill--role">{roleLabel}</span>
               {user.auth_source === "oidc" && <span className="nm-pill nm-pill--sso">SSO</span>}
-              {user.email && <span className="profile-identity-email">{user.email}</span>}
+              {profileEmail && <span className="profile-identity-email">{profileEmail}</span>}
             </div>
           </div>
           <div className="profile-avatar-actions">
-            <label className="profile-avatar-upload-btn">
-              {avatarPreview ? "Change photo" : "Upload photo"}
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
-              />
-            </label>
-            {avatarPreview && (
-              <button type="button" className="profile-avatar-remove-btn" onClick={() => setAvatarPreview(null)}>
-                Remove photo
-              </button>
-            )}
+            <div className="profile-photo-actions">
+              <label className="nm-btn nm-btn--secondary profile-avatar-upload-btn">
+                <Camera size={15} />
+                {avatarPreview ? "Change photo" : "Upload photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="profile-avatar-file"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
+                />
+              </label>
+              {avatarPreview && (
+                <button type="button" className="nm-btn nm-btn--ghost nm-btn--sm" onClick={() => setAvatarPreview(null)}>
+                  Remove photo
+                </button>
+              )}
+            </div>
             <span className="profile-avatar-hint">Saved with account details</span>
           </div>
-        </header>
+        </div>
+      </section>
 
-        {/* One column. A profile is a short list of unrelated settings; side-by-side
-            panels can never balance in height and leave dead space beside the
-            shorter one. */}
-        <div className="profile-split">
-        <div className="profile-section">
-          <h2>Account details</h2>
-          <form className="profile-form" onSubmit={saveProfile}>
-            <label className="profile-field-label">
-              Display name
-              <input
-                className="profile-input"
-                placeholder={user.username}
-                value={displayName}
-                maxLength={100}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-              <span className="profile-field-hint">Shown instead of your username across NetMap.</span>
-            </label>
+      <section className="profile-summary-band nm-app-panel" aria-label="Account summary">
+        <div className="profile-summary-item profile-summary-item--progress">
+          <span
+            className="profile-completeness-ring"
+            style={{ "--profile-progress": `${profileCompleteness * 3.6}deg` } as CSSProperties}
+          >
+            <span>{profileCompleteness}%</span>
+          </span>
+          <span><strong>Profile completeness</strong><small>{profileCompleteness === 100 ? "Account details complete" : "Add a name, email, and photo"}</small></span>
+        </div>
+        <div className="profile-summary-item">
+          <span className="profile-summary-icon is-security"><ShieldCheck size={19} /></span>
+          <span><strong>Sign-in method</strong><b>{signInLabel}</b><small>{user.auth_source === "oidc" ? "Managed by your identity provider" : "Password protected"}</small></span>
+        </div>
+        <div className="profile-summary-item">
+          <span className="profile-summary-icon is-api"><KeyRound size={19} /></span>
+          <span><strong>Active API keys</strong><b>{activeKeyCount ?? "—"}</b><small>{activeKeyCount == null ? "Loading key status…" : activeKeyCount === 1 ? "1 key can access NetMap" : `${activeKeyCount} keys can access NetMap`}</small></span>
+        </div>
+        <div className="profile-summary-item">
+          <span className="profile-summary-icon is-role"><CircleUserRound size={19} /></span>
+          <span><strong>Access level</strong><b>{roleLabel}</b><small>Permissions follow this role</small></span>
+        </div>
+      </section>
 
-            <label className="profile-field-label">
-              Email
-              <input
-                className="profile-input"
-                type="email"
-                maxLength={254}
-                placeholder="you@example.com"
-                value={profileEmail}
-                onChange={(e) => setProfileEmail(e.target.value)}
-              />
-              <span className="profile-field-hint">Optional — used for password reset notifications.</span>
-            </label>
+      <div className="profile-settings-grid">
+        <div className="profile-settings-column">
+          <section className="profile-account-panel profile-panel nm-app-panel">
+            <ProfilePanelHeader icon={UserRound} title="Account details" />
+            <div className="profile-panel-body">
+              <form className="profile-form" onSubmit={saveProfile}>
+                <div className="profile-account-fields">
+              <label className="nm-field">
+                Display name
+                <input
+                  className="nm-input"
+                  placeholder={user.username}
+                  value={displayName}
+                  maxLength={100}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+                <span className="profile-field-hint">Shown instead of your username across NetMap.</span>
+              </label>
 
-            {profileError && <div className="form-error">{profileError}</div>}
+              <label className="nm-field">
+                Email
+                <input
+                  className="nm-input"
+                  type="email"
+                  maxLength={254}
+                  placeholder="you@example.com"
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                />
+                <span className="profile-field-hint">Optional — used for password reset notifications.</span>
+              </label>
+                </div>
 
-            <div className="profile-form-actions">
-              <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy}>
-                {profileBusy ? "Saving…" : "Save account details"}
-              </button>
+                {profileError && <div className="form-error">{profileError}</div>}
+
+                <div className="profile-form-actions">
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy}>
+                    {profileBusy ? "Saving…" : "Save account details"}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
+          </section>
+          <section className="profile-password-panel profile-panel nm-app-panel">
+            <ProfilePanelHeader icon={LockKeyhole} title="Password" />
+            <div className="profile-panel-body">
+              <form className="profile-form" onSubmit={changePassword}>
+                <div className="profile-password-fields">
+                  <label className="nm-field">
+                    Current password
+                    <input
+                      className="nm-input"
+                      type="password"
+                      autoComplete="current-password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                    />
+                  </label>
 
-        <div className="profile-section">
-          <h2>Preferences</h2>
-          <div className="profile-pref-row">
-            <div className="profile-pref-text">
-              <strong>Colour-coded columns</strong>
-              <span>
-                Show VLAN / group, location, and device type as coloured chips in the inventory
-                table and device details. Turn this off for neutral grey chips instead.
-              </span>
+                  <label className="nm-field">
+                    New password
+                    <input
+                      className="nm-input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      minLength={12}
+                      required
+                    />
+                  </label>
+
+                  <label className="nm-field">
+                    Confirm new password
+                    <input
+                      className="nm-input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+
+                {pwError && <div className="form-error">{pwError}</div>}
+
+                <div className="profile-form-actions">
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={pwBusy}>
+                    {pwBusy ? "Updating…" : "Change password"}
+                  </button>
+                </div>
+              </form>
             </div>
-            <div className="profile-pref-control">
-              <EntityChip label="Servers" colorKey="Servers" />
-              <button
-                type="button"
-                className={`nm-btn nm-btn--sm${entityColorsEnabled ? "" : " nm-btn--secondary"}`}
-                disabled={colorPrefBusy}
-                aria-pressed={entityColorsEnabled}
-                onClick={() => void saveColorPreference(!entityColorsEnabled)}
-              >
-                {colorPrefBusy ? "Saving…" : entityColorsEnabled ? "On" : "Off"}
-              </button>
+          </section>
+        </div>
+
+        <div className="profile-settings-column profile-settings-column--side">
+          <section className="profile-preferences-panel profile-panel nm-app-panel">
+            <ProfilePanelHeader icon={Palette} title="Preferences" />
+            <div className="profile-panel-body">
+              <div className="profile-pref-row">
+                <div className="profile-pref-text">
+                  <strong>Colour-coded entities</strong>
+                  <span>Show groups, locations, and device types as coloured chips throughout NetMap.</span>
+                </div>
+                <div className="profile-pref-control">
+                  <EntityChip label="Servers" colorKey="Servers" />
+                  <button
+                    type="button"
+                    className={`nm-btn nm-btn--sm${entityColorsEnabled ? " nm-btn--active" : " nm-btn--secondary"}`}
+                    disabled={colorPrefBusy}
+                    aria-pressed={entityColorsEnabled}
+                    onClick={() => void saveColorPreference(!entityColorsEnabled)}
+                  >
+                    {colorPrefBusy ? "Saving…" : entityColorsEnabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
+
+          <section className="profile-security-panel profile-panel nm-app-panel">
+            <ProfilePanelHeader icon={ShieldCheck} title="Account security" />
+            <div className="profile-security-list">
+              <div className="profile-security-row">
+                <span><strong>Sign-in method</strong><small>How this account authenticates</small></span>
+                <span className="nm-pill">{signInLabel}</span>
+              </div>
+              <div className="profile-security-row">
+                <span><strong>Password access</strong><small>{user.auth_source === "oidc" ? "Managed by your provider" : "Can be updated on this page"}</small></span>
+                <span className={`nm-pill ${user.auth_source === "oidc" ? "nm-pill--sso" : "nm-pill--online"}`}>{user.auth_source === "oidc" ? "SSO" : "Protected"}</span>
+              </div>
+              <div className="profile-security-row">
+                <span><strong>API access</strong><small>Keys inherit your account permissions</small></span>
+                <span className="nm-pill">{activeKeyCount ?? "—"} active</span>
+              </div>
+            </div>
+          </section>
         </div>
-        </div>
-
-        <div className="profile-section">
-          <h2>Password</h2>
-          <form className="profile-form" onSubmit={changePassword}>
-          <div className="profile-field-row">
-          <label className="profile-field-label">
-            Current password
-            <input
-              className="profile-input"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="profile-field-label">
-            New password
-            <input
-              className="profile-input"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              minLength={12}
-              required
-            />
-          </label>
-
-          <label className="profile-field-label">
-            Confirm new password
-            <input
-              className="profile-input"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-          </label>
-          </div>
-
-          {pwError && <div className="form-error">{pwError}</div>}
-
-          <div className="profile-form-actions">
-            <button type="submit" className="nm-btn nm-btn--primary" disabled={pwBusy}>
-              {pwBusy ? "Updating…" : "Change password"}
-            </button>
-          </div>
-          </form>
-        </div>
-
-        <ApiKeysPanel accessToken={accessToken} />
       </div>
+
+      <ApiKeysPanel accessToken={accessToken} onActiveCountChange={setActiveKeyCount} />
     </section>
   );
 }

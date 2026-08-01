@@ -1,0 +1,525 @@
+/* Profile -> Appearance preference row. */
+/* Stacked: the preference sits in a narrow column beside Account details, so
+   the description gets the full width and the controls sit under it. */
+.profile-pref-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--nm-space-3);
+}
+
+.profile-pref-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-pref-text strong {
+  font-size: var(--nm-text-md);
+}
+
+.profile-pref-text span {
+  font-size: var(--nm-text-sm);
+  color: var(--nm-text-muted);
+}
+
+.profile-pref-control {
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-3);
+  flex: 0 0 auto;
+}
+
+/* ── Profile approved workspace migration ───────────────────────────── */
+body.route-profile .profile-layout {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--nm-workspace-section-gap);
+  padding: 0;
+}
+
+body.route-profile .profile-panel,
+body.theme-dark.route-profile .profile-panel,
+body.route-profile .profile-identity-panel,
+body.route-profile .profile-summary-band {
+  min-width: 0;
+  flex: 0 0 auto;
+  border-color: var(--nm-border);
+  background: var(--nm-modal-section);
+  background-image: none;
+  box-shadow: var(--nm-shadow-sm);
+}
+
+body.route-profile .profile-identity-panel {
+  overflow: hidden;
+}
+
+body.route-profile .profile-identity {
+  display: flex;
+  min-width: 0;
+  min-height: 106px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+body.route-profile .profile-avatar {
+  width: 70px;
+  height: 70px;
+  flex: 0 0 70px;
+  border: 1px solid var(--nm-tab-active-border);
+  background: var(--nm-accent-soft);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--nm-modal-section) 72%, transparent);
+}
+
+body.route-profile .profile-avatar-initials {
+  color: var(--nm-accent-strong);
+  font-size: 21px;
+}
+
+body.route-profile .profile-identity-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 3px;
+}
+
+body.route-profile .profile-identity .profile-identity-name {
+  margin: 0;
+  color: var(--nm-text);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+body.route-profile .profile-identity-username,
+body.route-profile .profile-identity-email,
+body.route-profile .profile-avatar-hint {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+body.route-profile .profile-identity-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+body.route-profile .profile-avatar-actions {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 7px;
+  margin-left: auto;
+  text-align: right;
+}
+
+body.route-profile .profile-photo-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+body.route-profile .profile-avatar-upload-btn.nm-btn,
+body.theme-dark.route-profile .profile-avatar-upload-btn.nm-btn {
+  display: inline-flex;
+  min-height: var(--nm-control-md);
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--nm-radius-md);
+  padding: 0 12px;
+  font-size: var(--nm-text-sm);
+  text-decoration: none;
+}
+
+.profile-avatar-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+body.route-profile .profile-summary-band {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+body.route-profile .profile-summary-item {
+  display: flex;
+  min-width: 0;
+  min-height: 102px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+body.route-profile .profile-summary-item + .profile-summary-item {
+  border-left: 1px solid var(--nm-border);
+}
+
+body.route-profile .profile-summary-item > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+body.route-profile .profile-summary-item strong {
+  overflow: hidden;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.route-profile .profile-summary-item b {
+  overflow: hidden;
+  color: var(--nm-text);
+  font-size: var(--nm-text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.route-profile .profile-summary-item small {
+  overflow: hidden;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.route-profile .profile-completeness-ring {
+  --profile-progress: 0deg;
+  display: inline-flex;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--nm-accent) var(--profile-progress), var(--nm-border) 0);
+}
+
+body.route-profile .profile-completeness-ring > span {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--nm-modal-section);
+  color: var(--nm-text);
+  font-size: var(--nm-text-sm);
+  font-weight: 800;
+}
+
+body.route-profile .profile-summary-icon,
+body.route-profile .profile-panel-icon,
+body.route-profile .profile-intro-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+body.route-profile .profile-summary-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+}
+
+body.route-profile .profile-summary-icon.is-security {
+  border-color: color-mix(in srgb, var(--nm-success) 28%, var(--nm-border));
+  background: var(--nm-success-soft);
+  color: var(--nm-success);
+}
+
+body.route-profile .profile-summary-icon.is-api {
+  border-color: color-mix(in srgb, #4d9ee8 28%, var(--nm-border));
+  background: color-mix(in srgb, #4d9ee8 12%, transparent);
+  color: #4d9ee8;
+}
+
+body.route-profile .profile-summary-icon.is-role {
+  border-color: color-mix(in srgb, #a980e8 28%, var(--nm-border));
+  background: color-mix(in srgb, #a980e8 12%, transparent);
+  color: #a980e8;
+}
+
+body.route-profile .profile-settings-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+body.route-profile .profile-settings-column {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+body.route-profile .profile-panel-header.nm-app-panel-header {
+  min-height: 44px;
+  gap: 16px;
+  padding: 6px 18px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+body.route-profile .profile-panel-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--nm-text-faint);
+}
+
+body.route-profile .profile-panel-title strong {
+  overflow: hidden;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.route-profile .profile-panel-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+}
+
+body.route-profile .profile-panel-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: 16px;
+}
+
+body.route-profile .profile-panel-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+body.route-profile .profile-form,
+body.route-profile .profile-account-fields,
+body.route-profile .profile-password-fields {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+body.route-profile .profile-password-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.route-profile .profile-panel .nm-field {
+  display: grid;
+  gap: 6px;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+}
+
+body.route-profile .profile-panel .nm-input,
+body.theme-dark.route-profile .profile-panel .nm-input {
+  width: 100%;
+  min-height: var(--nm-control-lg);
+  border-color: var(--nm-border-strong);
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+}
+
+body.route-profile .profile-panel .nm-input:focus,
+body.theme-dark.route-profile .profile-panel .nm-input:focus {
+  border-color: var(--nm-accent);
+  background: var(--nm-modal-input);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+body.route-profile .profile-field-hint {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 400;
+}
+
+body.route-profile .profile-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nm-border);
+}
+
+body.route-profile .profile-pref-row {
+  gap: 14px;
+}
+
+body.route-profile .profile-pref-control {
+  width: 100%;
+  justify-content: space-between;
+}
+
+body.route-profile .profile-security-list {
+  display: grid;
+  padding: 0 16px;
+}
+
+body.route-profile .profile-security-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+}
+
+body.route-profile .profile-security-row + .profile-security-row {
+  border-top: 1px solid var(--nm-border);
+}
+
+body.route-profile .profile-security-row > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+body.route-profile .profile-security-row strong {
+  color: var(--nm-text);
+  font-size: var(--nm-text-sm);
+}
+
+body.route-profile .profile-security-row small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+body.route-profile .profile-section-intro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: 10px;
+  background: var(--nm-modal-shell);
+}
+
+body.route-profile .profile-intro-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+
+body.route-profile .profile-section-intro > span:last-child,
+body.route-profile .profile-empty-state > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+body.route-profile .profile-section-intro strong,
+body.route-profile .profile-empty-state strong {
+  color: var(--nm-text);
+  font-size: var(--nm-text-sm);
+}
+
+body.route-profile .profile-section-intro small,
+body.route-profile .profile-empty-state small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+body.route-profile .profile-empty-state {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  padding: 18px;
+  color: var(--nm-text-faint);
+  text-align: left;
+}
+
+body.route-profile .profile-key-table {
+  max-width: 100%;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+}
+
+body.route-profile .profile-key-mask {
+  color: var(--nm-text-faint);
+}
+
+@media (max-width: 1120px) {
+  body.route-profile .profile-summary-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.route-profile .profile-summary-item:nth-child(3) { border-left: 0; border-top: 1px solid var(--nm-border); }
+  body.route-profile .profile-summary-item:nth-child(4) { border-top: 1px solid var(--nm-border); }
+  body.route-profile .profile-settings-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  body.route-profile .profile-identity { align-items: flex-start; flex-wrap: wrap; }
+  body.route-profile .profile-avatar-actions { width: 100%; justify-items: start; margin-left: 0; text-align: left; }
+  body.route-profile .profile-photo-actions { justify-content: flex-start; }
+  body.route-profile .profile-password-fields { grid-template-columns: 1fr; }
+  body.route-profile .profile-panel-header.nm-app-panel-header { align-items: flex-start; flex-direction: column; padding-top: 8px; padding-bottom: 8px; }
+  body.route-profile .profile-panel-action { width: 100%; margin-left: 0; }
+  body.route-profile .profile-panel-action .nm-btn { width: 100%; }
+}
+
+@media (max-width: 560px) {
+  body.route-profile .profile-summary-band { grid-template-columns: 1fr; }
+  body.route-profile .profile-summary-item + .profile-summary-item { border-top: 1px solid var(--nm-border); border-left: 0; }
+  body.route-profile .profile-photo-actions { width: 100%; align-items: stretch; flex-direction: column; }
+  body.route-profile .profile-photo-actions .nm-btn { width: 100%; }
+  body.route-profile .profile-security-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+}
+
+@media (max-width: 900px) {
+  .tools-support-rail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .tools-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tools-console-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tools-library {
+    display: none;
+  }
+
+  .tools-guide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .tools-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
