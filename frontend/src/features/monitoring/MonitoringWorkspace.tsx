@@ -6,6 +6,7 @@ import {
   api,
   type FleetSummary, type DeviceMonitorSummary, type MonitorHistoryPoint,
   type PortTarget, type AlertEvent, type AlertRule, type DeviceAnalysis, type ServiceCheckType, type HttpMethod,
+  type Device,
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type Incident } from "../../types";
@@ -20,7 +21,18 @@ import {
 } from "../../components/MonitorBadges";
 import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 import { Modal } from "../../components/Modal";
+import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
+import { EntityChip } from "../../components/EntityChip";
+import { useDeviceTypes } from "../../hooks/useDeviceTypes";
+import { deviceTypeChipFor } from "../../utils/entityColor";
+import { formatDeviceTypeLabel } from "../../utils/format";
+import { iconLabel } from "../../icons";
 import { MonitorsPanel, type MonitorStats } from "./MonitorsPanel";
+import {
+  MONITORING_VIEW_CHANGE_EVENT,
+  readMonitoringViewFromLocation,
+  type MonitoringViewId,
+} from "./monitoringNavigation";
 
 type MonitoringSnapshot = {
   fleet: FleetSummary | null;
@@ -51,6 +63,7 @@ export function MonitoringWorkspace({
   accessToken,
   canWrite,
   favouriteIds,
+  inventoryDevices,
   livePingEnabled,
   monitorIntervalSeconds,
   onToggleFavourite,
@@ -59,12 +72,13 @@ export function MonitoringWorkspace({
   accessToken: string;
   canWrite: boolean;
   favouriteIds: Set<number>;
+  inventoryDevices: Device[];
   livePingEnabled: boolean;
   monitorIntervalSeconds: number;
   onToggleFavourite: (deviceId: number) => void;
   userRole: string;
 }) {
-  const [viewTab, setViewTab] = useState<"devices" | "monitors">("devices");
+  const [viewTab, setViewTab] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
   const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
@@ -183,17 +197,31 @@ export function MonitoringWorkspace({
   const [pauseBusyId, setPauseBusyId] = useState<number | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const { sortKey, sortDir, toggleSort } = useSortableData<"status" | "name" | "uptime24" | "uptime7" | "rtt" | "checked">("name");
+  const { sortKey, sortDir, toggleSort } = useSortableData<"status" | "name" | "type" | "uptime24" | "uptime7" | "rtt" | "checked">("name");
   const [deviceAlertEvents, setDeviceAlertEvents] = useState<AlertEvent[]>([]);
   const [allAlertRules, setAllAlertRules] = useState<AlertRule[]>([]);
   const [analysis, setAnalysis] = useState<DeviceAnalysis | null>(null);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterSite, setFilterSite] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterDeviceType, setFilterDeviceType] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
   const [devicesPage, setDevicesPage] = useState(1);
   const [devicesPageSize, setDevicesPageSize] = useState(() => loadPageSize(MON_DEVICES_PAGE_SIZE_KEY));
+  const deviceTypeOptions = useDeviceTypes(accessToken).options;
+
+  useEffect(() => {
+    const syncMonitoringView = () => setViewTab(readMonitoringViewFromLocation());
+    window.addEventListener("popstate", syncMonitoringView);
+    window.addEventListener("hashchange", syncMonitoringView);
+    window.addEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
+    return () => {
+      window.removeEventListener("popstate", syncMonitoringView);
+      window.removeEventListener("hashchange", syncMonitoringView);
+      window.removeEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
+    };
+  }, []);
 
   useEffect(() => {
     if (cachedSnapshot) {
@@ -392,36 +420,84 @@ export function MonitoringWorkspace({
     });
   }, [selectedId, accessToken]);
 
-  const selectedDevice = devices.find((d) => d.device_id === selectedId) ?? null;
+  // The monitoring endpoint carries these fields on current backends, while
+  // the already-loaded inventory graph is the compatibility source during a
+  // rolling frontend/backend update. Both pages therefore render from the
+  // same canonical device metadata instead of falling back to generic Device.
+  const inventoryMetadataById = useMemo(
+    () => new Map(inventoryDevices.map((device) => [device.id, device])),
+    [inventoryDevices],
+  );
+  const displayDevices = useMemo(
+    () => devices.map((device) => {
+      const inventoryDevice = inventoryMetadataById.get(device.device_id);
+      return {
+        ...device,
+        device_type: device.device_type ?? inventoryDevice?.device_type ?? null,
+        icon: device.icon ?? inventoryDevice?.icon ?? null,
+      };
+    }),
+    [devices, inventoryMetadataById],
+  );
+
+  const selectedDevice = displayDevices.find((d) => d.device_id === selectedId) ?? null;
 
   const groupOptions = useMemo(
-    () => [...new Set(devices.map((d) => d.topology_group).filter(Boolean))].sort() as string[],
-    [devices],
+    () => [...new Set(displayDevices.map((d) => d.topology_group).filter(Boolean))].sort() as string[],
+    [displayDevices],
   );
   const siteOptions = useMemo(
-    () => [...new Map(devices.filter((d) => d.site_id).map((d) => [d.site_id, d.site_name])).entries()]
+    () => [...new Map(displayDevices.filter((d) => d.site_id).map((d) => [d.site_id, d.site_name])).entries()]
       .sort(([, a], [, b]) => (a ?? "").localeCompare(b ?? "")),
-    [devices],
+    [displayDevices],
   );
   const vlanOptions = useMemo(
-    () => [...new Set(devices.map((d) => d.vlan_id).filter(Boolean))].sort() as string[],
-    [devices],
+    () => [...new Set(displayDevices.map((d) => d.vlan_id).filter(Boolean))].sort() as string[],
+    [displayDevices],
   );
+  const deviceTypeFilterOptions = useMemo(() => {
+    const inUse = [...new Set(displayDevices.map((device) => device.device_type).filter(Boolean) as string[])].sort();
+    const hasUntyped = displayDevices.some((device) => !device.device_type);
+    return [
+      { value: "all", label: "All types" },
+      ...(hasUntyped ? [{ value: "none", label: "No type" }] : []),
+      ...inUse.map((value) => {
+        const configured = deviceTypeOptions.find((option) => option.value === value);
+        return {
+          value,
+          label: configured?.label && configured.label !== value
+            ? configured.label
+            : formatDeviceTypeLabel(value),
+        };
+      }),
+    ];
+  }, [displayDevices, deviceTypeOptions]);
+
+  useEffect(() => {
+    if (filterDeviceType === "all") return;
+    if (!deviceTypeFilterOptions.some((option) => option.value === filterDeviceType)) {
+      setFilterDeviceType("all");
+    }
+  }, [deviceTypeFilterOptions, filterDeviceType]);
 
   const filteredDevices = useMemo(() => {
     const q = searchQ.toLowerCase();
     let filtered = q
-      ? devices.filter(
+      ? displayDevices.filter(
           (d) =>
             (d.display_name ?? "").toLowerCase().includes(q) ||
             (d.hostname ?? "").toLowerCase().includes(q) ||
-            d.ip_address.toLowerCase().includes(q),
+            d.ip_address.toLowerCase().includes(q) ||
+            (d.device_type ?? "").toLowerCase().includes(q),
         )
-      : [...devices];
+      : [...displayDevices];
 
     if (filterGroup !== "all") filtered = filtered.filter((d) => d.topology_group === filterGroup);
     if (filterSite !== "all") filtered = filtered.filter((d) => String(d.site_id) === filterSite);
     if (filterStatus !== "all") filtered = filtered.filter((d) => d.status === filterStatus);
+    if (filterDeviceType !== "all") {
+      filtered = filtered.filter((d) => filterDeviceType === "none" ? !d.device_type : d.device_type === filterDeviceType);
+    }
     if (filterVlan !== "all") filtered = filtered.filter((d) => d.vlan_id === filterVlan);
     if (favouriteFilter) filtered = filtered.filter((d) => favouriteIds.has(d.device_id));
 
@@ -437,6 +513,8 @@ export function MonitoringWorkspace({
           const nb = (b.display_name ?? b.hostname ?? b.ip_address).toLowerCase();
           return na.localeCompare(nb) * dir;
         }
+        case "type":
+          return (a.device_type ?? "").localeCompare(b.device_type ?? "") * dir;
         case "uptime24":
           return ((a.uptime_24h ?? -1) - (b.uptime_24h ?? -1)) * dir;
         case "uptime7":
@@ -452,7 +530,7 @@ export function MonitoringWorkspace({
       }
     });
     return filtered;
-  }, [devices, searchQ, filterGroup, filterSite, filterStatus, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
+  }, [displayDevices, searchQ, filterGroup, filterSite, filterStatus, filterDeviceType, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
 
   const paginatedDevices = useMemo(() => {
     const start = (devicesPage - 1) * devicesPageSize;
@@ -614,15 +692,15 @@ export function MonitoringWorkspace({
   return (
     <section className="dash-layout">
       {/* Stat cards — same pattern as Overview */}
-      {viewTab === "monitors" ? (
-        <div className="dash-stats dash-stats--monitoring">
-          <DashStat label="Monitors" value={monitorStats.total} sub={monitorStats.total === 0 ? "none yet" : "standalone targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
+      {viewTab === "endpoints" ? (
+        <div className="dash-stats dash-stats--monitoring nm-summary-band">
+          <DashStat label="Endpoints" value={monitorStats.total} sub={monitorStats.total === 0 ? "none yet" : "HTTP/HTTPS targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
           <DashStat label="Up" value={monitorStats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
           <DashStat label="Down" value={monitorStats.offline} sub={monitorStats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={monitorStats.offline > 0 ? "red" : "green"} />
           <DashStat label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
         </div>
       ) : (
-      <div className="dash-stats dash-stats--monitoring">
+      <div className="dash-stats dash-stats--monitoring nm-summary-band">
         <DashStat
           label="Monitored"
           value={fleet?.total ?? 0}
@@ -684,7 +762,7 @@ export function MonitoringWorkspace({
       )}
 
       {/* Offline alert */}
-      {offlineDevices.length > 0 && (
+      {viewTab === "devices" && offlineDevices.length > 0 && (
         <div className="dash-alert">
           <IconAlertCircle size={15} />
           <span>
@@ -696,36 +774,18 @@ export function MonitoringWorkspace({
         </div>
       )}
 
-      {/* Device / Monitor list */}
+      {/* Device / endpoint list */}
       <div className="mon-content">
-        <div className="mon-view-switcher">
-          <div className="mon-panel-tabs" role="tablist" aria-label="Monitoring view">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewTab === "devices"}
-              className={`mon-panel-tab${viewTab === "devices" ? " active" : ""}`}
-              onClick={() => setViewTab("devices")}
-            >
-              Devices
-              {filteredDevices.length !== devices.length
-                ? ` (${filteredDevices.length} of ${devices.length})`
-                : ` (${devices.length})`}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewTab === "monitors"}
-              className={`mon-panel-tab${viewTab === "monitors" ? " active" : ""}`}
-              onClick={() => setViewTab("monitors")}
-            >
-              Monitors ({monitorStats.total})
-            </button>
-          </div>
-        </div>
-
         <div key={viewTab} className={`dash-panel mon-view-window mon-view-window--${viewTab}`}>
           {viewTab === "devices" && <div className="dash-panel-header mon-device-window-header">
+              <div className="mon-table-toolbar-meta">
+                <strong>Devices</strong>
+                <span>
+                  {filteredDevices.length === devices.length
+                    ? `${devices.length} device${devices.length === 1 ? "" : "s"}`
+                    : `${filteredDevices.length} of ${devices.length}`}
+                </span>
+              </div>
               <div className="mon-panel-controls">
                 {refreshing && <span className="mon-refresh-status">Updating...</span>}
                 <select className="toolbar-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -735,6 +795,16 @@ export function MonitoringWorkspace({
                   <option value="warning">Warning</option>
                   <option value="unknown">Unknown</option>
                   <option value="paused">Paused</option>
+                </select>
+                <select
+                  aria-label="Filter by device type"
+                  className="toolbar-select"
+                  value={filterDeviceType}
+                  onChange={(event) => setFilterDeviceType(event.target.value)}
+                >
+                  {deviceTypeFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
                 {groupOptions.length > 0 && (
                   <select className="toolbar-select" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
@@ -779,8 +849,8 @@ export function MonitoringWorkspace({
                 </div>
               </div>
           </div>}
-          <div className="dash-panel-body mon-table-body">
-            {viewTab === "monitors" && <div className="mon-tab-panel">
+          <div className={`dash-panel-body mon-table-body${viewTab === "devices" ? " mon-table-body--fleet" : ""}`}>
+            {viewTab === "endpoints" && <div className="mon-tab-panel">
               <MonitorsPanel
                 accessToken={accessToken}
                 canWrite={canManagePorts}
@@ -805,7 +875,10 @@ export function MonitoringWorkspace({
                 // max(100%, 1580px) makes table-layout: fixed spread the
                 // difference over every column, so dragging one handle would
                 // visibly resize the others too.
-                style={{ tableLayout: "fixed", ...(fleetTableWidth !== null ? { width: fleetTableWidth } : null) }}
+                style={{
+                  tableLayout: "fixed",
+                  ...(fleetTableWidth !== null ? { width: `max(100%, ${fleetTableWidth}px)` } : null),
+                }}
               >
                 <colgroup>
                   <col style={{ width: MON_STATUS_COL_WIDTH }} />
@@ -813,6 +886,7 @@ export function MonitoringWorkspace({
                     ? colWidths.map((w, i) => <col key={i} style={{ width: w }} />)
                     : <>
                         <col style={{ width: MON_DEFAULT_COL_WIDTHS[0] }} />{/* Device */}
+                        <col style={{ width: MON_DEFAULT_COL_WIDTHS[1] }} />{/* Type */}
                         <col />{/* 24H: equal share */}
                         <col />{/* 7D: equal share */}
                         <col />{/* Avg RTT: equal share */}
@@ -820,6 +894,7 @@ export function MonitoringWorkspace({
                         <col />{/* Checked: equal share */}
                       </>
                   }
+                  {colWidths && <col className="mon-table-filler-col" />}
                   <col style={{ width: MON_FAVOURITE_COL_WIDTH }} />
                 </colgroup>
                 <thead>
@@ -841,12 +916,23 @@ export function MonitoringWorkspace({
                       />
                     </th>
                     <th>
+                      <button type="button" className={`inventory-sort-btn${sortKey === "type" ? " active" : ""}`} onClick={() => toggleSort("type")}>
+                        Type{sortKey === "type" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
+                      </button>
+                      <div
+                        className="mon-col-resize-handle"
+                        onMouseDown={(e) => startColResize(1, e)}
+                        onDoubleClick={resetColWidths}
+                        title="Drag to resize · double-click to reset all columns"
+                      />
+                    </th>
+                    <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "uptime24" ? " active" : ""}`} onClick={() => toggleSort("uptime24")}>
                         24 h{sortKey === "uptime24" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
                       <div
                         className="mon-col-resize-handle"
-                        onMouseDown={(e) => startColResize(1, e)}
+                        onMouseDown={(e) => startColResize(2, e)}
                         onDoubleClick={resetColWidths}
                         title="Drag to resize · double-click to reset all columns"
                       />
@@ -857,7 +943,7 @@ export function MonitoringWorkspace({
                       </button>
                       <div
                         className="mon-col-resize-handle"
-                        onMouseDown={(e) => startColResize(2, e)}
+                        onMouseDown={(e) => startColResize(3, e)}
                         onDoubleClick={resetColWidths}
                         title="Drag to resize · double-click to reset all columns"
                       />
@@ -868,7 +954,7 @@ export function MonitoringWorkspace({
                       </button>
                       <div
                         className="mon-col-resize-handle"
-                        onMouseDown={(e) => startColResize(3, e)}
+                        onMouseDown={(e) => startColResize(4, e)}
                         onDoubleClick={resetColWidths}
                         title="Drag to resize · double-click to reset all columns"
                       />
@@ -877,7 +963,7 @@ export function MonitoringWorkspace({
                       Services
                       <div
                         className="mon-col-resize-handle"
-                        onMouseDown={(e) => startColResize(4, e)}
+                        onMouseDown={(e) => startColResize(5, e)}
                         onDoubleClick={resetColWidths}
                         title="Drag to resize · double-click to reset all columns"
                       />
@@ -888,11 +974,12 @@ export function MonitoringWorkspace({
                       </button>
                       <div
                         className="mon-col-resize-handle"
-                        onMouseDown={(e) => startColResize(5, e)}
+                        onMouseDown={(e) => startColResize(6, e)}
                         onDoubleClick={resetColWidths}
                         title="Drag to resize · double-click to reset all columns"
                       />
                     </th>
+                    {colWidths && <th className="mon-table-filler" aria-hidden="true" />}
                     <th title="Favourite" />
                   </tr>
                 </thead>
@@ -916,6 +1003,19 @@ export function MonitoringWorkspace({
                           {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat.slice(-48)} size="sm" />}
                         </div>
                       </td>
+                      <td>
+                        {(() => {
+                          const chip = deviceTypeChipFor(d.device_type, deviceTypeOptions);
+                          return (
+                            <EntityChip
+                              label={d.device_type ? formatDeviceTypeLabel(d.device_type) : iconLabel(d.icon ?? "device")}
+                              color={chip?.color}
+                              colorKey={chip?.key ?? d.device_type ?? d.icon ?? "device"}
+                              icon={<DeviceTypeIcon type={d.device_type} size={13} />}
+                            />
+                          );
+                        })()}
+                      </td>
                       <td><UptimeBadge value={d.uptime_24h} /></td>
                       <td><UptimeBadge value={d.uptime_7d} /></td>
                       <td className="mon-cell-mono">{fmtRtt(d.avg_rtt_24h)}</td>
@@ -935,6 +1035,7 @@ export function MonitoringWorkspace({
                         )}
                       </td>
                       <td className="mon-cell-mono">{fmtTime(d.last_checked)}</td>
+                      {colWidths && <td className="mon-table-filler" aria-hidden="true" />}
                       <td>
                         <button
                           type="button"
