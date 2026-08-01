@@ -44,6 +44,9 @@
   --nm-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --nm-shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08);
   --nm-topbar-height: 82px;
+  --nm-workspace-gutter-x: 24px;
+  --nm-workspace-gutter-y: 24px;
+  --nm-workspace-section-gap: 16px;
   --nm-space-1: 4px;
   --nm-space-2: 8px;
   --nm-space-3: 12px;
@@ -59,4 +62,18 @@
   --nm-control-lg: 36px;
   color: var(--nm-text);
   background: var(--nm-bg);
+}
+
+@media (max-width: 980px) {
+  :root {
+    --nm-workspace-gutter-x: 16px;
+    --nm-workspace-gutter-y: 20px;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --nm-workspace-gutter-x: 12px;
+    --nm-workspace-gutter-y: 16px;
+  }
 }
