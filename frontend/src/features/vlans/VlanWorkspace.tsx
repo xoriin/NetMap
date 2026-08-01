@@ -1,13 +1,32 @@
-import { useState, useMemo, type FormEvent } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { useState, useMemo, useRef, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import "./vlans.css";
+import { ChevronUp, ChevronDown, Network, Search } from "lucide-react";
 import { api, type TopologyGroup, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
 import { cidrUsableHosts, formatUsableHosts } from "../../utils/ip";
-import { Modal } from "../../components/Modal";
+import { Modal, ModalFooterActions } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useSortableData } from "../../hooks/useSortableData";
 import { TableSkeleton } from "../../components/Skeleton";
+
+const VLAN_COL_WIDTHS_KEY = "netmap.vlan_col_widths_v1";
+const VLAN_COL_COUNT = 6;
+const VLAN_MIN_COL_WIDTH = 64;
+
+function loadVlanColWidths(): number[] | null {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(VLAN_COL_WIDTHS_KEY) ?? "null") as unknown;
+    if (
+      Array.isArray(parsed)
+      && parsed.length === VLAN_COL_COUNT
+      && parsed.every((value) => typeof value === "number" && value >= VLAN_MIN_COL_WIDTH)
+    ) return parsed;
+  } catch {
+    // Ignore stale or malformed browser preferences.
+  }
+  return null;
+}
 
 export function VlanWorkspace({
   accessToken,
@@ -28,6 +47,8 @@ export function VlanWorkspace({
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', display_name: '', vlan_id: '', ip_range: '', gateway: '', dns_servers: '', description: '' });
   const [vlanSearch, setVlanSearch] = useState('');
+  const [colWidths, setColWidths] = useState<number[] | null>(loadVlanColWidths);
+  const tableHeaderRef = useRef<HTMLDivElement | null>(null);
   const { sortKey: vlanSortKey, sortDir: vlanSortDir, toggleSort: toggleVlanSort, ariaSort: vlanAriaSort } = useSortableData<string>('name');
   const normalizeGroupName = (value: string) => value.trim().toLowerCase();
   const normalizeLoose = (value: string) => normalizeGroupName(value).replace(/\s+/g, "");
@@ -205,90 +226,153 @@ export function VlanWorkspace({
 
   const vlanFormFields = (
     <div className="vlan-form-grid">
-      <label className="ipam-form-label">Name *
-        <input className="ipam-form-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Name *</span>
+        <input className="nm-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Display name
-        <input className="ipam-form-input" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Display name</span>
+        <input className="nm-input" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">VLAN ID
-        <input className="ipam-form-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">VLAN ID</span>
+        <input className="nm-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Subnet (CIDR)
-        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.1.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Subnet (CIDR)</span>
+        <input className="nm-input vlan-input--mono" placeholder="192.168.1.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">Gateway
-        <input className="ipam-form-input ipam-form-input--mono" placeholder="192.168.1.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">Gateway</span>
+        <input className="nm-input vlan-input--mono" placeholder="192.168.1.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
       </label>
-      <label className="ipam-form-label">DNS servers
-        <input className="ipam-form-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
+      <label className="nm-field"><span className="nm-field-label">DNS servers</span>
+        <input className="nm-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
       </label>
-      <label className="ipam-form-label vlan-form-grid__full">Description
-        <input className="ipam-form-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
+      <label className="nm-field vlan-form-grid__full"><span className="nm-field-label">Description</span>
+        <input className="nm-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
       </label>
       {(formError ?? saveGroup.error) && <p className="form-error vlan-form-grid__full">{formError ?? saveGroup.error}</p>}
     </div>
   );
 
+  function startColResize(colIdx: number, event: ReactMouseEvent) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const initialWidths = tableHeaderRef.current
+      ? Array.from(tableHeaderRef.current.children)
+          .slice(0, VLAN_COL_COUNT)
+          .map((cell) => cell.getBoundingClientRect().width)
+      : (colWidths ?? []);
+    if (initialWidths.length !== VLAN_COL_COUNT) return;
+
+    function onMove(moveEvent: MouseEvent) {
+      const updated = [...initialWidths];
+      updated[colIdx] = Math.max(VLAN_MIN_COL_WIDTH, initialWidths[colIdx] + moveEvent.clientX - startX);
+      setColWidths(updated);
+    }
+    function onUp() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setColWidths((current) => {
+        if (current) window.localStorage.setItem(VLAN_COL_WIDTHS_KEY, JSON.stringify(current));
+        return current;
+      });
+    }
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  function resetColWidths() {
+    window.localStorage.removeItem(VLAN_COL_WIDTHS_KEY);
+    setColWidths(null);
+  }
+
+  const vlanGridStyle = colWidths
+    ? ({ "--vlan-grid-template": `${colWidths.map((width) => `${width}px`).join(" ")}${canWrite ? " 112px" : ""}` } as CSSProperties)
+    : undefined;
+
   return (
-    <section className="dash-layout">
-        {showForm && !effectiveEditingGroup && (
-          <Modal title="New group" onCancel={closeForm}>
-            <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
+    <section className="dash-layout vlan-workspace">
+        {showForm && (
+          <Modal
+            title={effectiveEditingGroup ? "Edit group" : "New group"}
+            titleIcon={<Network size={18} />}
+            onCancel={closeForm}
+            bodyClassName="vlan-modal-body"
+            footer={(
+              <ModalFooterActions
+                formId="vlan-group-form"
+                onCancel={closeForm}
+                primaryDisabled={busy}
+                primaryLabel={effectiveEditingGroup ? "Save changes" : "Create group"}
+              />
+            )}
+          >
+            <form id="vlan-group-form" className="modal-form vlan-modal-form" onSubmit={(e) => void handleFormSubmit(e)}>
               {vlanFormFields}
-              <div className="modal-actions">
-                <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-                <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Create group</button>
-              </div>
-            </form>
-          </Modal>
-        )}
-        {showForm && effectiveEditingGroup && (
-          <Modal title="Edit group" onCancel={closeForm}>
-            <form className="ipam-subnet-form" style={{ padding: "18px 20px" }} onSubmit={(e) => void handleFormSubmit(e)}>
-              {vlanFormFields}
-              <div className="modal-actions">
-                <button type="button" className="nm-btn" disabled={busy} onClick={closeForm}>Cancel</button>
-                <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Save changes</button>
-              </div>
             </form>
           </Modal>
         )}
 
-        <div className="panel" style={{ flex: '1 1 auto', padding: 0, overflow: 'auto', minWidth: 0, marginTop: 0 }}>
-          <div className="vlan-toolbar">
-            <input className="vlan-search-input" type="search" placeholder="Search groups…" value={vlanSearch} onChange={(e) => setVlanSearch(e.target.value)} />
+        <div className="panel nm-app-panel vlan-table-panel">
+          <div className="vlan-toolbar nm-app-panel-header">
+            <span className="vlan-panel-title">
+              <span className="vlan-panel-icon" aria-hidden="true"><Network size={18} /></span>
+              <span className="vlan-panel-separator">-</span>
+              <span>Groups &amp; VLANs</span>
+              <span className="vlan-panel-count">
+                {filteredSortedRows.length !== mergedRows.length
+                  ? `${filteredSortedRows.length} of ${mergedRows.length}`
+                  : mergedRows.length}
+              </span>
+            </span>
+            <div className="vlan-toolbar-actions">
+              <div className="nm-search nm-search--toolbar vlan-search">
+                <Search size={14} className="nm-search-icon" aria-hidden="true" />
+                <input className="nm-input" type="search" aria-label="Search groups and VLANs" placeholder="Search groups…" value={vlanSearch} onChange={(e) => setVlanSearch(e.target.value)} />
+              </div>
             {canWrite && (
               <button type="button" className="nm-btn nm-btn--primary" disabled={busy} onClick={() => openCreateForm()}>+ New group</button>
             )}
+            </div>
           </div>
           {groupsQuery.error && <div className="error-banner">{groupsQuery.error}</div>}
-          {groupsQuery.isLoading ? (
-            <TableSkeleton rows={7} columns={5} />
-          ) : filteredSortedRows.length === 0 ? (
-            <p className="inventory-empty">
-              {vlanSearch ? 'No groups match your search.' : 'No groups found. Add devices to the topology or create a group manually.'}
-            </p>
-          ) : (
-            <div className={canWrite ? 'vlan-table-writable' : undefined}>
-              <div className="vlan-table-header">
+          <div className="vlan-table-viewport">
+            {groupsQuery.isLoading ? (
+              <TableSkeleton rows={7} columns={6} />
+            ) : filteredSortedRows.length === 0 ? (
+              <p className="inventory-empty vlan-empty-state">
+                {vlanSearch ? 'No groups match your search.' : 'No groups found. Add devices to the topology or create a group manually.'}
+              </p>
+            ) : (
+              <div className={`${canWrite ? 'vlan-table-writable ' : ''}${colWidths ? 'vlan-table--fixed' : ''}`} style={vlanGridStyle}>
+              <div className="vlan-table-header" ref={tableHeaderRef}>
                 {vlanSortCols.map(({ key, label, sortable }) => (
-                  sortable ? (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`inventory-sort-btn${vlanSortKey === key ? ' active' : ''}`}
-                      aria-sort={vlanAriaSort(key)}
-                      onClick={() => toggleVlanSort(key)}
-                    >
-                      {label}
-                      {vlanSortKey === key && (vlanSortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
-                    </button>
-                  ) : (
-                    <span key={key} className="vlan-header-cell">{label}</span>
-                  )
+                  <span key={key} className="vlan-header-cell">
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className={`inventory-sort-btn${vlanSortKey === key ? ' active' : ''}`}
+                        aria-sort={vlanAriaSort(key)}
+                        onClick={() => toggleVlanSort(key)}
+                      >
+                        {label}
+                        {vlanSortKey === key && (vlanSortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
+                      </button>
+                    ) : label}
+                    {key !== "devices" && (
+                      <span
+                        role="separator"
+                        aria-orientation="vertical"
+                        className="vlan-col-resize-handle"
+                        title="Drag to resize · double-click to reset all columns"
+                        onMouseDown={(event) => startColResize(vlanSortCols.findIndex((column) => column.key === key), event)}
+                        onDoubleClick={resetColWidths}
+                      />
+                    )}
+                  </span>
                 ))}
-                {canWrite && <span />}
+                {canWrite && <span className="vlan-header-cell vlan-actions-heading">Actions</span>}
               </div>
               {filteredSortedRows.map((row) => {
                 const deviceCount = deviceCountByGroup.get(row.name) ?? 0;
@@ -369,8 +453,13 @@ export function VlanWorkspace({
                   </div>
                 );
               })}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
+          <div className="vlan-table-footer">
+            <span>Showing {filteredSortedRows.length} of {mergedRows.length} groups</span>
+            {colWidths && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={resetColWidths}>Reset columns</button>}
+          </div>
         </div>
     </section>
   );
