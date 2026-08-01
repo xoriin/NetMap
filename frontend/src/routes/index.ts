@@ -14,6 +14,15 @@ export type RouteDefinition = {
   requiresSuperAdmin?: boolean;
 };
 
+export const uiPreviewsEnabled = import.meta.env.DEV;
+
+const previewRoutes: RouteDefinition[] = uiPreviewsEnabled
+  ? [
+      { href: "/theme-preview", icon: Palette, label: "Theme Preview", requiresSuperAdmin: true },
+      { href: "/admin-design-preview", icon: LayoutTemplate, label: "Admin Designs", requiresSuperAdmin: true },
+    ]
+  : [];
+
 export const appRoutes: RouteDefinition[] = [
   { href: "/overview",   icon: Home,        label: "Overview",   section: "Network" },
   { href: "/topology",   icon: Globe,       label: "Topology" },
@@ -26,14 +35,13 @@ export const appRoutes: RouteDefinition[] = [
   { href: "/security",   icon: Shield,      label: "Security", requiresSecurityRole: true },
   { href: "/exports",    icon: Download,    label: "Exports" },
   { href: "/admin",      icon: Settings,    label: "Admin",    requiresSuperAdmin: true, section: "Account" },
-  { href: "/theme-preview", icon: Palette,  label: "Theme Preview", requiresSuperAdmin: true },
-  { href: "/admin-design-preview", icon: LayoutTemplate, label: "Admin Designs", requiresSuperAdmin: true },
+  ...previewRoutes,
   { href: "/profile",    icon: UserCircle,  label: "Profile" },
 ];
 
 export const appRouteByHref = new Map<AppRoute, RouteDefinition>(appRoutes.map((route) => [route.href, route]));
 
-export const appRouteCopy: Record<AppRoute, { title: string; subtitle: string }> = {
+export const appRouteCopy: Partial<Record<AppRoute, { title: string; subtitle: string }>> = {
   "/overview":   { title: "Overview",       subtitle: "Live network health, inventory changes and device activity" },
   "/topology":   { title: "Topology",       subtitle: "Map devices, groups and relationships across your network" },
   "/inventory":  { title: "Inventory",      subtitle: "Search, filter and update discovered network devices" },
@@ -45,8 +53,10 @@ export const appRouteCopy: Record<AppRoute, { title: string; subtitle: string }>
   "/security":   { title: "Security",       subtitle: "Firewall events, syslog search and device correlation" },
   "/exports":    { title: "Exports",        subtitle: "Download inventory, firewall and report data" },
   "/admin":      { title: "Admin",          subtitle: "Manage users, settings, alerts and system data" },
-  "/theme-preview": { title: "Theme Preview", subtitle: "Review the proposed application-wide panel system before rollout" },
-  "/admin-design-preview": { title: "Admin Design Preview", subtitle: "Compare lightweight workspace templates before changing the live Admin page" },
+  ...(uiPreviewsEnabled ? {
+    "/theme-preview": { title: "Theme Preview", subtitle: "Review the proposed application-wide panel system before rollout" },
+    "/admin-design-preview": { title: "Admin Design Preview", subtitle: "Compare lightweight workspace templates before changing the live Admin page" },
+  } : {}),
   "/profile":    { title: "Profile",        subtitle: "Update your account details and password" },
 };
 

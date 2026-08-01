@@ -43,12 +43,12 @@ const IpamWorkspace = lazy(() =>
 const MonitoringWorkspace = lazy(() =>
   import("../features/monitoring/MonitoringWorkspace").then((m) => ({ default: m.MonitoringWorkspace }))
 );
-const ThemePreviewWorkspace = lazy(() =>
-  import("../features/theme-preview/ThemePreviewWorkspace").then((m) => ({ default: m.ThemePreviewWorkspace }))
-);
-const AdminDesignPreviewWorkspace = lazy(() =>
-  import("../features/admin-preview/AdminDesignPreviewWorkspace").then((m) => ({ default: m.AdminDesignPreviewWorkspace }))
-);
+const ThemePreviewWorkspace = import.meta.env.DEV
+  ? lazy(() => import("../features/theme-preview/ThemePreviewWorkspace").then((m) => ({ default: m.ThemePreviewWorkspace })))
+  : null;
+const AdminDesignPreviewWorkspace = import.meta.env.DEV
+  ? lazy(() => import("../features/admin-preview/AdminDesignPreviewWorkspace").then((m) => ({ default: m.AdminDesignPreviewWorkspace })))
+  : null;
 
 export function DashboardView({
   accessToken,
@@ -214,10 +214,10 @@ export function DashboardView({
       {currentRoute === "/profile" && accessToken && (
         <ProfileWorkspace accessToken={accessToken} user={user} onUserUpdate={onUserUpdate} />
       )}
-      {currentRoute === "/theme-preview" && user.role === "SuperAdmin" && (
+      {ThemePreviewWorkspace && currentRoute === "/theme-preview" && user.role === "SuperAdmin" && (
         <ThemePreviewWorkspace />
       )}
-      {currentRoute === "/admin-design-preview" && user.role === "SuperAdmin" && (
+      {AdminDesignPreviewWorkspace && currentRoute === "/admin-design-preview" && user.role === "SuperAdmin" && (
         <AdminDesignPreviewWorkspace />
       )}
     </Suspense>
