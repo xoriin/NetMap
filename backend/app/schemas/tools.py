@@ -90,6 +90,7 @@ class SnmpProbeRequest(BaseModel):
 
 class DnsRecord(BaseModel):
     value: str
+    ttl: int | None = None
 
 
 class DnsLookupResult(BaseModel):
@@ -97,6 +98,9 @@ class DnsLookupResult(BaseModel):
     record_type: DnsRecordType
     records: list[DnsRecord] = Field(default_factory=list)
     source: str
+    dns_server: str | None = None
+    response_code: str = "NOERROR"
+    canonical_name: str | None = None
     duration_ms: int
 
 

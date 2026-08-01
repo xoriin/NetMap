@@ -13,6 +13,7 @@ from ipaddress import ip_address, ip_network
 
 import dns.resolver
 import dns.reversename
+import dns.rcode
 
 from app.core.capabilities import ActiveNetworkToolUnavailable, RAW_NETWORKING_UNAVAILABLE, raw_networking_error
 from app.core.config import settings
@@ -83,15 +84,21 @@ def dns_lookup(payload: DnsLookupRequest) -> DnsLookupResult:
     except dns.exception.Timeout as exc:
         raise TimeoutError("DNS lookup timed out") from exc
     records: list[DnsRecord] = []
+    ttl = int(answers.rrset.ttl) if getattr(answers, "rrset", None) is not None else None
     if getattr(answers, "rrset", None) is not None:
         for item in answers:
-            records.append(DnsRecord(value=normalize_record_value(payload.record_type, item)))
+            records.append(DnsRecord(value=normalize_record_value(payload.record_type, item), ttl=ttl))
     duration_ms = int((time.perf_counter() - started) * 1000)
+    response = getattr(answers, "response", None)
+    canonical_name = getattr(answers, "canonical_name", None)
     return DnsLookupResult(
         queried_name=payload.name,
         record_type=payload.record_type,
         records=records,
         source="system-resolver",
+        dns_server=str(resolver.nameservers[0]) if resolver.nameservers else None,
+        response_code=dns.rcode.to_text(response.rcode()) if response is not None else "NXDOMAIN",
+        canonical_name=str(canonical_name).rstrip(".") if canonical_name is not None else None,
         duration_ms=duration_ms,
     )
 
