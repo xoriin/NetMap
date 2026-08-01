@@ -148,129 +148,125 @@ export function AutomationTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconCalendarClock size={16} />Scheduled scans</h2>
           <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void automationQuery.reload()}>Refresh</button>
         </div>
         <p className="tool-note">
           Scheduled scans automatically probe your network at a set interval and record observations for new devices, IP address changes, field changes, and hosts that disappear.
         </p>
-        <form className="tool-form admin-create-form" onSubmit={(e) => void createSchedule(e)}>
-          <h3>New schedule</h3>
-          <div className="tool-form-grid">
-            <label>
-              Target <span className="tool-note" style={{ fontWeight: "normal" }}>(IP, CIDR, or range)</span>
-              <input
-                required
-                placeholder="192.168.1.0/24"
-                value={schedForm.target}
-                onChange={(e) => setSchedForm((f) => ({ ...f, target: e.target.value }))}
-              />
-            </label>
-            <label>
-              Name <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
-              <input
-                placeholder="Home network"
-                value={schedForm.name}
-                onChange={(e) => setSchedForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </label>
-          </div>
-          <div className="tool-form-grid">
-            <label>
-              Scan type
-              <select value={schedForm.scan_type} onChange={(e) => setSchedForm((f) => ({ ...f, scan_type: e.target.value as DiscoveryScanType }))}>
-                <option value="ping">Ping only — host discovery</option>
-                <option value="basic_ports">Ping + port scan — common ports</option>
-              </select>
-            </label>
-            <label>
-              Interval
-              <select value={schedForm.interval_minutes} onChange={(e) => setSchedForm((f) => ({ ...f, interval_minutes: e.target.value }))}>
-                <option value="15">Every 15 minutes</option>
-                <option value="30">Every 30 minutes</option>
-                <option value="60">Every hour</option>
-                <option value="360">Every 6 hours</option>
-                <option value="720">Every 12 hours</option>
-                <option value="1440">Every 24 hours</option>
-              </select>
-            </label>
-          </div>
-          <div className="tool-form-grid">
-            <label>
-              Group <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
-              <select value={schedForm.group_id} onChange={(e) => setSchedForm((f) => ({ ...f, group_id: e.target.value }))}>
-                <option value="">— none —</option>
-                {automationGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-            </label>
-            <label>
-              Notify on change <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
-              <select value={schedForm.notif_profile_id} onChange={(e) => setSchedForm((f) => ({ ...f, notif_profile_id: e.target.value }))}>
-                <option value="">— none —</option>
-                {notificationProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-          </div>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={schedForm.enabled} onChange={(e) => setSchedForm((f) => ({ ...f, enabled: e.target.checked }))} />
-            Enable immediately
-          </label>
-          <button type="submit" className="nm-btn nm-btn--primary" disabled={automationBusy || !schedForm.target.trim()}>
-            {automationBusy ? "Saving…" : "Create schedule"}
-          </button>
-        </form>
-
-        {schedules.length > 0 && (
-          <div className="admin-users-table" style={{ marginTop: 12 }}>
-            <div className="admin-users-header" style={{ gridTemplateColumns: "1fr 1fr auto auto auto auto auto" }}>
-              <span>Name</span>
-              <span>Target</span>
-              <span>Type</span>
-              <span>Interval</span>
-              <span>Last run</span>
-              <span>Status</span>
-              <span>Actions</span>
+        <div className="admin-automation-split">
+          <form className="tool-form admin-create-form" onSubmit={(e) => void createSchedule(e)}>
+            <h3>New schedule</h3>
+            <div className="tool-form-grid">
+              <label>
+                Target <span className="tool-note" style={{ fontWeight: "normal" }}>(IP, CIDR, or range)</span>
+                <input
+                  required
+                  placeholder="192.168.1.0/24"
+                  value={schedForm.target}
+                  onChange={(e) => setSchedForm((f) => ({ ...f, target: e.target.value }))}
+                />
+              </label>
+              <label>
+                Name <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
+                <input
+                  placeholder="Home network"
+                  value={schedForm.name}
+                  onChange={(e) => setSchedForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </label>
             </div>
-            {schedules.map((sched) => (
-              <div key={sched.id} className="admin-users-row" style={{ gridTemplateColumns: "1fr 1fr auto auto auto auto auto", alignItems: "center" }}>
-                <span style={{ fontWeight: 500 }}>
-                  {sched.name}
-                  {sched.open_observation_count > 0 && (
-                    <span className="scan-observation-badge scan-observation-badge--new_device" style={{ marginLeft: 6, fontSize: 10 }}>
-                      {sched.open_observation_count} open
-                    </span>
-                  )}
-                </span>
-                <span className="mono">{sched.target}</span>
-                <span>{sched.scan_type === "ping" ? "Ping" : "Port scan"}</span>
-                <span>{sched.interval_minutes < 60 ? `${sched.interval_minutes}m` : `${sched.interval_minutes / 60}h`}</span>
-                <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                  {sched.last_run_at ? new Date(sched.last_run_at).toLocaleString() : "Never"}
-                  {sched.last_error && <span style={{ color: "var(--color-danger)", marginLeft: 4 }}>· error</span>}
-                </span>
-                <span>
-                  <span className={`status-pill status-pill--${sched.enabled ? "online" : "unknown"}`}>
-                    {sched.enabled ? "Active" : "Paused"}
-                  </span>
-                </span>
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button type="button" className="nm-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void runScheduleNow(sched)}>Run</button>
-                  <button type="button" className="nm-btn" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void toggleSchedule(sched)}>{sched.enabled ? "Pause" : "Enable"}</button>
-                  <button type="button" className="nm-btn nm-btn--danger" style={{ padding: "2px 8px", fontSize: 12 }} disabled={automationBusy} onClick={() => void deleteSchedule(sched)}>Delete</button>
-                </div>
+            <div className="tool-form-grid">
+              <label>
+                Scan type
+                <select value={schedForm.scan_type} onChange={(e) => setSchedForm((f) => ({ ...f, scan_type: e.target.value as DiscoveryScanType }))}>
+                  <option value="ping">Ping only — host discovery</option>
+                  <option value="basic_ports">Ping + port scan — common ports</option>
+                </select>
+              </label>
+              <label>
+                Interval
+                <select value={schedForm.interval_minutes} onChange={(e) => setSchedForm((f) => ({ ...f, interval_minutes: e.target.value }))}>
+                  <option value="15">Every 15 minutes</option>
+                  <option value="30">Every 30 minutes</option>
+                  <option value="60">Every hour</option>
+                  <option value="360">Every 6 hours</option>
+                  <option value="720">Every 12 hours</option>
+                  <option value="1440">Every 24 hours</option>
+                </select>
+              </label>
+            </div>
+            <div className="tool-form-grid">
+              <label>
+                Group <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
+                <select value={schedForm.group_id} onChange={(e) => setSchedForm((f) => ({ ...f, group_id: e.target.value }))}>
+                  <option value="">— none —</option>
+                  {automationGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Notify on change <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
+                <select value={schedForm.notif_profile_id} onChange={(e) => setSchedForm((f) => ({ ...f, notif_profile_id: e.target.value }))}>
+                  <option value="">— none —</option>
+                  {notificationProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={schedForm.enabled} onChange={(e) => setSchedForm((f) => ({ ...f, enabled: e.target.checked }))} />
+              Enable immediately
+            </label>
+            <button type="submit" className="nm-btn nm-btn--primary" disabled={automationBusy || !schedForm.target.trim()}>
+              {automationBusy ? "Saving…" : "Create schedule"}
+            </button>
+          </form>
+
+          <section className="admin-schedule-library" aria-label="Created schedules">
+            <div className="admin-schedule-library-header">
+              <div>
+                <h3>Created schedules</h3>
+                <span>{schedules.length} configured</span>
               </div>
-            ))}
-          </div>
-        )}
-        {schedules.length === 0 && !automationBusy && (
-          <p className="tool-note" style={{ marginTop: 8 }}>No schedules yet. Create one above.</p>
-        )}
+            </div>
+            {schedules.length === 0
+              ? <p className="admin-schedule-empty">{automationBusy ? "Loading schedules…" : "No schedules yet. Create one using the form alongside."}</p>
+              : (
+                <div className="admin-schedule-card-list">
+                  {schedules.map((sched) => (
+                    <article key={sched.id} className="admin-schedule-card">
+                      <div className="admin-schedule-card-heading">
+                        <div>
+                          <strong>{sched.name}</strong>
+                          <span className="mono">{sched.target}</span>
+                        </div>
+                        <span className={`status-pill status-pill--${sched.enabled ? "online" : "unknown"}`}>
+                          {sched.enabled ? "Active" : "Paused"}
+                        </span>
+                      </div>
+                      <div className="admin-schedule-card-meta">
+                        <span><small>Type</small><strong>{sched.scan_type === "ping" ? "Ping" : "Port scan"}</strong></span>
+                        <span><small>Interval</small><strong>{sched.interval_minutes < 60 ? `${sched.interval_minutes}m` : `${sched.interval_minutes / 60}h`}</strong></span>
+                        <span><small>Last run</small><strong>{sched.last_run_at ? new Date(sched.last_run_at).toLocaleString() : "Never"}</strong></span>
+                        <span><small>Changes</small><strong>{sched.open_observation_count} open</strong></span>
+                      </div>
+                      {sched.last_error && <p className="admin-schedule-error">Last run failed: {sched.last_error}</p>}
+                      <div className="admin-row-actions">
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={automationBusy} onClick={() => void runScheduleNow(sched)}>Run</button>
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={automationBusy} onClick={() => void toggleSchedule(sched)}>{sched.enabled ? "Pause" : "Enable"}</button>
+                        <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={automationBusy} onClick={() => void deleteSchedule(sched)}>Delete</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+          </section>
+        </div>
       </section>
 
-      <section className="panel admin-panel" style={{ marginTop: 16 }}>
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel admin-panel-spaced">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconCalendarClock size={16} />Change observations</h2>
           <span className="tool-note">{openObs.length} open · {resolvedObs.length} resolved</span>
         </div>
