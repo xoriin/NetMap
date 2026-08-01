@@ -123,8 +123,8 @@ export function UsersTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconUsers size={16} />Users</h2>
           <button type="button" className="nm-btn" onClick={onReloadUsers}>Refresh</button>
         </div>
