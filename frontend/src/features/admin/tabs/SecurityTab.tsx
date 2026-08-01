@@ -130,8 +130,8 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   }
 
   return (
-    <section className="panel admin-panel">
-      <div className="admin-panel-header">
+    <section className="panel admin-panel nm-app-panel">
+      <div className="admin-panel-header nm-app-panel-header">
         <h2 className="admin-section-title"><KeyRound size={16} />Single Sign-On (OIDC)</h2>
         <div className="admin-panel-actions">
           <button type="button" className="nm-btn" disabled={testing || !settings} onClick={() => void runProviderTest()}>
@@ -316,8 +316,8 @@ function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
   const revokedCount = keys.length - activeKeys.length;
 
   return (
-    <section className="panel admin-panel">
-      <div className="admin-panel-header">
+    <section className="panel admin-panel nm-app-panel">
+      <div className="admin-panel-header nm-app-panel-header">
         <h2 className="admin-section-title"><KeySquare size={16} />API Keys</h2>
         <div className="admin-panel-actions">
           <button type="button" className="nm-btn" onClick={() => void keysQuery.reload()}>Refresh</button>
@@ -349,7 +349,11 @@ function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
                   <tr key={key.id}>
                     <td>{key.username}</td>
                     <td>{key.name}</td>
-                    <td className="nm-table-mono">nm_{key.prefix}…</td>
+                    <td>
+                      <span className="profile-key-mask nm-table-mono" title="API key values are shown only once when created">
+                        •••• •••• •••• ••••
+                      </span>
+                    </td>
                     <td>{new Date(key.created_at).toLocaleDateString()}</td>
                     <td>{key.expires_at ? new Date(key.expires_at).toLocaleDateString() : "Never"}</td>
                     <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleString() : "Never"}</td>
@@ -436,8 +440,8 @@ export function SecurityTab({
     <div className="admin-tab-content">
       <SsoSettingsPanel accessToken={accessToken} />
       <ApiKeysOversightPanel accessToken={accessToken} />
-      <section className="panel admin-panel admin-security-audit-panel">
-        <div className="admin-panel-header">
+      <section className="panel admin-panel nm-app-panel admin-security-audit-panel">
+        <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : auditView === "login" ? "Login History" : "Login & Audit History"}</h2>
           <div className="admin-panel-actions">
             <button type="button" className={`nm-btn nm-btn--sm${auditView === "all" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("all"); setAuditOffset(0); }}>All activity</button>
