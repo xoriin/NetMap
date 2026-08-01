@@ -43,6 +43,12 @@ const IpamWorkspace = lazy(() =>
 const MonitoringWorkspace = lazy(() =>
   import("../features/monitoring/MonitoringWorkspace").then((m) => ({ default: m.MonitoringWorkspace }))
 );
+const ThemePreviewWorkspace = lazy(() =>
+  import("../features/theme-preview/ThemePreviewWorkspace").then((m) => ({ default: m.ThemePreviewWorkspace }))
+);
+const AdminDesignPreviewWorkspace = lazy(() =>
+  import("../features/admin-preview/AdminDesignPreviewWorkspace").then((m) => ({ default: m.AdminDesignPreviewWorkspace }))
+);
 
 export function DashboardView({
   accessToken,
@@ -173,7 +179,7 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
       )}
       {currentRoute === "/ipam" && accessToken && (
         <IpamWorkspace accessToken={accessToken} canWrite={canWrite} />
@@ -200,7 +206,6 @@ export function DashboardView({
         <AdminWorkspace
           accessToken={accessToken}
           graph={graph}
-          summary={summary}
           onSettingsChange={onSettingsChange}
           onOpenWhatsNew={onOpenWhatsNew}
           versionInfo={versionInfo}
@@ -208,6 +213,12 @@ export function DashboardView({
       )}
       {currentRoute === "/profile" && accessToken && (
         <ProfileWorkspace accessToken={accessToken} user={user} onUserUpdate={onUserUpdate} />
+      )}
+      {currentRoute === "/theme-preview" && user.role === "SuperAdmin" && (
+        <ThemePreviewWorkspace />
+      )}
+      {currentRoute === "/admin-design-preview" && user.role === "SuperAdmin" && (
+        <AdminDesignPreviewWorkspace />
       )}
     </Suspense>
     </ErrorBoundary>

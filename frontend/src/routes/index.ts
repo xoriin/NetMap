@@ -1,9 +1,9 @@
-import { Activity, Globe, Home, Network, Settings, MapPin, Wrench, Shield, Download, UserCircle } from "lucide-react";
+import { Activity, Globe, Home, Network, Settings, MapPin, Wrench, Shield, Download, UserCircle, Palette, LayoutTemplate } from "lucide-react";
 import { ApiError, type TokenPair } from "../api/client";
 import { tokenStorageKey } from "../constants";
 import { removeKey } from "../utils/storage";
 
-export type AppRoute = "/overview" | "/topology" | "/inventory" | "/vlans" | "/locations" | "/monitoring" | "/ipam" | "/tools" | "/security" | "/exports" | "/admin" | "/profile";
+export type AppRoute = "/overview" | "/topology" | "/inventory" | "/vlans" | "/locations" | "/monitoring" | "/ipam" | "/tools" | "/security" | "/exports" | "/admin" | "/theme-preview" | "/admin-design-preview" | "/profile";
 
 export type RouteDefinition = {
   href: AppRoute;
@@ -26,6 +26,8 @@ export const appRoutes: RouteDefinition[] = [
   { href: "/security",   icon: Shield,      label: "Security", requiresSecurityRole: true },
   { href: "/exports",    icon: Download,    label: "Exports" },
   { href: "/admin",      icon: Settings,    label: "Admin",    requiresSuperAdmin: true, section: "Account" },
+  { href: "/theme-preview", icon: Palette,  label: "Theme Preview", requiresSuperAdmin: true },
+  { href: "/admin-design-preview", icon: LayoutTemplate, label: "Admin Designs", requiresSuperAdmin: true },
   { href: "/profile",    icon: UserCircle,  label: "Profile" },
 ];
 
@@ -43,6 +45,8 @@ export const appRouteCopy: Record<AppRoute, { title: string; subtitle: string }>
   "/security":   { title: "Security",       subtitle: "Firewall events, syslog search and device correlation" },
   "/exports":    { title: "Exports",        subtitle: "Download inventory, firewall and report data" },
   "/admin":      { title: "Admin",          subtitle: "Manage users, settings, alerts and system data" },
+  "/theme-preview": { title: "Theme Preview", subtitle: "Review the proposed application-wide panel system before rollout" },
+  "/admin-design-preview": { title: "Admin Design Preview", subtitle: "Compare lightweight workspace templates before changing the live Admin page" },
   "/profile":    { title: "Profile",        subtitle: "Update your account details and password" },
 };
 
