@@ -410,10 +410,11 @@
 .nm-table-sort.is-active { color: var(--nm-accent-strong); }
 
 /* ── Layout stability ─────────────────────────────────────────────────────────
-   Live-updating numbers must not reflow their row: tabular numerals keep
-   digit widths constant; a stable scrollbar gutter stops page-width jumps. */
+   Live-updating numbers must not reflow their row. Do not reserve a scrollbar
+   gutter on the root document: viewport-pinned workspaces scroll internally,
+   and a root gutter leaves their topbar and content short of the right edge. */
 html {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
 .dash-stat-value,
@@ -626,157 +627,122 @@ body.theme-dark .nm-swatch-option--hl {
   background: rgba(29, 154, 176, 0.12);
 }
 
-/* Admin -> Device icons: group/location colour list. */
-.entity-colors-heading {
-  margin: var(--nm-space-4) 0 var(--nm-space-2);
-  font-size: var(--nm-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--nm-text-muted);
+/* ── Canonical application panel hierarchy ──────────────────────────────── */
+.nm-app-panel {
+  overflow: hidden;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
 }
 
-.entity-colors-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nm-space-1);
-}
-
-.entity-colors-row {
+.nm-app-panel-header {
   display: flex;
   align-items: center;
-  gap: var(--nm-space-2);
-  padding: var(--nm-space-1) 0;
-}
-
-.entity-colors-row .nm-chip {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.entity-colors-note {
-  flex: 0 0 auto;
-  font-size: var(--nm-text-xs);
-  font-family: ui-monospace, monospace;
-  color: var(--nm-text-faint);
-}
-
-/* Profile -> Appearance preference row. */
-/* Stacked: the preference sits in a narrow column beside Account details, so
-   the description gets the full width and the controls sit under it. */
-.profile-pref-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--nm-space-3);
+  min-height: 44px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
 }
 
-.profile-pref-text {
+.nm-app-panel-header--copy {
+  min-height: 58px;
+}
+
+.nm-workspace-tabs {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 42px;
+  overflow-x: auto;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  padding: 4px;
+  background: var(--nm-modal-header);
+  box-shadow: var(--nm-shadow-sm);
+  scrollbar-width: none;
+}
+
+.nm-workspace-tabs::-webkit-scrollbar { display: none; }
+
+.nm-workspace-tabs--attached {
+  position: relative;
+  z-index: 1;
+  align-items: flex-end;
   gap: 2px;
+  min-height: 34px;
+  overflow-y: visible;
+  margin-bottom: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0 0 0 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nm-workspace-stage {
   min-width: 0;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  padding: 16px;
+  background: var(--nm-modal-shell);
+  box-shadow: var(--nm-shadow-sm);
 }
 
-.profile-pref-text strong {
-  font-size: var(--nm-text-md);
-}
-
-.profile-pref-text span {
-  font-size: var(--nm-text-sm);
-  color: var(--nm-text-muted);
-}
-
-.profile-pref-control {
-  display: flex;
-  align-items: center;
-  gap: var(--nm-space-3);
-  flex: 0 0 auto;
-}
-
-/* Colour cell in the Admin -> Device icons device-type rows. */
-.device-icons-color {
+.nm-workspace-tab {
   display: inline-flex;
   align-items: center;
-  gap: var(--nm-space-2);
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
   flex: 0 0 auto;
-}
-
-.entity-colors-input {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 26px;
-  padding: 2px;
-  border: 1px solid var(--nm-border);
+  border: 1px solid transparent;
   border-radius: var(--nm-radius-sm);
+  padding: 0 12px;
   background: transparent;
-  cursor: pointer;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
 }
 
-/* Auth-source badge (Admin -> Users): linked single sign-on identity. */
-.nm-pill--sso {
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent-strong);
-  border-color: rgba(29, 154, 176, 0.25);
-}
-
-.admin-user-name .nm-pill--sso {
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-/* ── SSO provider test results (Admin -> Security) ──────────────────────── */
-.sso-check-list {
-  display: grid;
-  gap: var(--nm-space-1);
-  margin: var(--nm-space-2) 0;
-}
-
-.sso-check-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--nm-space-2);
-  padding: 6px 10px;
-  border-radius: var(--nm-radius-sm);
-  border: 1px solid var(--nm-border);
-  background: var(--nm-surface-soft);
-  font-size: var(--nm-text-sm);
+.nm-workspace-tab:hover {
+  border-color: var(--nm-tab-hover-border);
+  background: var(--nm-tab-hover-bg);
   color: var(--nm-text);
 }
 
-.sso-check-row.ok .sso-check-status { color: var(--nm-success); }
-.sso-check-row.err {
-  border-color: rgba(217, 75, 75, 0.25);
-  background: var(--nm-danger-soft);
-}
-.sso-check-row.err .sso-check-status { color: var(--nm-danger); }
-
-.sso-check-status { font-weight: 700; }
-
-.sso-check-name {
-  min-width: 110px;
-  font-weight: 600;
-  text-transform: capitalize;
+.nm-workspace-tab:focus-visible {
+  outline: 2px solid var(--nm-accent);
+  outline-offset: 1px;
 }
 
-.sso-check-message { color: var(--nm-text-muted); }
-
-.sso-require-block {
-  margin-top: var(--nm-space-3);
-  padding-top: var(--nm-space-3);
-  border-top: 1px solid var(--nm-border);
+.nm-workspace-tab.is-active {
+  border-color: var(--nm-tab-active-border);
+  background: var(--nm-tab-active-bg);
+  color: var(--nm-accent-strong);
+  box-shadow: inset 0 -2px 0 var(--nm-accent);
 }
 
-.mon-table-body,
-.nm-table-wrap {
-  scrollbar-gutter: stable;
+.nm-workspace-tabs--attached .nm-workspace-tab {
+  min-height: 34px;
+  margin-bottom: -1px;
+  border-bottom-color: var(--nm-border);
+  border-radius: var(--nm-radius-md) var(--nm-radius-md) 0 0;
+  padding: 0 14px;
 }
 
-.auth-field-hint {
-  display: block;
-  font-size: var(--nm-text-xs);
-  color: var(--nm-text-faint);
-  margin: 2px 0 4px;
+.nm-workspace-tabs--attached .nm-workspace-tab:hover {
+  border-color: var(--nm-tab-hover-border);
+  border-bottom-color: var(--nm-border);
+}
+
+.nm-workspace-tabs--attached .nm-workspace-tab.is-active {
+  border-color: var(--nm-border);
+  border-bottom-color: var(--nm-modal-shell);
+  background: var(--nm-modal-shell);
+  box-shadow: inset 0 2px 0 var(--nm-accent);
 }
 
 /* ── Canonical panel / toolbar / form-row / table-actions / pills ─────────────
