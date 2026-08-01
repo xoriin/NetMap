@@ -52,15 +52,15 @@ export function mockRelationship(overrides: Record<string, unknown> = {}) {
 
 // Sets up the auth bootstrap mocks so the app reaches the dashboard.
 // Route order matters: register before page.goto().
-export async function setupCoreMocks(page: Page) {
+export async function setupCoreMocks(page: Page, announcement: string | null = null) {
   await page.route("**/api/v1/admin/settings/public", (route) =>
     route.fulfill({
-      json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement: null },
+      json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement },
     })
   );
   await page.route("**/api/v1/admin/public-settings", (route) =>
     route.fulfill({
-      json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement: null },
+      json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement },
     })
   );
   await page.route("**/api/v1/setup/status", (route) =>
@@ -112,7 +112,16 @@ export async function setupTopologyMocks(
   await page.route("**/api/v1/topology/groups*", (route) =>
     route.fulfill({ json: [] })
   );
-  await page.route("**/api/v1/sites*", (route) =>
+  await page.route("**/api/v1/topology/sites*", (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.route("**/api/v1/tools/snmp/profiles", (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.route("**/api/v1/monitoring/devices", (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.route("**/api/v1/monitoring/devices?*", (route) =>
     route.fulfill({ json: [] })
   );
   await page.route("**/api/v1/topology/live-statuses", (route) =>
@@ -148,6 +157,8 @@ export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {
     display_name: "Core Router",
     hostname: "router-01",
     ip_address: "192.168.1.1",
+    device_type: "router",
+    icon: "router",
     status: "online",
     topology_group: "Core",
     site_id: null,
@@ -190,6 +201,9 @@ export async function setupMonitoringMocks(
     route.fulfill({ json: devices })
   );
   await page.route("**/api/v1/monitoring/service-checks", (route) =>
+    route.fulfill({ json: [] })
+  );
+  await page.route("**/api/v1/monitors", (route) =>
     route.fulfill({ json: [] })
   );
   await page.route("**/api/v1/monitoring/devices/*/history?*", (route) =>
