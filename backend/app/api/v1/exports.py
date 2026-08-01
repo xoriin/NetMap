@@ -1,13 +1,15 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
+    get_current_user,
     require_firewall_export,
     require_inventory_export,
     require_report_export,
@@ -16,7 +18,9 @@ from app.api.deps import (
 from app.core.validation import normalize_ip, validate_port, validate_syslog_field
 from app.db.firewall_session import get_firewall_db
 from app.db.session import get_db
-from app.models.user import User
+from app.models.audit_log import AuditLog
+from app.models.device import Device
+from app.models.user import User, UserRole
 from app.services.audit.service import write_audit
 from app.services.exports import (
     backup_database_bytes,
@@ -30,6 +34,8 @@ from app.services.exports.backup_schedule import (
     backup_filename_path,
     list_scheduled_backups,
 )
+from app.services.rbac.permissions import has_permission
+from app.services.syslog.storage import count_events
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
@@ -47,6 +53,62 @@ class ScheduledBackupRead(BaseModel):
     filename: str
     size_bytes: int
     created_at: datetime
+
+
+class ExportSummaryRead(BaseModel):
+    inventory_rows: int | None = None
+    firewall_events: int | None = None
+    exports_last_30_days: int
+    last_export_at: datetime | None = None
+    last_export_type: str | None = None
+    last_export_detail: str | None = None
+
+
+EXPORT_ACTION_LABELS = {
+    "export.inventory": "Inventory",
+    "export.firewall": "Firewall events",
+    "export.report_pdf": "Network report",
+}
+
+
+def _can_export(user: User, permission: str) -> bool:
+    return user.role == UserRole.SUPER_ADMIN or has_permission(user.role, permission)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+@router.get("/summary", response_model=ExportSummaryRead)
+def export_summary(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExportSummaryRead:
+    actions = tuple(EXPORT_ACTION_LABELS)
+    base = select(AuditLog).where(
+        AuditLog.actor_user_id == current_user.id,
+        AuditLog.action.in_(actions),
+    )
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    recent_count = int(db.scalar(
+        select(func.count()).select_from(AuditLog).where(
+            AuditLog.actor_user_id == current_user.id,
+            AuditLog.action.in_(actions),
+            AuditLog.created_at >= cutoff,
+        )
+    ) or 0)
+    last_export = db.scalar(base.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(1))
+    return ExportSummaryRead(
+        inventory_rows=int(db.scalar(select(func.count()).select_from(Device)) or 0)
+        if _can_export(current_user, "inventory_export") else None,
+        firewall_events=count_events() if _can_export(current_user, "firewall_export") else None,
+        exports_last_30_days=recent_count,
+        last_export_at=_as_utc(last_export.created_at) if last_export else None,
+        last_export_type=EXPORT_ACTION_LABELS.get(last_export.action) if last_export else None,
+        last_export_detail=last_export.detail if last_export else None,
+    )
 
 
 @router.get("/inventory")
