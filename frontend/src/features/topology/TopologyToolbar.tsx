@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, EyeOff, Eye, Search } from "lucide-react";
+import { ChevronDown, EyeOff, Eye, Layers3, Network, Route, Search } from "lucide-react";
 import { IconWifi, IconWifiOff } from "@tabler/icons-react";
 import type { Device, Site } from "../../api/client";
 import type { GroupLayoutShape } from "../../utils/topology";
@@ -20,6 +20,7 @@ export type GroupDisplayPref = {
  * change is delegated to the orchestrator, which owns the cytoscape instance.
  */
 function DeviceSearch({ devices, onLocate }: { devices: Device[]; onLocate: (deviceId: number) => void }) {
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -35,49 +36,106 @@ function DeviceSearch({ devices, onLocate }: { devices: Device[]; onLocate: (dev
   function pick(deviceId: number) {
     onLocate(deviceId);
     setQuery("");
+    setOpen(false);
   }
 
   return (
     <div className="topo-search">
-      <Search size={13} aria-hidden="true" className="topo-search-icon" />
-      <input
-        className="topo-search-input"
-        type="search"
-        placeholder="Find device…"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && matches.length > 0) {
-            event.preventDefault();
-            pick(matches[0].id);
-          }
-          if (event.key === "Escape") setQuery("");
+      <button
+        type="button"
+        className={`nm-btn nm-btn--sm nm-btn--secondary topology-canvas-control${open ? " nm-btn--active" : ""}`}
+        aria-expanded={open}
+        aria-controls="topology-device-search"
+        onClick={() => {
+          setOpen((current) => !current);
+          if (open) setQuery("");
         }}
-      />
-      {matches.length > 0 && (
-        <div className="topo-search-results">
-          {matches.map((device) => (
-            <button key={device.id} type="button" className="topo-search-result" onClick={() => pick(device.id)}>
-              <span className="topo-search-result-name">{deviceLabel(device).split("\n")[0]}</span>
-              <span className="topo-search-result-ip">{device.ip_address}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {query.trim() !== "" && matches.length === 0 && (
-        <div className="topo-search-results">
-          <span className="topo-search-empty">No matching devices</span>
+      >
+        <Search size={14} aria-hidden="true" />
+        Find
+      </button>
+      {open && (
+        <div className="topo-search-popover" id="topology-device-search">
+          <Search size={13} aria-hidden="true" className="topo-search-icon" />
+          <input
+            autoFocus
+            className="topo-search-input"
+            type="search"
+            placeholder="Name, hostname or IP…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && matches.length > 0) {
+                event.preventDefault();
+                pick(matches[0].id);
+              }
+              if (event.key === "Escape") {
+                setQuery("");
+                setOpen(false);
+              }
+            }}
+          />
+          {matches.length > 0 && (
+            <div className="topo-search-results">
+              {matches.map((device) => (
+                <button key={device.id} type="button" className="topo-search-result" onClick={() => pick(device.id)}>
+                  <span className="topo-search-result-name">{deviceLabel(device).split("\n")[0]}</span>
+                  <span className="topo-search-result-ip">{device.ip_address}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {query.trim() !== "" && matches.length === 0 && (
+            <div className="topo-search-results">
+              <span className="topo-search-empty">No matching devices</span>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function TopologyToolbar({
+export function TopologyCanvasControls({
   devices,
   pathMode,
   onLocateDevice,
   onTogglePathMode,
+  onOpenLayouts,
+}: {
+  devices: Device[];
+  pathMode: boolean;
+  onLocateDevice: (deviceId: number) => void;
+  onTogglePathMode: () => void;
+  onOpenLayouts: () => void;
+}) {
+  return (
+    <div className="topology-canvas-controls" aria-label="Topology canvas tools">
+      <DeviceSearch devices={devices} onLocate={onLocateDevice} />
+      <button
+        type="button"
+        className={`nm-btn nm-btn--sm nm-btn--secondary topology-canvas-control${pathMode ? " nm-btn--active" : ""}`}
+        title="Highlight the link path between two devices"
+        aria-pressed={pathMode}
+        onClick={onTogglePathMode}
+      >
+        <Route size={14} aria-hidden="true" />
+        Path
+      </button>
+      <button
+        type="button"
+        className="nm-btn nm-btn--sm nm-btn--secondary topology-canvas-control"
+        onClick={onOpenLayouts}
+      >
+        <Layers3 size={14} aria-hidden="true" />
+        Layouts
+      </button>
+    </div>
+  );
+}
+
+export function TopologyToolbar({
+  devices,
   sites,
   selectedSiteId,
   statusCounts,
@@ -97,7 +155,6 @@ export function TopologyToolbar({
   onSiteChange,
   onFit,
   onResetLayout,
-  onOpenLayouts,
   onExportPng,
   onExportSvg,
   onExportPdf,
@@ -108,6 +165,7 @@ export function TopologyToolbar({
   onHideAllGroups,
   onSelectGroupForDisplay,
   onSetGroupPref,
+  onLayoutShapeChange,
   onAutoArrange,
   onResetGroup,
   onSpacingChange,
@@ -120,9 +178,6 @@ export function TopologyToolbar({
   onAddLink,
 }: {
   devices: Device[];
-  pathMode: boolean;
-  onLocateDevice: (deviceId: number) => void;
-  onTogglePathMode: () => void;
   sites: Site[];
   selectedSiteId: number | null;
   statusCounts: { online: number; offline: number };
@@ -142,7 +197,6 @@ export function TopologyToolbar({
   onSiteChange: (siteId: number | null) => void;
   onFit: () => void;
   onResetLayout: () => void;
-  onOpenLayouts: () => void;
   onExportPng: () => void;
   onExportSvg: () => void;
   onExportPdf: () => void;
@@ -153,6 +207,7 @@ export function TopologyToolbar({
   onHideAllGroups: () => void;
   onSelectGroupForDisplay: (groupName: string) => void;
   onSetGroupPref: (patch: Partial<GroupDisplayPref>) => void;
+  onLayoutShapeChange: (shape: GroupLayoutShape) => void;
   onAutoArrange: () => void;
   onResetGroup: () => void;
   onSpacingChange: (spacingScalePercent: number) => void;
@@ -169,6 +224,13 @@ export function TopologyToolbar({
 
   return (
     <div className="topology-toolbar topology-toolbar--ribbon">
+      <div className="topology-ribbon-identity">
+        <span className="topology-ribbon-icon" aria-hidden="true"><Network size={18} /></span>
+        <span className="topology-ribbon-separator">-</span>
+        <span>Network map</span>
+        <span className="topology-ribbon-count">{devices.length}</span>
+      </div>
+      <div className="toolbar-divider" />
       <div className="toolbar-group">
         <div className="toolbar-group-controls">
           <select
@@ -199,18 +261,8 @@ export function TopologyToolbar({
       <div className="toolbar-divider" />
       <div className="toolbar-group">
         <div className="toolbar-group-controls">
-          <DeviceSearch devices={devices} onLocate={onLocateDevice} />
           <button type="button" className="nm-btn nm-btn--sm" onClick={onFit}>Fit</button>
           <button type="button" className="nm-btn nm-btn--sm" onClick={onResetLayout}>Reset view</button>
-          <button type="button" className="nm-btn nm-btn--sm" onClick={onOpenLayouts}>Layouts</button>
-          <button
-            type="button"
-            className={`nm-btn nm-btn--sm${pathMode ? " nm-btn--active" : ""}`}
-            title="Highlight the link path between two devices"
-            onClick={onTogglePathMode}
-          >
-            Path
-          </button>
           {canWrite && (
             <>
               <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPng}>PNG</button>
@@ -315,7 +367,7 @@ export function TopologyToolbar({
                       key={shape}
                       type="button"
                       className={`nm-btn nm-btn--sm${(activeGroupDisplay.layoutShape ?? "grid") === shape ? " nm-btn--active" : ""}`}
-                      onClick={() => onSetGroupPref({ layoutShape: shape })}
+                      onClick={() => onLayoutShapeChange(shape)}
                     >
                       {shape === "grid" ? "Grid" : "Radial"}
                     </button>
@@ -336,7 +388,7 @@ export function TopologyToolbar({
                 </div>
                 <label>
                   Node size <span>{activeGroupDisplay.nodeScalePercent}%</span>
-                  <input type="range" min={70} max={180} step={5} value={activeGroupDisplay.nodeScalePercent}
+                  <input type="range" min={70} max={140} step={5} value={activeGroupDisplay.nodeScalePercent}
                     onChange={(e) => onSetGroupPref({ nodeScalePercent: Number(e.target.value) })} />
                 </label>
                 <label>

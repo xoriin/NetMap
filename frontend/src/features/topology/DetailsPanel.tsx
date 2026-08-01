@@ -55,7 +55,7 @@ export function DetailsPanel({
 }) {
   if (!selectedDevice && !selectedRelationship) return null;
   return (
-    <aside className="details-panel">
+    <aside className="details-panel topology-details-panel">
       {selectedDevice ? (
         <DeviceDetails
           canViewSecurity={canViewSecurity}
