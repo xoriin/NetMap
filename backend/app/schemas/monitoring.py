@@ -32,6 +32,8 @@ class DeviceMonitorSummary(BaseModel):
     display_name: str | None
     hostname: str | None
     ip_address: str
+    device_type: str | None = None
+    icon: str | None = None
     status: str
     lifecycle: str = "active"
     monitoring_paused: bool = False

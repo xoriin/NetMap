@@ -233,6 +233,8 @@ def _build_device_summaries(
                 display_name=device.display_name,
                 hostname=device.hostname,
                 ip_address=device.ip_address,
+                device_type=device.device_type,
+                icon=device.icon,
                 status="paused" if is_paused else (device.monitor_status or "unknown"),
                 lifecycle=device.lifecycle or "active",
                 monitoring_paused=bool(device.monitoring_paused),

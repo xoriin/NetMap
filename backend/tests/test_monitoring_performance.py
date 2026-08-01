@@ -80,6 +80,8 @@ def test_monitoring_heartbeat_is_capped_but_uptime_uses_full_24h_window():
     device = Device(
         display_name="Switch",
         ip_address="10.0.0.20",
+        device_type="switch",
+        icon="switch",
         status="online",
         monitor_status="online",
         last_monitored_at=now,
@@ -106,6 +108,8 @@ def test_monitoring_heartbeat_is_capped_but_uptime_uses_full_24h_window():
     summary = _build_device_summaries(db, [device])[0]
 
     assert len(summary.heartbeat) == 50
+    assert summary.device_type == "switch"
+    assert summary.icon == "switch"
     assert summary.uptime_24h == 0.5
     assert summary.avg_rtt_24h == 29.5
 
