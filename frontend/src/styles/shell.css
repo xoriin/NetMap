@@ -271,6 +271,74 @@
   font-weight: 650;
 }
 
+.sidebar-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-link.sidebar-link--parent.active {
+  border-left-color: rgba(29, 154, 176, 0.35);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--nm-shell-text);
+}
+
+.sidebar-parent-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--nm-shell-muted);
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.sidebar-parent-chevron.is-expanded { transform: rotate(0deg); }
+
+.sidebar-admin-subnav {
+  display: grid;
+  gap: 2px;
+  margin: 3px 0 7px 20px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 9px;
+}
+
+.sidebar-admin-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--nm-shell-muted);
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+
+.sidebar-admin-link svg { flex: 0 0 auto; }
+
+.sidebar-admin-link:hover {
+  background: rgba(29, 154, 176, 0.09);
+  color: var(--nm-shell-text);
+}
+
+.sidebar-admin-link.active {
+  background: rgba(29, 154, 176, 0.16);
+  color: #6ddbe8;
+  font-weight: 650;
+}
+
+.sidebar-admin-link:focus-visible {
+  outline: 2px solid var(--nm-accent);
+  outline-offset: -2px;
+}
+
 .sidebar-badge {
   margin-left: auto;
   flex-shrink: 0;
@@ -293,7 +361,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x);
   background: var(--nm-bg);
 }
 
@@ -643,15 +711,6 @@ body.route-monitoring .dash-layout {
   padding-bottom: 0;
 }
 
-body.route-vlans .workspace,
-body.route-locations .workspace {
-  padding: 20px 24px 24px;
-}
-body.route-monitoring .workspace,
-body.route-ipam .workspace {
-  padding-top: 24px;
-}
-
 body.route-vlans .dash-header--actions-only,
 body.route-locations .dash-header--actions-only {
   margin-top: 0;
@@ -665,7 +724,7 @@ body.route-inventory .topology-content {
   overflow: hidden;
   margin-top: 0;
   gap: 16px;
-  padding: 0 18px 20px;
+  padding: 0 var(--nm-workspace-gutter-x) 20px;
 }
 body.route-inventory .inventory-surface {
   flex: 1 1 auto;
@@ -685,7 +744,7 @@ body.route-security .workspace {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 20px 32px;
+  padding: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x);
 }
 
 body.route-security .security-layout {
