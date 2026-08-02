@@ -106,7 +106,10 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
         "font-size": 12,
         "font-weight": 700,
         label: "",
-        padding: "36px",
+        // The HTML device overlay is larger than Cytoscape's hit target once
+        // icons and labels are included. Keep a dedicated header clearance so
+        // the first device row can never intrude on the group title/count.
+        padding: "52px",
         shape: "round-rectangle",
         "text-halign": "center",
         "text-margin-x": 0,

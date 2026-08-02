@@ -613,6 +613,7 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
 
 .topology-group-header {
   position: absolute;
+  z-index: 3;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -623,6 +624,7 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
   font-weight: 700;
   line-height: 1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
 
 .topology-group-header__identity,
@@ -1033,4 +1035,3 @@ body.theme-dark .topo-bulkbar select {
     top: 68px;
   }
 }
-

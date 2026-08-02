@@ -46,6 +46,16 @@ for (const theme of ["light", "dark"] as const) {
     const groupHeader = graph.locator(".topology-group-header");
     await expect(groupHeader).toContainText("Core");
     await expect(groupHeader.locator(".topology-group-header__count")).toHaveText("1");
+    const headerClearance = await graph.evaluate((surface) => {
+      const header = surface.querySelector<HTMLElement>(".topology-group-header")?.getBoundingClientRect();
+      const frames = Array.from(surface.querySelectorAll<HTMLElement>(".topology-device-icon-frame"))
+        .map((element) => element.getBoundingClientRect());
+      return header && frames.length > 0
+        ? Math.min(...frames.map((frame) => frame.top)) - header.bottom
+        : null;
+    });
+    expect(headerClearance).not.toBeNull();
+    expect(headerClearance ?? 0).toBeGreaterThanOrEqual(4);
     const linkLabel = graph.locator(".topology-link-label");
     await expect(linkLabel).toContainText("uplink");
     await expect(linkLabel.locator("strong")).toHaveText("2.5 Gbps");
