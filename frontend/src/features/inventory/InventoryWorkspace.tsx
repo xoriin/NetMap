@@ -37,6 +37,17 @@ import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 
 const INVENTORY_PAGE_SIZE_KEY = "netmap.inventory.pageSize";
 const INVENTORY_PAGE_SIZE_MIGRATION_KEY = "netmap.inventory.pageSizeDefault25";
+type InventoryStatusFilter = "all" | "online" | "offline" | "warning" | "unknown" | "disabled" | "paused";
+
+const INVENTORY_STATUS_FILTER_OPTIONS: SwatchOption[] = [
+  { value: "all", label: "All statuses" },
+  { value: "online", label: "Online", color: "#2d9d78" },
+  { value: "offline", label: "Offline", color: "#d94b4b" },
+  { value: "warning", label: "Warning", color: "#d4912c" },
+  { value: "unknown", label: "Unknown", color: "#7a8fa0" },
+  { value: "paused", label: "Paused", color: "#7a8fa0" },
+  { value: "disabled", label: "Disabled", color: "#5d6b7a" },
+];
 
 export function InventoryWorkspace({
   accessToken,
@@ -67,7 +78,6 @@ export function InventoryWorkspace({
   onToggleFavourite: (deviceId: number) => void;
   openObservationCount?: number;
 }) {
-  type InventoryStatusFilter = "all" | "online" | "offline" | "warning" | "unknown" | "disabled" | "paused";
   const confirmAction = useConfirm();
   const toast = useToast();
   const deviceTypesQuery = useDeviceTypes(accessToken);
@@ -676,19 +686,12 @@ export function InventoryWorkspace({
               options={typeFilterOptions}
               onChange={setSelectedTypeFilter}
             />
-            <select
-              className="inv-select"
+            <SwatchSelect
+              ariaLabel="Filter by status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as InventoryStatusFilter)}
-            >
-              <option value="all">All statuses</option>
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-              <option value="warning">Warning</option>
-              <option value="unknown">Unknown</option>
-              <option value="paused">Paused</option>
-              <option value="disabled">Disabled</option>
-            </select>
+              options={INVENTORY_STATUS_FILTER_OPTIONS}
+              onChange={(value) => setStatusFilter(value as InventoryStatusFilter)}
+            />
             <button
               type="button"
               className={`inv-status-tab inv-fav-filter${favouriteFilter ? " active" : ""}`}

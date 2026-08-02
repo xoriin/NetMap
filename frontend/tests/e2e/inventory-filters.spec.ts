@@ -65,7 +65,7 @@ test.describe("Inventory device type filter", () => {
     const devices = [
       mockDevice({ id: 1, hostname: "router-01", ip_address: "192.168.1.1", device_type: "router" }),
       mockDevice({ id: 2, hostname: "switch-01", ip_address: "192.168.1.2", device_type: "switch" }),
-      mockDevice({ id: 3, hostname: "switch-02", ip_address: "192.168.1.3", device_type: "switch" }),
+      mockDevice({ id: 3, hostname: "switch-02", ip_address: "192.168.1.3", device_type: "switch", monitor_status: "offline" }),
     ];
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
@@ -85,6 +85,21 @@ test.describe("Inventory device type filter", () => {
 
     await options.filter({ hasText: "Switch" }).click();
     await expect(page.locator(".inventory-row")).toHaveCount(2);
+  });
+
+  test("uses the colour-aware status picker and filters by status", async ({ page }) => {
+    const statusFilter = page.getByRole("button", { name: "Filter by status" });
+    await statusFilter.waitFor({ state: "visible", timeout: 8000 });
+    await expect(statusFilter).toContainText("All statuses");
+
+    await statusFilter.click();
+    const offlineOption = page.getByRole("option", { name: "Offline" });
+    await expect(offlineOption.locator(".nm-swatch-dot")).toBeVisible();
+    await offlineOption.click();
+
+    await expect(statusFilter).toContainText("Offline");
+    await expect(page.locator(".inventory-row")).toHaveCount(1);
+    await expect(page.locator(".inventory-row")).toContainText("switch-02");
   });
 });
 
