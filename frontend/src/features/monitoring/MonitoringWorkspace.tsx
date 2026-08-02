@@ -23,8 +23,9 @@ import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 import { Modal } from "../../components/Modal";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { EntityChip } from "../../components/EntityChip";
+import { SwatchSelect, type SwatchOption } from "../../components/SwatchSelect";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
-import { deviceTypeChipFor } from "../../utils/entityColor";
+import { deviceTypeChipFor, resolveEntityColor } from "../../utils/entityColor";
 import { formatDeviceTypeLabel } from "../../utils/format";
 import { iconLabel } from "../../icons";
 import { MonitorsPanel, type MonitorStats } from "./MonitorsPanel";
@@ -45,6 +46,23 @@ type MonitoringSnapshot = {
 const MONITORING_SNAPSHOT_MAX_AGE_MS = 15 * 60_000;
 const MONITORING_SNAPSHOT_FRESH_MS = 60_000;
 let monitoringSnapshot: MonitoringSnapshot | null = null;
+
+const STATUS_FILTER_OPTIONS: SwatchOption[] = [
+  { value: "all", label: "All statuses" },
+  { value: "online", label: "Online", color: "#2d9d78" },
+  { value: "offline", label: "Offline", color: "#d94b4b" },
+  { value: "warning", label: "Warning", color: "#d4912c" },
+  { value: "unknown", label: "Unknown", color: "#7a8fa0" },
+  { value: "paused", label: "Paused", color: "#7a8fa0" },
+];
+
+const HEALTH_FILTER_OPTIONS: SwatchOption[] = [
+  { value: "all", label: "All health" },
+  { value: "healthy", label: "Expected", color: "#2d9d78" },
+  { value: "unhealthy", label: "Unexpected", color: "#d94b4b" },
+  { value: "unknown", label: "Unknown", color: "#7a8fa0" },
+  { value: "paused", label: "Paused", color: "#7a8fa0" },
+];
 
 function getMonitoringSnapshot(): MonitoringSnapshot | null {
   if (!monitoringSnapshot) return null;
@@ -470,10 +488,39 @@ export function MonitoringWorkspace({
           label: configured?.label && configured.label !== value
             ? configured.label
             : formatDeviceTypeLabel(value),
+          color: resolveEntityColor(configured?.color, value),
+          icon: <DeviceTypeIcon type={value} size={13} />,
         };
       }),
     ];
   }, [displayDevices, deviceTypeOptions]);
+
+  const groupFilterOptions = useMemo<SwatchOption[]>(() => [
+    { value: "all", label: "All groups" },
+    ...groupOptions.map((group) => ({
+      value: group,
+      label: group,
+      color: resolveEntityColor(null, group),
+    })),
+  ], [groupOptions]);
+
+  const siteFilterOptions = useMemo<SwatchOption[]>(() => [
+    { value: "all", label: "All sites" },
+    ...siteOptions.map(([id, name]) => ({
+      value: String(id),
+      label: name ?? `Site ${id}`,
+      color: resolveEntityColor(null, name ?? String(id)),
+    })),
+  ], [siteOptions]);
+
+  const vlanFilterOptions = useMemo<SwatchOption[]>(() => [
+    { value: "all", label: "All VLANs" },
+    ...vlanOptions.map((vlan) => ({
+      value: vlan,
+      label: `VLAN ${vlan}`,
+      color: resolveEntityColor(null, `vlan-${vlan}`),
+    })),
+  ], [vlanOptions]);
 
   useEffect(() => {
     if (filterDeviceType === "all") return;
@@ -819,48 +866,35 @@ export function MonitoringWorkspace({
               </div>
               <div className="mon-panel-controls">
                 {refreshing && <span className="mon-refresh-status">Updating...</span>}
-                <select className="toolbar-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="all">All statuses</option>
-                  <option value="online">Online</option>
-                  <option value="offline">Offline</option>
-                  <option value="warning">Warning</option>
-                  <option value="unknown">Unknown</option>
-                  <option value="paused">Paused</option>
-                </select>
-                <select aria-label="Filter by expected-state health" className="toolbar-select" value={filterHealth} onChange={(e) => setFilterHealth(e.target.value)}>
-                  <option value="all">All health</option>
-                  <option value="healthy">Expected</option>
-                  <option value="unhealthy">Unexpected</option>
-                  <option value="unknown">Unknown</option>
-                  <option value="paused">Paused</option>
-                </select>
-                <select
-                  aria-label="Filter by device type"
-                  className="toolbar-select"
+                <SwatchSelect
+                  ariaLabel="Filter by status"
+                  className="mon-filter-picker"
+                  value={filterStatus}
+                  options={STATUS_FILTER_OPTIONS}
+                  onChange={setFilterStatus}
+                />
+                <SwatchSelect
+                  ariaLabel="Filter by expected-state health"
+                  className="mon-filter-picker"
+                  value={filterHealth}
+                  options={HEALTH_FILTER_OPTIONS}
+                  onChange={setFilterHealth}
+                />
+                <SwatchSelect
+                  ariaLabel="Filter by device type"
+                  className="mon-filter-picker"
                   value={filterDeviceType}
-                  onChange={(event) => setFilterDeviceType(event.target.value)}
-                >
-                  {deviceTypeFilterOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  options={deviceTypeFilterOptions}
+                  onChange={setFilterDeviceType}
+                />
                 {groupOptions.length > 0 && (
-                  <select className="toolbar-select" value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)}>
-                    <option value="all">All groups</option>
-                    {groupOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-                  </select>
+                  <SwatchSelect ariaLabel="Filter by group" className="mon-filter-picker" value={filterGroup} options={groupFilterOptions} onChange={setFilterGroup} />
                 )}
                 {siteOptions.length > 0 && (
-                  <select className="toolbar-select" value={filterSite} onChange={(e) => setFilterSite(e.target.value)}>
-                    <option value="all">All sites</option>
-                    {siteOptions.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
-                  </select>
+                  <SwatchSelect ariaLabel="Filter by site" className="mon-filter-picker" value={filterSite} options={siteFilterOptions} onChange={setFilterSite} />
                 )}
                 {vlanOptions.length > 0 && (
-                  <select className="toolbar-select" value={filterVlan} onChange={(e) => setFilterVlan(e.target.value)}>
-                    <option value="all">All VLANs</option>
-                    {vlanOptions.map((v) => <option key={v} value={v}>VLAN {v}</option>)}
-                  </select>
+                  <SwatchSelect ariaLabel="Filter by VLAN" className="mon-filter-picker" value={filterVlan} options={vlanFilterOptions} onChange={setFilterVlan} />
                 )}
                 <button
                   type="button"

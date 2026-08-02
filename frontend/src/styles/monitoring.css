@@ -1724,6 +1724,17 @@ body.theme-dark .mon-checks-group-label { color: #4a7a96; }
   flex-wrap: wrap;
 }
 
+.mon-filter-picker .nm-swatch-trigger {
+  min-width: 112px;
+  max-width: 148px;
+  height: var(--nm-control-md);
+  border-radius: var(--nm-radius-sm);
+}
+
+.mon-filter-picker .nm-swatch-list {
+  z-index: 80;
+}
+
 .mon-table--fleet .nm-chip {
   max-width: 100%;
 }

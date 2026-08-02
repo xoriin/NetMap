@@ -91,11 +91,13 @@ test.describe("Monitoring workspace", () => {
   });
 
   test("filters the fleet by device type", async ({ page }) => {
-    const filter = page.getByRole("combobox", { name: "Filter by device type" });
-    await expect(filter).toHaveValue("all");
-    const options = filter.getByRole("option");
+    const filter = page.getByRole("button", { name: "Filter by device type" });
+    await expect(filter).toContainText("All types");
+    await filter.click();
+    const options = page.getByRole("listbox").getByRole("option");
     await expect(options).toHaveCount(3);
-    await filter.selectOption("switch");
+    await options.filter({ hasText: "Switch" }).click();
+    await expect(filter).toContainText("Switch");
     await expect(page.locator(".mon-row")).toHaveCount(1);
     await expect(page.locator(".mon-row")).toContainText("Access Switch");
     await expect(page.locator(".mon-table-toolbar-meta")).toContainText("1 of 2");
