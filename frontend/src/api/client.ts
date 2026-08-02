@@ -759,6 +759,7 @@ export type PortResult = {
   status: string | null;
   response_time_ms: number | null;
   status_code: number | null;
+  error: string | null;
 };
 
 export type NotificationDelivery = {
@@ -823,7 +824,7 @@ export type FleetSummary = {
   last_checked: string | null;
 };
 
-export type ServiceCheckType = "tcp" | "udp" | "http" | "https";
+export type ServiceCheckType = "tcp" | "udp" | "dhcp" | "http" | "https";
 export type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "OPTIONS" | "PATCH";
 
 export type PortTarget = {
@@ -1028,6 +1029,61 @@ export type IpamSummary = {
   conflict_count: number;
   dhcp_lease_count: number;
   reservation_count: number;
+};
+
+export type ExternalIpPool = {
+  id: number;
+  name: string;
+  cidr: string;
+  provider: string | null;
+  account: string | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  total: number;
+  in_use: number;
+  reserved: number;
+  free: number;
+  utilization: number;
+};
+
+export type ExternalIpAssignment = {
+  id: number;
+  pool_id: number | null;
+  ip_address: string;
+  label: string;
+  status: "available" | "reserved" | "in_use";
+  provider: string | null;
+  account: string | null;
+  owner: string | null;
+  service: string | null;
+  tags: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExternalIpAssignmentPayload = Omit<ExternalIpAssignment, "id" | "created_at" | "updated_at">;
+export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "cidr" | "provider" | "account" | "description">;
+
+export type ExternalIpAddressPage = {
+  total: number;
+  offset: number;
+  limit: number;
+  addresses: Array<{
+    ip_address: string;
+    status: "available" | "reserved" | "in_use";
+    assignment: ExternalIpAssignment | null;
+  }>;
+};
+
+export type ExternalIpSummary = {
+  pool_count: number;
+  standalone_count: number;
+  total: number;
+  in_use: number;
+  reserved: number;
+  free: number;
 };
 
 export type IpReservation = {
@@ -2009,6 +2065,26 @@ export const api = {
     request<{ deleted: number }>("/api/v1/ipam/reservations/expired", { method: "DELETE", token }),
   getNextAvailableIp: (token: string, subnetId: number) =>
     request<{ ip: string }>(`/api/v1/ipam/subnets/${subnetId}/next-available`, { token }),
+  getExternalIpSummary: (token: string) =>
+    request<ExternalIpSummary>("/api/v1/ipam/external/summary", { token }),
+  listExternalIpPools: (token: string) =>
+    request<ExternalIpPool[]>("/api/v1/ipam/external/pools", { token }),
+  createExternalIpPool: (token: string, payload: ExternalIpPoolPayload) =>
+    request<ExternalIpPool>("/api/v1/ipam/external/pools", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateExternalIpPool: (token: string, id: number, payload: Partial<ExternalIpPoolPayload>) =>
+    request<ExternalIpPool>(`/api/v1/ipam/external/pools/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
+  deleteExternalIpPool: (token: string, id: number) =>
+    request<void>(`/api/v1/ipam/external/pools/${id}`, { method: "DELETE", token }),
+  getExternalPoolAddresses: (token: string, id: number, offset = 0, limit = 256) =>
+    request<ExternalIpAddressPage>(`/api/v1/ipam/external/pools/${id}/addresses?offset=${offset}&limit=${limit}`, { token }),
+  listExternalIpAssignments: (token: string) =>
+    request<ExternalIpAssignment[]>("/api/v1/ipam/external/assignments", { token }),
+  createExternalIpAssignment: (token: string, payload: ExternalIpAssignmentPayload) =>
+    request<ExternalIpAssignment>("/api/v1/ipam/external/assignments", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateExternalIpAssignment: (token: string, id: number, payload: Partial<ExternalIpAssignmentPayload>) =>
+    request<ExternalIpAssignment>(`/api/v1/ipam/external/assignments/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
+  deleteExternalIpAssignment: (token: string, id: number) =>
+    request<void>(`/api/v1/ipam/external/assignments/${id}`, { method: "DELETE", token }),
   listSavedSecuritySearches: (token: string) =>
     request<SavedSecuritySearch[]>("/api/v1/syslog/searches", { token }),
   createSavedSecuritySearch: (token: string, name: string, filters: Record<string, unknown>) =>
