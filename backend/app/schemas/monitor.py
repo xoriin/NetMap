@@ -320,6 +320,7 @@ class MonitorRead(BaseModel):
     uptime_24h: float | None = None
     uptime_7d: float | None = None
     avg_response_time_24h: float | None = None
+    heartbeat: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

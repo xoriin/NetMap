@@ -63,6 +63,30 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
     ).all()
     avg_rtt_map = {row[0]: round(row[1], 2) for row in avg_rows if row[1] is not None}
 
+    heartbeat_subq = (
+        select(
+            MonitorCheckHistory.monitor_id,
+            MonitorCheckHistory.status,
+            func.row_number().over(
+                partition_by=MonitorCheckHistory.monitor_id,
+                order_by=MonitorCheckHistory.checked_at.desc(),
+            ).label("rn"),
+        )
+        .where(
+            MonitorCheckHistory.monitor_id.in_(ids),
+            MonitorCheckHistory.checked_at >= cutoff_24h,
+        )
+        .subquery()
+    )
+    heartbeat_rows = db.execute(
+        select(heartbeat_subq.c.monitor_id, heartbeat_subq.c.status)
+        .where(heartbeat_subq.c.rn <= 30)
+        .order_by(heartbeat_subq.c.monitor_id.asc(), heartbeat_subq.c.rn.desc())
+    ).all()
+    heartbeat_map: dict[int, list[str]] = {monitor_id: [] for monitor_id in ids}
+    for monitor_id, check_status in heartbeat_rows:
+        heartbeat_map[monitor_id].append(check_status)
+
     reads = []
     for monitor in monitors:
         read = MonitorRead.model_validate(monitor)
@@ -82,6 +106,7 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
         read.uptime_24h = round(uptime_24h_map[monitor.id], 1) if monitor.id in uptime_24h_map else None
         read.uptime_7d = round(uptime_7d_map[monitor.id], 1) if monitor.id in uptime_7d_map else None
         read.avg_response_time_24h = avg_rtt_map.get(monitor.id)
+        read.heartbeat = heartbeat_map[monitor.id]
         reads.append(read)
     return reads
 

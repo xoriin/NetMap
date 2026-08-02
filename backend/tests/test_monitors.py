@@ -248,9 +248,34 @@ def test_monitor_history_and_uptime_computation():
     assert len(reads) == 1
     assert reads[0].uptime_24h == pytest.approx(66.7, abs=0.1)
     assert reads[0].avg_response_time_24h == 150.0
+    assert reads[0].heartbeat == ["offline", "online", "online"]
 
     history = get_monitor_history(monitor.id, actor, db, hours=24)
     assert len(history) == 3
+
+
+def test_monitor_list_heartbeat_is_ordered_and_bounded():
+    db = _session()
+    actor = Mock(id=1, role="SuperAdmin")
+    monitor = _monitor()
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+
+    now = datetime.now(timezone.utc)
+    db.add_all([
+        MonitorCheckHistory(
+            monitor_id=monitor.id,
+            checked_at=now - timedelta(minutes=34 - index),
+            status="online" if index % 2 == 0 else "offline",
+        )
+        for index in range(35)
+    ])
+    db.commit()
+
+    heartbeat = list_monitors(actor, db)[0].heartbeat
+    assert len(heartbeat) == 30
+    assert heartbeat == ["offline" if index % 2 else "online" for index in range(5, 35)]
 
 
 # ---------------------------------------------------------------------------
