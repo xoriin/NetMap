@@ -101,6 +101,17 @@ def test_verify_valid_key(db, user):
     assert resolved.user_id == user.id
 
 
+def test_verify_backfills_suffix_for_legacy_key(db, user):
+    key, plaintext = create_api_key(db, user, name="legacy", expires_in_days=None)
+    key.suffix = None
+    db.commit()
+
+    resolved = verify_and_load(db, plaintext)
+
+    assert resolved is not None
+    assert resolved.suffix == plaintext[-4:]
+
+
 def test_verify_rejects_tampered_secret(db, user):
     key, plaintext = create_api_key(db, user, name="ci", expires_in_days=None)
     db.commit()
@@ -151,6 +162,7 @@ def test_plaintext_is_never_persisted(db, user):
     key, plaintext = create_api_key(db, user, name="ci", expires_in_days=None)
     db.commit()
     assert key.key_hash != plaintext
+    assert key.suffix == plaintext[-4:]
     secret_part = plaintext.split("_", 2)[2]
     for row in db.execute(text("SELECT * FROM api_keys")).mappings():
         for value in row.values():

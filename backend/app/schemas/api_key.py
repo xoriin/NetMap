@@ -15,6 +15,7 @@ class ApiKeyRead(BaseModel):
     id: int
     name: str
     prefix: str
+    suffix: str | None
     created_at: datetime
     expires_at: datetime | None
     last_used_at: datetime | None

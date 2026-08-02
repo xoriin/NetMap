@@ -104,13 +104,17 @@ def _make_key(db, user: User, name: str = "test", expires_in_days: int | None = 
 def test_api_key_authenticates_protected_route(client_and_db):
     client, db = client_and_db
     user = _make_user(db, "viewer", UserRole.VIEWER)
-    _, plaintext = _make_key(db, user)
+    key, plaintext = _make_key(db, user)
+    key.suffix = None
+    db.commit()
 
     response = client.get("/api/v1/dashboard/summary", headers={"X-API-Key": plaintext})
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["user_count"] == 1
     assert response.headers["content-type"].startswith("application/json")
+    db.expire_all()
+    assert db.get(ApiKey, key.id).suffix == plaintext[-4:]
 
 
 def test_request_without_credentials_is_rejected(client_and_db):
@@ -180,12 +184,14 @@ def test_key_lifecycle_via_routes(client_and_db):
     body = created.json()
     assert body["key"].startswith("nm_")
     assert body["name"] == "integration"
+    assert body["suffix"] == body["key"][-4:]
     assert body["expires_at"] is not None
 
     listed = client.get("/api/v1/api-keys", headers={"X-API-Key": session_key})
     assert listed.status_code == 200
     names = {row["name"] for row in listed.json()}
     assert names == {"bootstrap", "integration"}
+    assert all(len(row["suffix"]) == 4 for row in listed.json())
     assert all("key" not in row and "key_hash" not in row for row in listed.json())
 
     revoked = client.delete(f"/api/v1/api-keys/{body['id']}", headers={"X-API-Key": session_key})

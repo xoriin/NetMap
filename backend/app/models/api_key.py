@@ -9,9 +9,10 @@ from app.db.session import Base
 class ApiKey(Base):
     """A registered API key granting external access as its owning user.
 
-    Only the plaintext prefix (for lookup) and an HMAC-SHA256 digest of the
-    full key are stored — the raw key is shown once at creation and never
-    persisted. Active-ness is derived: not revoked and not past expires_at.
+    Only the plaintext prefix (for lookup), a four-character display suffix,
+    and an HMAC-SHA256 digest of the full key are stored — the raw key is shown
+    once at creation and never persisted. Active-ness is derived: not revoked
+    and not past expires_at.
     """
 
     __tablename__ = "api_keys"
@@ -20,6 +21,7 @@ class ApiKey(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     prefix: Mapped[str] = mapped_column(String(16), unique=True, nullable=False, index=True)
+    suffix: Mapped[str | None] = mapped_column(String(4), nullable=True)
     key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

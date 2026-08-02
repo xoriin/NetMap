@@ -16,6 +16,7 @@ from app.models.user import User
 KEY_SCHEME = "nm"
 PREFIX_LEN = 12
 SECRET_LEN = 43
+DISPLAY_SUFFIX_LEN = 4
 
 # Alphanumeric only — the key format is `nm_<prefix>_<secret>`, so neither part
 # may contain an underscore or the parse in verify_and_load would break.
@@ -58,7 +59,7 @@ def is_key_active(key: ApiKey, now: datetime | None = None) -> bool:
 
 
 def verify_and_load(db: Session, raw_key: str) -> ApiKey | None:
-    """Resolve a raw key to its active ApiKey row, or None if invalid/revoked/expired."""
+    """Resolve an active key and backfill its safe display suffix when needed."""
     if not raw_key.startswith(f"{KEY_SCHEME}_"):
         return None
     parts = raw_key.split("_", 2)
@@ -71,6 +72,11 @@ def verify_and_load(db: Session, raw_key: str) -> ApiKey | None:
         return None
     if not is_key_active(candidate):
         return None
+    # Keys created before the display-suffix migration cannot be reversed from
+    # their digest. A successful authentication is the one safe opportunity to
+    # retain only their final four characters without persisting the raw key.
+    if candidate.suffix is None:
+        candidate.suffix = raw_key[-DISPLAY_SUFFIX_LEN:]
     return candidate
 
 
@@ -92,6 +98,7 @@ def create_api_key(
         user_id=user.id,
         name=name,
         prefix=prefix,
+        suffix=full_key[-DISPLAY_SUFFIX_LEN:],
         key_hash=key_hash,
         expires_at=expires_at,
         created_ip=created_ip,

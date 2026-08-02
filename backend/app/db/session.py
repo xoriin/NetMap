@@ -159,6 +159,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0057_topology_group_color", _migrate_topology_group_color)
         _run_migration(conn, inspector, "0058_user_entity_colors", _migrate_user_entity_colors)
         _run_migration(conn, inspector, "0059_device_expected_status", _migrate_device_expected_status)
+        _run_migration(conn, inspector, "0060_api_key_display_suffix", _migrate_api_key_display_suffix)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1139,6 +1140,7 @@ def _migrate_api_keys(conn, inspector) -> None:
                 user_id INTEGER NOT NULL REFERENCES users (id),
                 name VARCHAR(100) NOT NULL,
                 prefix VARCHAR(16) NOT NULL UNIQUE,
+                suffix VARCHAR(4),
                 key_hash VARCHAR(64) NOT NULL,
                 created_at DATETIME NOT NULL,
                 expires_at DATETIME,
@@ -1181,6 +1183,14 @@ def _migrate_api_key_rate_limit(conn, inspector) -> None:
     conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_api_key_throttle_state_locked_until ON api_key_throttle_state (locked_until)")
     )
+
+
+def _migrate_api_key_display_suffix(conn, inspector) -> None:
+    if "api_keys" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("api_keys")}
+    if "suffix" not in existing:
+        conn.execute(text("ALTER TABLE api_keys ADD COLUMN suffix VARCHAR(4)"))
 
 
 def _migrate_user_whats_new_ack(conn, inspector) -> None:
