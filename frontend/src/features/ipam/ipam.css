@@ -18,9 +18,7 @@
 .external-ip-workspace .ipam-stats { margin: 0; }
 .external-ip-panel { overflow: hidden; }
 .external-ip-panel-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 14px; }
-.external-ip-panel-header > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.external-ip-panel-header strong { color: var(--nm-modal-label); font-size: var(--nm-text-base); }
-.external-ip-panel-header span { overflow: hidden; color: var(--nm-text-muted); font-size: var(--nm-text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.external-ip-panel-header .ipam-panel-meta { overflow: hidden; text-overflow: ellipsis; }
 .external-ip-table-wrap { overflow-x: auto; }
 .external-ip-table { width: 100%; min-width: 820px; border-collapse: collapse; table-layout: auto; }
 .external-ip-table th, .external-ip-table td { border-right: 0; border-bottom: 1px solid var(--nm-border); background: var(--nm-modal-section); }

@@ -144,8 +144,11 @@ export function ExternalIpPanel({ accessToken, canWrite, showSummary = true, all
       </div>}
 
       <section className="nm-app-panel external-ip-panel">
-        <header className="nm-app-panel-header external-ip-panel-header">
-          <div><strong>External address ranges</strong><span>{pools.length} provider-assigned allocations</span></div>
+        <header className="nm-app-panel-header ipam-panel-header external-ip-panel-header">
+          <span className="ipam-panel-identity">
+            <span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>
+            <span className="ipam-panel-title-wrap"><span className="ipam-panel-title">External address ranges</span><span className="ipam-panel-meta">{pools.length} provider-assigned allocations</span></span>
+          </span>
           {canWrite && allowCreatePool && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={() => openPool()}><Plus size={14} /> Add range</button>}
         </header>
         {pools.length === 0 ? <div className="external-ip-empty">Choose External range in Add subnet to track an assigned public range or CIDR.</div> : (
@@ -163,7 +166,12 @@ export function ExternalIpPanel({ accessToken, canWrite, showSummary = true, all
       </section>
 
       {selectedPool && <section className="nm-app-panel external-ip-panel external-ip-address-panel">
-        <header className="nm-app-panel-header external-ip-panel-header"><div><strong>{selectedPool.name} addresses</strong><span>{selectedPool.cidr} · select an available address to track it</span></div></header>
+        <header className="nm-app-panel-header ipam-panel-header external-ip-panel-header">
+          <span className="ipam-panel-identity">
+            <span className="ipam-panel-icon" aria-hidden="true"><Cloud size={18} /></span>
+            <span className="ipam-panel-title-wrap"><span className="ipam-panel-title">{selectedPool.name} addresses</span><span className="ipam-panel-meta">{selectedPool.cidr} · select an available address to track it</span></span>
+          </span>
+        </header>
         {addressQuery.isLoading ? <div className="external-ip-empty">Loading addresses…</div> : <>
           <div className="external-ip-grid">{(addressQuery.data?.addresses ?? []).map((entry) => <button
             key={entry.ip_address} type="button" className={`external-ip-address external-ip-address--${entry.status}`}
