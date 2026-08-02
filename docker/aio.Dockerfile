@@ -85,7 +85,7 @@ RUN mkdir -p /app/data /tmp/nginx \
 EXPOSE 8080 1514/tcp 1514/udp
 VOLUME ["/app/data"]
 
-HEALTHCHECK --interval=20s --timeout=5s --retries=3 --start-period=15s \
+HEALTHCHECK --interval=20s --timeout=5s --retries=3 --start-period=5m \
   CMD sh -c 'python3 -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:${APP_PORT}/api/health\", timeout=5)"'
 
 ENTRYPOINT ["tini", "--", "/usr/local/bin/netmap-aio-entrypoint"]

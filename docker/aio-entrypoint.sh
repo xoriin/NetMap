@@ -16,6 +16,11 @@ chown -R netmap:netmap /tmp/nginx 2>/dev/null || echo "netmap: skipping chown of
 
 envsubst '${APP_PORT}' < /etc/netmap/aio-nginx.conf.template > /tmp/nginx.generated.conf
 
+# A restarted container can retain the old Unix socket even though no Uvicorn
+# process is listening on it. Never let nginx mistake that stale path for a
+# ready backend.
+rm -f /tmp/uvicorn.sock
+
 gosu netmap uvicorn app.main:app \
   --uds /tmp/uvicorn.sock \
   --proxy-headers \
@@ -23,9 +28,25 @@ gosu netmap uvicorn app.main:app \
   --log-level "${LOG_LEVEL:-info}" &
 uvicorn_pid="$!"
 
-# Wait for the socket file to appear before starting nginx.
-for _i in $(seq 1 30); do
-  [ -S /tmp/uvicorn.sock ] && break
+# Database migrations complete during application startup, before Uvicorn
+# creates its socket. Keep nginx stopped until the backend is genuinely ready
+# so its health endpoint cannot proxy to a missing socket during upgrades.
+startup_deadline=$((SECONDS + 300))
+while [ ! -S /tmp/uvicorn.sock ]; do
+  if ! kill -0 "$uvicorn_pid" 2>/dev/null; then
+    echo "netmap: backend exited before creating /tmp/uvicorn.sock" >&2
+    if wait "$uvicorn_pid"; then
+      exit 0
+    else
+      exit $?
+    fi
+  fi
+  if (( SECONDS >= startup_deadline )); then
+    echo "netmap: backend did not become ready within 300 seconds" >&2
+    kill -TERM "$uvicorn_pid" 2>/dev/null || true
+    wait "$uvicorn_pid" 2>/dev/null || true
+    exit 1
+  fi
   sleep 0.5
 done
 
@@ -38,6 +59,27 @@ shutdown() {
 }
 
 trap shutdown TERM INT
+
+# Confirm the public container endpoint can traverse nginx and reach Uvicorn
+# before announcing readiness. This is the same path Docker health-checks.
+readiness_deadline=$((SECONDS + 15))
+while true; do
+  if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${APP_PORT}/api/health', timeout=1).read()" >/dev/null 2>&1; then
+    echo "netmap: startup complete — ready on port ${APP_PORT}"
+    break
+  fi
+  if ! kill -0 "$uvicorn_pid" 2>/dev/null || ! kill -0 "$nginx_pid" 2>/dev/null; then
+    echo "netmap: a service exited before the health endpoint became ready" >&2
+    shutdown
+    exit 1
+  fi
+  if (( SECONDS >= readiness_deadline )); then
+    echo "netmap: health endpoint did not become ready within 15 seconds" >&2
+    shutdown
+    exit 1
+  fi
+  sleep 0.25
+done
 
 while true; do
   if ! kill -0 "$uvicorn_pid" 2>/dev/null; then
