@@ -67,7 +67,7 @@ A searchable, filterable table of every device you've added. Bulk-edit device ty
 ### Monitoring
 Continuous background polling for every device in your inventory:
 - **Live ping** — ICMP round-trip with RTT history graphed per device
-- **TCP port checks** — define one or more ports per device and watch their status independently
+- **Service checks** — define TCP, HTTP/HTTPS, or DHCP-aware checks and watch named service status independently. DHCP checks are device-scoped, use a safe DHCPINFORM request on UDP 67, and do not request or consume a lease
 - **Heartbeat strip** — last 30 poll results shown inline as a colour-coded bar so you can spot intermittent outages at a glance
 - **Uptime tracking** — rolling calculation of availability percentage
 - Monitoring interval is configurable per instance; the background thread runs independently of API request load
@@ -76,6 +76,7 @@ Continuous background polling for every device in your inventory:
 - Define subnets and assign them to VLANs
 - Track individual IP allocations with notes, device associations, and assignment type (static / DHCP / reserved)
 - Import DHCP leases directly from your router's lease file
+- Track provider-assigned external allocations separately from internal subnets using a CIDR or start–end range of at least two usable addresses, including provider/account, owner, service, status, tags, notes, and utilization
 - Visual IP grid shows at a glance which addresses in a subnet are in use, available, or reserved — with per-cell tooltips showing the full record
 - Conflict detection flags duplicate assignments before they cause problems
 
@@ -87,7 +88,11 @@ Continuous background polling for every device in your inventory:
 - Retention window keeps the database lean (default: 7 days)
 
 ### Network discovery
-Run an Nmap scan against a subnet and import discovered hosts straight into your inventory. Detected hostnames, MAC addresses, and open ports are pre-populated on the new device record. Scans run in the background and their status is visible in the UI — you don't have to sit and wait.
+Open **Inventory → Scan** (or **Topology → Scan**), enter a private subnet/range, and start the scan. NetMap runs its bundled Nmap binary inside the application container—there is no separate Nmap file to create, upload, or import. Detected hostnames, MAC addresses, and open ports are presented for review before you import selected hosts into Inventory. Scans run in the background and their status remains visible in the UI.
+
+Discovery results are compared with the current inventory before import, so rescans show which hosts are new, already known, or have updated hostname/MAC/vendor data. Existing devices can be left alone, filled only where fields are missing, or explicitly overwritten for selected fields after review.
+
+The separate **Inventory → Import** action is for a prepared CSV/JSON device list; it is not required for Nmap discovery. MAC-address discovery works best with host networking because ARP does not cross a Docker bridge. For routed subnets where Nmap cannot see endpoint MAC addresses directly, Discovery can optionally query a router or Layer 3 switch over SNMPv2c and use its ARP table to fill in missing MAC/vendor data before import.
 
 ### Built-in network tools
 No more SSHing into a jump box to run a quick check. NetMap includes:
@@ -95,7 +100,10 @@ No more SSHing into a jump box to run a quick check. NetMap includes:
 - **Traceroute** — hop-by-hop path to a host
 - **TCP connect** — test whether a port is reachable
 - **DNS lookup** — forward and reverse resolution
+- **SNMP probe** — query SNMPv2c system identity, interface status, and ARP table data from routers, switches, and other managed devices
 - **Subnet calculator** — break down any CIDR block into its address range, broadcast, usable hosts, and more
+
+SNMP credential profiles are managed in Admin → SNMP Profiles, encrypted with `MASTER_KEY`, and can be reused from Tools, Discovery, and assigned devices.
 
 ### Alerts
 Configure rules that fire when a device goes down, comes back up, or trips a monitoring threshold. Each rule can fan out to multiple channels:
@@ -148,7 +156,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-> **Important:** Keep both keys stable. Changing `SECRET_KEY` invalidates all active sessions. Changing `MASTER_KEY` makes any encrypted data stored by NetMap unreadable.
+> **Important:** Keep both keys stable. Changing `SECRET_KEY` invalidates all active sessions. Changing `MASTER_KEY` makes any encrypted data stored by NetMap unreadable, including saved SNMP community profiles.
 
 **3. Create a `docker-compose.yml`** with the values from step 2:
 
@@ -172,6 +180,7 @@ services:
       - "5514:1514/tcp"
     cap_add:
       - NET_RAW
+      - NET_BIND_SERVICE  # Required for DHCP service-check replies on UDP 68
     restart: unless-stopped
 ```
 
@@ -269,9 +278,7 @@ services:
       - ALL
     cap_add:
       - NET_RAW            # Required for ICMP ping and traceroute
-    security_opt:
-      - no-new-privileges:true
-
+      - NET_BIND_SERVICE   # Required for DHCP service-check replies on UDP 68
     restart: unless-stopped
 
     logging:
@@ -302,7 +309,7 @@ docker run --rm python:3.12-slim python3 -c "from cryptography.fernet import Fer
 1. Navigate to `http://<your-host>:8080`
 2. NetMap detects no users exist and redirects to account setup
 3. Enter a username and password for your SuperAdmin account
-4. You're in — start adding devices or run a discovery scan to populate your inventory automatically
+4. You're in — add devices manually, or open **Inventory → Scan** to discover a private subnet using NetMap's bundled Nmap scanner
 
 ---
 
@@ -314,7 +321,7 @@ All configuration is done via environment variables in your compose file. There 
 |----------|---------|-------------|
 | `TZ` | `UTC` | Container timezone. Use a tz database name (e.g. `Europe/London`, `America/New_York`). Affects log timestamps and scheduled tasks. |
 | `SECRET_KEY` | — | **Required.** Signs session tokens. Generate once, keep stable. |
-| `MASTER_KEY` | — | **Required.** Fernet key for encrypting stored secrets. Generate once, never change. |
+| `MASTER_KEY` | — | **Required.** Fernet key for encrypting stored secrets, including saved SNMP community profiles. Generate once, never change. |
 | `PUID` | `1000` | UID the container process runs as. Match your host user for correct bind mount permissions. |
 | `PGID` | `1000` | GID the container process runs as. |
 | `APP_PORT` | `8080` | Port the web UI and API listen on. |
