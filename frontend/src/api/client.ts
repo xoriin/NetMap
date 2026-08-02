@@ -130,6 +130,7 @@ export type Device = {
   status: DeviceStatus;
   lifecycle: DeviceLifecycle;
   monitoring_paused: boolean;
+  expected_status: "online" | "offline";
   monitor_status: DeviceStatus | null;
   last_monitored_at: string | null;
   is_favourite: boolean;
@@ -169,6 +170,7 @@ export type DevicePayload = {
   status: DeviceStatus;
   lifecycle?: DeviceLifecycle;
   monitoring_paused?: boolean;
+  expected_status?: "online" | "offline";
   icon: DeviceIcon;
   color: string | null;
   vlan_id: string | null;
@@ -703,7 +705,7 @@ export type NotificationProfilePayload = {
   config: Record<string, string>;
 };
 
-export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow" | "monitor_down" | "monitor_slow" | "monitor_certificate_expiry";
+export type AlertRuleEventType = "device_offline" | "device_online" | "device_warning" | "any_status_change" | "device_unexpected_state" | "device_expected_state_restored" | "rtt_above" | "device_flapping" | "ping_loss_above" | "service_down" | "service_slow" | "monitor_down" | "monitor_slow" | "monitor_certificate_expiry";
 
 export type AlertRule = {
   id: number;
@@ -772,6 +774,8 @@ export type MonitorHistoryPoint = {
   id: number;
   checked_at: string;
   status: string;
+  expected_status: "online" | "offline";
+  is_healthy: boolean | null;
   rtt_ms: number | null;
   port_results: PortResult[];
 };
@@ -784,6 +788,8 @@ export type DeviceMonitorSummary = {
   device_type: string | null;
   icon: DeviceIcon | null;
   status: string;
+  expected_status: "online" | "offline";
+  health_status: "healthy" | "unhealthy" | "unknown" | "paused";
   lifecycle: DeviceLifecycle;
   monitoring_paused: boolean;
   topology_group: string | null;
@@ -793,9 +799,12 @@ export type DeviceMonitorSummary = {
   last_checked: string | null;
   uptime_24h: number | null;
   uptime_7d: number | null;
+  compliance_24h: number | null;
+  compliance_7d: number | null;
   avg_rtt_24h: number | null;
   latest_port_results: PortResult[];
   heartbeat: string[];
+  heartbeat_health: string[];
   rtt_sparkline: (number | null)[];
   is_favourite: boolean;
   flapping: boolean;
@@ -807,6 +816,8 @@ export type FleetSummary = {
   offline: number;
   unknown: number;
   paused: number;
+  healthy: number;
+  unhealthy: number;
   avg_rtt_ms: number | null;
   last_checked: string | null;
 };
@@ -1930,6 +1941,8 @@ export const api = {
         : "/api/v1/monitoring/devices",
       { token },
     ),
+  getMonitoringDevice: (token: string, deviceId: number) =>
+    request<DeviceMonitorSummary>(`/api/v1/monitoring/devices/${deviceId}`, { token }),
   getDeviceHistory: (token: string, deviceId: number, hours = 24) =>
     request<MonitorHistoryPoint[]>(`/api/v1/monitoring/devices/${deviceId}/history?hours=${hours}`, { token }),
   getDeviceAnalysis: (token: string, deviceId: number) =>

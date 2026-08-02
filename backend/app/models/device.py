@@ -32,6 +32,8 @@ class Device(Base):
     lifecycle: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
     # temporary maintenance pause; device stays in inventory/topology
     monitoring_paused: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # online | offline — the observed state that is considered healthy
+    expected_status: Mapped[str] = mapped_column(String(20), default="online", nullable=False)
     monitor_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default=None)
     last_monitored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     is_favourite: Mapped[Optional[bool]] = mapped_column(nullable=True, default=False)

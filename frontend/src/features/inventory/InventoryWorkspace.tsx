@@ -8,6 +8,7 @@ import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/ico
 import {
   api,
   type Device, type DevicePayload, type DeviceStatus, type DeviceLiveStatus,
+  type DeviceMonitorSummary,
   type TopologyGraph, type TopologyGroup, type Site, type DeviceIcon,
   type DeviceSecurityEventSummary, type SnmpProfile,
 } from "../../api/client";
@@ -94,6 +95,7 @@ export function InventoryWorkspace({
   const [showImportModal, setShowImportModal] = useState(false);
   const [deviceSecuritySummary, setDeviceSecuritySummary] = useState<DeviceSecurityEventSummary | null>(null);
   const [deviceSecurityLoading, setDeviceSecurityLoading] = useState(false);
+  const [selectedMonitorSummary, setSelectedMonitorSummary] = useState<DeviceMonitorSummary | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     const saved = window.localStorage.getItem(INVENTORY_PAGE_SIZE_KEY);
@@ -113,6 +115,16 @@ export function InventoryWorkspace({
   const bulkMenuRef = useRef<HTMLDetailsElement | null>(null);
 
   const selectedDevice = graph.devices.find((device) => device.id === selectedDeviceId) ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setSelectedMonitorSummary(null);
+    if (selectedDeviceId === null) return () => { cancelled = true; };
+    void api.getMonitoringDevice(accessToken, selectedDeviceId)
+      .then((summary) => { if (!cancelled) setSelectedMonitorSummary(summary); })
+      .catch(() => { if (!cancelled) setSelectedMonitorSummary(null); });
+    return () => { cancelled = true; };
+  }, [accessToken, selectedDeviceId]);
   const groupOptions = useMemo(
     () => [...new Set(graph.devices.map((device) => device.topology_group))].filter(Boolean).sort(compareGroupLabels),
     [graph.devices],
@@ -958,6 +970,7 @@ export function InventoryWorkspace({
                 sites={sites}
                 onGraphChange={onGraphChange}
                 liveStatus={selectedDeviceLive}
+                monitorSummary={selectedMonitorSummary}
                 onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
                 securityLoading={deviceSecurityLoading}
                 securitySummary={deviceSecuritySummary}

@@ -6,8 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1.admin import get_public_settings, update_settings
-from app.api.v1.monitoring import _build_device_summaries, device_analysis, list_device_summaries
-from app.db.session import Base, _migrate_monitor_history_uptime_index
+from app.api.v1.monitoring import _build_device_summaries, device_analysis, get_device_summary, list_device_summaries
+from app.db.session import Base, _migrate_device_expected_status, _migrate_monitor_history_uptime_index
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.site import Site
@@ -15,6 +15,7 @@ from app.models.system_setting import SystemSetting
 from app.models.topology_group import TopologyGroup
 from app.schemas.admin import SystemSettingsUpdate
 from app.services.alerting import service as alerting_service
+from app.services.monitoring.health import observed_health, observed_is_healthy
 
 
 def _session():
@@ -112,6 +113,88 @@ def test_monitoring_heartbeat_is_capped_but_uptime_uses_full_24h_window():
     assert summary.icon == "switch"
     assert summary.uptime_24h == 0.5
     assert summary.avg_rtt_24h == 29.5
+
+
+def test_expected_offline_device_reports_health_without_hiding_reachability():
+    db = _session()
+    now = datetime.now(timezone.utc)
+    device = Device(
+        display_name="Archive Server",
+        ip_address="10.0.0.25",
+        status="offline",
+        monitor_status="offline",
+        expected_status="offline",
+        last_monitored_at=now,
+        updated_at=now,
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    db.add_all([
+        DeviceMonitorHistory(
+            device_id=device.id,
+            checked_at=now - timedelta(minutes=idx),
+            status=status,
+            expected_status="offline",
+            is_healthy=status == "offline",
+            port_results="[]",
+        )
+        for idx, status in enumerate(("offline", "offline", "online", "offline"))
+    ])
+    db.commit()
+
+    summary = _build_device_summaries(db, [device])[0]
+
+    assert summary.status == "offline"
+    assert summary.expected_status == "offline"
+    assert summary.health_status == "healthy"
+    assert summary.uptime_24h == 0.25
+    assert summary.compliance_24h == 0.75
+    assert summary.heartbeat_health.count("healthy") == 3
+    assert summary.heartbeat_health.count("unhealthy") == 1
+
+
+def test_single_device_monitoring_summary_supports_inventory_detail():
+    db = _session()
+    now = datetime.now(timezone.utc)
+    device = Device(
+        display_name="Selected switch",
+        ip_address="10.0.0.26",
+        status="online",
+        monitor_status="online",
+        expected_status="online",
+        last_monitored_at=now,
+        updated_at=now,
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    db.add(DeviceMonitorHistory(
+        device_id=device.id,
+        checked_at=now,
+        status="online",
+        expected_status="online",
+        is_healthy=True,
+        rtt_ms=18.6,
+        port_results="[]",
+    ))
+    db.commit()
+
+    summary = get_device_summary(device.id, None, db)  # type: ignore[arg-type]
+
+    assert summary.device_id == device.id
+    assert summary.status == "online"
+    assert summary.health_status == "healthy"
+    assert summary.rtt_sparkline[-1] == 18.6
+
+
+def test_expected_state_health_truth_table():
+    assert observed_health("online", "online") == "healthy"
+    assert observed_health("offline", "online") == "unhealthy"
+    assert observed_health("offline", "offline") == "healthy"
+    assert observed_health("online", "offline") == "unhealthy"
+    assert observed_health("unknown", "offline") == "unknown"
+    assert observed_is_healthy("unknown", "online") is None
 
 
 def test_monitoring_service_results_parse_legacy_and_rich_history_rows():
@@ -363,6 +446,7 @@ def test_uptime_rollups_are_covered_by_an_index():
     assert len(before) == 2, f"expected the 24h and 7d rollups, got {before}"
 
     _migrate_monitor_history_uptime_index(db.connection(), inspect(db.get_bind()))
+    _migrate_device_expected_status(db.connection(), inspect(db.get_bind()))
     db.commit()
 
     after = _uptime_aggregate_plans(db)

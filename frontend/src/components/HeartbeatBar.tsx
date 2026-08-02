@@ -2,7 +2,7 @@ import { useState , memo } from "react";
 import type { MonitorHistoryPoint } from "../api/client";
 import { beatBg, sampleHistory } from "../utils/monitoring";
 
-function HeartbeatBarImpl({ beats, size = "sm" }: { beats: string[]; size?: "sm" | "lg" }) {
+function HeartbeatBarImpl({ beats, health, size = "sm" }: { beats: string[]; health?: string[]; size?: "sm" | "lg" }) {
   if (beats.length === 0) return null;
   // Newest beat is always last in the array (oldest -> newest); CSS right-anchors the bar.
   const displayBeats = size === "sm" ? beats.slice(-30) : beats;
@@ -10,12 +10,13 @@ function HeartbeatBarImpl({ beats, size = "sm" }: { beats: string[]; size?: "sm"
     <div className={`heartbeat-bar heartbeat-bar--${size}`}>
       {displayBeats.map((status, i) => {
         const beatNum = beats.length - displayBeats.length + i + 1;
+        const healthStatus = health?.[beats.length - displayBeats.length + i];
         return (
           <span
             key={i}
             className="heartbeat-beat"
-            style={{ background: beatBg(status) }}
-            title={`Poll ${beatNum} of ${beats.length}: ${status}`}
+            style={{ background: beatBg(healthStatus ?? status) }}
+            title={`Poll ${beatNum} of ${beats.length}: ${status}${healthStatus ? ` · ${healthStatus}` : ""}`}
           />
         );
       })}
@@ -41,9 +42,12 @@ function HeartbeatTooltip({ point, x, y }: { point: MonitorHistoryPoint; x: numb
         <span className="hb-tooltip-time">{timeStr}</span>
       </div>
       <div className="hb-tooltip-status-row">
-        <span className={`mon-dot mon-dot-${point.status}`} />
+        <span className={`mon-dot mon-dot-${point.is_healthy === true ? "healthy" : point.is_healthy === false ? "unhealthy" : "unknown"}`} />
         <span className="hb-tooltip-status-text" style={{ color: statusColors[point.status] ?? "#94a3b8" }}>
           {point.status.charAt(0).toUpperCase() + point.status.slice(1)}
+        </span>
+        <span className="dash-panel-meta">
+          {point.is_healthy === true ? "Expected" : point.is_healthy === false ? `Expected ${point.expected_status}` : "Unknown"}
         </span>
         {point.rtt_ms !== null && (
           <span className="hb-tooltip-rtt">{point.rtt_ms.toFixed(1)} ms</span>
@@ -70,8 +74,8 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
 
   const multiDay = hours > 24;
   const beats = sampleHistory(history);
-  const onlineCount = history.filter((h) => h.status === "online").length;
-  const uptimePct = Math.round((onlineCount / history.length) * 100);
+  const healthyCount = history.filter((h) => h.is_healthy === true).length;
+  const compliancePct = Math.round((healthyCount / history.length) * 100);
   const axisCount = Math.min(5, beats.length);
   const axisIndices = Array.from({ length: axisCount }, (_, i) =>
     Math.round((i / Math.max(axisCount - 1, 1)) * (beats.length - 1)),
@@ -97,7 +101,7 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
           <span
             key={h.id}
             className="heartbeat-beat heartbeat-beat--clickable"
-            style={{ background: beatBg(h.status) }}
+            style={{ background: beatBg(h.is_healthy === true ? "healthy" : h.is_healthy === false ? "unhealthy" : "unknown") }}
             onMouseEnter={() => setHovered(h)}
             onMouseLeave={() => setHovered(null)}
           />
@@ -119,11 +123,11 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
       <div className="heartbeat-summary">
         <span className="dash-panel-meta">{history.length} polls</span>
         <span className="dash-panel-meta">·</span>
-        <span className="dash-panel-meta">{uptimePct}% uptime in range</span>
+        <span className="dash-panel-meta">{compliancePct}% expected-state health</span>
         <span className="dash-panel-meta">·</span>
         <div className="heartbeat-legend" style={{ margin: 0 }}>
-          <span className="heartbeat-legend-item"><span className="heartbeat-beat heartbeat-beat--online" /> Online</span>
-          <span className="heartbeat-legend-item"><span className="heartbeat-beat heartbeat-beat--offline" /> Offline</span>
+          <span className="heartbeat-legend-item"><span className="heartbeat-beat heartbeat-beat--online" /> Expected</span>
+          <span className="heartbeat-legend-item"><span className="heartbeat-beat heartbeat-beat--offline" /> Unexpected</span>
           <span className="heartbeat-legend-item"><span className="heartbeat-beat heartbeat-beat--unknown" /> Unknown</span>
         </div>
       </div>

@@ -33,6 +33,7 @@ def device_to_dict(device: Device) -> dict:
         "status": device.status,
         "lifecycle": device.lifecycle,
         "monitoring_paused": bool(device.monitoring_paused),
+        "expected_status": device.expected_status or "online",
         "icon": device.icon,
         "color": device.color,
         "vlan_id": device.vlan_id,

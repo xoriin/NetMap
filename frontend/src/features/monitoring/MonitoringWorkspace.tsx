@@ -111,11 +111,11 @@ export function MonitoringWorkspace({
     e.preventDefault();
     const startX = e.clientX;
 
-    // Snapshot the 6 resizable column widths from the DOM (th[1]..th[6], skipping Status)
+    // Snapshot the resizable widths, skipping the fixed Favourite and Status columns.
     const table = tableRef.current;
     const initialWidths: number[] = table
       ? Array.from(table.querySelectorAll<HTMLElement>("thead tr th"))
-          .slice(1, 1 + MON_COL_COUNT)
+          .slice(2, 2 + MON_COL_COUNT)
           .map((th) => th.getBoundingClientRect().width)
       : (colWidths ?? MON_DEFAULT_COL_WIDTHS);
 
@@ -195,6 +195,7 @@ export function MonitoringWorkspace({
   const [portBusy, setPortBusy] = useState(false);
   const [portError, setPortError] = useState<string | null>(null);
   const [pauseBusyId, setPauseBusyId] = useState<number | null>(null);
+  const [expectationBusyId, setExpectationBusyId] = useState<number | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { sortKey, sortDir, toggleSort } = useSortableData<"status" | "name" | "type" | "uptime24" | "uptime7" | "rtt" | "checked">("name");
@@ -204,6 +205,7 @@ export function MonitoringWorkspace({
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterSite, setFilterSite] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterHealth, setFilterHealth] = useState("all");
   const [filterDeviceType, setFilterDeviceType] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
@@ -495,6 +497,7 @@ export function MonitoringWorkspace({
     if (filterGroup !== "all") filtered = filtered.filter((d) => d.topology_group === filterGroup);
     if (filterSite !== "all") filtered = filtered.filter((d) => String(d.site_id) === filterSite);
     if (filterStatus !== "all") filtered = filtered.filter((d) => d.status === filterStatus);
+    if (filterHealth !== "all") filtered = filtered.filter((d) => d.health_status === filterHealth);
     if (filterDeviceType !== "all") {
       filtered = filtered.filter((d) => filterDeviceType === "none" ? !d.device_type : d.device_type === filterDeviceType);
     }
@@ -505,8 +508,8 @@ export function MonitoringWorkspace({
     filtered.sort((a, b) => {
       switch (sortKey) {
         case "status": {
-          const order: Record<string, number> = { online: 0, warning: 1, paused: 2, unknown: 3, offline: 4 };
-          return ((order[a.status] ?? 4) - (order[b.status] ?? 4)) * dir;
+          const order: Record<string, number> = { healthy: 0, paused: 1, unknown: 2, unhealthy: 3 };
+          return ((order[a.health_status] ?? 3) - (order[b.health_status] ?? 3)) * dir;
         }
         case "name": {
           const na = (a.display_name ?? a.hostname ?? a.ip_address).toLowerCase();
@@ -516,9 +519,9 @@ export function MonitoringWorkspace({
         case "type":
           return (a.device_type ?? "").localeCompare(b.device_type ?? "") * dir;
         case "uptime24":
-          return ((a.uptime_24h ?? -1) - (b.uptime_24h ?? -1)) * dir;
+          return ((a.compliance_24h ?? -1) - (b.compliance_24h ?? -1)) * dir;
         case "uptime7":
-          return ((a.uptime_7d ?? -1) - (b.uptime_7d ?? -1)) * dir;
+          return ((a.compliance_7d ?? -1) - (b.compliance_7d ?? -1)) * dir;
         case "rtt":
           return ((a.avg_rtt_24h ?? Infinity) - (b.avg_rtt_24h ?? Infinity)) * dir;
         case "checked": {
@@ -530,7 +533,7 @@ export function MonitoringWorkspace({
       }
     });
     return filtered;
-  }, [displayDevices, searchQ, filterGroup, filterSite, filterStatus, filterDeviceType, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
+  }, [displayDevices, searchQ, filterGroup, filterSite, filterStatus, filterHealth, filterDeviceType, filterVlan, favouriteFilter, favouriteIds, sortKey, sortDir]);
 
   const paginatedDevices = useMemo(() => {
     const start = (devicesPage - 1) * devicesPageSize;
@@ -545,7 +548,7 @@ export function MonitoringWorkspace({
     window.localStorage.setItem(MON_DEVICES_PAGE_SIZE_KEY, String(devicesPageSize));
   }, [devicesPageSize]);
 
-  const offlineDevices = useMemo(() => devices.filter((d) => d.status === "offline"), [devices]);
+  const unexpectedDevices = useMemo(() => devices.filter((d) => d.health_status === "unhealthy"), [devices]);
 
   function parsePorts(raw: string): number[] | null {
     const ports: number[] = [];
@@ -660,6 +663,34 @@ export function MonitoringWorkspace({
     }
   }
 
+  async function toggleExpectedState(device: DeviceMonitorSummary) {
+    const expectedStatus = device.expected_status === "offline" ? "online" : "offline";
+    setExpectationBusyId(device.device_id);
+    try {
+      await api.updateDevice(accessToken, device.device_id, { expected_status: expectedStatus });
+      const nextHealth: DeviceMonitorSummary["health_status"] = device.monitoring_paused || device.lifecycle !== "active"
+        ? "paused"
+        : device.status === "online" || device.status === "offline"
+        ? device.status === expectedStatus ? "healthy" : "unhealthy"
+        : "unknown";
+      setDevices((current) => current.map((row) => row.device_id === device.device_id
+        ? { ...row, expected_status: expectedStatus, health_status: nextHealth }
+        : row));
+      setFleet((current) => {
+        if (!current || device.health_status === nextHealth) return current;
+        return {
+          ...current,
+          healthy: Math.max(0, current.healthy + (nextHealth === "healthy" ? 1 : 0) - (device.health_status === "healthy" ? 1 : 0)),
+          unhealthy: Math.max(0, current.unhealthy + (nextHealth === "unhealthy" ? 1 : 0) - (device.health_status === "unhealthy" ? 1 : 0)),
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update expected state");
+    } finally {
+      setExpectationBusyId(null);
+    }
+  }
+
   function fmtTime(iso: string | null) {
     if (!iso) return "—";
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -707,7 +738,7 @@ export function MonitoringWorkspace({
           sub={(fleet?.paused ?? 0) > 0 ? `${fleet?.paused} paused` : fleet?.total === 0 ? "no active devices" : "active devices"}
           icon={<IconServer size={20} />}
           accent="teal"
-          onClick={() => setFilterStatus("all")}
+          onClick={() => { setFilterStatus("all"); setFilterHealth("all"); }}
         />
         <DashStat
           label="Live ping"
@@ -717,22 +748,22 @@ export function MonitoringWorkspace({
           accent={livePingEnabled ? "green" : "red"}
         />
         <DashStat
-          label="Online"
-          value={fleet?.online ?? 0}
-          sub="reachable"
+          label="Healthy"
+          value={fleet?.healthy ?? 0}
+          sub="in expected state"
           icon={<IconWifi size={20} />}
           accent="green"
-          onClick={() => setFilterStatus((current) => current === "online" ? "all" : "online")}
-          active={filterStatus === "online"}
+          onClick={() => setFilterHealth((current) => current === "healthy" ? "all" : "healthy")}
+          active={filterHealth === "healthy"}
         />
         <DashStat
-          label="Offline"
-          value={fleet?.offline ?? 0}
-          sub={(fleet?.offline ?? 0) > 0 ? "need attention" : "all clear"}
+          label="Unexpected"
+          value={fleet?.unhealthy ?? 0}
+          sub={(fleet?.unhealthy ?? 0) > 0 ? "need attention" : "all clear"}
           icon={<IconWifiOff size={20} />}
-          accent={(fleet?.offline ?? 0) > 0 ? "red" : "green"}
-          onClick={() => setFilterStatus((current) => current === "offline" ? "all" : "offline")}
-          active={filterStatus === "offline"}
+          accent={(fleet?.unhealthy ?? 0) > 0 ? "red" : "green"}
+          onClick={() => setFilterHealth((current) => current === "unhealthy" ? "all" : "unhealthy")}
+          active={filterHealth === "unhealthy"}
         />
         {(() => {
           const labels = [...new Set(portTargets.map((p) => p.label))].sort();
@@ -761,15 +792,15 @@ export function MonitoringWorkspace({
       </div>
       )}
 
-      {/* Offline alert */}
-      {viewTab === "devices" && offlineDevices.length > 0 && (
+      {/* Unexpected-state alert */}
+      {viewTab === "devices" && unexpectedDevices.length > 0 && (
         <div className="dash-alert">
           <IconAlertCircle size={15} />
           <span>
-            <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
+            <strong>{unexpectedDevices.length} device{unexpectedDevices.length !== 1 ? "s" : ""} in an unexpected state</strong>
             {" — "}
-            {offlineDevices.slice(0, 4).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ")}
-            {offlineDevices.length > 4 && ` and ${offlineDevices.length - 4} more`}
+            {unexpectedDevices.slice(0, 4).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ")}
+            {unexpectedDevices.length > 4 && ` and ${unexpectedDevices.length - 4} more`}
           </span>
         </div>
       )}
@@ -793,6 +824,13 @@ export function MonitoringWorkspace({
                   <option value="online">Online</option>
                   <option value="offline">Offline</option>
                   <option value="warning">Warning</option>
+                  <option value="unknown">Unknown</option>
+                  <option value="paused">Paused</option>
+                </select>
+                <select aria-label="Filter by expected-state health" className="toolbar-select" value={filterHealth} onChange={(e) => setFilterHealth(e.target.value)}>
+                  <option value="all">All health</option>
+                  <option value="healthy">Expected</option>
+                  <option value="unhealthy">Unexpected</option>
                   <option value="unknown">Unknown</option>
                   <option value="paused">Paused</option>
                 </select>
@@ -881,6 +919,7 @@ export function MonitoringWorkspace({
                 }}
               >
                 <colgroup>
+                  <col style={{ width: MON_FAVOURITE_COL_WIDTH }} />
                   <col style={{ width: MON_STATUS_COL_WIDTH }} />
                   {colWidths
                     ? colWidths.map((w, i) => <col key={i} style={{ width: w }} />)
@@ -895,10 +934,10 @@ export function MonitoringWorkspace({
                       </>
                   }
                   {colWidths && <col className="mon-table-filler-col" />}
-                  <col style={{ width: MON_FAVOURITE_COL_WIDTH }} />
                 </colgroup>
                 <thead>
                   <tr>
+                    <th title="Favourite" />
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "status" ? " active" : ""}`} onClick={() => toggleSort("status")} title="Sort by status">
                         {sortKey === "status" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
@@ -928,7 +967,7 @@ export function MonitoringWorkspace({
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "uptime24" ? " active" : ""}`} onClick={() => toggleSort("uptime24")}>
-                        24 h{sortKey === "uptime24" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
+                        24 h health{sortKey === "uptime24" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
                       <div
                         className="mon-col-resize-handle"
@@ -939,7 +978,7 @@ export function MonitoringWorkspace({
                     </th>
                     <th>
                       <button type="button" className={`inventory-sort-btn${sortKey === "uptime7" ? " active" : ""}`} onClick={() => toggleSort("uptime7")}>
-                        7 d{sortKey === "uptime7" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
+                        7 d health{sortKey === "uptime7" && (sortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}
                       </button>
                       <div
                         className="mon-col-resize-handle"
@@ -980,7 +1019,6 @@ export function MonitoringWorkspace({
                       />
                     </th>
                     {colWidths && <th className="mon-table-filler" aria-hidden="true" />}
-                    <th title="Favourite" />
                   </tr>
                 </thead>
                 <tbody>
@@ -990,17 +1028,28 @@ export function MonitoringWorkspace({
                       className={`mon-row${selectedId === d.device_id ? " mon-row--active" : ""}`}
                       onClick={() => setSelectedId(selectedId === d.device_id ? null : d.device_id)}
                     >
-                      <td><MonStatusDot status={d.status} /></td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`fav-btn${favouriteIds.has(d.device_id) ? " fav-btn--active" : ""}`}
+                          title={favouriteIds.has(d.device_id) ? "Remove from favourites" : "Add to favourites"}
+                          onClick={(e) => { e.stopPropagation(); onToggleFavourite(d.device_id); }}
+                        >
+                          <Star size={13} fill={favouriteIds.has(d.device_id) ? "currentColor" : "none"} />
+                        </button>
+                      </td>
+                      <td><MonStatusDot status={d.health_status} /></td>
                       <td>
                         <div className="mon-device-cell">
                           <div className="mon-device-meta">
                             <span className="mon-device-name">
                               {d.display_name ?? d.hostname ?? d.ip_address}
                               {d.flapping && <span className="mon-flap-badge" title="Status changed 4+ times in the last hour">flapping</span>}
+                              {d.expected_status === "offline" && <span className="mon-expected-badge" title="This device is healthy while offline">expected offline</span>}
                             </span>
                             <span className="mon-device-ip">{d.ip_address}</span>
                           </div>
-                          {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat.slice(-48)} size="sm" />}
+                          {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat.slice(-48)} health={d.heartbeat_health.slice(-48)} size="sm" />}
                         </div>
                       </td>
                       <td>
@@ -1016,8 +1065,8 @@ export function MonitoringWorkspace({
                           );
                         })()}
                       </td>
-                      <td><UptimeBadge value={d.uptime_24h} /></td>
-                      <td><UptimeBadge value={d.uptime_7d} /></td>
+                      <td><UptimeBadge value={d.compliance_24h} /></td>
+                      <td><UptimeBadge value={d.compliance_7d} /></td>
                       <td className="mon-cell-mono">{fmtRtt(d.avg_rtt_24h)}</td>
                       <td>
                         {d.latest_port_results.length === 0 ? (
@@ -1036,16 +1085,6 @@ export function MonitoringWorkspace({
                       </td>
                       <td className="mon-cell-mono">{fmtTime(d.last_checked)}</td>
                       {colWidths && <td className="mon-table-filler" aria-hidden="true" />}
-                      <td>
-                        <button
-                          type="button"
-                          className={`fav-btn${favouriteIds.has(d.device_id) ? " fav-btn--active" : ""}`}
-                          title={favouriteIds.has(d.device_id) ? "Remove from favourites" : "Add to favourites"}
-                          onClick={(e) => { e.stopPropagation(); onToggleFavourite(d.device_id); }}
-                        >
-                          <Star size={13} fill={favouriteIds.has(d.device_id) ? "currentColor" : "none"} />
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1371,9 +1410,9 @@ export function MonitoringWorkspace({
           <div className="mon-hero">
 
             {/* Header */}
-            <div className={`mon-hero-header mon-hero-header--${selectedDevice.status}`}>
+            <div className={`mon-hero-header mon-hero-header--${selectedDevice.health_status}`}>
               <div className="mon-hero-header-left">
-                <MonStatusDot status={selectedDevice.status} />
+                <MonStatusDot status={selectedDevice.health_status} />
                 <div>
                   <div className="mon-hero-name">
                     {selectedDevice.display_name ?? selectedDevice.hostname ?? selectedDevice.ip_address}
@@ -1383,10 +1422,31 @@ export function MonitoringWorkspace({
                       <span>{selectedDevice.hostname} · </span>
                     )}
                     <span className="mon-cell-mono">{selectedDevice.ip_address}</span>
+                    <span> · observed {selectedDevice.status}</span>
+                    <span> · expected {selectedDevice.expected_status}</span>
                   </div>
                 </div>
               </div>
               <div className="mon-hero-actions">
+                {canWrite && (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={selectedDevice.expected_status === "offline"}
+                    aria-label="Upside down"
+                    className={`nm-btn nm-btn--sm nm-btn--secondary mon-expectation-toggle${selectedDevice.expected_status === "offline" ? " is-offline" : ""}`}
+                    disabled={expectationBusyId === selectedDevice.device_id}
+                    onClick={() => void toggleExpectedState(selectedDevice)}
+                    title={selectedDevice.expected_status === "offline"
+                      ? "Offline is expected and healthy; online is treated as unexpected"
+                      : "Online is expected and healthy; offline is treated as unexpected"}
+                  >
+                    <span className="mon-expectation-label">Upside down</span>
+                    {expectationBusyId === selectedDevice.device_id
+                      ? <span className="mon-expectation-saving">Saving…</span>
+                      : <span className="mon-expectation-track" aria-hidden="true"><span /></span>}
+                  </button>
+                )}
                 {canWrite && (
                   <button
                     type="button"
@@ -1417,12 +1477,12 @@ export function MonitoringWorkspace({
             {/* Stat strip */}
             <div className="mon-hero-stats">
               <div className="mon-hero-stat">
-                <span className="mon-hero-stat-label">24 h uptime</span>
-                <UptimeBadge value={selectedDevice.uptime_24h} />
+                <span className="mon-hero-stat-label">24 h health</span>
+                <UptimeBadge value={selectedDevice.compliance_24h} />
               </div>
               <div className="mon-hero-stat">
-                <span className="mon-hero-stat-label">7 d uptime</span>
-                <UptimeBadge value={selectedDevice.uptime_7d} />
+                <span className="mon-hero-stat-label">7 d health</span>
+                <UptimeBadge value={selectedDevice.compliance_7d} />
               </div>
               <div className="mon-hero-stat">
                 <span className="mon-hero-stat-label">Avg RTT (24 h)</span>
@@ -1622,7 +1682,7 @@ export function MonitoringWorkspace({
                             });
                             return (
                               <div key={i} className={`incident-row${inc.end === null ? " incident-row--active" : ""}`}>
-                                <span className={`mon-dot mon-dot-${inc.end === null ? "offline" : "unknown"}`} />
+                                <span className={`mon-dot mon-dot-${inc.end === null ? "unhealthy" : "unknown"}`} />
                                 <div className="incident-row-body">
                                   <span className="incident-time">{fmtDateTime(inc.start)}</span>
                                   <span className="dash-panel-meta">→</span>

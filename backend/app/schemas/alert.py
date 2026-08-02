@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 VALID_EVENT_TYPES = {
     "device_offline", "device_online", "device_warning", "any_status_change",
+    "device_unexpected_state", "device_expected_state_restored",
     "rtt_above", "device_flapping", "ping_loss_above", "service_down", "service_slow",
     "monitor_down", "monitor_slow", "monitor_certificate_expiry",
 }

@@ -77,7 +77,6 @@ export function DeviceForm({
   const initialType = device?.device_type ?? cloneSource?.device_type ?? "";
   const [customType, setCustomType] = useState(Boolean(initialType) && !typeValues.includes(initialType));
   const [monitoringPaused, setMonitoringPaused] = useState(device?.monitoring_paused ?? false);
-
   function update(field: keyof typeof form, value: string) {
     setForm((current) => {
       const next = { ...current, [field]: value };
@@ -211,15 +210,15 @@ export function DeviceForm({
                     <option value="ignored">Ignored</option>
                   </select>
                 </label>
-                <label className="tool-form-inline-check" style={{ alignSelf: "end" }}>
-                  <input
-                    type="checkbox"
-                    checked={monitoringPaused}
-                    onChange={(event) => setMonitoringPaused(event.target.checked)}
-                  />
-                  Pause monitoring
-                </label>
               </div>
+              <label className="tool-form-inline-check">
+                <input
+                  type="checkbox"
+                  checked={monitoringPaused}
+                  onChange={(event) => setMonitoringPaused(event.target.checked)}
+                />
+                Pause monitoring
+              </label>
             </div>
           </div>
 

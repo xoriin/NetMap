@@ -20,6 +20,9 @@ export function mockDevice(overrides: Record<string, unknown> = {}) {
     ip_address: "192.168.1.1",
     status: "active",
     monitor_status: "online",
+    lifecycle: "active",
+    monitoring_paused: false,
+    expected_status: "online",
     topology_group: "Ungrouped",
     color: null,
     icon: null,
@@ -149,6 +152,27 @@ export async function setupInventoryMocks(
   await page.route("**/api/v1/sites*", (route) =>
     route.fulfill({ json: [] })
   );
+  await page.route(/\/api\/v1\/monitoring\/devices\/\d+$/, (route) => {
+    const deviceId = Number(route.request().url().split("/").pop());
+    const device = devices.find((row) => row.id === deviceId) ?? devices[0];
+    const status = device?.monitor_status ?? device?.status ?? "unknown";
+    const expectedStatus = device?.expected_status ?? "online";
+    route.fulfill({
+      json: mockMonitoringDevice({
+        device_id: deviceId,
+        display_name: device?.display_name ?? null,
+        hostname: device?.hostname ?? null,
+        ip_address: device?.ip_address ?? "0.0.0.0",
+        status,
+        expected_status: expectedStatus,
+        health_status: status === "online" || status === "offline"
+          ? status === expectedStatus ? "healthy" : "unhealthy"
+          : "unknown",
+        avg_rtt_24h: 20.1,
+        rtt_sparkline: [16.8, 18.6],
+      }),
+    });
+  });
 }
 
 export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {
@@ -160,6 +184,10 @@ export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {
     device_type: "router",
     icon: "router",
     status: "online",
+    lifecycle: "active",
+    monitoring_paused: false,
+    expected_status: "online",
+    health_status: "healthy",
     topology_group: "Core",
     site_id: null,
     site_name: null,
@@ -167,11 +195,14 @@ export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {
     last_checked: "2026-06-14T00:00:00Z",
     uptime_24h: 1,
     uptime_7d: 0.998,
+    compliance_24h: 1,
+    compliance_7d: 0.998,
     avg_rtt_24h: 2.4,
     latest_port_results: [
       { target_id: 1, port: 443, label: "https", check_type: "tcp", open: true, status: "open" },
     ],
     heartbeat: Array.from({ length: 48 }, (_, i) => (i % 12 === 0 ? "warning" : "online")),
+    heartbeat_health: Array.from({ length: 48 }, (_, i) => (i % 12 === 0 ? "unknown" : "healthy")),
     rtt_sparkline: Array.from({ length: 36 }, (_, i) => 2 + Math.sin(i / 4) * 0.4),
     is_favourite: false,
     ...overrides,
@@ -189,6 +220,9 @@ export async function setupMonitoringMocks(
         online: devices.filter((d) => d.status === "online").length,
         offline: devices.filter((d) => d.status === "offline").length,
         unknown: devices.filter((d) => d.status === "unknown").length,
+        paused: devices.filter((d) => d.health_status === "paused").length,
+        healthy: devices.filter((d) => d.health_status === "healthy").length,
+        unhealthy: devices.filter((d) => d.health_status === "unhealthy").length,
         avg_rtt_ms: 2.4,
         last_checked: "2026-06-14T00:00:00Z",
       },

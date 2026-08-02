@@ -800,6 +800,7 @@ def create_device(
         status=payload.status,
         lifecycle=payload.lifecycle,
         monitoring_paused=payload.monitoring_paused,
+        expected_status=payload.expected_status,
         icon=payload.icon,
         color=payload.color,
         vlan_id=payload.vlan_id,

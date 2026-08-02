@@ -30,6 +30,11 @@ test.describe("Monitoring workspace", () => {
         ip_address: "192.168.100.2",
         device_type: undefined,
         icon: undefined,
+        status: "offline",
+        expected_status: "offline",
+        health_status: "healthy",
+        heartbeat: ["offline", "offline"],
+        heartbeat_health: ["healthy", "healthy"],
       }),
     ]);
     await page.goto("/");
@@ -42,7 +47,7 @@ test.describe("Monitoring workspace", () => {
 
     // The inline RTT sparkline moved to the detail panel; rows now show
     // name/IP plus the heartbeat strip, which must dominate the row width.
-    const deviceCell = row.locator("td").nth(1);
+    const deviceCell = row.locator("td").nth(2);
     const heartbeat = deviceCell.locator(".heartbeat-bar--sm");
 
     await expect(heartbeat).toBeVisible();
@@ -52,9 +57,9 @@ test.describe("Monitoring workspace", () => {
       if (!rowEl) return null;
       const cells = Array.from(rowEl.querySelectorAll("td"));
       return {
-        device: cells[1]?.getBoundingClientRect().width ?? 0,
-        uptime: cells[3]?.getBoundingClientRect().width ?? 0,
-        services: cells[6]?.getBoundingClientRect().width ?? 0,
+        device: cells[2]?.getBoundingClientRect().width ?? 0,
+        uptime: cells[4]?.getBoundingClientRect().width ?? 0,
+        services: cells[7]?.getBoundingClientRect().width ?? 0,
         heartbeat: document.querySelector(".heartbeat-bar--sm")?.getBoundingClientRect().width ?? 0,
       };
     });
@@ -70,8 +75,8 @@ test.describe("Monitoring workspace", () => {
   });
 
   test("uses the clean solid grid treatment without losing table behaviour", async ({ page }) => {
-    const header = page.locator(".mon-table--fleet th").nth(1);
-    const cell = page.locator(".mon-row td").nth(1);
+    const header = page.locator(".mon-table--fleet th").nth(2);
+    const cell = page.locator(".mon-row td").nth(2);
     await expect(header).toHaveCSS("text-transform", "none");
     await expect(header).toHaveCSS("font-weight", "600");
     await expect(header).toHaveCSS("border-right-width", "0px");
@@ -81,8 +86,8 @@ test.describe("Monitoring workspace", () => {
     ]);
     expect(surfaces[0]).toBe(surfaces[1]);
     await expect(page.locator(".mon-view-window")).toHaveCSS("border-radius", "6px");
-    await expect(page.locator(".mon-table--fleet th").nth(2)).toContainText("Type");
-    await expect(page.locator(".mon-row", { hasText: "Core Router" }).locator("td").nth(2).locator(".nm-chip")).toContainText("Router");
+    await expect(page.locator(".mon-table--fleet th").nth(3)).toContainText("Type");
+    await expect(page.locator(".mon-row", { hasText: "Core Router" }).locator("td").nth(3).locator(".nm-chip")).toContainText("Router");
   });
 
   test("filters the fleet by device type", async ({ page }) => {
@@ -94,6 +99,32 @@ test.describe("Monitoring workspace", () => {
     await expect(page.locator(".mon-row")).toHaveCount(1);
     await expect(page.locator(".mon-row")).toContainText("Access Switch");
     await expect(page.locator(".mon-table-toolbar-meta")).toContainText("1 of 2");
+  });
+
+  test("keeps favourites on the left and renders expected-offline health correctly", async ({ page }) => {
+    const row = page.locator(".mon-row").first();
+    await expect(row.locator("td").first().locator(".fav-btn")).toBeVisible();
+    const expectedOfflineRow = page.locator(".mon-row", { hasText: "Access Switch" });
+    await expect(expectedOfflineRow.locator("td").nth(1).locator(".mon-dot-healthy")).toBeVisible();
+    await expect(expectedOfflineRow.locator(".mon-expected-badge")).toContainText("expected offline");
+  });
+
+  test("changes upside-down monitoring from the device popup", async ({ page }) => {
+    let savedExpectation: string | null = null;
+    await page.route("**/api/v1/topology/devices/2", async (route) => {
+      savedExpectation = (await route.request().postDataJSON()).expected_status;
+      await route.fulfill({ json: mockDevice({ id: 2, expected_status: savedExpectation }) });
+    });
+
+    await page.locator(".mon-row", { hasText: "Access Switch" }).click();
+    const toggle = page.getByRole("switch", { name: "Upside down" });
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(toggle).toContainText("Upside down");
+    await expect(toggle.locator(".mon-expectation-track")).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(savedExpectation).toBe("online");
+    await expect(page.locator(".mon-hero-sub")).toContainText("expected online");
   });
 
   test("uses collapsible sidebar navigation for devices and endpoints", async ({ page }) => {
@@ -217,20 +248,18 @@ test.describe("Monitoring layout and column sizing", () => {
     test(`${label} a column leaves every other column's width untouched`, async ({ page }) => {
       const before = await headerWidths(page);
 
-      // Handle index 1 is the Type column, i.e. header cell 2.
+      // Handle index 1 is the Type column, i.e. header cell 3 after Favourite and Status.
       await dragDivider(page, 1, dx);
 
       const after = await headerWidths(page);
-      // The first resize introduces a flexible spacer immediately before the
-      // fixed Favourite action column.
+      // The first resize introduces a flexible spacer after the resizable data columns.
       expect(after.length).toBe(before.length + 1);
       // The dragged column actually moved...
-      expect(Math.abs(after[2] - before[2])).toBeGreaterThan(60);
+      expect(Math.abs(after[3] - before[3])).toBeGreaterThan(60);
       // ...and nothing else did.
-      for (const i of [0, 1, 3, 4, 5, 6, 7]) {
+      for (const i of [0, 1, 2, 4, 5, 6, 7, 8]) {
         expect(Math.abs(after[i] - before[i])).toBeLessThanOrEqual(1);
       }
-      expect(Math.abs(after[9] - before[8])).toBeLessThanOrEqual(1);
     });
   }
 
@@ -243,7 +272,7 @@ test.describe("Monitoring layout and column sizing", () => {
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2, { steps: 10 });
     await page.mouse.up();
-    expect((await headerWidths(page))[2]).toBeGreaterThan(before[2] + 60);
+    expect((await headerWidths(page))[3]).toBeGreaterThan(before[3] + 60);
 
     await page.locator(".mon-table--fleet .mon-col-resize-handle").nth(1).dblclick();
 
@@ -254,7 +283,7 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(await page.evaluate(() => window.localStorage.getItem("netmap.mon_col_widths_v9"))).toBeNull();
   });
 
-  test("fills narrow saved columns and keeps row actions at the right edge", async ({ page }) => {
+  test("fills narrow saved columns and keeps favourites at the left edge", async ({ page }) => {
     await page.evaluate(() => {
       window.localStorage.setItem("netmap.mon_col_widths_v9", JSON.stringify([160, 90, 80, 80, 90, 110, 100]));
     });
@@ -266,16 +295,15 @@ test.describe("Monitoring layout and column sizing", () => {
       const table = document.querySelector<HTMLElement>(".mon-table--fleet");
       const row = document.querySelector<HTMLElement>(".mon-table--fleet .mon-row");
       const filler = document.querySelector<HTMLElement>(".mon-table--fleet .mon-table-filler");
-      const favourite = document.querySelector<HTMLElement>(".mon-table--fleet .mon-row td:last-child");
+      const favourite = document.querySelector<HTMLElement>(".mon-table--fleet .mon-row td:first-child");
       if (!viewport || !table || !row || !filler || !favourite) return null;
       const viewportRect = viewport.getBoundingClientRect();
-      const viewportContentRight = viewportRect.left + viewport.clientWidth;
       return {
         viewportWidth: viewport.clientWidth,
         tableWidth: table.getBoundingClientRect().width,
         rowWidth: row.getBoundingClientRect().width,
         fillerWidth: filler.getBoundingClientRect().width,
-        favouriteRightGap: Math.abs(viewportContentRight - favourite.getBoundingClientRect().right),
+        favouriteLeftGap: Math.abs(viewportRect.left - favourite.getBoundingClientRect().left),
       };
     });
 
@@ -283,6 +311,6 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(dimensions!.tableWidth).toBeGreaterThanOrEqual(dimensions!.viewportWidth - 1);
     expect(dimensions!.rowWidth).toBeGreaterThanOrEqual(dimensions!.viewportWidth - 1);
     expect(dimensions!.fillerWidth).toBeGreaterThan(100);
-    expect(dimensions!.favouriteRightGap).toBeLessThanOrEqual(2);
+    expect(dimensions!.favouriteLeftGap).toBeLessThanOrEqual(2);
   });
 });

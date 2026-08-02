@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -18,5 +18,7 @@ class DeviceMonitorHistory(Base):
         index=True,
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    expected_status: Mapped[str] = mapped_column(String(20), default="online", nullable=False)
+    is_healthy: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     rtt_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     port_results: Mapped[str] = mapped_column(Text, default="[]", nullable=False)

@@ -133,6 +133,8 @@ export function AlertsTab({
                 <option value="device_online">Device comes back online</option>
                 <option value="device_warning">Device status becomes Warning</option>
                 <option value="any_status_change">Any status change</option>
+                <option value="device_unexpected_state">Device enters an unexpected state</option>
+                <option value="device_expected_state_restored">Device returns to its expected state</option>
                 <option value="rtt_above">Response time above threshold</option>
                 <option value="device_flapping">Device is flapping (repeated status changes)</option>
                 <option value="ping_loss_above">Ping loss above threshold</option>
@@ -269,6 +271,8 @@ export function AlertsTab({
                   device_online: "Comes online",
                   device_warning: "Warning status",
                   any_status_change: "Any status change",
+                  device_unexpected_state: "Unexpected state",
+                  device_expected_state_restored: "Expected state restored",
                   rtt_above: rule.threshold_ms ? `RTT above ${rule.threshold_ms} ms` : "RTT above threshold",
                   device_flapping: "Flapping",
                   ping_loss_above: rule.loss_pct_threshold ? `Ping loss above ${rule.loss_pct_threshold}%` : "Ping loss above threshold",

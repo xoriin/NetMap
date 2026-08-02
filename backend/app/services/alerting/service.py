@@ -21,6 +21,7 @@ from app.models.port_target import DevicePortTarget
 from app.models.system_setting import SystemSetting
 from app.schemas.tools import PingRequest
 from app.services.monitoring.port_checker import check_port
+from app.services.monitoring.health import observed_health, observed_is_healthy
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -47,6 +48,7 @@ class AlertMonitorService:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._known: dict[int, str] = {}
+        self._known_health: dict[int, str] = {}
         # (device_id, port_target_id) -> was it open on the previous poll
         self._known_ports: dict[tuple[int, int], bool] = {}
         self._flap_times: dict[int, list[datetime]] = {}
@@ -198,6 +200,8 @@ class AlertMonitorService:
                     "device_id": device.id,
                     "checked_at": checked_at,
                     "status": status,
+                    "expected_status": device.expected_status or "online",
+                    "is_healthy": observed_is_healthy(status, device.expected_status),
                     "rtt_ms": rtt_map.get(device.id),
                     "port_results": json.dumps(port_map.get(device.id, [])),
                 })
@@ -215,9 +219,14 @@ class AlertMonitorService:
         self._prune_history()
 
         known_ports_now = {key: entry["open"] for key, entry in current_ports.items()}
+        current_health = {
+            device.id: observed_health(current.get(device.id, "unknown"), device.expected_status)
+            for device in devices
+        }
 
         if not self._initialized:
             self._known = current
+            self._known_health = current_health
             self._known_ports = known_ports_now
             self._initialized = True
             logger.debug("Alert monitor: initial state learned for %d devices", len(current))
@@ -225,6 +234,7 @@ class AlertMonitorService:
 
         if not rules:
             self._known = current
+            self._known_health = current_health
             self._known_ports = known_ports_now
             return
 
@@ -276,6 +286,34 @@ class AlertMonitorService:
                 if not self._cooldown_ok(rule, now):
                     continue
                 fire(rule, device_id, self._build_message(rule.event_type, label, device.ip_address, new_status, app_name))
+
+        for device_id, new_health in current_health.items():
+            old_health = self._known_health.get(device_id, "unknown")
+            if new_health == old_health or new_health == "unknown":
+                continue
+
+            device = device_map[device_id]
+            label = device.display_name or device.hostname or device.ip_address
+            event_type = (
+                "device_unexpected_state"
+                if new_health == "unhealthy"
+                else "device_expected_state_restored"
+            )
+            for rule in rules:
+                if rule.event_type != event_type:
+                    continue
+                if rule.device_id is not None and rule.device_id != device_id:
+                    continue
+                if not self._cooldown_ok(rule, now):
+                    continue
+                fire(rule, device_id, self._build_message(
+                    event_type,
+                    label,
+                    device.ip_address,
+                    current.get(device_id, "unknown"),
+                    app_name,
+                    expected_status=device.expected_status or "online",
+                ))
 
         for rule, device_id, rtt in self._rtt_breaches(rules, rtt_map, now):
             device = device_map[device_id]
@@ -354,6 +392,7 @@ class AlertMonitorService:
                 db.commit()
 
         self._known = current
+        self._known_health = current_health
         self._known_ports = known_ports_now
 
     def _probe_device_status(self, device: Device) -> tuple[str, float | None]:
@@ -534,6 +573,7 @@ class AlertMonitorService:
         loss_pct: float | None = None,
         loss_pct_threshold: float | None = None,
         service_label: str | None = None,
+        expected_status: str | None = None,
     ) -> str:
         if event_type == "rtt_above":
             rtt_text = f"{rtt_ms:.0f}" if rtt_ms is not None else "?"
@@ -557,11 +597,14 @@ class AlertMonitorService:
             count_text = str(flap_count) if flap_count is not None else "repeated"
             body = f"🔁 {label} ({ip}) is flapping — {count_text} status changes in the last hour"
             return f"{app_name} Alert\n\n{body}"
+        expected_text = (expected_status or "online").upper()
         descriptions = {
             "device_offline": f"⚠️ {label} ({ip}) is now OFFLINE",
             "device_online": f"✅ {label} ({ip}) is back ONLINE",
             "device_warning": f"⚠️ {label} ({ip}) has a WARNING status",
             "any_status_change": f"ℹ️ {label} ({ip}) status changed to {status.upper()}",
+            "device_unexpected_state": f"⚠️ {label} ({ip}) is {status.upper()}, expected {expected_text}",
+            "device_expected_state_restored": f"✅ {label} ({ip}) returned to its expected {expected_text} state",
         }
         body = descriptions.get(event_type, f"{label} ({ip}) status: {status}")
         return f"{app_name} Alert\n\n{body}"

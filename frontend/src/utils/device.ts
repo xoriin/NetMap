@@ -13,6 +13,7 @@ export function buildDevicePayload(device: Device, overrides: Partial<DevicePayl
     status: device.status,
     lifecycle: device.lifecycle ?? "active",
     monitoring_paused: device.monitoring_paused ?? false,
+    expected_status: device.expected_status ?? "online",
     icon: (device.icon || deviceTypeIconMap[device.device_type ?? ""] || "device") as DeviceIcon,
     color: device.color,
     vlan_id: device.vlan_id,

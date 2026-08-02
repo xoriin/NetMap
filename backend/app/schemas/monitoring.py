@@ -21,6 +21,8 @@ class MonitorHistoryPoint(BaseModel):
     id: int
     checked_at: datetime
     status: str
+    expected_status: str = "online"
+    is_healthy: bool | None = None
     rtt_ms: float | None
     port_results: list[PortResult]
 
@@ -35,6 +37,8 @@ class DeviceMonitorSummary(BaseModel):
     device_type: str | None = None
     icon: str | None = None
     status: str
+    expected_status: str = "online"
+    health_status: str = "unknown"
     lifecycle: str = "active"
     monitoring_paused: bool = False
     topology_group: str | None
@@ -44,9 +48,12 @@ class DeviceMonitorSummary(BaseModel):
     last_checked: datetime | None
     uptime_24h: float | None  # 0.0–1.0
     uptime_7d: float | None
+    compliance_24h: float | None = None
+    compliance_7d: float | None = None
     avg_rtt_24h: float | None
     latest_port_results: list[PortResult]
     heartbeat: list[str] = []  # last 50 poll statuses, oldest → newest
+    heartbeat_health: list[str] = []  # expected-state result matching heartbeat
     rtt_sparkline: list[float | None] = []  # matching rtt_ms values, same order
     is_favourite: bool = False
     flapping: bool = False  # >= 4 status transitions in the last hour
@@ -58,6 +65,8 @@ class FleetSummary(BaseModel):
     offline: int
     unknown: int
     paused: int = 0
+    healthy: int = 0
+    unhealthy: int = 0
     avg_rtt_ms: float | None
     last_checked: datetime | None
 

@@ -174,6 +174,9 @@ test.describe("Inventory approved workspace hierarchy", () => {
     await expect(sidebar).toBeVisible();
     await expect(sidebar.locator(".inventory-device-sidebar-body")).toBeVisible();
     await expect(sidebar.getByRole("heading", { name: "Access Switch" })).toBeVisible();
+    await expect(sidebar.getByText("observed online", { exact: true })).toBeVisible();
+    await expect(sidebar.locator("dl").getByText("18.6 ms", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("24 h avg 20.1 ms", { exact: true })).toBeVisible();
 
     const widthWithSidebar = (await surface.boundingBox())?.width ?? 0;
     expect(widthWithSidebar).toBeLessThan(widthBefore - 300);

@@ -4,6 +4,8 @@ import type { Incident } from "../types";
 export const BEAT_COLOR: Record<string, string> = {
   online:  "#2dba7c",
   offline: "#e05050",
+  healthy: "#2dba7c",
+  unhealthy: "#e05050",
   unknown: "#7a8fa0",
 };
 
@@ -11,10 +13,10 @@ export const HB_MAX_BEATS = 120;
 
 export const MON_COL_WIDTHS_KEY = "netmap.mon_col_widths_v9";
 // 7 resizable cols: Device | Type | 24h | 7d | Avg RTT | Services | Checked
-// (Status + Favourite stay fixed at the outside edges.)
+// (Favourite + Status stay fixed at the left edge.)
 export const MON_COL_COUNT = 7;
 export const MON_DEFAULT_COL_WIDTHS = [380, 140, 100, 100, 100, 100, 100];
-// The two unresizable columns bracketing them. Kept here so the <col> widths and
+// The two unresizable columns preceding them. Kept here so the <col> widths and
 // the table's total width are always computed from the same numbers — under
 // table-layout: fixed any mismatch is redistributed across every column.
 export const MON_STATUS_COL_WIDTH = 50;
@@ -51,7 +53,7 @@ export function computeIncidents(history: MonitorHistoryPoint[]): Incident[] {
   const incidents: Incident[] = [];
   let incidentStart: string | null = null;
   for (const h of history) {
-    const isDown = h.status === "offline";
+    const isDown = h.is_healthy === false || (h.is_healthy === null && h.status === "offline");
     if (isDown && incidentStart === null) {
       incidentStart = h.checked_at;
     } else if (!isDown && incidentStart !== null) {

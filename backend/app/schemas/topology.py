@@ -9,6 +9,7 @@ from app.models.device import DeviceStatus
 
 _ICON_RE = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 LIFECYCLE_STATES = ("planned", "active", "retired", "ignored")
+EXPECTED_MONITOR_STATUSES = ("online", "offline")
 
 
 class DeviceBase(BaseModel):
@@ -22,6 +23,7 @@ class DeviceBase(BaseModel):
     status: DeviceStatus = DeviceStatus.UNKNOWN
     lifecycle: str = "active"
     monitoring_paused: bool = False
+    expected_status: str = "online"
     icon: str = Field(default="device", max_length=120)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     vlan_id: str | None = Field(default=None, max_length=32)
@@ -63,6 +65,14 @@ class DeviceBase(BaseModel):
         value = lifecycle.strip().lower()
         if value not in LIFECYCLE_STATES:
             raise ValueError(f"lifecycle must be one of {LIFECYCLE_STATES}")
+        return value
+
+    @field_validator("expected_status")
+    @classmethod
+    def validate_expected_status(cls, expected_status: str) -> str:
+        value = expected_status.strip().lower()
+        if value not in EXPECTED_MONITOR_STATUSES:
+            raise ValueError(f"expected_status must be one of {EXPECTED_MONITOR_STATUSES}")
         return value
 
 class DeviceCreate(DeviceBase):
@@ -128,6 +138,7 @@ class DeviceUpdate(BaseModel):
     status: DeviceStatus | None = None
     lifecycle: str | None = None
     monitoring_paused: bool | None = None
+    expected_status: str | None = None
     icon: str | None = Field(default=None, max_length=40)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     vlan_id: str | None = Field(default=None, max_length=32)
@@ -152,6 +163,13 @@ class DeviceUpdate(BaseModel):
         if icon is None:
             return None
         return DeviceBase.validate_icon(icon)
+
+    @field_validator("expected_status")
+    @classmethod
+    def validate_expected_status(cls, expected_status: str | None) -> str | None:
+        if expected_status is None:
+            return None
+        return DeviceBase.validate_expected_status(expected_status)
 
     @field_validator("lifecycle")
     @classmethod

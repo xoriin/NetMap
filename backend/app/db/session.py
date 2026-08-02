@@ -158,6 +158,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0056_monitor_http_options", _migrate_monitor_http_options)
         _run_migration(conn, inspector, "0057_topology_group_color", _migrate_topology_group_color)
         _run_migration(conn, inspector, "0058_user_entity_colors", _migrate_user_entity_colors)
+        _run_migration(conn, inspector, "0059_device_expected_status", _migrate_device_expected_status)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -966,6 +967,36 @@ def _migrate_device_monitoring_fields(conn, inspector) -> None:
         conn.execute(text("ALTER TABLE devices ADD COLUMN monitoring_paused BOOLEAN NOT NULL DEFAULT 0"))
     if "lifecycle" not in existing:
         conn.execute(text("ALTER TABLE devices ADD COLUMN lifecycle VARCHAR(20) NOT NULL DEFAULT 'active'"))
+
+
+def _migrate_device_expected_status(conn, inspector) -> None:
+    """Store expected reachability and snapshot compliance with every poll."""
+    device_columns = {col["name"] for col in inspector.get_columns("devices")}
+    if "expected_status" not in device_columns:
+        conn.execute(text(
+            "ALTER TABLE devices ADD COLUMN expected_status VARCHAR(20) NOT NULL DEFAULT 'online'"
+        ))
+
+    if "device_monitor_history" not in set(inspector.get_table_names()):
+        return
+    history_columns = {col["name"] for col in inspector.get_columns("device_monitor_history")}
+    if "expected_status" not in history_columns:
+        conn.execute(text(
+            "ALTER TABLE device_monitor_history ADD COLUMN expected_status VARCHAR(20) NOT NULL DEFAULT 'online'"
+        ))
+    if "is_healthy" not in history_columns:
+        conn.execute(text("ALTER TABLE device_monitor_history ADD COLUMN is_healthy BOOLEAN"))
+        conn.execute(text(
+            "UPDATE device_monitor_history "
+            "SET is_healthy = CASE "
+            "WHEN status = 'online' THEN 1 "
+            "WHEN status = 'offline' THEN 0 "
+            "ELSE NULL END"
+        ))
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_health "
+        "ON device_monitor_history (device_id, checked_at, is_healthy, status, rtt_ms)"
+    ))
 
 
 def _migrate_service_check_http_path(conn, inspector) -> None:

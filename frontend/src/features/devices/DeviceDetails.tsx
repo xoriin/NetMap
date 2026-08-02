@@ -12,12 +12,13 @@ import {
   IconTag,
   IconNote,
   IconCalendar,
+  IconGauge,
 } from "@tabler/icons-react";
 import {
   type Device,
   type DeviceLiveStatus,
+  type DeviceMonitorSummary,
   type DevicePayload,
-  type DeviceStatus,
   type DeviceIcon,
   type DeviceTypeOption,
   type SnmpEnrichmentPreview,
@@ -48,6 +49,7 @@ export function DeviceDetails({
   sites,
   onGraphChange,
   liveStatus,
+  monitorSummary,
   onDelete,
   onClone,
   onSubmit,
@@ -65,6 +67,7 @@ export function DeviceDetails({
   snmpProfiles: SnmpProfile[];
   sites: Site[];
   liveStatus: DeviceLiveStatus | null;
+  monitorSummary?: DeviceMonitorSummary | null;
   onDelete?: () => void;
   onClone?: () => void;
   onSubmit: (payload: DevicePayload) => Promise<void>;
@@ -117,7 +120,12 @@ export function DeviceDetails({
 
   const editHint = canWrite && !disabled;
   const monitoringPaused = isDeviceMonitoringPaused(device);
-  const dotStatus = monitoringPaused ? "paused" : (liveStatus?.status ?? device.monitor_status ?? device.status);
+  const observedStatus = monitorSummary?.status ?? liveStatus?.status ?? device.monitor_status ?? device.status;
+  const monitorHealth = monitoringPaused ? "paused" : (monitorSummary?.health_status ?? observedStatus);
+  const dotStatus = monitorHealth;
+  const latestRtt = monitorSummary && monitorSummary.rtt_sparkline.length > 0
+    ? monitorSummary.rtt_sparkline[monitorSummary.rtt_sparkline.length - 1]
+    : liveStatus?.latency_ms ?? null;
   const assignedSnmpProfile = snmpProfiles.find((profile) => profile.id === device.snmp_profile_id) ?? null;
   const groupChip = groupChipFor(device, groups);
   const siteChip = siteChipFor(device, sites);
@@ -158,12 +166,12 @@ export function DeviceDetails({
           <div className="details-heading-body">
             <div className="details-heading-title-row">
               <h3>{deviceLabel(device)}</h3>
-              {!monitoringPaused && liveStatus && liveStatus.status !== "unknown" && (
-                <span className={`details-live-badge details-live-badge--${liveStatus.status}`}>
+              {!monitoringPaused && observedStatus !== "unknown" && (
+                <span className={`details-live-badge details-live-badge--${monitorHealth}`}>
                   <span className="details-live-dot" />
-                  {liveStatus.status}
-                  {liveStatus.latency_ms != null && (
-                    <span className="details-live-rtt">{liveStatus.latency_ms.toFixed(1)} ms</span>
+                  {monitorSummary ? monitorHealth : observedStatus}
+                  {latestRtt != null && (
+                    <span className="details-live-rtt">{latestRtt.toFixed(1)} ms</span>
                   )}
                 </span>
               )}
@@ -351,25 +359,16 @@ export function DeviceDetails({
           )}
         </dd>
         <dt><span className="details-field-icon"><Activity size={12} /></span>Status</dt>
-        <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("status", device.status) : undefined}
-        >
-          {editingField === "status" ? (
-            <select
-              autoFocus
-              className="details-inline-input"
-              value={fieldDraft}
-              onChange={(e) => { void commitField({ status: e.target.value as DeviceStatus }); }}
-              onBlur={cancelEdit}
-              onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }}
-            >
-              <option value="unknown">unknown</option>
-              <option value="online">online</option>
-              <option value="offline">offline</option>
-              <option value="warning">warning</option>
-            </select>
-          ) : device.status}
+        <dd className="details-monitor-value">
+          <span className={`details-monitor-state details-monitor-state--${monitorHealth}`}>{monitorHealth}</span>
+          <span className="details-monitor-meta">observed {observedStatus}</span>
+        </dd>
+        <dt><span className="details-field-icon"><IconGauge size={12} /></span>RTT</dt>
+        <dd className="details-monitor-value">
+          <span>{latestRtt != null ? `${latestRtt.toFixed(1)} ms` : "—"}</span>
+          {monitorSummary?.avg_rtt_24h != null && (
+            <span className="details-monitor-meta">24 h avg {monitorSummary.avg_rtt_24h.toFixed(1)} ms</span>
+          )}
         </dd>
         <dt><span className="details-field-icon"><IconPalette size={12} /></span>Color</dt>
         <dd

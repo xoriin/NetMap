@@ -175,6 +175,8 @@ def test_rule(
         "device_online": "online",
         "device_warning": "warning",
         "any_status_change": "offline",
+        "device_unexpected_state": "offline",
+        "device_expected_state_restored": "online",
         "rtt_above": "online",
         "device_flapping": "online",
         "ping_loss_above": "online",
@@ -206,6 +208,7 @@ def test_rule(
             rtt_ms=float(threshold) + 25, threshold_ms=threshold, flap_count=5,
             loss_pct=loss_threshold + 10, loss_pct_threshold=loss_threshold,
             service_label=service_label,
+            expected_status=device.expected_status if rule.device_id is not None and device else "online",
         )
     message = f"[TEST] {body}"
 

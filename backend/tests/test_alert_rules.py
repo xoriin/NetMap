@@ -113,6 +113,23 @@ def test_rtt_rule_schema_requires_threshold():
     assert rule.threshold_ms == 200
     # status rules do not need a threshold
     AlertRuleCreate(name="Offline", event_type="device_offline", channels=["profile:1"])
+    AlertRuleCreate(name="Unexpected", event_type="device_unexpected_state", channels=["profile:1"])
+    AlertRuleCreate(name="Restored", event_type="device_expected_state_restored", channels=["profile:1"])
+
+
+def test_expected_state_alert_messages_include_observed_and_expected_states():
+    unexpected = AlertMonitorService._build_message(
+        "device_unexpected_state", "Archive Server", "10.0.0.25", "online", "NetMap",
+        expected_status="offline",
+    )
+    restored = AlertMonitorService._build_message(
+        "device_expected_state_restored", "Archive Server", "10.0.0.25", "offline", "NetMap",
+        expected_status="offline",
+    )
+
+    assert "ONLINE" in unexpected
+    assert "expected OFFLINE" in unexpected
+    assert "expected OFFLINE state" in restored
 
 
 def test_ping_loss_rule_schema_requires_threshold():

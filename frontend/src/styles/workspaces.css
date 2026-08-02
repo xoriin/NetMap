@@ -3907,16 +3907,24 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   height: 8px;
 }
 
-.status-dot.online {
+.status-dot.online,
+.status-dot.healthy {
   background: var(--nm-success);
   --status-dot-glow: rgba(45, 157, 120, 0.55);
   --status-dot-halo: rgba(45, 157, 120, 0.32);
 }
 
-.status-dot.offline {
+.status-dot.offline,
+.status-dot.unhealthy {
   background: #8a96a3;
   --status-dot-glow: rgba(138, 150, 163, 0.46);
   --status-dot-halo: rgba(138, 150, 163, 0.28);
+}
+
+.status-dot.unhealthy {
+  background: var(--nm-danger);
+  --status-dot-glow: rgba(224, 80, 80, 0.55);
+  --status-dot-halo: rgba(224, 80, 80, 0.30);
 }
 
 .status-dot.paused {
@@ -4078,21 +4086,25 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.details-live-badge--online {
+.details-live-badge--online,
+.details-live-badge--healthy {
   background: rgba(21,128,61,0.09);
   border-color: rgba(21,128,61,0.22);
   color: #15803d;
 }
-.details-live-badge--online .details-live-dot {
+.details-live-badge--online .details-live-dot,
+.details-live-badge--healthy .details-live-dot {
   background: #22c55e;
   animation: pulse-dot-green 1.8s ease-in-out infinite;
 }
-.details-live-badge--offline {
+.details-live-badge--offline,
+.details-live-badge--unhealthy {
   background: rgba(185,28,28,0.08);
   border-color: rgba(185,28,28,0.22);
   color: #b91c1c;
 }
-.details-live-badge--offline .details-live-dot {
+.details-live-badge--offline .details-live-dot,
+.details-live-badge--unhealthy .details-live-dot {
   background: var(--nm-danger);
   animation: pulse-dot 1.8s ease-in-out infinite;
 }
@@ -4111,6 +4123,28 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   border-left: 1px solid currentColor;
   padding-left: 5px;
   margin-left: 1px;
+}
+
+.details-monitor-value {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.details-monitor-state {
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.details-monitor-state--healthy { color: var(--nm-success); }
+.details-monitor-state--unhealthy { color: var(--nm-danger); }
+.details-monitor-state--paused,
+.details-monitor-state--unknown { color: var(--nm-text-muted); }
+
+.details-monitor-meta {
+  color: var(--nm-text-faint);
+  font-size: 11px;
 }
 
 .editable-dd {
