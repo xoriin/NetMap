@@ -618,6 +618,11 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
 .ipam-tooltip-kind-dot--free { background: var(--nm-text-faint); }
 
 .ipam-detail-modal .ipam-grid-legend {
+  --ipam-device: #4d9578;
+  --ipam-dhcp: #6484ad;
+  --ipam-reserved: #8174a3;
+  --ipam-gateway: #ad8248;
+  --ipam-system: #71808e;
   margin-top: 10px;
   color: var(--nm-text-faint);
 }
@@ -627,13 +632,13 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
   background: var(--nm-surface-soft);
 }
 
-.ipam-legend-dot--device { border-color: var(--ipam-device); background: color-mix(in srgb, var(--ipam-device) 42%, var(--nm-surface-soft)); }
-.ipam-legend-dot--dhcp,
-.ipam-legend-dot--dhcp-pool { border-color: var(--ipam-dhcp); background: color-mix(in srgb, var(--ipam-dhcp) 38%, var(--nm-surface-soft)); }
-.ipam-legend-dot--reserved { border-color: var(--ipam-reserved); background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft)); }
-.ipam-legend-dot--gateway { border-color: var(--ipam-gateway); background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft)); }
-.ipam-legend-dot--system { border-color: var(--ipam-system); background: color-mix(in srgb, var(--ipam-system) 28%, var(--nm-surface-soft)); }
-.ipam-legend-dot--free { border-color: var(--nm-border); background: var(--nm-surface-soft); }
+.ipam-detail-modal .ipam-legend-dot--device { border-color: var(--ipam-device); background: color-mix(in srgb, var(--ipam-device) 42%, var(--nm-surface-soft)); }
+.ipam-detail-modal .ipam-legend-dot--dhcp,
+.ipam-detail-modal .ipam-legend-dot--dhcp-pool { border-color: var(--ipam-dhcp); background: color-mix(in srgb, var(--ipam-dhcp) 38%, var(--nm-surface-soft)); }
+.ipam-detail-modal .ipam-legend-dot--reserved { border-color: var(--ipam-reserved); background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft)); }
+.ipam-detail-modal .ipam-legend-dot--gateway { border-color: var(--ipam-gateway); background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft)); }
+.ipam-detail-modal .ipam-legend-dot--system { border-color: var(--ipam-system); background: color-mix(in srgb, var(--ipam-system) 28%, var(--nm-surface-soft)); }
+.ipam-detail-modal .ipam-legend-dot--free { border-color: var(--nm-border); background: var(--nm-surface-soft); }
 
 @media (max-width: 980px) {
   .ipam-workspace .ipam-panel-header.nm-app-panel-header {

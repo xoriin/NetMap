@@ -898,6 +898,7 @@ export type Monitor = {
   uptime_24h: number | null;
   uptime_7d: number | null;
   avg_response_time_24h: number | null;
+  heartbeat: string[];
   created_at: string;
   updated_at: string;
 };

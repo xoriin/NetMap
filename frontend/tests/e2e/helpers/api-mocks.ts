@@ -173,6 +173,17 @@ export async function setupInventoryMocks(
       }),
     });
   });
+  await page.route(/\/api\/v1\/monitoring\/devices$/, (route) => route.fulfill({
+    json: devices.map((device) => mockMonitoringDevice({
+      device_id: device.id,
+      display_name: device.display_name,
+      hostname: device.hostname,
+      ip_address: device.ip_address,
+      device_type: device.device_type,
+      status: device.monitor_status ?? device.status,
+      avg_rtt_24h: device.id === 1 ? 20.1 : null,
+    })),
+  }));
 }
 
 export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {

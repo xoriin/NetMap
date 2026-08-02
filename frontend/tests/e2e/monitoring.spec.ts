@@ -165,6 +165,27 @@ test.describe("Monitoring workspace", () => {
     await expect(monitoringNav.getByRole("button", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".mon-row").first()).toBeVisible();
   });
+
+  test("shows endpoint heartbeat history directly in the table", async ({ page }) => {
+    await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: [{
+      id: 7,
+      name: "Public API",
+      url: "https://api.example.com/health",
+      enabled: true,
+      last_status: "online",
+      last_checked_at: "2026-08-02T11:00:00Z",
+      uptime_24h: 96.7,
+      uptime_7d: 99.1,
+      avg_response_time_24h: 42.3,
+      heartbeat: ["online", "online", "offline", "online"],
+    }] }));
+
+    await page.getByLabel("Monitoring sections").getByRole("button", { name: "Endpoints", exact: true }).click();
+    const row = page.locator(".monitors-table tbody tr", { hasText: "Public API" });
+    await expect(row).toBeVisible();
+    await expect(row.locator(".monitors-heartbeat-cell .heartbeat-bar--sm")).toBeVisible();
+    await expect(row.locator(".monitors-heartbeat-cell .heartbeat-beat")).toHaveCount(4);
+  });
 });
 
 test.describe("Monitoring layout and column sizing", () => {

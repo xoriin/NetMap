@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { IconGauge, IconPlugConnected, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { api, type HttpMethod, type Monitor, type MonitorCheckHistoryPoint, type MonitorPayload } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
+import { HeartbeatBar } from "../../components/HeartbeatBar";
 import { Modal } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
@@ -360,6 +361,7 @@ export function MonitorsPanel({
               <colgroup>
                 <col className="monitors-col-status" />
                 <col className="monitors-col-name" />
+                <col className="monitors-col-heartbeat" />
                 <col className="monitors-col-url" />
                 <col className="monitors-col-uptime" />
                 <col className="monitors-col-uptime" />
@@ -371,6 +373,7 @@ export function MonitorsPanel({
                 <tr>
                   <th></th>
                   <th>Name</th>
+                  <th>Heartbeat</th>
                   <th>URL</th>
                   <th>Uptime 24h</th>
                   <th>Uptime 7d</th>
@@ -389,6 +392,13 @@ export function MonitorsPanel({
                   >
                     <td className="monitors-dot-cell"><span className={`mon-dot mon-dot-${monitor.last_status ?? "unknown"}`} /></td>
                     <td>{monitor.name}</td>
+                    <td className="monitors-heartbeat-cell">
+                      {monitor.heartbeat.length > 0 ? (
+                        <HeartbeatBar beats={monitor.heartbeat} size="sm" />
+                      ) : (
+                        <span className="monitors-heartbeat-empty">Awaiting checks</span>
+                      )}
+                    </td>
                     <td className="nm-table-mono">{monitor.url}</td>
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_24h)}</td>
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_7d)}</td>

@@ -4347,19 +4347,20 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
   min-height: 0;
 }
 .monitors-table {
-  width: max(100%, 1320px);
+  width: max(100%, 1510px);
   table-layout: fixed;
 }
 .monitors-table .monitors-col-status { width: 56px; }
 .monitors-table .monitors-col-name { width: 220px; }
+.monitors-table .monitors-col-heartbeat { width: 190px; }
 .monitors-table .monitors-col-url { width: auto; }
 .monitors-table .monitors-col-uptime { width: 112px; }
 .monitors-table .monitors-col-rtt { width: 112px; }
 .monitors-table .monitors-col-checked { width: 180px; }
 .monitors-table .monitors-col-actions { width: 220px; }
 .monitors-table td:nth-child(2),
-.monitors-table td:nth-child(3),
-.monitors-table td:nth-child(7) {
+.monitors-table td:nth-child(4),
+.monitors-table td:nth-child(8) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4387,10 +4388,21 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
   text-align: center;
 }
 /* Uptime 24h / Uptime 7d / Avg RTT headers — align with their centered data cells. */
-.monitors-table-wrap table.nm-table th:nth-child(4),
 .monitors-table-wrap table.nm-table th:nth-child(5),
-.monitors-table-wrap table.nm-table th:nth-child(6) {
+.monitors-table-wrap table.nm-table th:nth-child(6),
+.monitors-table-wrap table.nm-table th:nth-child(7) {
   text-align: center;
+}
+.monitors-heartbeat-cell .heartbeat-bar--sm {
+  width: 100%;
+  justify-content: flex-start;
+}
+.monitors-heartbeat-cell .heartbeat-beat {
+  min-width: 3px;
+}
+.monitors-heartbeat-empty {
+  color: var(--nm-text-faint);
+  font-size: 11px;
 }
 .monitor-http-hero {
   width: min(1120px, calc(100vw - 48px));

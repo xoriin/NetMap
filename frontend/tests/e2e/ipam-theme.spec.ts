@@ -91,6 +91,11 @@ test("the dense /24 map shows all addresses without scaling or horizontal overfl
   await expect(dialog.locator(".ipam-grid-row")).toHaveCount(8);
   await expect(dialog.locator(".ipam-grid-cell")).toHaveCount(256);
 
+  const legendColors = await dialog.locator(".ipam-legend-dot").evaluateAll((nodes) =>
+    nodes.map((node) => getComputedStyle(node).backgroundColor),
+  );
+  expect(new Set(legendColors).size).toBeGreaterThanOrEqual(5);
+
   const map = dialog.locator(".ipam-grid-map");
   const sizes = await map.evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.client);

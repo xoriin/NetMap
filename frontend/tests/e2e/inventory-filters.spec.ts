@@ -101,6 +101,11 @@ test.describe("Inventory device type filter", () => {
     await expect(page.locator(".inventory-row")).toHaveCount(1);
     await expect(page.locator(".inventory-row")).toContainText("switch-02");
   });
+
+  test("shows the same 24-hour average RTT used by Monitoring", async ({ page }) => {
+    const routerRow = page.locator(".inventory-row", { hasText: "router-01" });
+    await expect(routerRow).toContainText("20.1 ms");
+  });
 });
 
 test.describe("Inventory approved workspace hierarchy", () => {

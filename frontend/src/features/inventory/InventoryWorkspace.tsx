@@ -106,6 +106,7 @@ export function InventoryWorkspace({
   const [deviceSecuritySummary, setDeviceSecuritySummary] = useState<DeviceSecurityEventSummary | null>(null);
   const [deviceSecurityLoading, setDeviceSecurityLoading] = useState(false);
   const [selectedMonitorSummary, setSelectedMonitorSummary] = useState<DeviceMonitorSummary | null>(null);
+  const [monitorSummaryByDeviceId, setMonitorSummaryByDeviceId] = useState<Map<number, DeviceMonitorSummary>>(new Map());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     const saved = window.localStorage.getItem(INVENTORY_PAGE_SIZE_KEY);
@@ -135,6 +136,24 @@ export function InventoryWorkspace({
       .catch(() => { if (!cancelled) setSelectedMonitorSummary(null); });
     return () => { cancelled = true; };
   }, [accessToken, selectedDeviceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMonitorSummaries() {
+      try {
+        const rows = await api.listMonitoringDevices(accessToken);
+        if (!cancelled) setMonitorSummaryByDeviceId(new Map(rows.map((row) => [row.device_id, row])));
+      } catch {
+        // Retain the last RTT snapshot if monitoring is temporarily unavailable.
+      }
+    }
+    void loadMonitorSummaries();
+    const intervalId = window.setInterval(() => void loadMonitorSummaries(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [accessToken]);
   const groupOptions = useMemo(
     () => [...new Set(graph.devices.map((device) => device.topology_group))].filter(Boolean).sort(compareGroupLabels),
     [graph.devices],
@@ -366,8 +385,8 @@ export function InventoryWorkspace({
           break;
         }
         case "latency": {
-          const la = liveStatusByDeviceId.get(a.id)?.latency_ms ?? Infinity;
-          const lb = liveStatusByDeviceId.get(b.id)?.latency_ms ?? Infinity;
+          const la = monitorSummaryByDeviceId.get(a.id)?.avg_rtt_24h ?? Infinity;
+          const lb = monitorSummaryByDeviceId.get(b.id)?.avg_rtt_24h ?? Infinity;
           cmp = la - lb;
           break;
         }
@@ -381,7 +400,7 @@ export function InventoryWorkspace({
       }
       return cmp * dir;
     });
-  }, [filteredDevices, inventorySortKey, inventorySortDir, liveStatusByDeviceId, sites]);
+  }, [filteredDevices, inventorySortKey, inventorySortDir, liveStatusByDeviceId, monitorSummaryByDeviceId, sites]);
 
   const paginatedDevices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -840,6 +859,7 @@ export function InventoryWorkspace({
             ) : (
               paginatedDevices.map((device) => {
                 const liveStatus = livePingEnabled ? (liveStatusByDeviceId.get(device.id) ?? null) : null;
+                const monitorSummary = monitorSummaryByDeviceId.get(device.id);
                 const status = device.status === "disabled"
                   ? "disabled"
                   : isDeviceMonitoringPaused(device) || !livePingEnabled
@@ -886,7 +906,7 @@ export function InventoryWorkspace({
                       />
                     </span>
                     <span className={`status-pill ${status}`}>{status === "paused" ? "paused" : status}</span>
-                    <span>{livePingEnabled && liveStatus?.latency_ms != null ? `${liveStatus.latency_ms.toFixed(1)} ms` : '—'}</span>
+                    <span>{monitorSummary?.avg_rtt_24h != null ? `${monitorSummary.avg_rtt_24h.toFixed(1)} ms` : '—'}</span>
                     <span>
                       {groupChip ? (
                         <EntityChip label={groupChip.label} color={groupChip.color} colorKey={groupChip.key} />
