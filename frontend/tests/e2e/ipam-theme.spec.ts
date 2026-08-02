@@ -35,7 +35,7 @@ const addresses = Array.from({ length: 256 }, (_, index) => {
   return { ip, kind: "free", label: null, display_name: null, mac_address: null, vendor: null, dhcp_range: index >= 100 && index <= 150 };
 });
 
-async function setupIpam(page: Page, theme: "light" | "dark" = "dark") {
+async function setupIpam(page: Page, theme: "light" | "dark" = "dark", beforeGoto?: () => Promise<void>) {
   await setupCoreMocks(page);
   await setupTopologyMocks(page);
   await page.route("**/api/v1/ipam/summary", (route) => route.fulfill({
@@ -58,6 +58,7 @@ async function setupIpam(page: Page, theme: "light" | "dark" = "dark") {
   await page.addInitScript((selectedTheme) => {
     window.localStorage.setItem("netmap.theme", selectedTheme);
   }, theme);
+  await beforeGoto?.();
   await page.goto("/ipam");
   await page.locator(".ipam-subnets-panel").waitFor({ state: "visible", timeout: 8000 });
 }
@@ -132,35 +133,40 @@ test("the dense /24 map shows all addresses without scaling or horizontal overfl
   expect(Math.abs(dialogHeightWithBroadcast - dialogHeightBefore)).toBeLessThanOrEqual(0.5);
 });
 
-test("external IPAM separates public pools from internal subnets", async ({ page }) => {
-  await setupIpam(page);
-  await page.route("**/api/v1/ipam/external/summary", (route) => route.fulfill({ json: {
-    pool_count: 1, standalone_count: 1, total: 7, in_use: 2, reserved: 0, free: 5,
-  } }));
-  await page.route("**/api/v1/ipam/external/pools", (route) => route.fulfill({ json: [{
+test("external ranges use the existing subnet workflow", async ({ page }) => {
+  await setupIpam(page, "dark", async () => {
+    await page.route("**/api/v1/ipam/external/summary", (route) => route.fulfill({ json: {
+    pool_count: 1, total: 6, in_use: 1, reserved: 0, free: 5,
+    } }));
+    await page.route("**/api/v1/ipam/external/pools", (route) => route.fulfill({ json: [{
     id: 10, name: "Primary WAN", cidr: "8.8.8.0/29", provider: "Example ISP", account: "Circuit 42",
     description: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
     total: 6, in_use: 1, reserved: 0, free: 5, utilization: 1 / 6,
-  }] }));
-  await page.route("**/api/v1/ipam/external/assignments", (route) => route.fulfill({ json: [{
-    id: 20, pool_id: null, ip_address: "1.1.1.1", label: "Public resolver", status: "in_use",
-    provider: "Cloudflare", account: null, owner: "Network", service: "DNS", tags: "dns",
-    notes: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
-  }] }));
-  await page.route("**/api/v1/ipam/external/pools/10/addresses**", (route) => route.fulfill({ json: {
+    }] }));
+    await page.route("**/api/v1/ipam/external/assignments", (route) => route.fulfill({ json: [] }));
+    await page.route("**/api/v1/ipam/external/pools/10/addresses**", (route) => route.fulfill({ json: {
     total: 6, offset: 0, limit: 256, addresses: Array.from({ length: 6 }, (_, index) => ({
       ip_address: `8.8.8.${index + 1}`, status: index === 1 ? "in_use" : "available",
       assignment: index === 1 ? { id: 21, pool_id: 10, ip_address: "8.8.8.2", label: "Public web", status: "in_use", provider: "Example ISP", account: "Circuit 42", owner: "Web", service: "HTTPS", tags: null, notes: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z" } : null,
     })),
-  } }));
+    } }));
+  });
 
-  await page.getByRole("tab", { name: "External addresses" }).click();
-  await expect(page.getByText("External address pools")).toBeVisible();
+  await expect(page.getByText("External address ranges")).toBeVisible();
   await expect(page.getByText("Primary WAN")).toBeVisible();
-  await expect(page.getByText("Public resolver")).toBeVisible();
+  await expect(page.locator(".ipam-subnets-panel")).toBeVisible();
+
+  await page.getByRole("button", { name: "Add subnet" }).click();
+  const addDialog = page.getByRole("dialog", { name: "Add subnet" });
+  await addDialog.getByRole("button", { name: /External range/ }).click();
+  await expect(addDialog.getByText(/A small assigned range or full CIDR/)).toBeVisible();
+  await expect(addDialog.getByLabel("Public IP range *")).toHaveAttribute("placeholder", "e.g. 1.1.1.8-1.1.1.14");
+  await expect(addDialog.getByLabel("Provider")).toBeVisible();
+  await expect(addDialog.getByLabel("Account / circuit")).toBeVisible();
+  await expect(addDialog.getByLabel("Gateway")).toHaveCount(0);
+  await addDialog.getByRole("button", { name: "Cancel" }).click();
+
   await page.getByText("Primary WAN").click();
   await expect(page.locator(".external-ip-address")).toHaveCount(6);
   await expect(page.locator(".external-ip-address--in_use")).toContainText("Public web");
-  await page.getByRole("tab", { name: "Internal networks" }).click();
-  await expect(page.locator(".ipam-subnets-panel")).toBeVisible();
 });

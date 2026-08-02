@@ -1049,7 +1049,7 @@ export type ExternalIpPool = {
 
 export type ExternalIpAssignment = {
   id: number;
-  pool_id: number | null;
+  pool_id: number;
   ip_address: string;
   label: string;
   status: "available" | "reserved" | "in_use";
@@ -1079,7 +1079,6 @@ export type ExternalIpAddressPage = {
 
 export type ExternalIpSummary = {
   pool_count: number;
-  standalone_count: number;
   total: number;
   in_use: number;
   reserved: number;

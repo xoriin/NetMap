@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent, type ReactNode } from "react";
 import "./ipam.css";
-import { Network, Activity, X, ChevronUp, ChevronDown, Globe2 } from "lucide-react";
+import { Network, Activity, X, ChevronUp, ChevronDown } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMapPin, IconAlertCircle, IconArrowRight,
   IconTag, IconFingerprint, IconNote, IconUsers, IconDeviceLaptop, IconClock, IconCalendar,
@@ -9,7 +9,7 @@ import {
   api,
   type IpamSummary, type IpamSubnet, type IpamConflict, type DhcpLease,
   type IpReservation, type IpReservationPayload, type IpAddressEntry,
-  type SubnetPayload, type VlanSuggestion,
+  type SubnetPayload, type VlanSuggestion, type ExternalIpPoolPayload,
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
@@ -53,19 +53,10 @@ function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: stri
   );
 }
 
-function IpamWorkspaceTabs({ mode, onChange }: { mode: "internal" | "external"; onChange: (mode: "internal" | "external") => void }) {
-  return (
-    <div className="ipam-workspace-tabs" role="tablist" aria-label="IPAM address scope">
-      <button type="button" role="tab" aria-selected={mode === "internal"} className={mode === "internal" ? "active" : ""} onClick={() => onChange("internal")}><Network size={15} /> Internal networks</button>
-      <button type="button" role="tab" aria-selected={mode === "external"} className={mode === "external" ? "active" : ""} onClick={() => onChange("external")}><Globe2 size={15} /> External addresses</button>
-    </div>
-  );
-}
-
 export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; canWrite: boolean }) {
   const confirmAction = useConfirm();
   const toast = useToast();
-  const [workspaceMode, setWorkspaceMode] = useState<"internal" | "external">("internal");
+  const [externalRefreshKey, setExternalRefreshKey] = useState(0);
   const ipamQuery = useApiQuery(async () => {
     const [summary, subnets, conflicts, dhcpLeases, reservations, settings] = await Promise.all([
       api.getIpamSummary(accessToken),
@@ -182,6 +173,18 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save subnet");
+    } finally { setFormBusy(false); }
+  }
+
+  async function saveExternalPool(payload: ExternalIpPoolPayload) {
+    setFormBusy(true); setFormError(null);
+    try {
+      await api.createExternalIpPool(accessToken, payload);
+      setShowSubnetForm(false);
+      setExternalRefreshKey((value) => value + 1);
+      toast.success("External address range added");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to save external address range");
     } finally { setFormBusy(false); }
   }
 
@@ -429,17 +432,14 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
     return d.toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
-  if (workspaceMode === "external") return <section className="dash-layout ipam-workspace"><IpamWorkspaceTabs mode={workspaceMode} onChange={setWorkspaceMode} /><ExternalIpPanel accessToken={accessToken} canWrite={canWrite} /></section>;
-  if (loading) return <div className="dash-layout"><IpamWorkspaceTabs mode={workspaceMode} onChange={setWorkspaceMode} /><WorkspaceSkeleton /></div>;
-  if (error) return <div className="dash-layout"><IpamWorkspaceTabs mode={workspaceMode} onChange={setWorkspaceMode} /><p className="dash-empty" style={{ color: "var(--dash-red)" }}>{error}</p></div>;
+  if (loading) return <div className="dash-layout"><WorkspaceSkeleton /></div>;
+  if (error) return <div className="dash-layout"><p className="dash-empty" style={{ color: "var(--dash-red)" }}>{error}</p></div>;
 
   const errorConflicts = conflicts.filter((c) => c.severity === "error");
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
 
   return (
     <section className="dash-layout ipam-workspace">
-
-      <IpamWorkspaceTabs mode={workspaceMode} onChange={setWorkspaceMode} />
 
       {/* Stat cards */}
       <div className="dash-stats ipam-stats nm-summary-band">
@@ -450,6 +450,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
         <DashStat label="Reserved" value={summary?.reservation_count ?? 0} sub="IP reservations" icon={<IconMapPin size={20} />} accent="purple" />
         <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} sub="imported" icon={<Activity size={20} />} accent="blue" />
       </div>
+
       {/* Conflicts banner */}
       {conflicts.length > 0 && (
         <div className={`dash-alert${errorConflicts.length === 0 ? " dash-alert--warn" : ""}`} style={{ maxWidth: "none" }}>
@@ -554,6 +555,7 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             <SubnetForm
               showVlanSync
               onSave={(p, createVlanGroup) => void saveSubnet(p, createVlanGroup)}
+              onSaveExternal={(p) => void saveExternalPool(p)}
               onCancel={() => { setShowSubnetForm(false); setFormError(null); }}
               busy={formBusy}
               error={formError}
@@ -768,6 +770,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
           </div>
         </div>
       </div>
+
+      <ExternalIpPanel key={externalRefreshKey} accessToken={accessToken} canWrite={canWrite} showSummary={false} allowCreatePool={false} />
 
       {/* Subnet detail modal */}
       {selectedSubnet && (

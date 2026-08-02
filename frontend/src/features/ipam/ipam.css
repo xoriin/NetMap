@@ -7,57 +7,12 @@
   --ipam-system: #71808e;
 }
 
-.ipam-workspace-tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  margin-bottom: -1px;
-  padding: 0 10px;
-  position: relative;
-  z-index: 2;
-}
-
-.ipam-workspace-tabs button {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 14px;
-  border: 1px solid var(--nm-border);
-  border-bottom-color: var(--nm-border-strong);
-  border-radius: var(--nm-radius-md) var(--nm-radius-md) 0 0;
-  background: var(--nm-modal-input);
-  color: var(--nm-text-muted);
-  font: inherit;
-  font-size: var(--nm-text-sm);
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.ipam-workspace-tabs button:hover {
-  border-color: var(--nm-tab-hover-border);
-  background: var(--nm-tab-hover-bg);
-  color: var(--nm-tab-hover-text);
-}
-
-.ipam-workspace-tabs button.active {
-  border-color: var(--nm-border-strong);
-  border-bottom-color: var(--nm-modal-section);
-  background: var(--nm-modal-section);
-  color: var(--nm-accent-strong);
-  box-shadow: inset 0 2px 0 var(--nm-accent);
-}
-
 .external-ip-workspace {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-lg);
-  background: var(--nm-modal-section);
-  box-shadow: var(--nm-shadow-sm);
+  margin-top: 16px;
 }
 
 .external-ip-workspace .ipam-stats { margin: 0; }
@@ -105,9 +60,6 @@
 .external-ip-form .modal-error { margin: 0; color: var(--dash-red); }
 
 @media (max-width: 720px) {
-  .ipam-workspace-tabs { padding: 0 4px; }
-  .ipam-workspace-tabs button { flex: 1; justify-content: center; padding-inline: 8px; }
-  .external-ip-workspace { padding: 10px; }
   .external-ip-panel-header { align-items: flex-start; flex-direction: column; }
 }
 
@@ -228,6 +180,92 @@
   padding: 16px 18px;
   border-bottom: 1px solid var(--nm-border);
   background: var(--nm-modal-section);
+}
+
+.ipam-scope-fieldset {
+  min-width: 0;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+}
+
+.ipam-scope-fieldset legend {
+  margin-bottom: 7px;
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-sm);
+  font-weight: 650;
+}
+
+.ipam-form-help {
+  display: block;
+  margin-top: 4px;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 400;
+}
+
+.ipam-scope-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ipam-scope-option {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ipam-scope-option > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.ipam-scope-option > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ipam-scope-option strong {
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-sm);
+}
+
+.ipam-scope-option small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  line-height: 1.4;
+}
+
+.ipam-scope-option:hover {
+  border-color: var(--nm-tab-hover-border);
+  background: var(--nm-tab-hover-bg);
+}
+
+.ipam-scope-option.active {
+  border-color: var(--nm-tab-active-border);
+  background: var(--nm-tab-active-bg);
+  color: var(--nm-accent-strong);
+  box-shadow: inset 3px 0 0 var(--nm-accent);
+}
+
+.ipam-scope-option:focus-visible {
+  outline: 2px solid var(--nm-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+  .ipam-scope-options { grid-template-columns: 1fr; }
 }
 
 .ipam-workspace .ipam-lease-textarea {
