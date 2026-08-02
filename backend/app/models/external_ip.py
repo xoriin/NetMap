@@ -11,7 +11,8 @@ class ExternalIpPool(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    cidr: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    # Kept as `cidr` for database/API compatibility; accepts CIDR or start-end ranges.
+    cidr: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
     account: Mapped[str | None] = mapped_column(String(120), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -25,8 +26,8 @@ class ExternalIpAssignment(Base):
     __tablename__ = "external_ip_assignments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    pool_id: Mapped[int | None] = mapped_column(
-        ForeignKey("external_ip_pools.id", ondelete="CASCADE"), nullable=True, index=True
+    pool_id: Mapped[int] = mapped_column(
+        ForeignKey("external_ip_pools.id", ondelete="CASCADE"), nullable=False, index=True
     )
     ip_address: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)

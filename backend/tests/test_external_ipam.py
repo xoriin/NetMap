@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -14,6 +15,7 @@ from app.api.v1.ipam import (
 )
 from app.db.session import Base
 from app.models.external_ip import ExternalIpAssignment, ExternalIpPool
+from app.models.site import Site  # noqa: F401 - registers Device.site for isolated test runs
 from app.schemas.ipam import ExternalIpAssignmentCreate, ExternalIpPoolCreate, ExternalIpPoolUpdate
 
 
@@ -57,19 +59,47 @@ def test_external_pool_address_page_and_summary():
     assert summary.free == 5
 
 
-def test_external_standalone_address_and_validation():
+def test_external_assignment_requires_managed_range_and_public_validation():
     db = _session()
-    standalone = create_external_ip_assignment(
-        ExternalIpAssignmentCreate(ip_address="1.1.1.1", label="Public resolver", status="reserved"), None, db,
-    )
-    assert standalone.pool_id is None
-    summary = external_ip_summary(None, db)
-    assert summary.standalone_count == 1
-    assert summary.reserved == 1
+    with pytest.raises(ValidationError):
+        ExternalIpAssignmentCreate(ip_address="1.1.1.1", label="Unmanaged")
 
     with pytest.raises(HTTPException) as exc:
         create_external_ip_pool(ExternalIpPoolCreate(name="Private", cidr="10.0.0.0/24"), None, db)
     assert exc.value.status_code == 422
+
+
+def test_external_pool_accepts_arbitrary_range():
+    db = _session()
+    address_range = create_external_ip_pool(
+        ExternalIpPoolCreate(name="Small allocation", cidr="8.8.8.10 - 8.8.8.13"), None, db,
+    )
+    assert address_range.cidr == "8.8.8.10-8.8.8.13"
+    assert address_range.total == 4
+    page = list_external_pool_addresses(address_range.id, None, db, offset=0, limit=256)
+    assert [entry.ip_address for entry in page.addresses] == [
+        "8.8.8.10", "8.8.8.11", "8.8.8.12", "8.8.8.13",
+    ]
+
+    with pytest.raises(HTTPException) as single:
+        create_external_ip_pool(ExternalIpPoolCreate(name="Single address", cidr="9.9.9.9"), None, db)
+    assert single.value.status_code == 422
+
+    with pytest.raises(HTTPException) as single_cidr:
+        create_external_ip_pool(ExternalIpPoolCreate(name="Single CIDR", cidr="9.9.9.9/32"), None, db)
+    assert single_cidr.value.status_code == 422
+
+
+def test_external_range_overlap_and_order_validation():
+    db = _session()
+    create_external_ip_pool(ExternalIpPoolCreate(name="Assigned", cidr="8.8.4.10-8.8.4.15"), None, db)
+    with pytest.raises(HTTPException) as overlap:
+        create_external_ip_pool(ExternalIpPoolCreate(name="Overlap", cidr="8.8.4.15-8.8.4.20"), None, db)
+    assert overlap.value.status_code == 409
+
+    with pytest.raises(HTTPException) as reversed_range:
+        create_external_ip_pool(ExternalIpPoolCreate(name="Reversed", cidr="9.9.9.20-9.9.9.10"), None, db)
+    assert reversed_range.value.status_code == 422
 
 
 def test_external_pool_overlap_and_resize_protection():

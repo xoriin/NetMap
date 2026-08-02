@@ -1199,7 +1199,7 @@ def _migrate_external_ip_tracking(conn, _inspector) -> None:
         CREATE TABLE IF NOT EXISTS external_ip_pools (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name VARCHAR(120) NOT NULL,
-            cidr VARCHAR(64) NOT NULL UNIQUE,
+            cidr VARCHAR(128) NOT NULL UNIQUE,
             provider VARCHAR(80),
             account VARCHAR(120),
             description TEXT,
@@ -1212,7 +1212,7 @@ def _migrate_external_ip_tracking(conn, _inspector) -> None:
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS external_ip_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pool_id INTEGER REFERENCES external_ip_pools (id) ON DELETE CASCADE,
+            pool_id INTEGER NOT NULL REFERENCES external_ip_pools (id) ON DELETE CASCADE,
             ip_address VARCHAR(64) NOT NULL UNIQUE,
             label VARCHAR(120) NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'in_use',

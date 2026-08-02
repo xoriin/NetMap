@@ -59,6 +59,20 @@ class _IpIndex:
 
 
 @dataclass(frozen=True)
+class _ExternalRange:
+    value: str
+    version: int
+    start: int
+    end: int
+    overlap_start: int
+    overlap_end: int
+
+    @property
+    def total(self) -> int:
+        return self.end - self.start + 1
+
+
+@dataclass(frozen=True)
 class _IpamIndexes:
     devices: _IpIndex
     dhcp: _IpIndex
@@ -225,16 +239,54 @@ def _in_dhcp_range(ip: str, start: str | None, end: str | None) -> bool:
         return False
 
 
-def _external_network(value: str):
+def _external_range(value: str, *, validate_public: bool = True) -> _ExternalRange:
+    raw = value.strip().replace("–", "-").replace("—", "-")
     try:
-        network = ipaddress.ip_network(value.strip(), strict=False)
+        if "/" in raw:
+            network = ipaddress.ip_network(raw, strict=False)
+            version = network.version
+            overlap_start = int(network.network_address)
+            overlap_end = int(network.broadcast_address)
+            if network.version == 4 and network.prefixlen <= 30:
+                start = overlap_start + 1
+                end = overlap_end - 1
+            else:
+                start = overlap_start
+                end = overlap_end
+            normalized = str(network)
+        elif "-" in raw:
+            first, last = (part.strip() for part in raw.split("-", 1))
+            start_address = ipaddress.ip_address(first)
+            end_address = ipaddress.ip_address(last)
+            if start_address.version != end_address.version or int(start_address) > int(end_address):
+                raise ValueError
+            start = overlap_start = int(start_address)
+            end = overlap_end = int(end_address)
+            network = None
+            version = start_address.version
+            normalized = f"{start_address}-{end_address}"
+        else:
+            raise ValueError
     except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid external IP pool CIDR")
-    if network.is_private or network.is_loopback or network.is_link_local or network.is_multicast or network.is_unspecified:
-        raise HTTPException(status_code=422, detail="External IP pools must use publicly routable address space")
-    if network.num_addresses > EXTERNAL_POOL_MAX_ADDRESSES:
-        raise HTTPException(status_code=422, detail=f"External pools are limited to {EXTERNAL_POOL_MAX_ADDRESSES:,} addresses")
-    return network
+        raise HTTPException(status_code=422, detail="Enter a valid public start-end range or CIDR")
+    allocation_size = overlap_end - overlap_start + 1
+    if allocation_size > EXTERNAL_POOL_MAX_ADDRESSES:
+        raise HTTPException(status_code=422, detail=f"External ranges are limited to {EXTERNAL_POOL_MAX_ADDRESSES:,} addresses")
+    if end - start + 1 < 2:
+        raise HTTPException(status_code=422, detail="External IPAM ranges must contain at least two usable addresses")
+    if validate_public:
+        for number in range(overlap_start, overlap_end + 1):
+            address = ipaddress.ip_address(number)
+            if address.is_private or address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified:
+                raise HTTPException(status_code=422, detail="External ranges must use publicly routable address space")
+    return _ExternalRange(
+        value=normalized,
+        version=version,
+        start=start,
+        end=end,
+        overlap_start=overlap_start,
+        overlap_end=overlap_end,
+    )
 
 
 def _external_address(value: str):
@@ -247,19 +299,9 @@ def _external_address(value: str):
     return address
 
 
-def _usable_external_bounds(network) -> tuple[int, int, int]:
-    if network.version == 4 and network.prefixlen <= 30:
-        start = int(network.network_address) + 1
-        end = int(network.broadcast_address) - 1
-    else:
-        start = int(network.network_address)
-        end = int(network.broadcast_address)
-    return start, end, max(0, end - start + 1)
-
-
 def _external_pool_out(pool: ExternalIpPool, assignments: list[ExternalIpAssignment]) -> ExternalIpPoolOut:
-    network = _external_network(pool.cidr)
-    _start, _end, total = _usable_external_bounds(network)
+    address_range = _external_range(pool.cidr, validate_public=False)
+    total = address_range.total
     in_use = sum(1 for row in assignments if row.status == "in_use")
     reserved = sum(1 for row in assignments if row.status == "reserved")
     consumed = in_use + reserved
@@ -271,16 +313,15 @@ def _external_pool_out(pool: ExternalIpPool, assignments: list[ExternalIpAssignm
     )
 
 
-def _validate_external_assignment(db: Session, pool_id: int | None, address) -> ExternalIpPool | None:
+def _validate_external_assignment(db: Session, pool_id: int | None, address) -> ExternalIpPool:
     if pool_id is None:
-        return None
+        raise HTTPException(status_code=422, detail="External IP addresses must belong to a managed range")
     pool = db.get(ExternalIpPool, pool_id)
     if pool is None:
         raise HTTPException(status_code=404, detail="External IP pool not found")
-    network = _external_network(pool.cidr)
-    start, end, _total = _usable_external_bounds(network)
-    if address.version != network.version or not (start <= int(address) <= end):
-        raise HTTPException(status_code=422, detail="External IP address is not usable inside the selected pool")
+    address_range = _external_range(pool.cidr, validate_public=False)
+    if address.version != address_range.version or not (address_range.start <= int(address) <= address_range.end):
+        raise HTTPException(status_code=422, detail="External IP address is not inside the selected range")
     return pool
 
 
@@ -754,14 +795,12 @@ def external_ip_summary(
         if assignment.pool_id is not None:
             pool_rows.setdefault(assignment.pool_id, []).append(assignment)
     enriched = [_external_pool_out(pool, pool_rows.get(pool.id, [])) for pool in pools]
-    standalone = [row for row in assignments if row.pool_id is None]
     return ExternalIpSummary(
         pool_count=len(pools),
-        standalone_count=len(standalone),
-        total=sum(pool.total for pool in enriched) + len(standalone),
-        in_use=sum(pool.in_use for pool in enriched) + sum(row.status == "in_use" for row in standalone),
-        reserved=sum(pool.reserved for pool in enriched) + sum(row.status == "reserved" for row in standalone),
-        free=sum(pool.free for pool in enriched) + sum(row.status == "available" for row in standalone),
+        total=sum(pool.total for pool in enriched),
+        in_use=sum(pool.in_use for pool in enriched),
+        reserved=sum(pool.reserved for pool in enriched),
+        free=sum(pool.free for pool in enriched),
     )
 
 
@@ -784,12 +823,13 @@ def create_external_ip_pool(
     _current_user: Annotated[User, Depends(require_ipam_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> ExternalIpPoolOut:
-    network = _external_network(payload.cidr)
+    address_range = _external_range(payload.cidr)
     for existing in db.scalars(select(ExternalIpPool)).all():
-        if network.overlaps(_external_network(existing.cidr)):
+        existing_range = _external_range(existing.cidr, validate_public=False)
+        if address_range.version == existing_range.version and address_range.overlap_start <= existing_range.overlap_end and existing_range.overlap_start <= address_range.overlap_end:
             raise HTTPException(status_code=409, detail=f"External pool overlaps {existing.name} ({existing.cidr})")
     pool = ExternalIpPool(
-        name=payload.name.strip(), cidr=str(network), provider=payload.provider or None,
+        name=payload.name.strip(), cidr=address_range.value, provider=payload.provider or None,
         account=payload.account or None, description=payload.description or None,
     )
     db.add(pool)
@@ -814,16 +854,16 @@ def update_external_ip_pool(
         raise HTTPException(status_code=404, detail="External IP pool not found")
     updates = payload.model_dump(exclude_unset=True)
     if "cidr" in updates:
-        network = _external_network(updates["cidr"])
+        address_range = _external_range(updates["cidr"])
         for existing in db.scalars(select(ExternalIpPool).where(ExternalIpPool.id != pool_id)).all():
-            if network.overlaps(_external_network(existing.cidr)):
+            existing_range = _external_range(existing.cidr, validate_public=False)
+            if address_range.version == existing_range.version and address_range.overlap_start <= existing_range.overlap_end and existing_range.overlap_start <= address_range.overlap_end:
                 raise HTTPException(status_code=409, detail=f"External pool overlaps {existing.name} ({existing.cidr})")
         for assignment in db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id)).all():
-            start, end, _total = _usable_external_bounds(network)
             address = ipaddress.ip_address(assignment.ip_address)
-            if address.version != network.version or not (start <= int(address) <= end):
-                raise HTTPException(status_code=422, detail="New CIDR would exclude existing assignments")
-        updates["cidr"] = str(network)
+            if address.version != address_range.version or not (address_range.start <= int(address) <= address_range.end):
+                raise HTTPException(status_code=422, detail="New range would exclude existing assignments")
+        updates["cidr"] = address_range.value
     for field, value in updates.items():
         setattr(pool, field, value.strip() if isinstance(value, str) else value)
     try:
@@ -861,8 +901,8 @@ def list_external_pool_addresses(
     pool = db.get(ExternalIpPool, pool_id)
     if pool is None:
         raise HTTPException(status_code=404, detail="External IP pool not found")
-    network = _external_network(pool.cidr)
-    start, _end, total = _usable_external_bounds(network)
+    address_range = _external_range(pool.cidr, validate_public=False)
+    start, total = address_range.start, address_range.total
     assignments = {
         row.ip_address: ExternalIpAssignmentOut.model_validate(row)
         for row in db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id)).all()
@@ -886,7 +926,7 @@ def list_external_ip_assignments(
     db: Annotated[Session, Depends(get_db)],
     pool_id: int | None = None,
 ) -> list[ExternalIpAssignmentOut]:
-    query = select(ExternalIpAssignment)
+    query = select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id.is_not(None))
     if pool_id is not None:
         query = query.where(ExternalIpAssignment.pool_id == pool_id)
     return list(db.scalars(query.order_by(ExternalIpAssignment.ip_address)).all())

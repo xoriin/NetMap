@@ -154,7 +154,7 @@ class VlanImportRequest(BaseModel):
 
 class ExternalIpPoolCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
-    cidr: str = Field(..., min_length=1, max_length=64)
+    cidr: str = Field(..., min_length=1, max_length=128)
     provider: str | None = Field(default=None, max_length=80)
     account: str | None = Field(default=None, max_length=120)
     description: str | None = None
@@ -162,7 +162,7 @@ class ExternalIpPoolCreate(BaseModel):
 
 class ExternalIpPoolUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    cidr: str | None = Field(default=None, min_length=1, max_length=64)
+    cidr: str | None = Field(default=None, min_length=1, max_length=128)
     provider: str | None = Field(default=None, max_length=80)
     account: str | None = Field(default=None, max_length=120)
     description: str | None = None
@@ -187,7 +187,7 @@ class ExternalIpPoolOut(BaseModel):
 
 
 class ExternalIpAssignmentCreate(BaseModel):
-    pool_id: int | None = None
+    pool_id: int = Field(..., ge=1)
     ip_address: str = Field(..., min_length=1, max_length=64)
     label: str = Field(..., min_length=1, max_length=120)
     status: Literal["available", "reserved", "in_use"] = "in_use"
@@ -214,7 +214,7 @@ class ExternalIpAssignmentUpdate(BaseModel):
 
 class ExternalIpAssignmentOut(BaseModel):
     id: int
-    pool_id: int | None
+    pool_id: int
     ip_address: str
     label: str
     status: str
@@ -245,7 +245,6 @@ class ExternalIpAddressPage(BaseModel):
 
 class ExternalIpSummary(BaseModel):
     pool_count: int
-    standalone_count: int
     total: int
     in_use: int
     reserved: int
