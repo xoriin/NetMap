@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import socket
 import ssl
+import struct
 import tempfile
 import time
 from dataclasses import dataclass
@@ -45,6 +47,8 @@ def check_port(
 ) -> CheckResult:
     if protocol == "udp":
         return _check_udp(host, port, timeout)
+    if protocol == "dhcp":
+        return _check_dhcp(host, port, timeout)
     if protocol in ("http", "https"):
         host_part = f"[{host}]" if ":" in host else host
         return check_url(
@@ -387,5 +391,106 @@ def _check_udp(host: str, port: int, timeout: float) -> CheckResult:
         return CheckResult(open=True, response_time_ms=(time.monotonic() - start) * 1000)
     except (socket.timeout, ConnectionRefusedError, OSError) as exc:
         return CheckResult(open=False, error=str(exc)[:255])
+    finally:
+        sock.close()
+
+
+def _dhcp_options(payload: bytes) -> dict[int, bytes]:
+    """Parse bounded DHCP TLV options, ignoring padding and malformed tails."""
+    options: dict[int, bytes] = {}
+    offset = 240
+    while offset < len(payload):
+        code = payload[offset]
+        offset += 1
+        if code == 0:
+            continue
+        if code == 255:
+            break
+        if offset >= len(payload):
+            break
+        length = payload[offset]
+        offset += 1
+        if offset + length > len(payload):
+            break
+        options[code] = payload[offset:offset + length]
+        offset += length
+    return options
+
+
+def _build_dhcp_inform(transaction_id: int, client_ip: str, client_mac: bytes) -> bytes:
+    """Build a DHCPINFORM packet, which requests configuration but never a lease."""
+    chaddr = client_mac[:6].ljust(16, b"\x00")
+    header = struct.pack(
+        "!BBBBIHH4s4s4s4s16s64s128s",
+        1, 1, 6, 0, transaction_id, 0, 0,
+        socket.inet_aton(client_ip), b"\x00" * 4, b"\x00" * 4, b"\x00" * 4,
+        chaddr, b"\x00" * 64, b"\x00" * 128,
+    )
+    options = (
+        b"\x63\x82\x53\x63"  # DHCP magic cookie
+        b"\x35\x01\x08"      # option 53: DHCPINFORM
+        + bytes((61, 7, 1)) + client_mac[:6]  # client identifier
+        + b"\x37\x03\x36\x01\x03"  # request server-id, mask and router
+        + b"\xff"
+    )
+    return header + options
+
+
+def _check_dhcp(host: str, port: int, timeout: float) -> CheckResult:
+    """Safely validate an IPv4 DHCP server using DHCPINFORM/DHCPACK.
+
+    DHCPINFORM does not request, renew, or reserve an address. The probe binds
+    UDP/68 because compliant servers deliver the ACK to the DHCP client port.
+    """
+    try:
+        if ip_address(host).version != 4:
+            return CheckResult(open=False, error="DHCP checks support IPv4 servers only")
+    except ValueError:
+        return CheckResult(open=False, error="DHCP server must be an IPv4 address")
+
+    route_probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        route_probe.connect((host, port))
+        client_ip = route_probe.getsockname()[0]
+    except OSError as exc:
+        return CheckResult(open=False, error=f"Unable to determine DHCP client address: {exc}"[:255])
+    finally:
+        route_probe.close()
+
+    transaction_id = secrets.randbits(32)
+    client_mac = b"\x02" + secrets.token_bytes(5)
+    request = _build_dhcp_inform(transaction_id, client_ip, client_mac)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.settimeout(timeout)
+    started = time.monotonic()
+    try:
+        try:
+            sock.bind((client_ip, 68))
+        except OSError as exc:
+            return CheckResult(open=False, error=f"Cannot bind DHCP client UDP/68: {exc}"[:255])
+        sock.sendto(request, (host, port))
+        deadline = started + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return CheckResult(open=False, error="Timed out waiting for DHCPACK")
+            sock.settimeout(remaining)
+            response, _sender = sock.recvfrom(4096)
+            if len(response) < 240 or response[0] != 2:
+                continue
+            if struct.unpack("!I", response[4:8])[0] != transaction_id:
+                continue
+            if response[236:240] != b"\x63\x82\x53\x63":
+                continue
+            message_type = _dhcp_options(response).get(53)
+            if message_type == b"\x05":
+                return CheckResult(open=True, response_time_ms=(time.monotonic() - started) * 1000)
+            if message_type == b"\x06":
+                return CheckResult(open=False, error="DHCP server returned DHCPNAK")
+    except socket.timeout:
+        return CheckResult(open=False, error="Timed out waiting for DHCPACK")
+    except OSError as exc:
+        return CheckResult(open=False, error=f"DHCP probe failed: {exc}"[:255])
     finally:
         sock.close()

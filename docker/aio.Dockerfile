@@ -74,6 +74,7 @@ COPY docker/aio-entrypoint.sh /usr/local/bin/netmap-aio-entrypoint
 
 RUN mkdir -p /app/data /tmp/nginx \
   && chown -R netmap:netmap /app /tmp/nginx /usr/share/nginx/html \
+  && setcap cap_net_bind_service+ep "$(readlink -f "$(command -v python3)")" \
   && chmod +x /usr/local/bin/netmap-aio-entrypoint \
   && mkdir -p /app/docker \
   && ln -sf /usr/local/bin/netmap-aio-entrypoint /app/docker/aio-entrypoint.sh \

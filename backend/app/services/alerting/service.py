@@ -159,7 +159,7 @@ class AlertMonitorService:
             with ThreadPoolExecutor(max_workers=port_workers) as port_ex:
                 for ip, device_id, target in port_tasks:
                     is_http = target.check_type in ("http", "https")
-                    timeout = target.timeout_seconds if (is_http and target.timeout_seconds) else (HTTP_CHECK_TIMEOUT_SECONDS if is_http else 2.0)
+                    timeout = target.timeout_seconds if (is_http and target.timeout_seconds) else (HTTP_CHECK_TIMEOUT_SECONDS if is_http else 3.0 if target.check_type == "dhcp" else 2.0)
                     f = port_ex.submit(
                         check_port, ip, target.port, timeout,
                         protocol=target.check_type, http_path=target.http_path,
@@ -174,9 +174,9 @@ class AlertMonitorService:
                     device_id, target = port_future_map[future]
                     try:
                         result = future.result()
-                        open_, response_ms, status_code = result.open, result.response_time_ms, result.status_code
+                        open_, response_ms, status_code, check_error = result.open, result.response_time_ms, result.status_code, result.error
                     except Exception:
-                        open_, response_ms, status_code = False, None, None
+                        open_, response_ms, status_code, check_error = False, None, None, "Probe failed"
                     entry = {
                         "target_id": target.id,
                         "port": target.port,
@@ -186,6 +186,7 @@ class AlertMonitorService:
                         "status": "open" if open_ else "closed",
                         "response_time_ms": round(response_ms, 2) if response_ms is not None else None,
                         "status_code": status_code,
+                        "error": check_error,
                     }
                     port_map.setdefault(device_id, []).append(entry)
                     current_ports[(device_id, target.id)] = entry

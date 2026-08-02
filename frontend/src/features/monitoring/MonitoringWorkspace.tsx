@@ -617,10 +617,14 @@ export function MonitoringWorkspace({
 
   async function addPortTarget(e: FormEvent) {
     e.preventDefault();
-    const ports = parsePorts(portFormPort);
+    const isDhcp = portFormProtocol === "dhcp";
+    const ports = isDhcp ? [67] : parsePorts(portFormPort);
     if (!ports) { setPortError("Invalid port — use a number, range (e.g. 60-65), or comma-separated list (e.g. 9001, 9040, 8054)"); return; }
     if (!portFormLabel.trim()) { setPortError("Label required"); return; }
-    if (portFormScope === "device" && portFormDeviceIds.size === 0) { setPortError("Select at least one device"); return; }
+    if ((portFormScope === "device" || isDhcp) && portFormDeviceIds.size === 0) {
+      setPortError(isDhcp ? "Select at least one DHCP server device" : "Select at least one device");
+      return;
+    }
     const isHttp = portFormProtocol === "http" || portFormProtocol === "https";
     const statusMin = parseInt(portFormStatusMin, 10);
     const statusMax = parseInt(portFormStatusMax, 10);
@@ -636,7 +640,7 @@ export function MonitoringWorkspace({
     setPortBusy(true);
     setPortError(null);
     try {
-      const deviceIds = portFormScope === "device" ? Array.from(portFormDeviceIds) : [null];
+      const deviceIds = portFormScope === "device" || isDhcp ? Array.from(portFormDeviceIds) : [null];
       await Promise.all(
         deviceIds.flatMap((deviceId) =>
           ports.map((port) =>
@@ -1111,7 +1115,7 @@ export function MonitoringWorkspace({
                               <span
                               key={r.target_id ?? `${r.label}-${r.port}`}
                               className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`}
-                              title={`${r.label} ${r.check_type.toUpperCase()}:${r.port}${r.status_code !== null ? ` · HTTP ${r.status_code}` : ""}${r.response_time_ms !== null ? ` · ${Math.round(r.response_time_ms)} ms` : ""}`}
+                              title={`${r.label} ${r.check_type.toUpperCase()}:${r.port}${r.status_code !== null ? ` · HTTP ${r.status_code}` : ""}${r.response_time_ms !== null ? ` · ${Math.round(r.response_time_ms)} ms` : ""}${r.error ? ` · ${r.error}` : ""}`}
                             >{r.label}</span>
                             ))}
                           </span>
@@ -1202,8 +1206,9 @@ export function MonitoringWorkspace({
                       type="text"
                       className="mon-ports-input"
                       placeholder="443 or 67,68 or 8080-8090"
-                      value={portFormPort}
+                      value={portFormProtocol === "dhcp" ? "67" : portFormPort}
                       onChange={(e) => setPortFormPort(e.target.value)}
+                      disabled={portFormProtocol === "dhcp"}
                     />
                   </label>
                   <label className="mon-ports-field-label">
@@ -1211,14 +1216,27 @@ export function MonitoringWorkspace({
                     <select
                       className="mon-ports-input"
                       value={portFormProtocol}
-                      onChange={(e) => setPortFormProtocol(e.target.value as ServiceCheckType)}
+                      onChange={(e) => {
+                        const protocol = e.target.value as ServiceCheckType;
+                        setPortFormProtocol(protocol);
+                        if (protocol === "dhcp") {
+                          setPortFormScope("device");
+                          if (selectedId !== null) setPortFormDeviceIds(new Set([selectedId]));
+                        }
+                      }}
                     >
                       <option value="tcp">TCP</option>
                       <option value="udp">UDP</option>
+                      <option value="dhcp">DHCP</option>
                       <option value="http">HTTP</option>
                       <option value="https">HTTPS</option>
                     </select>
                   </label>
+                  {portFormProtocol === "dhcp" && (
+                    <div className="nm-alert nm-alert--info" role="note">
+                      Sends a DHCPINFORM request to UDP/67 and requires a matching DHCPACK. It never requests or reserves a lease and must target a specific IPv4 device.
+                    </div>
+                  )}
                   {(portFormProtocol === "http" || portFormProtocol === "https") && (
                     <>
                       <label className="mon-ports-field-label">
@@ -1308,7 +1326,7 @@ export function MonitoringWorkspace({
                         else if (scope === "global") setPortFormDeviceIds(new Set());
                       }}
                     >
-                      <option value="global">All devices</option>
+                      <option value="global" disabled={portFormProtocol === "dhcp"}>All devices</option>
                       <option value="device">Specific devices</option>
                     </select>
                   </label>
@@ -1608,6 +1626,7 @@ export function MonitoringWorkspace({
                               {r.check_type.toUpperCase()} :{r.port}
                               {r.status_code !== null && ` · HTTP ${r.status_code}`}
                               {r.response_time_ms !== null && ` · ${Math.round(r.response_time_ms)} ms`}
+                              {r.error && <span className="mon-port-error"> · {r.error}</span>}
                             </span>
                             <span className={`mon-port-status mon-port-status--${r.open ? "open" : "closed"}`}>
                               {r.open ? "Open" : "Closed"}

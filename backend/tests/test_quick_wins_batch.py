@@ -2,6 +2,7 @@
 next-available-IP, reservation expiry, webhook provider, flapping badge."""
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
 import threading
 
 from sqlalchemy import create_engine
@@ -22,7 +23,8 @@ from app.models.site import Site
 from app.models.subnet import Subnet
 from app.models.topology_group import TopologyGroup
 from app.schemas.monitoring import PortTargetCreate
-from app.services.monitoring.port_checker import check_port
+from app.services.monitoring import port_checker
+from app.services.monitoring.port_checker import _build_dhcp_inform, _dhcp_options, check_port
 from app.services.notifications import _send_webhook
 
 
@@ -138,6 +140,68 @@ def test_tcp_and_udp_checks_record_response_time():
         assert result.response_time_ms is not None
     finally:
         server.shutdown()
+
+
+def test_dhcp_inform_probe_requires_matching_ack(monkeypatch):
+    sockets = []
+
+    class FakeSocket:
+        def __init__(self):
+            self.request = b""
+            self.bound = None
+            sockets.append(self)
+
+        def connect(self, target):
+            assert target == ("192.0.2.10", 67)
+
+        def getsockname(self):
+            return ("192.0.2.20", 49152)
+
+        def setsockopt(self, *_args):
+            pass
+
+        def settimeout(self, _timeout):
+            pass
+
+        def bind(self, target):
+            self.bound = target
+
+        def sendto(self, payload, target):
+            self.request = payload
+            assert target == ("192.0.2.10", 67)
+
+        def recvfrom(self, _size):
+            response = bytearray(self.request)
+            response[0] = 2  # BOOTREPLY
+            response[242] = 5  # option 53: DHCPACK
+            return bytes(response), ("192.0.2.10", 67)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(port_checker.socket, "socket", lambda *_args: FakeSocket())
+    result = check_port("192.0.2.10", 67, 3.0, protocol="dhcp")
+
+    assert result.open is True
+    assert result.response_time_ms is not None
+    assert sockets[1].bound == ("192.0.2.20", 68)
+    assert _dhcp_options(sockets[1].request)[53] == b"\x08"
+
+
+def test_dhcp_inform_packet_never_requests_a_lease():
+    packet = _build_dhcp_inform(1234, "192.0.2.20", b"\x02\x00\x00\x00\x00\x01")
+    assert packet[0] == 1
+    assert socket.inet_ntoa(packet[12:16]) == "192.0.2.20"
+    assert _dhcp_options(packet)[53] == b"\x08"  # DHCPINFORM, not DISCOVER/REQUEST
+
+
+def test_dhcp_service_check_is_device_scoped_on_udp_67():
+    target = PortTargetCreate(device_id=7, port=67, label="Windows DHCP", check_type="dhcp")
+    assert target.check_type == "dhcp"
+    with pytest.raises(ValidationError):
+        PortTargetCreate(device_id=None, port=67, label="Unsafe global DHCP", check_type="dhcp")
+    with pytest.raises(ValidationError):
+        PortTargetCreate(device_id=7, port=68, label="Wrong port", check_type="dhcp")
 
 
 def test_webhook_provider_posts_json():

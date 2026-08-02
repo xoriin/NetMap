@@ -103,6 +103,17 @@ test.describe("Monitoring workspace", () => {
     await expect(page.locator(".mon-table-toolbar-meta")).toContainText("1 of 2");
   });
 
+  test("configures DHCP checks as safe device-scoped probes", async ({ page }) => {
+    await page.getByRole("button", { name: "Ports", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Port Monitoring" });
+    await dialog.getByLabel("Protocol").selectOption("dhcp");
+    await expect(dialog.getByLabel("Port(s)")).toHaveValue("67");
+    await expect(dialog.getByLabel("Port(s)")).toBeDisabled();
+    await expect(dialog.getByRole("note")).toContainText("never requests or reserves a lease");
+    await expect(dialog.getByLabel("Scope")).toHaveValue("device");
+    await expect(dialog.getByLabel("Scope").locator("option[value=global]")).toHaveAttribute("disabled", "");
+  });
+
   test("keeps favourites on the left and renders expected-offline health correctly", async ({ page }) => {
     const row = page.locator(".mon-row").first();
     await expect(row.locator("td").first().locator(".fav-btn")).toBeVisible();

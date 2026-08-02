@@ -67,4 +67,5 @@ services:
       - ALL
     cap_add:
       - NET_RAW
+      - NET_BIND_SERVICE
     restart: unless-stopped

@@ -15,6 +15,7 @@ class PortResult(BaseModel):
     response_time_ms: float | None = None
     # http/https checks only: the HTTP status code returned, if the server responded at all
     status_code: int | None = None
+    error: str | None = None
 
 
 class MonitorHistoryPoint(BaseModel):
@@ -116,7 +117,7 @@ class PortTargetCreate(BaseModel):
     device_id: int | None = None
     port: int = Field(..., ge=1, le=65535)
     label: str = Field(..., min_length=1, max_length=60)
-    check_type: str = Field(default="tcp", pattern="^(tcp|udp|http|https)$")
+    check_type: str = Field(default="tcp", pattern="^(tcp|udp|dhcp|http|https)$")
     http_path: str | None = Field(default=None, max_length=200)
     http_method: str = Field(default="GET", max_length=10)
     expected_status_min: int = Field(default=200, ge=100, le=599)
@@ -152,4 +153,9 @@ class PortTargetCreate(BaseModel):
     def validate_status_range(self) -> "PortTargetCreate":
         if self.expected_status_min > self.expected_status_max:
             raise ValueError("expected_status_min must be <= expected_status_max")
+        if self.check_type == "dhcp":
+            if self.device_id is None:
+                raise ValueError("DHCP checks must target a specific device")
+            if self.port != 67:
+                raise ValueError("DHCP checks use server port 67")
         return self

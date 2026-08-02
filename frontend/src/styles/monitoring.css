@@ -1551,6 +1551,7 @@ body.theme-dark .mon-mini-sparkline-line { stroke: #4db8cc; opacity: 0.75; }
 .mon-port-rows { padding: 10px 18px 14px; display: flex; flex-direction: column; gap: 8px; }
 .mon-port-row { display: flex; align-items: center; gap: 9px; font-size: 13px; }
 .mon-port-label { font-weight: 500; color: #1a2e3d; }
+.mon-port-error { color: var(--nm-danger); }
 .mon-port-status { margin-left: auto; font-size: 12px; font-weight: 700; }
 .mon-port-status--open   { color: var(--dash-green); }
 .mon-port-status--closed { color: var(--dash-red); }
