@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.api.deps import get_current_user, require_ipam_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.dhcp_lease import DhcpLease
+from app.models.external_ip import ExternalIpAssignment, ExternalIpPool
 from app.models.ip_reservation import IpReservation
 from app.models.subnet import Subnet
 from app.models.user import User
@@ -32,12 +34,22 @@ from app.schemas.ipam import (
     SubnetUpdate,
     VlanImportRequest,
     VlanSuggestion,
+    ExternalIpAddressEntry,
+    ExternalIpAddressPage,
+    ExternalIpAssignmentCreate,
+    ExternalIpAssignmentOut,
+    ExternalIpAssignmentUpdate,
+    ExternalIpPoolCreate,
+    ExternalIpPoolOut,
+    ExternalIpPoolUpdate,
+    ExternalIpSummary,
 )
 from app.services.ipam.dhcp_parser import auto_parse
 from app.services.discovery.scheduled import normalize_mac
 from app.services.ipam.subnet_utils import detect_conflicts, enumerate_addresses
 
 router = APIRouter(prefix="/ipam", tags=["ipam"])
+EXTERNAL_POOL_MAX_ADDRESSES = 65_536
 
 @dataclass(frozen=True)
 class _IpIndex:
@@ -211,6 +223,65 @@ def _in_dhcp_range(ip: str, start: str | None, end: str | None) -> bool:
         return int(ipaddress.ip_address(start)) <= int(value) <= int(ipaddress.ip_address(end))
     except ValueError:
         return False
+
+
+def _external_network(value: str):
+    try:
+        network = ipaddress.ip_network(value.strip(), strict=False)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid external IP pool CIDR")
+    if network.is_private or network.is_loopback or network.is_link_local or network.is_multicast or network.is_unspecified:
+        raise HTTPException(status_code=422, detail="External IP pools must use publicly routable address space")
+    if network.num_addresses > EXTERNAL_POOL_MAX_ADDRESSES:
+        raise HTTPException(status_code=422, detail=f"External pools are limited to {EXTERNAL_POOL_MAX_ADDRESSES:,} addresses")
+    return network
+
+
+def _external_address(value: str):
+    try:
+        address = ipaddress.ip_address(value.strip())
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid external IP address")
+    if address.is_private or address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified:
+        raise HTTPException(status_code=422, detail="External IP records must use publicly routable addresses")
+    return address
+
+
+def _usable_external_bounds(network) -> tuple[int, int, int]:
+    if network.version == 4 and network.prefixlen <= 30:
+        start = int(network.network_address) + 1
+        end = int(network.broadcast_address) - 1
+    else:
+        start = int(network.network_address)
+        end = int(network.broadcast_address)
+    return start, end, max(0, end - start + 1)
+
+
+def _external_pool_out(pool: ExternalIpPool, assignments: list[ExternalIpAssignment]) -> ExternalIpPoolOut:
+    network = _external_network(pool.cidr)
+    _start, _end, total = _usable_external_bounds(network)
+    in_use = sum(1 for row in assignments if row.status == "in_use")
+    reserved = sum(1 for row in assignments if row.status == "reserved")
+    consumed = in_use + reserved
+    return ExternalIpPoolOut(
+        id=pool.id, name=pool.name, cidr=pool.cidr, provider=pool.provider, account=pool.account,
+        description=pool.description, created_at=pool.created_at, updated_at=pool.updated_at,
+        total=total, in_use=in_use, reserved=reserved, free=max(0, total - consumed),
+        utilization=consumed / total if total else 0.0,
+    )
+
+
+def _validate_external_assignment(db: Session, pool_id: int | None, address) -> ExternalIpPool | None:
+    if pool_id is None:
+        return None
+    pool = db.get(ExternalIpPool, pool_id)
+    if pool is None:
+        raise HTTPException(status_code=404, detail="External IP pool not found")
+    network = _external_network(pool.cidr)
+    start, end, _total = _usable_external_bounds(network)
+    if address.version != network.version or not (start <= int(address) <= end):
+        raise HTTPException(status_code=422, detail="External IP address is not usable inside the selected pool")
+    return pool
 
 
 # ── summary ──────────────────────────────────────────────────────────────────
@@ -666,4 +737,219 @@ def clear_dhcp_leases(
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     db.execute(delete(DhcpLease))
+    db.commit()
+
+
+# ── external IP pools and assignments ───────────────────────────────────────
+
+@router.get("/external/summary", response_model=ExternalIpSummary)
+def external_ip_summary(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExternalIpSummary:
+    pools = list(db.scalars(select(ExternalIpPool)).all())
+    assignments = list(db.scalars(select(ExternalIpAssignment)).all())
+    pool_rows: dict[int, list[ExternalIpAssignment]] = {}
+    for assignment in assignments:
+        if assignment.pool_id is not None:
+            pool_rows.setdefault(assignment.pool_id, []).append(assignment)
+    enriched = [_external_pool_out(pool, pool_rows.get(pool.id, [])) for pool in pools]
+    standalone = [row for row in assignments if row.pool_id is None]
+    return ExternalIpSummary(
+        pool_count=len(pools),
+        standalone_count=len(standalone),
+        total=sum(pool.total for pool in enriched) + len(standalone),
+        in_use=sum(pool.in_use for pool in enriched) + sum(row.status == "in_use" for row in standalone),
+        reserved=sum(pool.reserved for pool in enriched) + sum(row.status == "reserved" for row in standalone),
+        free=sum(pool.free for pool in enriched) + sum(row.status == "available" for row in standalone),
+    )
+
+
+@router.get("/external/pools", response_model=list[ExternalIpPoolOut])
+def list_external_ip_pools(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[ExternalIpPoolOut]:
+    pools = list(db.scalars(select(ExternalIpPool).order_by(ExternalIpPool.name)).all())
+    assignments = list(db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id.is_not(None))).all())
+    grouped: dict[int, list[ExternalIpAssignment]] = {}
+    for row in assignments:
+        grouped.setdefault(row.pool_id, []).append(row)  # type: ignore[arg-type]
+    return [_external_pool_out(pool, grouped.get(pool.id, [])) for pool in pools]
+
+
+@router.post("/external/pools", response_model=ExternalIpPoolOut, status_code=201)
+def create_external_ip_pool(
+    payload: ExternalIpPoolCreate,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExternalIpPoolOut:
+    network = _external_network(payload.cidr)
+    for existing in db.scalars(select(ExternalIpPool)).all():
+        if network.overlaps(_external_network(existing.cidr)):
+            raise HTTPException(status_code=409, detail=f"External pool overlaps {existing.name} ({existing.cidr})")
+    pool = ExternalIpPool(
+        name=payload.name.strip(), cidr=str(network), provider=payload.provider or None,
+        account=payload.account or None, description=payload.description or None,
+    )
+    db.add(pool)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="External IP pool already exists")
+    db.refresh(pool)
+    return _external_pool_out(pool, [])
+
+
+@router.patch("/external/pools/{pool_id}", response_model=ExternalIpPoolOut)
+def update_external_ip_pool(
+    pool_id: int,
+    payload: ExternalIpPoolUpdate,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExternalIpPoolOut:
+    pool = db.get(ExternalIpPool, pool_id)
+    if pool is None:
+        raise HTTPException(status_code=404, detail="External IP pool not found")
+    updates = payload.model_dump(exclude_unset=True)
+    if "cidr" in updates:
+        network = _external_network(updates["cidr"])
+        for existing in db.scalars(select(ExternalIpPool).where(ExternalIpPool.id != pool_id)).all():
+            if network.overlaps(_external_network(existing.cidr)):
+                raise HTTPException(status_code=409, detail=f"External pool overlaps {existing.name} ({existing.cidr})")
+        for assignment in db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id)).all():
+            start, end, _total = _usable_external_bounds(network)
+            address = ipaddress.ip_address(assignment.ip_address)
+            if address.version != network.version or not (start <= int(address) <= end):
+                raise HTTPException(status_code=422, detail="New CIDR would exclude existing assignments")
+        updates["cidr"] = str(network)
+    for field, value in updates.items():
+        setattr(pool, field, value.strip() if isinstance(value, str) else value)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="External IP pool already exists")
+    db.refresh(pool)
+    assignments = list(db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id)).all())
+    return _external_pool_out(pool, assignments)
+
+
+@router.delete("/external/pools/{pool_id}", status_code=204, response_model=None)
+def delete_external_ip_pool(
+    pool_id: int,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    pool = db.get(ExternalIpPool, pool_id)
+    if pool is None:
+        raise HTTPException(status_code=404, detail="External IP pool not found")
+    db.execute(delete(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id))
+    db.delete(pool)
+    db.commit()
+
+
+@router.get("/external/pools/{pool_id}/addresses", response_model=ExternalIpAddressPage)
+def list_external_pool_addresses(
+    pool_id: int,
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=256, ge=1, le=1024),
+) -> ExternalIpAddressPage:
+    pool = db.get(ExternalIpPool, pool_id)
+    if pool is None:
+        raise HTTPException(status_code=404, detail="External IP pool not found")
+    network = _external_network(pool.cidr)
+    start, _end, total = _usable_external_bounds(network)
+    assignments = {
+        row.ip_address: ExternalIpAssignmentOut.model_validate(row)
+        for row in db.scalars(select(ExternalIpAssignment).where(ExternalIpAssignment.pool_id == pool_id)).all()
+    }
+    count = max(0, min(limit, total - offset))
+    addresses = []
+    for index in range(count):
+        address = str(ipaddress.ip_address(start + offset + index))
+        assignment = assignments.get(address)
+        addresses.append(ExternalIpAddressEntry(
+            ip_address=address,
+            status=assignment.status if assignment else "available",
+            assignment=assignment,
+        ))
+    return ExternalIpAddressPage(total=total, offset=offset, limit=limit, addresses=addresses)
+
+
+@router.get("/external/assignments", response_model=list[ExternalIpAssignmentOut])
+def list_external_ip_assignments(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    pool_id: int | None = None,
+) -> list[ExternalIpAssignmentOut]:
+    query = select(ExternalIpAssignment)
+    if pool_id is not None:
+        query = query.where(ExternalIpAssignment.pool_id == pool_id)
+    return list(db.scalars(query.order_by(ExternalIpAssignment.ip_address)).all())
+
+
+@router.post("/external/assignments", response_model=ExternalIpAssignmentOut, status_code=201)
+def create_external_ip_assignment(
+    payload: ExternalIpAssignmentCreate,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExternalIpAssignmentOut:
+    address = _external_address(payload.ip_address)
+    pool = _validate_external_assignment(db, payload.pool_id, address)
+    assignment = ExternalIpAssignment(
+        pool_id=payload.pool_id, ip_address=str(address), label=payload.label.strip(), status=payload.status,
+        provider=(payload.provider or (pool.provider if pool else None)) or None,
+        account=(payload.account or (pool.account if pool else None)) or None,
+        owner=payload.owner or None, service=payload.service or None, tags=payload.tags or None, notes=payload.notes or None,
+    )
+    db.add(assignment)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="External IP address is already tracked")
+    db.refresh(assignment)
+    return assignment
+
+
+@router.patch("/external/assignments/{assignment_id}", response_model=ExternalIpAssignmentOut)
+def update_external_ip_assignment(
+    assignment_id: int,
+    payload: ExternalIpAssignmentUpdate,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ExternalIpAssignmentOut:
+    assignment = db.get(ExternalIpAssignment, assignment_id)
+    if assignment is None:
+        raise HTTPException(status_code=404, detail="External IP assignment not found")
+    updates = payload.model_dump(exclude_unset=True)
+    next_pool_id = updates.get("pool_id", assignment.pool_id)
+    next_address = _external_address(updates.get("ip_address", assignment.ip_address))
+    _validate_external_assignment(db, next_pool_id, next_address)
+    updates["ip_address"] = str(next_address)
+    for field, value in updates.items():
+        setattr(assignment, field, value.strip() if isinstance(value, str) else value)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="External IP address is already tracked")
+    db.refresh(assignment)
+    return assignment
+
+
+@router.delete("/external/assignments/{assignment_id}", status_code=204, response_model=None)
+def delete_external_ip_assignment(
+    assignment_id: int,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    assignment = db.get(ExternalIpAssignment, assignment_id)
+    if assignment is None:
+        raise HTTPException(status_code=404, detail="External IP assignment not found")
+    db.delete(assignment)
     db.commit()

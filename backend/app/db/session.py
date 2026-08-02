@@ -55,7 +55,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
+    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -160,6 +160,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0058_user_entity_colors", _migrate_user_entity_colors)
         _run_migration(conn, inspector, "0059_device_expected_status", _migrate_device_expected_status)
         _run_migration(conn, inspector, "0060_api_key_display_suffix", _migrate_api_key_display_suffix)
+        _run_migration(conn, inspector, "0061_external_ip_tracking", _migrate_external_ip_tracking)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1191,6 +1192,44 @@ def _migrate_api_key_display_suffix(conn, inspector) -> None:
     existing = {col["name"] for col in inspector.get_columns("api_keys")}
     if "suffix" not in existing:
         conn.execute(text("ALTER TABLE api_keys ADD COLUMN suffix VARCHAR(4)"))
+
+
+def _migrate_external_ip_tracking(conn, _inspector) -> None:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS external_ip_pools (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(120) NOT NULL,
+            cidr VARCHAR(64) NOT NULL UNIQUE,
+            provider VARCHAR(80),
+            account VARCHAR(120),
+            description TEXT,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_id ON external_ip_pools (id)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_external_ip_pools_cidr ON external_ip_pools (cidr)"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS external_ip_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pool_id INTEGER REFERENCES external_ip_pools (id) ON DELETE CASCADE,
+            ip_address VARCHAR(64) NOT NULL UNIQUE,
+            label VARCHAR(120) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'in_use',
+            provider VARCHAR(80),
+            account VARCHAR(120),
+            owner VARCHAR(120),
+            service VARCHAR(120),
+            tags VARCHAR(500),
+            notes TEXT,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_assignments_id ON external_ip_assignments (id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_assignments_pool_id ON external_ip_assignments (pool_id)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_external_ip_assignments_ip ON external_ip_assignments (ip_address)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_assignments_status ON external_ip_assignments (status)"))
 
 
 def _migrate_user_whats_new_ack(conn, inspector) -> None:

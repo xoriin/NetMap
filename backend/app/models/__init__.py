@@ -7,6 +7,7 @@ from app.models.auth_session import LoginThrottleState, RefreshTokenState
 from app.models.device import Device, DeviceStatus
 from app.models.device_type import DeviceType
 from app.models.discovery import DiscoveryObservation, DiscoveryScan, DiscoverySchedule
+from app.models.external_ip import ExternalIpAssignment, ExternalIpPool
 from app.models.lldp import LldpNeighbour
 from app.models.firewall_event import FirewallEvent
 from app.models.ip_reservation import IpReservation
@@ -38,6 +39,8 @@ __all__ = [
     "DiscoveryScan",
     "DiscoverySchedule",
     "ExternalIdentity",
+    "ExternalIpAssignment",
+    "ExternalIpPool",
     "LldpNeighbour",
     "OidcLoginState",
     "FirewallEvent",

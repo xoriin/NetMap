@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -148,3 +150,103 @@ class VlanSuggestion(BaseModel):
 
 class VlanImportRequest(BaseModel):
     group_ids: list[int]
+
+
+class ExternalIpPoolCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    cidr: str = Field(..., min_length=1, max_length=64)
+    provider: str | None = Field(default=None, max_length=80)
+    account: str | None = Field(default=None, max_length=120)
+    description: str | None = None
+
+
+class ExternalIpPoolUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    cidr: str | None = Field(default=None, min_length=1, max_length=64)
+    provider: str | None = Field(default=None, max_length=80)
+    account: str | None = Field(default=None, max_length=120)
+    description: str | None = None
+
+
+class ExternalIpPoolOut(BaseModel):
+    id: int
+    name: str
+    cidr: str
+    provider: str | None
+    account: str | None
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+    total: int = 0
+    in_use: int = 0
+    reserved: int = 0
+    free: int = 0
+    utilization: float = 0.0
+
+    model_config = {"from_attributes": True}
+
+
+class ExternalIpAssignmentCreate(BaseModel):
+    pool_id: int | None = None
+    ip_address: str = Field(..., min_length=1, max_length=64)
+    label: str = Field(..., min_length=1, max_length=120)
+    status: Literal["available", "reserved", "in_use"] = "in_use"
+    provider: str | None = Field(default=None, max_length=80)
+    account: str | None = Field(default=None, max_length=120)
+    owner: str | None = Field(default=None, max_length=120)
+    service: str | None = Field(default=None, max_length=120)
+    tags: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
+class ExternalIpAssignmentUpdate(BaseModel):
+    pool_id: int | None = None
+    ip_address: str | None = Field(default=None, min_length=1, max_length=64)
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    status: Literal["available", "reserved", "in_use"] | None = None
+    provider: str | None = Field(default=None, max_length=80)
+    account: str | None = Field(default=None, max_length=120)
+    owner: str | None = Field(default=None, max_length=120)
+    service: str | None = Field(default=None, max_length=120)
+    tags: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
+class ExternalIpAssignmentOut(BaseModel):
+    id: int
+    pool_id: int | None
+    ip_address: str
+    label: str
+    status: str
+    provider: str | None
+    account: str | None
+    owner: str | None
+    service: str | None
+    tags: str | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ExternalIpAddressEntry(BaseModel):
+    ip_address: str
+    status: str
+    assignment: ExternalIpAssignmentOut | None = None
+
+
+class ExternalIpAddressPage(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    addresses: list[ExternalIpAddressEntry]
+
+
+class ExternalIpSummary(BaseModel):
+    pool_count: int
+    standalone_count: int
+    total: int
+    in_use: int
+    reserved: int
+    free: int
