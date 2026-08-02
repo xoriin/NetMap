@@ -14,7 +14,8 @@ const apiKeys = [
   {
     id: 1,
     name: "Automation",
-    prefix: "nm_example1",
+    prefix: "AbCdEf123456",
+    suffix: "x7Qp",
     created_at: "2026-07-11T00:00:00Z",
     expires_at: null,
     last_used_at: "2026-08-01T00:00:00Z",
@@ -24,7 +25,8 @@ const apiKeys = [
   {
     id: 2,
     name: "Reporting",
-    prefix: "nm_example2",
+    prefix: "GhJkLm789012",
+    suffix: null,
     created_at: "2026-07-12T00:00:00Z",
     expires_at: null,
     last_used_at: null,
@@ -55,7 +57,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".profile-summary-band")).toContainText("2 keys can access NetMap");
     await expect(page.locator(".profile-panel-header")).toHaveCount(5);
     await expect(page.locator(".profile-panel-header").first()).toHaveCSS("min-height", "44px");
-    await expect(page.locator(".profile-key-mask").first()).toHaveText("•••• •••• •••• ••••");
+    await expect(page.locator(".profile-key-mask").first()).toHaveText("•••• •••• •••• x7Qp");
+    await expect(page.locator(".profile-key-mask").nth(1)).toHaveText("•••• •••• •••• ••••");
     await expect(page.locator(".profile-panel .nm-input").first()).toHaveCSS(
       "background-color",
       theme === "dark" ? "rgb(10, 21, 32)" : "rgb(255, 255, 255)",

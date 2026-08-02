@@ -173,7 +173,14 @@ function ApiKeysPanel({ accessToken, onActiveCountChange }: { accessToken: strin
                     <td>{key.name}</td>
                     <td>
                       <span className="profile-key-cell">
-                        <span className="profile-key-mask nm-table-mono">•••• •••• •••• ••••</span>
+                        <span
+                          className="profile-key-mask nm-table-mono"
+                          title={key.suffix
+                            ? "Only the final four characters are retained for identification"
+                            : "The ending will appear after this legacy key is next successfully used"}
+                        >
+                          {key.suffix ? `•••• •••• •••• ${key.suffix}` : "•••• •••• •••• ••••"}
+                        </span>
                       </span>
                     </td>
                     <td>{formatKeyDate(key.created_at)}</td>

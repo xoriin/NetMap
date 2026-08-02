@@ -78,6 +78,7 @@ export type ApiKey = {
   id: number;
   name: string;
   prefix: string;
+  suffix: string | null;
   created_at: string;
   expires_at: string | null;
   last_used_at: string | null;

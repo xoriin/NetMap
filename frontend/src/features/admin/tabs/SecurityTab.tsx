@@ -350,8 +350,13 @@ function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
                     <td>{key.username}</td>
                     <td>{key.name}</td>
                     <td>
-                      <span className="profile-key-mask nm-table-mono" title="API key values are shown only once when created">
-                        •••• •••• •••• ••••
+                      <span
+                        className="profile-key-mask nm-table-mono"
+                        title={key.suffix
+                          ? "Only the final four characters are retained for identification"
+                          : "The ending will appear after this legacy key is next successfully used"}
+                      >
+                        {key.suffix ? `•••• •••• •••• ${key.suffix}` : "•••• •••• •••• ••••"}
                       </span>
                     </td>
                     <td>{new Date(key.created_at).toLocaleDateString()}</td>

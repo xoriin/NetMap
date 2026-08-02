@@ -144,6 +144,7 @@ async function setupAdminMocks(page: Page) {
     id: 7,
     name: "automation-agent",
     prefix: "AbCdEf123456",
+    suffix: "7QpL",
     created_at: "2026-08-01T00:00:00Z",
     expires_at: null,
     last_used_at: null,
@@ -260,8 +261,7 @@ for (const theme of ["light", "dark"] as const) {
 
       if (tabName === "Security") {
         const keyCell = page.locator(".admin-tab-content .nm-table tbody tr").filter({ hasText: "automation-agent" }).locator("td").nth(2);
-        await expect(keyCell).toContainText("••••");
-        await expect(keyCell).not.toContainText("AbCdEf123456");
+        await expect(keyCell).toContainText("•••• •••• •••• 7QpL");
       }
     }
 
@@ -281,6 +281,7 @@ test("API keys stay masked after creation and clearly warn about one-time displa
     id: 7,
     name: "automation-agent",
     prefix: "AbCdEf123456",
+    suffix: "7QpL",
     created_at: "2026-08-01T00:00:00Z",
     expires_at: null,
     last_used_at: null,
@@ -292,15 +293,16 @@ test("API keys stay masked after creation and clearly warn about one-time displa
   await setupAdminMocks(page);
   await page.route("**/api/v1/api-keys", (route) => {
     if (route.request().method() === "POST") {
-      return route.fulfill({ json: { ...storedKey, id: 8, name: "new-integration", key: plaintext } });
+      return route.fulfill({
+        json: { ...storedKey, id: 8, name: "new-integration", suffix: plaintext.slice(-4), key: plaintext },
+      });
     }
     return route.fulfill({ json: [storedKey] });
   });
   await page.goto("/profile");
 
   const storedRow = page.locator(".profile-api-panel .nm-table tbody tr").filter({ hasText: storedKey.name });
-  await expect(storedRow).toContainText("••••");
-  await expect(storedRow).not.toContainText(storedKey.prefix);
+  await expect(storedRow).toContainText("•••• •••• •••• 7QpL");
 
   await page.getByRole("button", { name: "Create API key", exact: true }).click();
   const createDialog = page.getByRole("dialog", { name: "Create API key" });
