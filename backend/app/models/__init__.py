@@ -20,9 +20,11 @@ from app.models.snmp_profile import SnmpProfile
 from app.models.topology_layout import TopologyLayout
 from app.models.topology_group import TopologyGroup
 from app.models.user import User, UserRole
+from app.models.user_monitor_favourite import UserMonitorFavourite
 
 __all__ = [
     "AlertEvent",
+    "UserMonitorFavourite",
     "ApiKey",
     "ApiKeyThrottleState",
     "AuditLog",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Search } from "lucide-react";
+import { Search, Star } from "lucide-react";
 import { IconGauge, IconPlugConnected, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { api, type HttpMethod, type Monitor, type MonitorCheckHistoryPoint, type MonitorPayload } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
@@ -85,12 +85,15 @@ export function MonitorsPanel({
   canWrite,
   embedded = false,
   onStatsChange,
+  onFavouritesChange,
 }: {
   accessToken: string;
   canWrite: boolean;
   /** Renders just the toolbar + table + drilldown, for embedding inside another panel's body. */
   embedded?: boolean;
   onStatsChange?: (stats: MonitorStats) => void;
+  /** Fired after a star toggle so Overview's favourites panel can refetch. */
+  onFavouritesChange?: () => void;
 }) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +121,21 @@ export function MonitorsPanel({
       setError(err instanceof Error ? err.message : "Failed to load endpoints");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleFavourite(monitor: Monitor) {
+    // Optimistic: the star must feel instant, and the 15s poll reconciles.
+    setMonitors((current) => current.map((row) =>
+      row.id === monitor.id ? { ...row, is_favourite: !row.is_favourite } : row));
+    try {
+      const updated = await api.toggleMonitorFavourite(accessToken, monitor.id);
+      setMonitors((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+      onFavouritesChange?.();
+    } catch (err) {
+      setMonitors((current) => current.map((row) =>
+        row.id === monitor.id ? { ...row, is_favourite: monitor.is_favourite } : row));
+      toast.error(err instanceof Error ? err.message : "Could not update favourite");
     }
   }
 
@@ -359,6 +377,7 @@ export function MonitorsPanel({
           <div className="nm-table-wrap monitors-table-wrap">
             <table className="nm-table monitors-table">
               <colgroup>
+                <col className="monitors-col-fav" />
                 <col className="monitors-col-status" />
                 <col className="monitors-col-name" />
                 <col className="monitors-col-heartbeat" />
@@ -371,6 +390,7 @@ export function MonitorsPanel({
               </colgroup>
               <thead>
                 <tr>
+                  <th></th>
                   <th></th>
                   <th>Name</th>
                   <th>Heartbeat</th>
@@ -390,6 +410,18 @@ export function MonitorsPanel({
                     onClick={() => setSelectedId(monitor.id)}
                     style={{ cursor: "pointer", opacity: monitor.enabled ? 1 : 0.55 }}
                   >
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={`fav-btn${monitor.is_favourite ? " fav-btn--active" : ""}`}
+                        title={monitor.is_favourite ? "Remove from favourites" : "Add to favourites"}
+                        aria-label={monitor.is_favourite ? "Remove from favourites" : "Add to favourites"}
+                        aria-pressed={monitor.is_favourite}
+                        onClick={() => void toggleFavourite(monitor)}
+                      >
+                        <Star size={13} fill={monitor.is_favourite ? "currentColor" : "none"} />
+                      </button>
+                    </td>
                     <td className="monitors-dot-cell"><span className={`mon-dot mon-dot-${monitor.last_status ?? "unknown"}`} /></td>
                     <td>{monitor.name}</td>
                     <td className="monitors-heartbeat-cell">

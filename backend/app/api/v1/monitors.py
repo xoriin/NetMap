@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.user import User
+from app.models.user_monitor_favourite import UserMonitorFavourite
 from app.schemas.monitor import (
     MonitorCheckHistoryRead,
     MonitorCreate,
@@ -41,7 +42,7 @@ def _require_write(current_user: User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
 
-def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
+def _build_reads(db: Session, monitors: list[Monitor], user: User | None = None) -> list[MonitorRead]:
     if not monitors:
         return []
     now = datetime.now(timezone.utc)
@@ -59,6 +60,15 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
             .group_by(MonitorCheckHistory.monitor_id),
         ).all()
         return {row[0]: (row[2] or 0) / row[1] * 100 for row in rows if row[1]}
+
+    favourite_ids: set[int] = set()
+    if user is not None:
+        favourite_ids = set(db.scalars(
+            select(UserMonitorFavourite.monitor_id).where(
+                UserMonitorFavourite.user_id == user.id,
+                UserMonitorFavourite.monitor_id.in_(ids),
+            )
+        ).all())
 
     uptime_24h_map = _uptime_map(cutoff_24h)
     uptime_7d_map = _uptime_map(cutoff_7d)
@@ -128,17 +138,51 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
         read.uptime_7d = round(uptime_7d_map[monitor.id], 1) if monitor.id in uptime_7d_map else None
         read.avg_response_time_24h = avg_rtt_map.get(monitor.id)
         read.heartbeat = heartbeat_map[monitor.id]
+        read.is_favourite = monitor.id in favourite_ids
         reads.append(read)
     return reads
 
 
 @router.get("", response_model=list[MonitorRead])
 def list_monitors(
-    _current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[MonitorRead]:
     monitors = list(db.scalars(select(Monitor).order_by(Monitor.name)))
-    return _build_reads(db, monitors)
+    return _build_reads(db, monitors, current_user)
+
+
+# Declared ahead of the "/{monitor_id}" routes so "favourites" is never parsed
+# as a monitor id.
+@router.get("/favourites", response_model=list[int])
+def list_monitor_favourites(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[int]:
+    return list(db.scalars(
+        select(UserMonitorFavourite.monitor_id)
+        .where(UserMonitorFavourite.user_id == current_user.id)
+    ).all())
+
+
+@router.patch("/{monitor_id}/favourite", response_model=MonitorRead)
+def toggle_monitor_favourite(
+    monitor_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> MonitorRead:
+    """Favouriting is a personal view, so any authenticated user may do it —
+    deliberately not gated behind _require_write like monitor editing is."""
+    monitor = db.get(Monitor, monitor_id)
+    if monitor is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Monitor not found")
+    existing = db.get(UserMonitorFavourite, (current_user.id, monitor_id))
+    if existing:
+        db.delete(existing)
+    else:
+        db.add(UserMonitorFavourite(user_id=current_user.id, monitor_id=monitor_id))
+    db.commit()
+    return _build_reads(db, [monitor], current_user)[0]
 
 
 @router.post("", response_model=MonitorRead, status_code=status.HTTP_201_CREATED)
@@ -176,7 +220,7 @@ def create_monitor(
     )
     db.commit()
     db.refresh(monitor)
-    return _build_reads(db, [monitor])[0]
+    return _build_reads(db, [monitor], current_user)[0]
 
 
 @router.patch("/{monitor_id}", response_model=MonitorRead)
@@ -234,7 +278,7 @@ def update_monitor(
     )
     db.commit()
     db.refresh(monitor)
-    return _build_reads(db, [monitor])[0]
+    return _build_reads(db, [monitor], current_user)[0]
 
 
 def _set_encrypted(values: dict, key: str, value: str | None) -> None:
@@ -252,6 +296,12 @@ def delete_monitor(
     monitor = db.get(Monitor, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Monitor not found")
+    # SQLite runs with foreign_keys OFF, so the ON DELETE CASCADE on
+    # user_monitor_favourites never fires — clear the rows explicitly or
+    # /monitors/favourites keeps returning ids of deleted monitors.
+    db.query(UserMonitorFavourite).filter(
+        UserMonitorFavourite.monitor_id == monitor_id
+    ).delete(synchronize_session=False)
     write_audit(
         db,
         action="monitor.deleted",

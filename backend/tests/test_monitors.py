@@ -5,6 +5,7 @@ import threading
 from unittest.mock import Mock
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -14,7 +15,9 @@ from app.api.v1.monitors import (
     create_monitor,
     delete_monitor,
     get_monitor_history,
+    list_monitor_favourites,
     list_monitors,
+    toggle_monitor_favourite,
     update_monitor,
 )
 from app.db.session import Base
@@ -26,6 +29,7 @@ from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_profile import NotificationProfile
 from app.models.system_setting import SystemSetting
+from app.models.user_monitor_favourite import UserMonitorFavourite
 from app.schemas.monitor import MonitorCreate, MonitorUpdate
 from app.services.monitoring.port_checker import CheckResult, check_url
 from app.services.monitors import service as monitors_service_module
@@ -40,6 +44,7 @@ def _session():
             Monitor.__table__, MonitorCheckHistory.__table__, AlertRule.__table__,
             AlertEvent.__table__, NotificationDelivery.__table__, SystemSetting.__table__,
             NotificationProfile.__table__, AuditLog.__table__,
+            UserMonitorFavourite.__table__,
         ],
     )
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)()
@@ -252,6 +257,56 @@ def test_monitor_history_and_uptime_computation():
 
     history = get_monitor_history(monitor.id, actor, db, hours=24)
     assert len(history) == 3
+
+
+def test_monitor_favourite_toggles_and_is_per_user():
+    db = _session()
+    alice = Mock(id=1, role="Viewer")
+    bob = Mock(id=2, role="Viewer")
+    monitor = _monitor()
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+
+    assert list_monitors(alice, db)[0].is_favourite is False
+    assert list_monitor_favourites(alice, db) == []
+
+    # A Viewer may favourite: it is a personal view, not a monitor edit.
+    toggled = toggle_monitor_favourite(monitor.id, alice, db)
+    assert toggled.is_favourite is True
+    assert list_monitor_favourites(alice, db) == [monitor.id]
+    assert list_monitors(alice, db)[0].is_favourite is True
+
+    # Bob's view is unaffected by Alice's favourite.
+    assert list_monitor_favourites(bob, db) == []
+    assert list_monitors(bob, db)[0].is_favourite is False
+
+    untoggled = toggle_monitor_favourite(monitor.id, alice, db)
+    assert untoggled.is_favourite is False
+    assert list_monitor_favourites(alice, db) == []
+
+
+def test_monitor_favourite_unknown_monitor_is_404():
+    db = _session()
+    actor = Mock(id=1, role="SuperAdmin")
+    with pytest.raises(HTTPException) as excinfo:
+        toggle_monitor_favourite(9999, actor, db)
+    assert excinfo.value.status_code == 404
+
+
+def test_deleting_a_monitor_clears_its_favourites():
+    db = _session()
+    actor = Mock(id=1, role="SuperAdmin")
+    monitor = _monitor()
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+    monitor_id = monitor.id
+    toggle_monitor_favourite(monitor_id, actor, db)
+    assert list_monitor_favourites(actor, db) == [monitor_id]
+
+    delete_monitor(monitor_id, actor, db)
+    assert list_monitor_favourites(actor, db) == []
 
 
 def test_monitor_reads_restore_utc_offsets_from_sqlite():

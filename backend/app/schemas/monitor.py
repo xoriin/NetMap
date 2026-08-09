@@ -309,6 +309,8 @@ class MonitorRead(BaseModel):
     has_tls_ca: bool = False
     has_tls_cert: bool = False
     has_tls_key: bool = False
+    # Per-user, resolved against user_monitor_favourites for the caller.
+    is_favourite: bool = False
     check_interval_seconds: int
     max_retries: int
     enabled: bool

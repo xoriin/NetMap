@@ -55,7 +55,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
+    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -161,6 +161,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0059_device_expected_status", _migrate_device_expected_status)
         _run_migration(conn, inspector, "0060_api_key_display_suffix", _migrate_api_key_display_suffix)
         _run_migration(conn, inspector, "0061_external_ip_tracking", _migrate_external_ip_tracking)
+        _run_migration(conn, inspector, "0062_user_monitor_favourites", _migrate_user_monitor_favourites)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -855,6 +856,24 @@ def _migrate_user_device_favourites(conn, inspector) -> None:
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_user_device_favourites_user_id "
             "ON user_device_favourites (user_id)"
+        ))
+
+
+def _migrate_user_monitor_favourites(conn, inspector) -> None:
+    tables = set(inspector.get_table_names())
+    if "user_monitor_favourites" not in tables:
+        conn.execute(text(
+            """
+            CREATE TABLE user_monitor_favourites (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                monitor_id INTEGER NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, monitor_id)
+            )
+            """
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_user_monitor_favourites_user_id "
+            "ON user_monitor_favourites (user_id)"
         ))
 
 

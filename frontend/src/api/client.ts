@@ -889,6 +889,8 @@ export type Monitor = {
   has_tls_ca: boolean;
   has_tls_cert: boolean;
   has_tls_key: boolean;
+  /** Per-user favourite, surfaced on the Overview favourites panel. */
+  is_favourite: boolean;
   enabled: boolean;
   consecutive_failures: number;
   last_status: MonitorStatus;
@@ -2022,6 +2024,10 @@ export const api = {
     request<Monitor>(`/api/v1/monitors/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
   deleteMonitor: (token: string, id: number) =>
     request<void>(`/api/v1/monitors/${id}`, { method: "DELETE", token }),
+  getMonitorFavourites: (token: string) =>
+    request<number[]>("/api/v1/monitors/favourites", { token }),
+  toggleMonitorFavourite: (token: string, id: number) =>
+    request<Monitor>(`/api/v1/monitors/${id}/favourite`, { method: "PATCH", token }),
   getMonitorHistory: (token: string, id: number, hours = 24) =>
     request<MonitorCheckHistoryPoint[]>(`/api/v1/monitors/${id}/history?hours=${hours}`, { token }),
   // IPAM
