@@ -1,7 +1,8 @@
-export function HealthDonut({ statusCounts, total, pct }: {
+export function HealthDonut({ statusCounts, total, pct, label = "online" }: {
   statusCounts: { online: number; offline: number; warning: number; unknown: number; paused?: number };
   total: number;
   pct: number;
+  label?: string;
 }) {
   const r = 40;
   const circ = 2 * Math.PI * r;
@@ -9,7 +10,7 @@ export function HealthDonut({ statusCounts, total, pct }: {
     { key: "online" as const, color: "#2dba7c" },
     { key: "offline" as const, color: "#e05050" },
     { key: "warning" as const, color: "#f59e0b" },
-    { key: "paused" as const, color: "#9aabb6" },
+    { key: "paused" as const, color: "var(--dash-paused)" },
     { key: "unknown" as const, color: "#94a3b8" },
   ];
   const counts = { paused: 0, ...statusCounts };
@@ -39,7 +40,7 @@ export function HealthDonut({ statusCounts, total, pct }: {
       </svg>
       <div className="dash-donut-center">
         <span className="dash-donut-pct">{pct}%</span>
-        <span className="dash-donut-label">online</span>
+        <span className="dash-donut-label">{label}</span>
       </div>
     </div>
   );

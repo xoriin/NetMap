@@ -7,10 +7,14 @@
  * monitoring fleet table.
  */
 
-export const INV_COL_WIDTHS_KEY = "netmap.inv_col_widths_v1";
+/**
+ * Bumped to v2 when the OS column was added — a persisted v1 array has the
+ * wrong length and would otherwise be silently discarded on every load.
+ */
+export const INV_COL_WIDTHS_KEY = "netmap.inv_col_widths_v2";
 
-/** Device, IP, Device Type, Status, Latency, VLAN / Group, Location. */
-export const INV_COL_COUNT = 7;
+/** Device, IP, Device Type, OS, Status, Latency, VLAN / Group, Location. */
+export const INV_COL_COUNT = 8;
 
 /** The leading checkbox column is fixed and not resizable. */
 export const INV_CHECK_COL_WIDTH = 48;

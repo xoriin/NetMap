@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Expected-offline devices stay healthy everywhere** — Overview and Inventory now use the same expected-vs-observed device health model as Monitoring, so a device you have deliberately marked "expected offline" reads the same on every page instead of green in one place and red in another. It stays healthy in Overview's summary counts, health donut, favourites list, favourite drilldown, and recent rows, and in Inventory's status column, status filter, and stat cards; only an unexpected state raises the red alert. Inventory's stat cards are relabelled **Expected** / **Unexpected** to match Overview, and a status reading "unexpected offline" or "expected offline" now says so rather than just "offline".
+- **Paused devices show a visible status mark** — a paused, retired, or disabled device previously rendered an invisible status dot and a blank status pill on Overview. Both now use a distinct muted, hollow/dashed treatment that reads as "not being probed" rather than "unknown".
+- **Endpoint times convert from UTC to browser-local time** — standalone endpoint and endpoint-history API responses restore the UTC offsets SQLite drops, preventing UTC clock values from being parsed as already-local timestamps.
+- **DHCP service-check devices are alphabetical** — the multi-device picker sorts by display name, hostname, then IP before applying search, making large inventories predictable to scan.
+- **Host discovery returns available DNS names and labels unscanned ports accurately** — nmap reverse lookup is enabled again, while ping sweeps now say "Ports not scanned" instead of implying that a port scan found none. Basic port detection remains the explicit option for probing common TCP ports.
+
+### Added
+- **OS column in Inventory** — the device list shows each device's operating system beside its device type, sortable and searchable, so an OS entered on the Add Device form is visible without opening the device details panel. Devices with no OS recorded sort last. The column is resizable like the others; stored column widths reset once to make room for it.
+
+### Changed
+- **Windows DHCP bridge-mode guidance is explicit** — the service-check form explains that Microsoft DHCP may ignore DHCPINFORM when the Docker bridge `ciaddr` is outside every served scope, and recommends host networking for that setup.
+
 ## [1.5.0] - 2026-08-02
 
 ### Community acknowledgements

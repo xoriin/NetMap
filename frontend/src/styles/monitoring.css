@@ -3912,6 +3912,16 @@ body.theme-dark .nm-alert--warning {
   border-color: var(--nm-border);
 }
 
+/* A paused or disabled device is deliberately not being probed — neutral, and
+   dashed so it is distinguishable from "unknown result" at a glance. */
+.nm-status--paused,
+.nm-status--disabled {
+  background: transparent;
+  color: var(--nm-text-muted);
+  border-color: var(--nm-border);
+  border-style: dashed;
+}
+
 body.theme-dark .nm-status--warning { color: #e8b040; }
 
 /* Modal shell enhancements */

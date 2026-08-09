@@ -23,6 +23,7 @@ import {
 } from "../../api/client";
 import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
+import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
 import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
@@ -55,6 +56,21 @@ function OverviewPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: 
 function readFavouriteSnapshot(key: string): DeviceMonitorSummary[] {
   const snapshot = readJson<OverviewFavouriteSnapshot>(key);
   return Array.isArray(snapshot?.devices) ? snapshot.devices : [];
+}
+
+/**
+ * Overview has no `dash-status-dot--disabled` / `nm-status--disabled` rule, and
+ * disabled devices are excluded from the counts anyway, so they fold into
+ * "unknown" here. Everything else defers to the shared health model.
+ */
+function overviewDeviceHealth(device: Device): "online" | "offline" | "warning" | "unknown" | "paused" {
+  const health = deviceHealth(device);
+  return health === "disabled" ? "unknown" : health;
+}
+
+function overviewDeviceHealthLabel(device: Device): string {
+  if (device.status === "disabled") return "unknown";
+  return deviceHealthLabel(device);
 }
 
 export function OverviewWorkspace({
@@ -156,12 +172,12 @@ export function OverviewWorkspace({
   const statusCounts = useMemo(() => {
     const c = { online: 0, offline: 0, warning: 0, unknown: 0, paused: 0 };
     for (const d of graph.devices) {
-      if (d.status === "disabled") { c.unknown++; continue; }
-      if (d.monitoring_paused || d.lifecycle !== "active") { c.paused++; continue; }
-      const status = d.monitor_status ?? d.status;
+      if (d.status === "disabled") continue;
+      const status = overviewDeviceHealth(d);
       if (status === "online") c.online++;
       else if (status === "offline") c.offline++;
       else if (status === "warning") c.warning++;
+      else if (status === "paused") c.paused++;
       else c.unknown++;
     }
     return c;
@@ -180,11 +196,7 @@ export function OverviewWorkspace({
   );
 
   const offlineDevices = useMemo(
-    () => graph.devices.filter((d) =>
-      d.status !== "disabled"
-      && !d.monitoring_paused
-      && d.lifecycle === "active"
-      && (d.monitor_status ?? d.status) === "offline"),
+    () => graph.devices.filter((d) => overviewDeviceHealth(d) === "offline"),
     [graph.devices],
   );
 
@@ -232,15 +244,7 @@ export function OverviewWorkspace({
   // Reachability is measured against actively monitored devices — paused
   // devices are not probed, so they neither help nor hurt the percentage.
   const monitorableTotal = total - statusCounts.paused;
-  const onlinePct = monitorableTotal > 0 ? Math.round((statusCounts.online / monitorableTotal) * 100) : 0;
-
-  const liveStatusByDeviceId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const d of graph.devices) {
-      m.set(d.id, d.status === "disabled" ? "disabled" : (d.monitor_status ?? d.status));
-    }
-    return m;
-  }, [graph.devices]);
+  const healthyPct = monitorableTotal > 0 ? Math.round((statusCounts.online / monitorableTotal) * 100) : 0;
 
   useEffect(() => {
     setCachedFavouriteDevices(readFavouriteSnapshot(favouriteSnapshotKey));
@@ -336,10 +340,10 @@ export function OverviewWorkspace({
     <section className="dash-layout overview-workspace">
       {/* Stat row */}
       <div className="dash-stats nm-summary-band">
-        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${onlinePct}% reachable`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
-        <DashStat label="Online" value={statusCounts.online} sub="reachable" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
+        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${healthyPct}% healthy`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
+        <DashStat label="Expected" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
         <DashStat
-          label="Offline"
+          label="Unexpected"
           value={statusCounts.offline}
           sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"}
           icon={<IconWifiOff size={20} />}
@@ -362,7 +366,7 @@ export function OverviewWorkspace({
       {offlineDevices.length > 0 && !alertDismissed && (
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
-          <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
+          <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} in an unexpected state</strong>
           {!showOfflineList && offlineDevices.slice(0, 6).map((d: Device) => (
             <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
@@ -381,7 +385,7 @@ export function OverviewWorkspace({
       {showOfflineList && offlineDevices.length > 0 && !alertDismissed && (
         <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Offline devices" meta={`${offlineDevices.length} total`} />
+            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Unexpected device states" meta={`${offlineDevices.length} total`} />
             <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
               View inventory <IconArrowRight size={13} />
             </button>
@@ -436,13 +440,13 @@ export function OverviewWorkspace({
               </div>
             ) : (
               <div className="dash-health-with-donut">
-                <HealthDonut statusCounts={statusCounts} total={total} pct={onlinePct} />
+                <HealthDonut statusCounts={statusCounts} total={total} pct={healthyPct} label="healthy" />
                 <div className="dash-health-bars">
                   {([
-                    { key: "online" as const, label: "Online", color: "var(--dash-green)" },
-                    { key: "offline" as const, label: "Offline", color: "var(--dash-red)" },
+                    { key: "online" as const, label: "Expected", color: "var(--dash-green)" },
+                    { key: "offline" as const, label: "Unexpected", color: "var(--dash-red)" },
                     { key: "warning" as const, label: "Warning", color: "var(--dash-amber)" },
-                    { key: "paused" as const, label: "Paused", color: "#9aabb6" },
+                    { key: "paused" as const, label: "Paused", color: "var(--dash-paused)" },
                     { key: "unknown" as const, label: "Unknown", color: "var(--dash-muted)" },
                   ] as const).map(({ key, label, color }) => {
                     const count = statusCounts[key];
@@ -592,7 +596,7 @@ export function OverviewWorkspace({
             ) : (
               <div className="dash-device-list">
                 {recentDevices.map((d) => {
-                  const liveStatus = d.monitor_status ?? d.status;
+                  const liveStatus = overviewDeviceHealth(d);
                   return (
                     <div key={d.id} className="dash-device-row">
                       <span className={`dash-status-dot dash-status-dot--${liveStatus}`} />
@@ -601,7 +605,7 @@ export function OverviewWorkspace({
                         <span className="dash-device-meta">{d.ip_address}{d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}</span>
                       </div>
                       <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
-                      <span className={`nm-status nm-status--${liveStatus}`}>{liveStatus}</span>
+                      <span className={`nm-status nm-status--${liveStatus}`}>{overviewDeviceHealthLabel(d)}</span>
                     </div>
                   );
                 })}
@@ -680,7 +684,7 @@ export function OverviewWorkspace({
                       }
                     }}
                   >
-                    <MonStatusDot status={liveStatusByDeviceId.get(d.device_id) ?? d.status} />
+                    <MonStatusDot status={d.health_status} />
                     <div className="dash-device-info">
                       <span className="dash-device-name">{d.display_name ?? d.hostname ?? d.ip_address}</span>
                       {d.heartbeat.length > 0 && <HeartbeatBar beats={d.heartbeat} size="sm" />}
@@ -738,9 +742,9 @@ export function OverviewWorkspace({
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedFavouriteId(null); }}
         >
           <div className="mon-hero">
-            <div className={`mon-hero-header mon-hero-header--${selectedFavouriteDevice.status}`}>
+            <div className={`mon-hero-header mon-hero-header--${selectedFavouriteDevice.health_status}`}>
               <div className="mon-hero-header-left">
-                <MonStatusDot status={selectedFavouriteDevice.status} />
+                <MonStatusDot status={selectedFavouriteDevice.health_status} />
                 <div>
                   <div className="mon-hero-name">
                     {selectedFavouriteDevice.display_name ?? selectedFavouriteDevice.hostname ?? selectedFavouriteDevice.ip_address}

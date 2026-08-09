@@ -9,6 +9,9 @@
   --dash-blue: #3b80d0;
   --dash-indigo: #5060c0;
   --dash-muted: #a0b4c0;
+  /* Deliberately not probed. Slightly cooler/darker than --dash-muted so the
+     paused and unknown segments of the health donut stay distinguishable. */
+  --dash-paused: #8494a0;
 }
 
 .dash-layout {
@@ -777,6 +780,13 @@ body.route-overview .dash-panel {
 .dash-status-dot--offline { background: var(--dash-red); }
 .dash-status-dot--warning { background: var(--dash-amber); }
 .dash-status-dot--unknown { background: var(--dash-muted); }
+/* Paused/disabled are not outages — muted, and hollow so they read as
+   "not being probed" rather than "unknown result". */
+.dash-status-dot--paused,
+.dash-status-dot--disabled {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--dash-muted);
+}
 
 .dash-device-info {
   display: flex;

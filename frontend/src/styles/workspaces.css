@@ -1607,7 +1607,7 @@ body.theme-dark .topology-overlay-label {
      the columns stay flexible. See utils/inventoryColumns.ts. */
   grid-template-columns: var(
     --inv-grid-template,
-    48px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 0.75fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+    48px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.75fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
   );
   gap: 12px;
   align-items: center;
@@ -1633,6 +1633,27 @@ body.theme-dark .topology-overlay-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Expected-state labels can be long ("unexpected offline") and .status-pill is
+   width: max-content, so without this it would overflow into the next grid
+   cell. The full text stays available through the pill's title attribute. */
+.inventory-row .status-pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 24px;
+}
+
+/* OS strings are long and free-text ("Windows Server 2025 Datacenter"), so the
+   cell truncates and exposes the full value through its title attribute. */
+.inventory-row-os {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 

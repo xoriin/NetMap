@@ -62,11 +62,61 @@ for (const theme of ["light", "dark"] as const) {
     await expect(groupRows.nth(1).locator(".dash-breakdown-label")).toHaveText("Servers");
     await expect(groupRows.nth(1).locator(".overview-group-fill")).toHaveCSS("--overview-group-color", "#8b5cf6");
 
-    await page.getByRole("button", { name: /Offline/ }).click();
+    // The stat card and panel speak expected-vs-observed health, not raw
+    // reachability — a device that is expected to be offline is not listed.
+    await page.getByRole("button", { name: /Unexpected/ }).click();
     await expect(page.locator(".overview-offline-panel")).toBeVisible();
-    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Offline devices");
+    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Unexpected device states");
   });
 }
+
+// Regression for GitHub #29: a device marked "expected offline" read green in
+// Inventory and Monitoring but red on Overview, because Overview judged raw
+// reachability instead of observed-vs-expected health.
+test("Overview counts an expected-offline device as healthy", async ({ page }) => {
+  await setupCoreMocks(page, null);
+  await setupTopologyMocks(page, [
+    mockDevice({ id: 1, hostname: "gateway-01", device_type: "router", topology_group: "Core", lifecycle: "active" }),
+    mockDevice({
+      id: 2,
+      hostname: "upside-down",
+      device_type: "server",
+      topology_group: "Core",
+      lifecycle: "active",
+      monitor_status: "offline",
+      expected_status: "offline",
+    }),
+  ], []);
+  await page.goto("/overview");
+  await page.locator(".overview-workspace").waitFor({ state: "visible", timeout: 8000 });
+
+  const expectedCard = page.locator(".dash-stat", { hasText: "Expected" }).first();
+  const unexpectedCard = page.locator(".dash-stat", { hasText: "Unexpected" }).first();
+  await expect(expectedCard.locator(".dash-stat-value")).toHaveText("2");
+  await expect(unexpectedCard.locator(".dash-stat-value")).toHaveText("0");
+
+  // No red alert bar, and the device reads as deliberately offline.
+  await expect(page.locator(".dash-alert--overview-bar")).toHaveCount(0);
+  const row = page.locator(".dash-device-row", { hasText: "upside-down" }).first();
+  await expect(row.locator(".nm-status")).toHaveText("expected offline");
+  await expect(row.locator(".dash-status-dot--online")).toHaveCount(1);
+});
+
+// Paused devices must not fall through to an unstyled pill/invisible dot — the
+// dash-status-dot--* and nm-status--* vocabularies had no "paused" variant.
+test("Overview renders a paused device with visible status marks", async ({ page }) => {
+  await setupCoreMocks(page, null);
+  await setupTopologyMocks(page, [
+    mockDevice({ id: 1, hostname: "retired-01", device_type: "server", topology_group: "Core", monitoring_paused: true }),
+  ], []);
+  await page.goto("/overview");
+  await page.locator(".overview-workspace").waitFor({ state: "visible", timeout: 8000 });
+
+  const row = page.locator(".dash-device-row", { hasText: "retired-01" }).first();
+  await expect(row.locator(".nm-status--paused")).toHaveText("paused");
+  await expect(row.locator(".nm-status--paused")).toHaveCSS("border-style", "dashed");
+  await expect(row.locator(".dash-status-dot--paused")).not.toHaveCSS("box-shadow", "none");
+});
 
 test("Overview panels and header controls reflow without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 700, height: 900 });

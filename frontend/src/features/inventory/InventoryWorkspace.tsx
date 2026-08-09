@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./inventory.css";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -17,6 +17,7 @@ import type { AppRoute } from "../../routes";
 import { compareGroupLabels } from "../../utils/sort";
 import { deviceLabel, statusColor, formatDeviceTypeLabel } from "../../utils/format";
 import { isDeviceMonitoringPaused } from "../../utils/device";
+import { deviceHealth, deviceHealthLabel, type DeviceHealth } from "../../utils/deviceHealth";
 import { deviceTypeChipFor, groupChipFor, siteChipFor, resolveEntityColor } from "../../utils/entityColor";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
 import { SwatchSelect, type SwatchOption } from "../../components/SwatchSelect";
@@ -330,6 +331,19 @@ export function InventoryWorkspace({
       error: null,
     } satisfies DeviceLiveStatus];
   })), [graph.devices, livePingEnabled]);
+
+  /**
+   * Inventory's row state, filter, and stat cards all read from here so they
+   * cannot drift from each other or from Overview/Monitoring. Live ping being
+   * switched off counts as paused — nothing is probing the device.
+   */
+  const healthFor = useCallback((device: Device): DeviceHealth => deviceHealth(device, {
+    observed: livePingEnabled
+      ? (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? device.status)
+      : undefined,
+    paused: isDeviceMonitoringPaused(device) || !livePingEnabled,
+  }), [liveStatusByDeviceId, livePingEnabled]);
+
   const filteredDevices = useMemo(() => {
     let devs = selectedGroupFilter === 'all' ? graph.devices : graph.devices.filter((d) => d.topology_group === selectedGroupFilter);
     if (selectedSiteFilter === 'unassigned') {
@@ -344,15 +358,7 @@ export function InventoryWorkspace({
       devs = devs.filter((d) => d.device_type === selectedTypeFilter);
     }
     if (statusFilter !== 'all') {
-      devs = devs.filter((d) => {
-        const live = liveStatusByDeviceId.get(d.id);
-        const s = d.status === "disabled"
-          ? "disabled"
-          : isDeviceMonitoringPaused(d) || !livePingEnabled
-          ? "paused"
-          : (live?.status ?? d.monitor_status ?? d.status);
-        return s === statusFilter;
-      });
+      devs = devs.filter((d) => healthFor(d) === statusFilter);
     }
     if (favouriteFilter) {
       devs = devs.filter((d) => favouriteIds.has(d.id));
@@ -364,11 +370,12 @@ export function InventoryWorkspace({
         d.hostname?.toLowerCase().includes(q) ||
         d.ip_address?.toLowerCase().includes(q) ||
         d.topology_group?.toLowerCase().includes(q) ||
-        d.device_type?.toLowerCase().includes(q)
+        d.device_type?.toLowerCase().includes(q) ||
+        d.os?.toLowerCase().includes(q)
       );
     }
     return devs;
-  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, selectedTypeFilter, statusFilter, favouriteFilter, favouriteIds, inventorySearch, liveStatusByDeviceId, livePingEnabled]);
+  }, [graph.devices, selectedGroupFilter, selectedSiteFilter, selectedTypeFilter, statusFilter, favouriteFilter, favouriteIds, inventorySearch, healthFor]);
 
   const sortedDevices = useMemo(() => {
     return filteredDevices.slice().sort((a, b) => {
@@ -378,12 +385,18 @@ export function InventoryWorkspace({
         case "device": cmp = deviceLabel(a).toLowerCase().localeCompare(deviceLabel(b).toLowerCase()); break;
         case "ip":     cmp = ipSortKey(a.ip_address).localeCompare(ipSortKey(b.ip_address)); break;
         case "type":   cmp = (a.device_type ?? "").toLowerCase().localeCompare((b.device_type ?? "").toLowerCase()); break;
-        case "status": {
-          const sa = liveStatusByDeviceId.get(a.id)?.status ?? a.status;
-          const sb = liveStatusByDeviceId.get(b.id)?.status ?? b.status;
-          cmp = sa.localeCompare(sb);
+        // Devices with no OS recorded sort last in both directions rather than
+        // forming a large empty block at the top.
+        case "os": {
+          const oa = a.os?.trim().toLowerCase() ?? "";
+          const ob = b.os?.trim().toLowerCase() ?? "";
+          if (!oa && !ob) { cmp = 0; break; }
+          if (!oa) return 1;
+          if (!ob) return -1;
+          cmp = oa.localeCompare(ob);
           break;
         }
+        case "status": cmp = healthFor(a).localeCompare(healthFor(b)); break;
         case "latency": {
           const la = monitorSummaryByDeviceId.get(a.id)?.avg_rtt_24h ?? Infinity;
           const lb = monitorSummaryByDeviceId.get(b.id)?.avg_rtt_24h ?? Infinity;
@@ -400,7 +413,7 @@ export function InventoryWorkspace({
       }
       return cmp * dir;
     });
-  }, [filteredDevices, inventorySortKey, inventorySortDir, liveStatusByDeviceId, monitorSummaryByDeviceId, sites]);
+  }, [filteredDevices, inventorySortKey, inventorySortDir, healthFor, monitorSummaryByDeviceId, sites]);
 
   const paginatedDevices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -618,8 +631,10 @@ export function InventoryWorkspace({
   }
 
   const groupCount = new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size;
-  const invOnlineCount = graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "online").length;
-  const invOfflineCount = graph.devices.filter((d) => d.status !== "disabled" && (d.monitor_status ?? d.status) === "offline").length;
+  // Counted against expected state, so an intentionally-offline device is
+  // "Expected", not an outage — and these totals match the status filter.
+  const invOnlineCount = graph.devices.filter((d) => healthFor(d) === "online").length;
+  const invOfflineCount = graph.devices.filter((d) => healthFor(d) === "offline").length;
 
   const selectedDeviceLive = selectedDevice && livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
   const setTopbarNote = useContext(TopbarNoteCtx);
@@ -646,16 +661,16 @@ export function InventoryWorkspace({
           onClick={() => setStatusFilter("all")}
         />
         <DashStat
-          label="Online"
+          label="Expected"
           value={invOnlineCount}
-          sub="reachable"
+          sub="healthy state"
           icon={<IconWifi size={20} />}
           accent="green"
           onClick={() => setStatusFilter((current) => current === "online" ? "all" : "online")}
           active={statusFilter === "online"}
         />
         <DashStat
-          label="Offline"
+          label="Unexpected"
           value={invOfflineCount}
           sub={invOfflineCount > 0 ? "need attention" : "all clear"}
           icon={<IconWifiOff size={20} />}
@@ -827,8 +842,8 @@ export function InventoryWorkspace({
           >
             <div className="inventory-table-header" ref={headerRef}>
               <span>Select</span>
-              {["device", "ip", "type", "status", "latency", "group", "location"].map((key, i) => {
-                const labels = ["Device", "IP", "Device Type", "Status", "Latency", "VLAN / Group", "Location"];
+              {["device", "ip", "type", "os", "status", "latency", "group", "location"].map((key, i) => {
+                const labels = ["Device", "IP", "Device Type", "OS", "Status", "Latency", "VLAN / Group", "Location"];
                 const active = inventorySortKey === key;
                 return (
                   <span key={key} className="inventory-th">
@@ -860,11 +875,13 @@ export function InventoryWorkspace({
               paginatedDevices.map((device) => {
                 const liveStatus = livePingEnabled ? (liveStatusByDeviceId.get(device.id) ?? null) : null;
                 const monitorSummary = monitorSummaryByDeviceId.get(device.id);
-                const status = device.status === "disabled"
-                  ? "disabled"
-                  : isDeviceMonitoringPaused(device) || !livePingEnabled
-                  ? "paused"
-                  : (liveStatus?.status ?? device.monitor_status ?? device.status);
+                const status = healthFor(device);
+                const statusLabel = livePingEnabled
+                  ? deviceHealthLabel(device, {
+                      observed: liveStatus?.status ?? device.monitor_status ?? device.status,
+                      paused: isDeviceMonitoringPaused(device),
+                    })
+                  : status;
                 const groupChip = groupChipFor(device, groups);
                 const siteChip = siteChipFor(device, sites);
                 const typeChip = deviceTypeChipFor(device.device_type, deviceTypeOptions);
@@ -905,7 +922,10 @@ export function InventoryWorkspace({
                         icon={<DeviceTypeIcon type={device.device_type} size={13} />}
                       />
                     </span>
-                    <span className={`status-pill ${status}`}>{status === "paused" ? "paused" : status}</span>
+                    <span className="inventory-row-os" title={device.os ?? undefined}>
+                      {device.os || <span className="dash-dim">—</span>}
+                    </span>
+                    <span className={`status-pill ${status}`} title={statusLabel}>{statusLabel}</span>
                     <span>{monitorSummary?.avg_rtt_24h != null ? `${monitorSummary.avg_rtt_24h.toFixed(1)} ms` : '—'}</span>
                     <span>
                       {groupChip ? (
