@@ -1818,6 +1818,10 @@ export function TopologyWorkspace({
                   left: `${link.x}px`,
                   top: `${link.y}px`,
                   "--topology-link-zoom": Math.max(0.55, Math.min(2, cyZoom)),
+                  // Link labels are HTML overlay nodes, not cytoscape-drawn
+                  // labels, so the toolbar's "Link labels" slider has to reach
+                  // them here — the cytoscape stylesheet only affects export.
+                  "--topology-link-font-size": `${edgeLabelFontSize}px`,
                 } as CSSProperties}
               >
                 <span>{link.label}</span>

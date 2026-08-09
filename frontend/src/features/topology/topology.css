@@ -684,7 +684,9 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
   background: rgba(9, 23, 34, 0.96);
   color: #c4d3df;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28);
-  font-size: 11px;
+  /* Driven by the toolbar's "Link labels" slider via TopologyWorkspace. The
+     fallback matches the old hardcoded size for any label rendered outside it. */
+  font-size: var(--topology-link-font-size, 11px);
   font-weight: 600;
   line-height: 1.1;
   white-space: nowrap;
@@ -692,7 +694,7 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
 
 .topology-link-label strong {
   color: var(--nm-accent);
-  font-size: 11px;
+  font-size: var(--topology-link-font-size, 11px);
   font-weight: 700;
 }
 

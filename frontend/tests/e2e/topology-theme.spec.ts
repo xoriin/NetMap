@@ -246,3 +246,30 @@ test("Topology ribbon wraps cleanly at laptop width without covering the canvas"
   const documentWidths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   expect(documentWidths.scroll).toBeLessThanOrEqual(documentWidths.client);
 });
+
+
+/**
+ * Link labels are HTML overlay elements, not cytoscape-drawn labels, so the
+ * toolbar's "Link labels" slider only reached the cytoscape stylesheet (used
+ * for PNG/PDF export) and never resized what is actually on screen.
+ */
+test("Topology link labels resize with the Link labels slider", async ({ page }) => {
+  await setupThemedTopology(page, "dark");
+
+  const label = page.locator(".topology-link-label").first();
+  await expect(label).toBeVisible();
+  const before = await label.evaluate((el) => getComputedStyle(el).fontSize);
+
+  await page.getByRole("button", { name: "Display" }).click();
+  const slider = page.locator(".toolbar-display-panel label", { hasText: "Link labels" })
+    .locator('input[type="range"]');
+  await expect(slider).toHaveAttribute("min", "10");
+  await expect(slider).toHaveAttribute("max", "24");
+  await slider.fill("24");
+
+  await expect.poll(async () => label.evaluate((el) => getComputedStyle(el).fontSize)).not.toBe(before);
+  await expect(label).toHaveCSS("font-size", "24px");
+  // The speed chip inside the label must scale with it, not stay at 11px.
+  const speed = label.locator("strong");
+  if (await speed.count()) await expect(speed).toHaveCSS("font-size", "24px");
+});
