@@ -18,7 +18,11 @@ from app.services.api_keys.throttle import (
 from app.services.audit.service import write_audit
 from app.services.rbac.permissions import has_permission
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="BearerAuth",
+    description="A NetMap access token. External integrations should normally use ApiKeyAuth.",
+)
 
 API_KEY_HEADER = "x-api-key"
 
@@ -111,21 +115,29 @@ def _check(user: User, permission: str, detail: str) -> User:
 
 
 def require_topology_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return _check(current_user, "topology_write", "Topology write access is not permitted for your role")
+    return _check(
+        current_user, "topology_write", "Topology write access is not permitted for your role"
+    )
 
 
 def require_super_admin(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This action requires SuperAdmin")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="This action requires SuperAdmin"
+        )
     return current_user
 
 
 def require_security_view(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return _check(current_user, "security_view", "Security event access is not permitted for your role")
+    return _check(
+        current_user, "security_view", "Security event access is not permitted for your role"
+    )
 
 
 def require_tools_passive(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return _check(current_user, "tools_passive", "Network tools access is not permitted for your role")
+    return _check(
+        current_user, "tools_passive", "Network tools access is not permitted for your role"
+    )
 
 
 def require_tools_active(current_user: Annotated[User, Depends(get_current_user)]) -> User:
@@ -133,11 +145,15 @@ def require_tools_active(current_user: Annotated[User, Depends(get_current_user)
 
 
 def require_inventory_export(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return _check(current_user, "inventory_export", "Inventory export is not permitted for your role")
+    return _check(
+        current_user, "inventory_export", "Inventory export is not permitted for your role"
+    )
 
 
 def require_firewall_export(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return _check(current_user, "firewall_export", "Firewall log export is not permitted for your role")
+    return _check(
+        current_user, "firewall_export", "Firewall log export is not permitted for your role"
+    )
 
 
 def require_report_export(current_user: Annotated[User, Depends(get_current_user)]) -> User:

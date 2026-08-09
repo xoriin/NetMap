@@ -18,6 +18,12 @@ frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
 
+# Swagger UI vendor assets — copied from swagger-ui-dist by
+# scripts/copy-swagger-ui.mjs on predev/build, never committed.
+frontend/public/swagger-ui/swagger-ui.css
+frontend/public/swagger-ui/swagger-ui-bundle.js
+frontend/public/swagger-ui/swagger-ui-standalone-preset.js
+
 # IDE / OS
 .DS_Store
 *.swp

@@ -4,11 +4,17 @@ import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from sqlalchemy import select
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.router import api_router
+from app.api_docs import (
+    API_DESCRIPTION,
+    OPENAPI_TAGS,
+    app_version,
+    configure_openapi,
+    swagger_ui_html,
+)
 from app.core.config import settings
 from app.core.startup import validate_runtime_configuration
 from app.db.firewall_session import init_firewall_db, rebuild_firewall_fts_if_needed
@@ -24,8 +30,11 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     app = FastAPI(
         title="NetMap API",
-        version="0.1.0",
-        docs_url="/api/docs",
+        version=app_version(),
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        docs_url=None,
+        redoc_url=None,
         openapi_url="/api/openapi.json",
     )
 
@@ -43,25 +52,14 @@ def create_app() -> FastAPI:
         app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(api_router, prefix="/api/v1")
+    configure_openapi(app)
 
-    def custom_openapi() -> dict:
-        if app.openapi_schema:
-            return app.openapi_schema
-        schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            routes=app.routes,
-        )
-        schema.setdefault("components", {}).setdefault("securitySchemes", {})["ApiKeyAuth"] = {
-            "type": "apiKey",
-            "in": "header",
-            "name": "X-API-Key",
-        }
-        schema["security"] = [{"ApiKeyAuth": []}, {}]
-        app.openapi_schema = schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi  # type: ignore[method-assign]
+    app.add_api_route(
+        "/api/docs",
+        swagger_ui_html,
+        methods=["GET"],
+        include_in_schema=False,
+    )
 
     @app.get("/api/health", tags=["health"])
     async def root_health_check() -> dict[str, str]:
@@ -76,6 +74,7 @@ def create_app() -> FastAPI:
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
         from app.services.rbac.permissions import load_from_db
+
         validate_runtime_configuration()
         init_db()
         init_firewall_db()
@@ -99,6 +98,7 @@ def create_app() -> FastAPI:
         from app.services.exports.backup_schedule import backup_schedule_service
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
+
         syslog_service.stop()
         alert_monitor.stop()
         scheduled_discovery.stop()
