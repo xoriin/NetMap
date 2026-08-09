@@ -460,6 +460,15 @@ export function MonitoringWorkspace({
     [devices, inventoryMetadataById],
   );
 
+  const portPickerDevices = useMemo(
+    () => [...devices].sort((a, b) => {
+      const aLabel = a.display_name ?? a.hostname ?? a.ip_address;
+      const bLabel = b.display_name ?? b.hostname ?? b.ip_address;
+      return aLabel.localeCompare(bLabel, undefined, { numeric: true, sensitivity: "base" });
+    }),
+    [devices],
+  );
+
   const selectedDevice = displayDevices.find((d) => d.device_id === selectedId) ?? null;
 
   const groupOptions = useMemo(
@@ -1234,7 +1243,7 @@ export function MonitoringWorkspace({
                   </label>
                   {portFormProtocol === "dhcp" && (
                     <div className="nm-alert nm-alert--info" role="note">
-                      Sends a DHCPINFORM request to UDP/67 and requires a matching DHCPACK. It never requests or reserves a lease and must target a specific IPv4 device.
+                      Sends a DHCPINFORM request to UDP/67 and requires a matching DHCPACK. It never requests or reserves a lease and must target a specific IPv4 device. Windows DHCP normally requires NetMap's source address to belong to a served scope; use host networking when a Docker bridge address is outside those scopes.
                     </div>
                   )}
                   {(portFormProtocol === "http" || portFormProtocol === "https") && (
@@ -1332,7 +1341,7 @@ export function MonitoringWorkspace({
                   </label>
                   {portFormScope === "device" && (() => {
                     const q = portDeviceSearch.toLowerCase();
-                    const filtered = devices.filter((d) =>
+                    const filtered = portPickerDevices.filter((d) =>
                       !portDeviceSearch ||
                       (d.display_name ?? "").toLowerCase().includes(q) ||
                       (d.hostname ?? "").toLowerCase().includes(q) ||

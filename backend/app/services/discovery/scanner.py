@@ -127,7 +127,6 @@ def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost
     command = [
         "sudo",
         nmap_path,
-        "-n",
         "-oX",
         "-",
         "--max-retries",

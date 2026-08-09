@@ -254,6 +254,41 @@ def test_monitor_history_and_uptime_computation():
     assert len(history) == 3
 
 
+def test_monitor_reads_restore_utc_offsets_from_sqlite():
+    db = _session()
+    actor = Mock(id=1, role="SuperAdmin")
+    naive_utc = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
+    monitor = _monitor(
+        last_checked_at=naive_utc,
+        last_cert_expires_at=naive_utc + timedelta(days=14),
+        created_at=naive_utc,
+        updated_at=naive_utc,
+    )
+    db.add(monitor)
+    db.commit()
+    db.refresh(monitor)
+    db.add(MonitorCheckHistory(
+        monitor_id=monitor.id,
+        checked_at=naive_utc,
+        status="online",
+        cert_expires_at=naive_utc + timedelta(days=14),
+    ))
+    db.commit()
+
+    listed = list_monitors(actor, db)[0]
+    history = get_monitor_history(monitor.id, actor, db, hours=720)
+
+    assert listed.last_checked_at is not None
+    assert listed.last_checked_at.utcoffset() == timedelta(0)
+    assert listed.last_cert_expires_at is not None
+    assert listed.last_cert_expires_at.utcoffset() == timedelta(0)
+    assert listed.created_at.utcoffset() == timedelta(0)
+    assert listed.updated_at.utcoffset() == timedelta(0)
+    assert history[0].checked_at.utcoffset() == timedelta(0)
+    assert history[0].cert_expires_at is not None
+    assert history[0].cert_expires_at.utcoffset() == timedelta(0)
+
+
 def test_monitor_list_heartbeat_is_ordered_and_bounded():
     db = _session()
     actor = Mock(id=1, role="SuperAdmin")

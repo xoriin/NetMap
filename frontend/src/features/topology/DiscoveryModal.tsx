@@ -240,9 +240,14 @@ export function DiscoveryModal({
           <label>
             Scan type
             <select value={scanType} onChange={(event) => setScanType(event.target.value as DiscoveryScanType)}>
-              <option value="ping">Ping sweep</option>
+              <option value="ping">Host discovery (ping sweep)</option>
               <option value="basic_ports">Basic port detection</option>
             </select>
+            <span className="dash-panel-meta">
+              {scanType === "ping"
+                ? "Finds online hosts and resolves available hostnames; it does not scan ports."
+                : "Finds hosts and scans their 20 most common TCP ports."}
+            </span>
           </label>
           <div className="scan-group-row">
             <label className="scan-group-select-label">
@@ -440,7 +445,11 @@ export function DiscoveryModal({
                         <span className="dash-panel-meta"> · {host.proposed_updates.map((field) => proposedUpdateLabels[field] ?? field).join(", ")}</span>
                       )}
                       <span className="dash-panel-meta">
-                        {" · "}{host.open_ports.length ? host.open_ports.join(", ") : "No open ports"}
+                        {" · "}{scan.scan_type === "ping"
+                          ? "Ports not scanned"
+                          : host.open_ports.length
+                          ? host.open_ports.join(", ")
+                          : "No open ports found"}
                       </span>
                     </span>
                   </label>

@@ -108,7 +108,7 @@ class DiscoveryScannerTests(unittest.TestCase):
         _, kwargs = mock_run.call_args
         self.assertEqual(kwargs["timeout"], 190)
         command = mock_run.call_args.args[0]
-        self.assertIn("-n", command)
+        self.assertNotIn("-n", command)
         self.assertIn("-T3", command)
         self.assertIn("--host-timeout", command)
         self.assertIn("12s", command)

@@ -22,6 +22,20 @@ from app.core.secrets import encrypt_secret
 router = APIRouter(prefix="/monitors", tags=["monitors"])
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _as_utc_required(value: datetime) -> datetime:
+    normalized = _as_utc(value)
+    assert normalized is not None
+    return normalized
+
+
 def _require_write(current_user: User) -> None:
     if current_user.role not in ("SuperAdmin", "NetworkAdmin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
@@ -90,6 +104,13 @@ def _build_reads(db: Session, monitors: list[Monitor]) -> list[MonitorRead]:
     reads = []
     for monitor in monitors:
         read = MonitorRead.model_validate(monitor)
+        # SQLite drops timezone information even for DateTime(timezone=True).
+        # Restore the UTC offset before Pydantic serializes these values so the
+        # browser converts them to local time instead of treating UTC as local.
+        read.last_checked_at = _as_utc(read.last_checked_at)
+        read.last_cert_expires_at = _as_utc(read.last_cert_expires_at)
+        read.created_at = _as_utc_required(read.created_at)
+        read.updated_at = _as_utc_required(read.updated_at)
         try:
             read.tags = json.loads(monitor.tags_json or "[]")
         except (TypeError, ValueError):
@@ -258,4 +279,8 @@ def get_monitor_history(
         .order_by(MonitorCheckHistory.checked_at.asc())
         .limit(2000),
     ).all()
-    return [MonitorCheckHistoryRead.model_validate(row) for row in rows]
+    reads = [MonitorCheckHistoryRead.model_validate(row) for row in rows]
+    for read in reads:
+        read.checked_at = _as_utc_required(read.checked_at)
+        read.cert_expires_at = _as_utc(read.cert_expires_at)
+    return reads
