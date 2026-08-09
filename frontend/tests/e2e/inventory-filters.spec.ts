@@ -237,3 +237,44 @@ test.describe("Inventory approved workspace hierarchy", () => {
     await expect(page.locator(".inventory-row").first()).toHaveCSS("border-bottom-style", "solid");
   });
 });
+
+
+/**
+ * The status pill is an inline-flex row whose coloured dot is a ::before flex
+ * item. Truncating long expected-state labels by switching the pill to
+ * inline-block drops that dot onto its own line above the text, which shipped
+ * briefly and looked broken across the whole Inventory table.
+ */
+test.describe("Inventory status pill", () => {
+  test("keeps the status dot inline with its label", async ({ page }) => {
+    const devices = [
+      mockDevice({
+        id: 1,
+        hostname: "deliberately-down",
+        ip_address: "192.168.1.9",
+        monitor_status: "offline",
+        expected_status: "online",
+      }),
+    ];
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, devices);
+    await setupInventoryMocks(page, devices);
+    await page.goto("/inventory");
+
+    const pill = page.locator(".inventory-row .status-pill").first();
+    await expect(pill).toBeVisible();
+    // Grid items are blockified, so inline-flex computes to flex — the point
+    // is that it stays a flex container and the ::before dot stays in-line.
+    await expect(pill).toHaveCSS("display", "flex");
+
+    // The dot sits to the left of the text on the same line, not above it.
+    const pillBox = await pill.boundingBox();
+    const textBox = await pill.locator(".status-pill-text").boundingBox();
+    expect(pillBox).not.toBeNull();
+    expect(textBox).not.toBeNull();
+    // A wrapped dot would push the text box well below the pill's top edge.
+    expect(textBox!.height).toBeLessThanOrEqual(pillBox!.height);
+    expect(textBox!.y).toBeGreaterThanOrEqual(pillBox!.y);
+    expect(pillBox!.height).toBeLessThanOrEqual(32);
+  });
+});

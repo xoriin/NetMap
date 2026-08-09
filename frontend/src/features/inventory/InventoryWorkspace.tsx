@@ -632,7 +632,7 @@ export function InventoryWorkspace({
 
   const groupCount = new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size;
   // Counted against expected state, so an intentionally-offline device is
-  // "Expected", not an outage — and these totals match the status filter.
+  // not an outage — and these totals match the status filter.
   const invOnlineCount = graph.devices.filter((d) => healthFor(d) === "online").length;
   const invOfflineCount = graph.devices.filter((d) => healthFor(d) === "offline").length;
 
@@ -661,16 +661,16 @@ export function InventoryWorkspace({
           onClick={() => setStatusFilter("all")}
         />
         <DashStat
-          label="Expected"
+          label="Online"
           value={invOnlineCount}
-          sub="healthy state"
+          sub="reachable"
           icon={<IconWifi size={20} />}
           accent="green"
           onClick={() => setStatusFilter((current) => current === "online" ? "all" : "online")}
           active={statusFilter === "online"}
         />
         <DashStat
-          label="Unexpected"
+          label="Offline"
           value={invOfflineCount}
           sub={invOfflineCount > 0 ? "need attention" : "all clear"}
           icon={<IconWifiOff size={20} />}
@@ -925,7 +925,9 @@ export function InventoryWorkspace({
                     <span className="inventory-row-os" title={device.os ?? undefined}>
                       {device.os || <span className="dash-dim">—</span>}
                     </span>
-                    <span className={`status-pill ${status}`} title={statusLabel}>{statusLabel}</span>
+                    <span className={`status-pill ${status}`} title={statusLabel}>
+                      <span className="status-pill-text">{statusLabel}</span>
+                    </span>
                     <span>{monitorSummary?.avg_rtt_24h != null ? `${monitorSummary.avg_rtt_24h.toFixed(1)} ms` : '—'}</span>
                     <span>
                       {groupChip ? (

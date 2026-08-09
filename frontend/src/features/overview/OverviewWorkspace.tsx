@@ -154,6 +154,34 @@ export function OverviewWorkspace({
     () => readFavouriteSnapshot(favouriteSnapshotKey),
   );
 
+  // Favourited standalone endpoints (GitHub #31). Kept as its own query rather
+  // than folded into monDevices: endpoints are not inventory devices and must
+  // never affect the device counts above.
+  const monitorsQuery = useApiQuery(
+    accessToken ? () => api.listMonitors(accessToken) : null,
+    [accessToken],
+  );
+  const favouriteMonitors = useMemo(
+    () => (monitorsQuery.data ?? []).filter((monitor) => monitor.is_favourite),
+    [monitorsQuery.data],
+  );
+  async function unfavouriteMonitor(monitorId: number) {
+    if (!accessToken) return;
+    try {
+      await api.toggleMonitorFavourite(accessToken, monitorId);
+    } finally {
+      // Refetch either way — on failure this restores the true server state.
+      void monitorsQuery.reload({ silent: true });
+    }
+  }
+
+  const visibleFavouriteMonitors = useMemo(() => {
+    const q = favouriteSearch.trim().toLowerCase();
+    if (!q) return favouriteMonitors;
+    return favouriteMonitors.filter((monitor) =>
+      monitor.name.toLowerCase().includes(q) || monitor.url.toLowerCase().includes(q));
+  }, [favouriteMonitors, favouriteSearch]);
+
   const createDevice = useApiMutation(
     (payload: DevicePayload) => api.createDevice(accessToken!, payload),
     { successMessage: "Device created", errorToast: false },
@@ -341,9 +369,9 @@ export function OverviewWorkspace({
       {/* Stat row */}
       <div className="dash-stats nm-summary-band">
         <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${healthyPct}% healthy`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
-        <DashStat label="Expected" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
+        <DashStat label="Online" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
         <DashStat
-          label="Unexpected"
+          label="Offline"
           value={statusCounts.offline}
           sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"}
           icon={<IconWifiOff size={20} />}
@@ -366,7 +394,7 @@ export function OverviewWorkspace({
       {offlineDevices.length > 0 && !alertDismissed && (
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
-          <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} in an unexpected state</strong>
+          <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
           {!showOfflineList && offlineDevices.slice(0, 6).map((d: Device) => (
             <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
@@ -385,7 +413,7 @@ export function OverviewWorkspace({
       {showOfflineList && offlineDevices.length > 0 && !alertDismissed && (
         <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Unexpected device states" meta={`${offlineDevices.length} total`} />
+            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Offline devices" meta={`${offlineDevices.length} total`} />
             <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
               View inventory <IconArrowRight size={13} />
             </button>
@@ -443,8 +471,8 @@ export function OverviewWorkspace({
                 <HealthDonut statusCounts={statusCounts} total={total} pct={healthyPct} label="healthy" />
                 <div className="dash-health-bars">
                   {([
-                    { key: "online" as const, label: "Expected", color: "var(--dash-green)" },
-                    { key: "offline" as const, label: "Unexpected", color: "var(--dash-red)" },
+                    { key: "online" as const, label: "Online", color: "var(--dash-green)" },
+                    { key: "offline" as const, label: "Offline", color: "var(--dash-red)" },
                     { key: "warning" as const, label: "Warning", color: "var(--dash-amber)" },
                     { key: "paused" as const, label: "Paused", color: "var(--dash-paused)" },
                     { key: "unknown" as const, label: "Unknown", color: "var(--dash-muted)" },
@@ -636,7 +664,7 @@ export function OverviewWorkspace({
             </div>
           </div>
           <div className="dash-panel-body">
-            {monLoading && favouriteDevices.length === 0 ? (
+            {monLoading && favouriteDevices.length === 0 && favouriteMonitors.length === 0 ? (
               <div className="dash-device-list">
                 {[1, 2, 3].map((n) => (
                   <div key={n} className="dash-device-row" style={{ gap: 10 }}>
@@ -649,24 +677,24 @@ export function OverviewWorkspace({
                   </div>
                 ))}
               </div>
-            ) : monDevices.length === 0 && cachedFavouriteDevices.length === 0 ? (
+            ) : monDevices.length === 0 && cachedFavouriteDevices.length === 0 && favouriteMonitors.length === 0 ? (
               <div className="dash-empty-state">
                 <div className="dash-empty-icon"><IconWifi size={22} /></div>
                 <div className="dash-empty-title">No monitoring data yet</div>
                 <div className="dash-empty-desc">The background monitor polls on the configured live ping interval.</div>
               </div>
-            ) : favouriteDevices.length === 0 ? (
+            ) : favouriteDevices.length === 0 && favouriteMonitors.length === 0 ? (
               <div className="dash-empty-state">
                 <div className="dash-empty-icon"><IconShieldCheck size={22} /></div>
                 <div className="dash-empty-title">No favourites yet</div>
-                <div className="dash-empty-desc">Star devices in monitoring or inventory to pin them here.</div>
+                <div className="dash-empty-desc">Star devices or endpoints in monitoring to pin them here.</div>
                 <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/monitoring")}>Go to Monitoring</button>
               </div>
-            ) : visibleFavouriteDevices.length === 0 ? (
+            ) : visibleFavouriteDevices.length === 0 && visibleFavouriteMonitors.length === 0 ? (
               <div className="dash-empty-state">
                 <div className="dash-empty-icon"><Search size={22} /></div>
                 <div className="dash-empty-title">No favourites found</div>
-                <div className="dash-empty-desc">Try a different device name, host, IP, or status.</div>
+                <div className="dash-empty-desc">Try a different device name, host, IP, endpoint, or status.</div>
               </div>
             ) : (
               <div className="dash-device-list">
@@ -704,6 +732,48 @@ export function OverviewWorkspace({
                     </button>
                   </div>
                 ))}
+
+                {visibleFavouriteMonitors.length > 0 && (
+                  <>
+                    {visibleFavouriteDevices.length > 0 && (
+                      <div className="dash-fav-divider">Endpoints</div>
+                    )}
+                    {visibleFavouriteMonitors.map((monitor) => (
+                      <div
+                        key={`monitor-${monitor.id}`}
+                        role="button"
+                        tabIndex={0}
+                        className="dash-device-row dash-device-row--favourite dash-device-row--action"
+                        onClick={() => onNavigate("/monitoring")}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onNavigate("/monitoring");
+                          }
+                        }}
+                      >
+                        <MonStatusDot status={monitor.enabled ? monitor.last_status ?? "unknown" : "paused"} />
+                        <div className="dash-device-info">
+                          <span className="dash-device-name">{monitor.name}</span>
+                          {monitor.heartbeat.length > 0 && <HeartbeatBar beats={monitor.heartbeat} size="sm" />}
+                        </div>
+                        <UptimeBadge value={monitor.uptime_24h != null ? monitor.uptime_24h / 100 : null} />
+                        <span className="dash-fav-rtt dash-panel-meta">
+                          {monitor.avg_response_time_24h != null ? `${monitor.avg_response_time_24h.toFixed(1)} ms` : "—"}
+                        </span>
+                        <button
+                          type="button"
+                          className="fav-btn fav-btn--active"
+                          aria-label="Remove from favourites"
+                          title="Remove from favourites"
+                          onClick={(e) => { e.stopPropagation(); void unfavouriteMonitor(monitor.id); }}
+                        >
+                          <Star size={15} fill="currentColor" />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -1607,7 +1607,10 @@ body.theme-dark .topology-overlay-label {
      the columns stay flexible. See utils/inventoryColumns.ts. */
   grid-template-columns: var(
     --inv-grid-template,
-    48px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.75fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+    /* Select, Device, IP, Device type, OS, Status, Latency, VLAN/Group, Location.
+       Status carries the widest label ("expected offline") so it gets more room
+       than the columns either side of it. */
+    48px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.95fr) minmax(0, 1.45fr) minmax(0, 0.6fr) minmax(0, 0.95fr) minmax(0, 0.95fr)
   );
   gap: 12px;
   align-items: center;
@@ -1636,15 +1639,20 @@ body.theme-dark .topology-overlay-label {
 }
 
 /* Expected-state labels can be long ("unexpected offline") and .status-pill is
-   width: max-content, so without this it would overflow into the next grid
-   cell. The full text stays available through the pill's title attribute. */
+   width: max-content, so cap it to the grid cell. Truncation must happen on the
+   inner text span, never on .status-pill itself — the pill is an inline-flex
+   row whose status dot is a ::before flex item, and switching it to
+   inline-block drops the dot onto its own line. */
 .inventory-row .status-pill {
   max-width: 100%;
+  min-width: 0;
+}
+
+.status-pill-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: inline-block;
-  line-height: 24px;
+  min-width: 0;
 }
 
 /* OS strings are long and free-text ("Windows Server 2025 Datacenter"), so the

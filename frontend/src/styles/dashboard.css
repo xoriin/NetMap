@@ -748,6 +748,27 @@ body.route-overview .dash-panel {
   text-align: center;
 }
 
+/* Separates favourited endpoints from favourited devices — they are different
+   entity types, so the list is grouped rather than interleaved. */
+.dash-fav-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--nm-text-muted);
+}
+
+.dash-fav-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--nm-border);
+}
+
 .dash-fav-rtt {
   justify-self: end;
   min-width: 62px;

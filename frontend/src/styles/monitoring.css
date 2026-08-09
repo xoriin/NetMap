@@ -4347,10 +4347,9 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
 .monitors-table-wrap {
   width: 100%;
   min-width: 0;
-  /* Clearance for the status dot's glow lives on the cell itself (see
-     td.monitors-dot-cell below), not here — padding on the wrapper insets
-     the whole table, including the header row's background bar, leaving a
-     gap before it reaches the wrapper's left edge. */
+  /* Never put padding here — it insets the whole table, including the header
+     row's background bar, leaving a gap before it reaches the wrapper's left
+     edge. Per-cell padding lives on the leading columns instead. */
 }
 .monitors-panel-content--embedded .monitors-table-wrap {
   height: 100%;
@@ -4360,7 +4359,11 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
   width: max(100%, 1510px);
   table-layout: fixed;
 }
-.monitors-table .monitors-col-status { width: 56px; }
+/* Favourite + status lead the row in the same widths as the Devices table
+   (MON_FAVOURITE_COL_WIDTH / MON_STATUS_COL_WIDTH), so the two tables line up
+   when the Monitoring page switches between its Devices and Monitors tabs. */
+.monitors-table .monitors-col-fav { width: 90px; }
+.monitors-table .monitors-col-status { width: 50px; }
 .monitors-table .monitors-col-name { width: 220px; }
 .monitors-table .monitors-col-heartbeat { width: 190px; }
 .monitors-table .monitors-col-url { width: auto; }
@@ -4386,13 +4389,16 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
 /* Higher specificity than components.css's later-loaded `.nm-table .nm-table-num`
    (equal 2-class specificity would otherwise lose the cascade tie to import order):
    the extra `table` type selector guarantees these win regardless of file order. */
-.monitors-table-wrap table.nm-table td.monitors-dot-cell {
-  /* Left-align with explicit clearance rather than center — centering left the
-     pulsing glow too close to the cell edge and it kept clipping. All the
-     clearance lives here now (not on the wrapper) so the header bar still
-     reaches the table's true left edge. */
-  text-align: left;
-  padding-left: 40px;
+/* Favourite + status lead the row exactly as they do in the Devices fleet
+   table, so the two tabs read as one table. The dot is centered here rather
+   than inset: the old 40px left-inset existed only because the dot used to be
+   the first column and its pulsing glow clipped against the table edge — the
+   favourite column now provides that clearance. */
+.monitors-table-wrap table.nm-table th:nth-child(-n + 2),
+.monitors-table-wrap table.nm-table td:nth-child(-n + 2) {
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 .monitors-table-wrap table.nm-table .nm-table-num {
   text-align: center;

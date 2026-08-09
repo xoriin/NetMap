@@ -64,9 +64,9 @@ for (const theme of ["light", "dark"] as const) {
 
     // The stat card and panel speak expected-vs-observed health, not raw
     // reachability — a device that is expected to be offline is not listed.
-    await page.getByRole("button", { name: /Unexpected/ }).click();
+    await page.getByRole("button", { name: /Offline/ }).click();
     await expect(page.locator(".overview-offline-panel")).toBeVisible();
-    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Unexpected device states");
+    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Offline devices");
   });
 }
 
@@ -90,10 +90,10 @@ test("Overview counts an expected-offline device as healthy", async ({ page }) =
   await page.goto("/overview");
   await page.locator(".overview-workspace").waitFor({ state: "visible", timeout: 8000 });
 
-  const expectedCard = page.locator(".dash-stat", { hasText: "Expected" }).first();
-  const unexpectedCard = page.locator(".dash-stat", { hasText: "Unexpected" }).first();
-  await expect(expectedCard.locator(".dash-stat-value")).toHaveText("2");
-  await expect(unexpectedCard.locator(".dash-stat-value")).toHaveText("0");
+  const onlineCard = page.locator(".dash-stat", { hasText: "Online" }).first();
+  const offlineCard = page.locator(".dash-stat", { hasText: "Offline" }).first();
+  await expect(onlineCard.locator(".dash-stat-value")).toHaveText("2");
+  await expect(offlineCard.locator(".dash-stat-value")).toHaveText("0");
 
   // No red alert bar, and the device reads as deliberately offline.
   await expect(page.locator(".dash-alert--overview-bar")).toHaveCount(0);
@@ -158,4 +158,38 @@ test("MOTD and summary cards share the canonical workspace anchor", async ({ pag
   expect(Math.abs((motdBox!.x + motdBox!.width) - (summaryBox!.x + summaryBox!.width))).toBeLessThanOrEqual(1);
   expect(Math.abs(motdBox!.x - workspaceBox!.x - 24)).toBeLessThanOrEqual(1);
   expect(Math.abs(summaryBox!.y - (motdBox!.y + motdBox!.height) - 16)).toBeLessThanOrEqual(1);
+});
+
+// GitHub #31: favourited standalone endpoints appear on Overview alongside
+// favourited devices, without being counted as inventory devices.
+test("Overview lists favourited endpoints in the favourites panel", async ({ page }) => {
+  await setupCoreMocks(page, null);
+  await setupTopologyMocks(page, [
+    mockDevice({ id: 1, hostname: "gateway-01", device_type: "router", topology_group: "Core", lifecycle: "active" }),
+  ], []);
+  await page.route("**/api/v1/monitors", (route) => route.fulfill({
+    json: [
+      {
+        id: 7, name: "Status page", url: "https://status.example.com/", enabled: true,
+        last_status: "online", uptime_24h: 99.9, uptime_7d: 99.5, avg_response_time_24h: 42.5,
+        heartbeat: ["online", "online", "online"], is_favourite: true,
+      },
+      {
+        id: 8, name: "Unstarred API", url: "https://api.example.com/", enabled: true,
+        last_status: "offline", uptime_24h: 10, uptime_7d: 20, avg_response_time_24h: null,
+        heartbeat: [], is_favourite: false,
+      },
+    ],
+  }));
+  await page.goto("/overview");
+  await page.locator(".overview-workspace").waitFor({ state: "visible", timeout: 8000 });
+
+  const favPanel = page.locator(".overview-panel", { hasText: "Favourites" }).first();
+  await expect(favPanel.getByText("Status page")).toBeVisible();
+  await expect(favPanel.getByText("Unstarred API")).toHaveCount(0);
+  await expect(favPanel.locator(".dash-fav-rtt").filter({ hasText: "42.5 ms" })).toBeVisible();
+
+  // The endpoint must not inflate the device stat cards.
+  const totalCard = page.locator(".dash-stat", { hasText: "Total devices" }).first();
+  await expect(totalCard.locator(".dash-stat-value")).toHaveText("1");
 });

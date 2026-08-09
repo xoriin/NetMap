@@ -50,13 +50,13 @@ export function deviceHealth(device: HealthInput, options: DeviceHealthOptions =
 }
 
 /**
- * Human-readable state. A healthy-but-offline device must not just say
- * "online" — that reads as a lie next to a device that is genuinely reachable.
+ * Human-readable state. A device that is deliberately offline says so — it is
+ * healthy/green, and "online" would read as a lie next to a genuinely
+ * reachable device. Everything else uses the plain status word.
  */
 export function deviceHealthLabel(device: HealthInput, options: DeviceHealthOptions = {}): string {
   const health = deviceHealth(device, options);
-  const observed = options.observed ?? device.monitor_status ?? device.status;
   if (health === "online" && device.expected_status === "offline") return "expected offline";
-  if (health === "offline") return `unexpected ${observed}`;
+  if (health === "offline") return options.observed ?? device.monitor_status ?? device.status;
   return health;
 }
