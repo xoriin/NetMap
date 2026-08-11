@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.topology import delete_device, get_device, list_devices, topology_graph
+from app.api.v1.topology import create_device, delete_device, get_device, list_devices, topology_graph
 from app.db.session import Base
 from app.models.audit_log import AuditLog
 from app.models.device import Device
@@ -15,6 +15,7 @@ from app.models.site import Site
 from app.models.topology_group import TopologyGroup
 from app.models.user import User, UserRole
 from app.models.user_device_favourite import UserDeviceFavourite
+from app.schemas.topology import DeviceCreate
 
 
 def _session():
@@ -72,6 +73,22 @@ def test_device_reads_restore_utc_offsets_from_sqlite():
         assert result.last_monitored_at.utcoffset() == timedelta(0)
         assert result.created_at.utcoffset() == timedelta(0)
         assert result.updated_at.utcoffset() == timedelta(0)
+
+
+def test_creating_device_persists_os_for_overview_and_inventory():
+    db = _session()
+    actor = _user("admin")
+    db.add(actor)
+    db.commit()
+
+    created = create_device(
+        DeviceCreate(hostname="os-host", ip_address="192.168.1.20", os="Windows Server 2025"),
+        actor,
+        db,
+    )
+
+    assert created.os == "Windows Server 2025"
+    assert db.get(Device, created.id).os == "Windows Server 2025"
 
 
 def test_deleting_device_clears_every_users_favourites_and_relationships():

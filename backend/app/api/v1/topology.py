@@ -796,6 +796,7 @@ def create_device(
         ip_address=payload.ip_address or "",
         mac_address=payload.mac_address,
         vendor=payload.vendor,
+        os=payload.os,
         device_type=payload.device_type,
         status=payload.status,
         lifecycle=payload.lifecycle,
