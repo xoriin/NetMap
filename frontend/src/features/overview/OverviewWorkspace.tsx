@@ -734,11 +734,7 @@ export function OverviewWorkspace({
                 ))}
 
                 {visibleFavouriteMonitors.length > 0 && (
-                  <>
-                    {visibleFavouriteDevices.length > 0 && (
-                      <div className="dash-fav-divider">Endpoints</div>
-                    )}
-                    {visibleFavouriteMonitors.map((monitor) => (
+                  visibleFavouriteMonitors.map((monitor) => (
                       <div
                         key={`monitor-${monitor.id}`}
                         role="button"
@@ -771,8 +767,7 @@ export function OverviewWorkspace({
                           <Star size={15} fill="currentColor" />
                         </button>
                       </div>
-                    ))}
-                  </>
+                  ))
                 )}
               </div>
             )}
