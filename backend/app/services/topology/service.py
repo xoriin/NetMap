@@ -1,7 +1,16 @@
 import json
+from datetime import datetime, timezone
 from ipaddress import ip_address, ip_network
 
 from app.models.device import Device
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def serialize_tags(tags: list[str]) -> str:
@@ -45,10 +54,10 @@ def device_to_dict(device: Device) -> dict:
         "tags": deserialize_tags(device.tags),
         "notes": device.notes,
         "monitor_status": device.monitor_status,
-        "last_monitored_at": device.last_monitored_at,
+        "last_monitored_at": _as_utc(device.last_monitored_at),
         "is_favourite": bool(device.is_favourite),
-        "created_at": device.created_at,
-        "updated_at": device.updated_at,
+        "created_at": _as_utc(device.created_at),
+        "updated_at": _as_utc(device.updated_at),
     }
 
 

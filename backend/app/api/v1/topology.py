@@ -1140,6 +1140,12 @@ def delete_device(
             DeviceRelationship.target_device_id == device_id,
         )
     ).delete(synchronize_session=False)
+    # SQLite runs with foreign_keys OFF, so the ON DELETE CASCADE on
+    # user_device_favourites never fires. Clear every user's row explicitly or
+    # /topology/devices/favourites keeps returning ids of deleted devices.
+    db.query(UserDeviceFavourite).filter(
+        UserDeviceFavourite.device_id == device_id
+    ).delete(synchronize_session=False)
     write_audit(
         db,
         action="topology.device_deleted",
