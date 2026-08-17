@@ -36,6 +36,7 @@ import { readJson, writeJson } from "../../utils/storage";
 import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 import { resolveEntityColor } from "../../utils/entityColor";
+import { navigateToMonitoringView } from "../monitoring/monitoringNavigation";
 
 type OverviewFavouriteSnapshot = {
   updatedAt: string;
@@ -173,6 +174,13 @@ export function OverviewWorkspace({
       // Refetch either way — on failure this restores the true server state.
       void monitorsQuery.reload({ silent: true });
     }
+  }
+
+  function openEndpointMonitoring() {
+    onNavigate("/monitoring");
+    // onNavigate updates the pathname synchronously; select the nested view
+    // afterwards so Monitoring mounts directly on its Endpoints tab.
+    navigateToMonitoringView("endpoints", true);
   }
 
   const visibleFavouriteMonitors = useMemo(() => {
@@ -425,7 +433,11 @@ export function OverviewWorkspace({
                   <span className="dash-status-dot dash-status-dot--offline" />
                   <div className="dash-device-info">
                     <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
-                    <span className="dash-device-meta">{d.ip_address}{d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}</span>
+                    <span className="dash-device-meta">
+                      {d.ip_address}
+                      {d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}
+                      {d.os ? ` · ${d.os}` : ""}
+                    </span>
                   </div>
                   <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
                   <span className="dash-panel-meta">
@@ -630,7 +642,11 @@ export function OverviewWorkspace({
                       <span className={`dash-status-dot dash-status-dot--${liveStatus}`} />
                       <div className="dash-device-info">
                         <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
-                        <span className="dash-device-meta">{d.ip_address}{d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}</span>
+                        <span className="dash-device-meta">
+                          {d.ip_address}
+                          {d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}
+                          {d.os ? ` · ${d.os}` : ""}
+                        </span>
                       </div>
                       <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
                       <span className={`nm-status nm-status--${liveStatus}`}>{overviewDeviceHealthLabel(d)}</span>
@@ -740,11 +756,11 @@ export function OverviewWorkspace({
                         role="button"
                         tabIndex={0}
                         className="dash-device-row dash-device-row--favourite dash-device-row--action"
-                        onClick={() => onNavigate("/monitoring")}
+                        onClick={openEndpointMonitoring}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            onNavigate("/monitoring");
+                            openEndpointMonitoring();
                           }
                         }}
                       >

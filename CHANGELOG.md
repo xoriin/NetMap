@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## [1.5.1] - 2026-08-17
 
 ### Fixed
+- **Topology device icons no longer flicker at their hover boundary** — hovering a map device now keeps its invisible Cytoscape pointer target at a stable size while the visible icon receives the highlight, preventing rapid mouseover/mouseout oscillation near the icon edge.
+- **Overview shows device operating systems** — the OS entered when adding or editing a device now appears in the Overview device lists, alongside its address and device type, instead of being visible only in Inventory.
+- **Overview favourites use one continuous list** — favourited standalone endpoints now sit directly alongside favourited devices without a separate endpoint divider, while retaining their live status, heartbeat, uptime, and response-time details.
 - **Expected-offline devices stay healthy everywhere** — Overview and Inventory now use the same expected-vs-observed device health model as Monitoring, so a device you have deliberately marked "expected offline" reads the same on every page instead of green in one place and red in another. It stays healthy in Overview's summary counts, health donut, favourites list, favourite drilldown, and recent rows, and in Inventory's status column, status filter, and stat cards; only an unexpected state raises the red alert. A device you have deliberately marked offline reads "expected offline" in green; everything else keeps its plain status wording.
 - **Topology link labels resize with their slider** — the Display panel's "Link labels" slider had no effect on the canvas because link labels are drawn as overlay elements while the slider only fed the export renderer. Dragging it now resizes the labels, and the link-speed chip scales with them.
 - **Paused devices show a visible status mark** — a paused, retired, or disabled device previously rendered an invisible status dot and a blank status pill on Overview. Both now use a distinct muted, hollow/dashed treatment that reads as "not being probed" rather than "unknown".
@@ -13,10 +16,12 @@
 - **Host discovery returns available DNS names and labels unscanned ports accurately** — nmap reverse lookup is enabled again, while ping sweeps now say "Ports not scanned" instead of implying that a port scan found none. Basic port detection remains the explicit option for probing common TCP ports.
 
 ### Added
-- **Star an endpoint to pin it on Overview** — standalone HTTP/HTTPS endpoints can now be favourited from the star column in Monitoring → Endpoints, and favourited endpoints appear in the Overview Favourites panel beneath your favourited devices with their heartbeat, 24h uptime, and average response time. Favourites are per-account, so each user keeps their own Overview. Endpoints are listed separately and never counted as inventory devices. Migration `0062_user_monitor_favourites`.
+- **Star an endpoint to pin it on Overview** — standalone HTTP/HTTPS endpoints can now be favourited from the star column in Monitoring → Endpoints, and favourited endpoints appear alongside favourited devices in one continuous Overview Favourites list with their heartbeat, 24h uptime, and average response time. Selecting an endpoint opens Monitoring directly on its Endpoints tab. Favourites are per-account, and endpoints never inflate inventory device totals. Migration `0062_user_monitor_favourites`.
 - **OS column in Inventory** — the device list shows each device's operating system beside its device type, sortable and searchable, so an OS entered on the Add Device form is visible without opening the device details panel. Devices with no OS recorded sort last. The column is resizable like the others; stored column widths reset once to make room for it.
+- **Interactive Swagger UI API documentation** — `/docs` now serves a bundled, offline-capable Swagger interface for the NetMap API, including session and API-key authentication support without depending on a public CDN.
 
 ### Changed
+- **Successful container startup has a framed NetMap banner** — after nginx and the backend pass the public health check, container logs now print the NetMap network mark and wordmark inside a large ASCII frame, with centred ready-on-port status and a link to the documentation site.
 - **Windows DHCP bridge-mode guidance is explicit** — the service-check form explains that Microsoft DHCP may ignore DHCPINFORM when the Docker bridge `ciaddr` is outside every served scope, and recommends host networking for that setup.
 
 ## [1.5.0] - 2026-08-02

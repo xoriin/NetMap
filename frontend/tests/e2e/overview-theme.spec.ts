@@ -1,10 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockDevice, mockRelationship, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, mockRelationship, setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 async function setupOverview(page: Page, theme: "light" | "dark", announcement: string | null = null) {
   await setupCoreMocks(page, announcement);
   await setupTopologyMocks(page, [
-    mockDevice({ id: 1, hostname: "gateway-01", device_type: "router", vendor: "NetMap", topology_group: "Core", lifecycle: "active" }),
+    mockDevice({ id: 1, hostname: "gateway-01", device_type: "router", vendor: "NetMap", os: "RouterOS", topology_group: "Core", lifecycle: "active" }),
     mockDevice({ id: 2, hostname: "switch-01", device_type: "switch", vendor: "NetMap", topology_group: "Core", lifecycle: "active" }),
     mockDevice({ id: 3, hostname: "server-01", device_type: "server", vendor: "Example", topology_group: "Servers", monitor_status: "offline", lifecycle: "active" }),
   ], [mockRelationship({ source_device_id: 1, target_device_id: 2 })]);
@@ -54,6 +54,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(typeRows.filter({ hasText: "Router" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#ef4444");
     await expect(typeRows.filter({ hasText: "Switch" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#22c55e");
     await expect(typeRows.filter({ hasText: "Server" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#3b82f6");
+    await expect(page.locator(".dash-device-row", { hasText: "gateway-01" }).first().locator(".dash-device-meta")).toContainText("RouterOS");
 
     const groupRows = page.locator(".overview-panel", { hasText: "Top groups" }).locator(".dash-breakdown-row");
     await expect(groupRows).toHaveCount(2);
@@ -167,6 +168,7 @@ test("Overview lists favourited endpoints in the favourites panel", async ({ pag
   await setupTopologyMocks(page, [
     mockDevice({ id: 1, hostname: "gateway-01", device_type: "router", topology_group: "Core", lifecycle: "active" }),
   ], []);
+  await setupMonitoringMocks(page, []);
   await page.route("**/api/v1/monitors", (route) => route.fulfill({
     json: [
       {
@@ -188,8 +190,13 @@ test("Overview lists favourited endpoints in the favourites panel", async ({ pag
   await expect(favPanel.getByText("Status page")).toBeVisible();
   await expect(favPanel.getByText("Unstarred API")).toHaveCount(0);
   await expect(favPanel.locator(".dash-fav-rtt").filter({ hasText: "42.5 ms" })).toBeVisible();
+  await expect(favPanel.locator(".dash-fav-divider")).toHaveCount(0);
 
   // The endpoint must not inflate the device stat cards.
   const totalCard = page.locator(".dash-stat", { hasText: "Total devices" }).first();
   await expect(totalCard.locator(".dash-stat-value")).toHaveText("1");
+
+  await favPanel.getByText("Status page").click();
+  await expect(page).toHaveURL(/\/monitoring#endpoints$/);
+  await expect(page.locator(".mon-view-window--endpoints")).toBeVisible();
 });
