@@ -60,12 +60,25 @@ shutdown() {
 
 trap shutdown TERM INT
 
+print_startup_banner() {
+  printf '%s\n' \
+    '' \
+    '       (O)         _   _      _   __  __             ' \
+    '      /   \       | \ | | ___| |_|  \/  | __ _ _ __  ' \
+    '     /     \      |  \| |/ _ \ __| |\/| |/ _` | `_ \ ' \
+    '    /       \     | |\  |  __/ |_| |  | | (_| | |_) |' \
+    '  (O)-------(O)   |_| \_|\___|\__|_|  |_|\__,_| .__/ ' \
+    '                                               |_|    ' \
+    '' \
+    "netmap: startup complete — ready on port ${APP_PORT}"
+}
+
 # Confirm the public container endpoint can traverse nginx and reach Uvicorn
 # before announcing readiness. This is the same path Docker health-checks.
 readiness_deadline=$((SECONDS + 15))
 while true; do
   if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${APP_PORT}/api/health', timeout=1).read()" >/dev/null 2>&1; then
-    echo "netmap: startup complete — ready on port ${APP_PORT}"
+    print_startup_banner
     break
   fi
   if ! kill -0 "$uvicorn_pid" 2>/dev/null || ! kill -0 "$nginx_pid" 2>/dev/null; then
