@@ -41,9 +41,10 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
     {
       selector: "node.device.hovered",
       style: {
-        height: 56,
+        // Keep the transparent Cytoscape hitbox at its data-driven size while
+        // hovered. Resizing the pointer target here can make the cursor cross
+        // its new boundary repeatedly, causing mouseover/mouseout flicker.
         opacity: 0.92,
-        width: 56,
         "z-index": 65,
       },
     },

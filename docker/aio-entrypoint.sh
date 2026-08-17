@@ -61,16 +61,32 @@ shutdown() {
 trap shutdown TERM INT
 
 print_startup_banner() {
-  printf '%s\n' \
-    '' \
-    '       (O)         _   _      _   __  __             ' \
-    '      /   \       | \ | | ___| |_|  \/  | __ _ _ __  ' \
-    '     /     \      |  \| |/ _ \ __| |\/| |/ _` | `_ \ ' \
-    '    /       \     | |\  |  __/ |_| |  | | (_| | |_) |' \
-    '  (O)-------(O)   |_| \_|\___|\__|_|  |_|\__,_| .__/ ' \
-    '                                               |_|    ' \
-    '' \
+  local banner_width=76
+  local banner_border banner_line line_length left_padding right_padding
+  local banner_lines=(
+    ''
+    '       (O)         _   _      _   __  __             '
+    '      /   \       | \ | | ___| |_|  \/  | __ _ _ __  '
+    '     /     \      |  \| |/ _ \ __| |\/| |/ _` | `_ \ '
+    '    /       \     | |\  |  __/ |_| |  | | (_| | |_) |'
+    '  (O)-------(O)   |_| \_|\___|\__|_|  |_|\__,_| .__/ '
+    '                                               |_|    '
+    ''
     "netmap: startup complete — ready on port ${APP_PORT}"
+    'Documentation: https://docs.netmap.dev/'
+    ''
+  )
+
+  printf -v banner_border '%*s' "$banner_width" ''
+  banner_border=${banner_border// /-}
+  printf '\n+%s+\n' "$banner_border"
+  for banner_line in "${banner_lines[@]}"; do
+    line_length=${#banner_line}
+    left_padding=$(( (banner_width - line_length) / 2 ))
+    right_padding=$(( banner_width - line_length - left_padding ))
+    printf '|%*s%s%*s|\n' "$left_padding" '' "$banner_line" "$right_padding" ''
+  done
+  printf '+%s+\n\n' "$banner_border"
 }
 
 # Confirm the public container endpoint can traverse nginx and reach Uvicorn

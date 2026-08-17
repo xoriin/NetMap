@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import { buildCytoscapeStylesheet } from "../../src/features/topology/cytoscapeStyles";
 import { mockDevice, mockRelationship, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
+
+test("Topology hover styling keeps the device pointer target stable", () => {
+  const hovered = buildCytoscapeStylesheet(15).find((rule) => rule.selector === "node.device.hovered");
+  expect(hovered).toBeDefined();
+  expect(hovered?.style).not.toHaveProperty("height");
+  expect(hovered?.style).not.toHaveProperty("width");
+});
 
 async function setupThemedTopology(page: Page, theme: "light" | "dark", width = 1920) {
   await page.setViewportSize({ width, height: width < 1500 ? 900 : 1080 });
