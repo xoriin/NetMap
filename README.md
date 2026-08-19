@@ -508,25 +508,33 @@ Role permissions are editable in Admin → Roles if you need something different
 
 ## 🏗️ How it works
 
-NetMap is a single all-in-one container running three cooperating processes managed by `tini`:
+NetMap is a single all-in-one container running cooperating services managed by `tini`:
 
-```
-┌─────────────────────────────────────────┐
-│  Container (aio)                        │
-│                                         │
-│  ┌──────────┐   ┌──────────────────┐   │
-│  │  nginx   │   │  uvicorn         │   │
-│  │  :8080   │──▶│  FastAPI :8000   │   │
-│  │  (static)│   │  (API + WS)      │   │
-│  └──────────┘   └────────┬─────────┘   │
-│                           │             │
-│               ┌───────────┼──────────┐  │
-│               │           │          │  │
-│          ┌────▼───┐  ┌────▼────┐ ┌──▼──┐│
-│          │Monitor │  │ Syslog  │ │SQLite││
-│          │thread  │  │ server  │ │ DB  ││
-│          └────────┘  └─────────┘ └─────┘│
-└─────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Browser["Browser"]
+
+    subgraph AIO["NetMap all-in-one container"]
+        Tini["tini process supervisor"]
+        Nginx["nginx<br/>Web UI and reverse proxy"]
+        API["uvicorn + FastAPI<br/>REST API and WebSockets"]
+        Monitor["Monitoring worker"]
+        Syslog["Syslog server<br/>UDP and TCP"]
+        MainDB[("netmap.db")]
+        FirewallDB[("firewall.db")]
+
+        Tini --> Nginx
+        Tini --> API
+        Tini --> Syslog
+        Nginx -->|"/api and WebSockets"| API
+        API --> Monitor
+        API --> MainDB
+        Monitor --> MainDB
+        Syslog --> FirewallDB
+    end
+
+    Browser -->|"HTTP or HTTPS"| Nginx
+    Network["Network devices"] -->|"Syslog"| Syslog
 ```
 
 - **nginx** serves the pre-built React bundle as static files and reverse-proxies `/api/*` requests to uvicorn. This avoids CORS issues and lets nginx handle static asset caching efficiently.
