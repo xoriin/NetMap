@@ -40,3 +40,12 @@ class User(Base):
     # Per-user opt-out for the coloured VLAN/group, location, and device type
     # chips. Off falls back to neutral grey chips, not to plain text.
     entity_colors_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    @property
+    def permissions(self) -> list[str]:
+        """Return the effective permissions exposed to the signed-in client."""
+        from app.services.rbac.permissions import PERMISSION_KEYS, get_all_permissions
+
+        if self.role == UserRole.SUPER_ADMIN:
+            return list(PERMISSION_KEYS)
+        return get_all_permissions().get(self.role, [])

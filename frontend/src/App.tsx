@@ -20,6 +20,7 @@ import { ResetPasswordView } from "./features/auth/ResetPasswordView";
 import { Sidebar, AppTopbar } from "./Sidebar";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
+import { userHasPermission } from "./utils/permissions";
 
 export function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
@@ -41,9 +42,9 @@ export function App() {
   });
 
   const accessToken = tokens?.access_token ?? null;
-  const canViewSecurity =
-    user?.role === "SuperAdmin" || user?.role === "NetworkAdmin" || user?.role === "SecurityAnalyst";
-  const canAccessExports = user?.role !== "Viewer";
+  const canViewSecurity = userHasPermission(user, "security_view");
+  const canAccessExports = ["inventory_export", "firewall_export", "report_export"]
+    .some((permission) => userHasPermission(user, permission));
   const canAccessAdmin = user?.role === "SuperAdmin";
   const [openObservationCount, setOpenObservationCount] = useState(0);
 

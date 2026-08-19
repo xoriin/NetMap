@@ -6,6 +6,7 @@ import { type AppRoute, appRouteCopy } from "../routes";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WorkspaceSkeleton } from "../components/Skeleton";
 import { useTheme } from "../providers/ThemeProvider";
+import { userHasPermission } from "../utils/permissions";
 
 const OverviewWorkspace = lazy(() =>
   import("../features/overview/OverviewWorkspace").then((m) => ({ default: m.OverviewWorkspace }))
@@ -88,8 +89,14 @@ export function DashboardView({
   versionInfo: VersionInfo | null;
 }) {
   const { theme } = useTheme();
-  const canWrite = user.role === "SuperAdmin" || user.role === "NetworkAdmin";
-  const canViewSecurity = user.role === "SuperAdmin" || user.role === "NetworkAdmin" || user.role === "SecurityAnalyst";
+  const canWrite = userHasPermission(user, "topology_write");
+  const canViewSecurity = userHasPermission(user, "security_view");
+  const canWriteIpam = userHasPermission(user, "ipam_write");
+  const canManageMonitoring = userHasPermission(user, "monitoring_write");
+  const canManageAlerts = userHasPermission(user, "alert_write");
+  const canRunActiveTools = userHasPermission(user, "tools_active");
+  const canAccessExports = ["inventory_export", "firewall_export", "report_export"]
+    .some((permission) => userHasPermission(user, permission));
   const [jumpTarget, setJumpTarget] = useState<{ deviceId: number; token: number } | null>(null);
   const [selectedTopologyDevice, setSelectedTopologyDevice] = useState<Device | null>(null);
   const [favouriteIds, setFavouriteIds] = useState<Set<number>>(new Set());
@@ -179,20 +186,20 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} userRole={user.role} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} canManageAlerts={canManageAlerts} canManageMonitoring={canManageMonitoring} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} />
       )}
       {currentRoute === "/ipam" && accessToken && (
-        <IpamWorkspace accessToken={accessToken} canWrite={canWrite} />
+        <IpamWorkspace accessToken={accessToken} canWrite={canWriteIpam} />
       )}
       {currentRoute === "/tools" && accessToken && (
         <ToolsWorkspace
           accessToken={accessToken}
           graph={graph}
           selectedDevice={selectedTopologyDevice}
-          userRole={user.role}
+          canRunActiveTools={canRunActiveTools}
         />
       )}
-      {currentRoute === "/exports" && accessToken && user.role !== "Viewer" && (
+      {currentRoute === "/exports" && accessToken && canAccessExports && (
         <ExportsWorkspace accessToken={accessToken} user={user} />
       )}
       {currentRoute === "/security" && canViewSecurity && (

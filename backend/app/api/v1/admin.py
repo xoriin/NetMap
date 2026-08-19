@@ -427,8 +427,9 @@ def update_role_permissions(
     _current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> RolePermissionsResponse:
+    existing_roles = get_all_permissions()
     for role, perms in payload.roles.items():
-        if role in ROLE_DEFAULTS:
+        if role != "SuperAdmin" and role in existing_roles:
             set_role_permissions(role, perms)
     now = datetime.now(timezone.utc)
     existing = db.get(SystemSetting, "role_permissions")
@@ -484,8 +485,8 @@ def delete_role_endpoint(
     _current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> RolePermissionsResponse:
-    if name == "SuperAdmin":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the SuperAdmin role")
+    if name in BUILT_IN_ROLES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a built-in role")
     delete_role(name)
     # Reassign any users with this role to Viewer
     from app.models.user import User as UserModel

@@ -48,6 +48,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   const toast = useToast();
   const confirmAction = useConfirm();
   const settingsQuery = useApiQuery(() => api.getOidcSettings(accessToken), [accessToken]);
+  const rolesQuery = useApiQuery(() => api.getRolePermissions(accessToken), [accessToken]);
 
   const [form, setForm] = useState<SsoFormState | null>(null);
   const [clientSecret, setClientSecret] = useState("");
@@ -205,9 +206,16 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
             </label>
             <label>Default role for new SSO users
               <select value={form.default_role} onChange={(e) => update("default_role", e.target.value)}>
-                <option value="Viewer">Viewer</option>
-                <option value="SecurityAnalyst">SecurityAnalyst</option>
-                <option value="NetworkAdmin">NetworkAdmin</option>
+                {Object.keys(rolesQuery.data?.roles ?? { NetworkAdmin: [], SecurityAnalyst: [], Viewer: [] })
+                  .filter((role) => role !== "SuperAdmin")
+                  .sort((left, right) => {
+                    const order = ["Viewer", "SecurityAnalyst", "NetworkAdmin"];
+                    const leftIndex = order.indexOf(left);
+                    const rightIndex = order.indexOf(right);
+                    if (leftIndex !== -1 || rightIndex !== -1) return (leftIndex === -1 ? 99 : leftIndex) - (rightIndex === -1 ? 99 : rightIndex);
+                    return left.localeCompare(right);
+                  })
+                  .map((role) => <option key={role} value={role}>{role}</option>)}
               </select>
             </label>
           </div>

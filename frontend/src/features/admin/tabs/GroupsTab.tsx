@@ -117,19 +117,20 @@ export function GroupsTab({
         )}
 
         {rolePermissions ? (() => {
-          const BUILT_IN = ["NetworkAdmin", "SecurityAnalyst", "Viewer"] as const;
+          const BUILT_IN = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"] as const;
           const customRoles = Object.keys(localRolePerms).filter(r => !["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(r)).sort();
           const allRoles = [...BUILT_IN, ...customRoles];
           return (
             <div className="rbac-roles-grid">
               {allRoles.map((role) => {
-                const isCustom = !["NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(role);
+                const isSuperAdmin = role === "SuperAdmin";
+                const isCustom = !["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(role);
                 const label = role === "NetworkAdmin" ? "Network Admin" : role === "SecurityAnalyst" ? "Security Analyst" : role;
                 return (
                   <div key={role} className={`rbac-role-card${isCustom ? " rbac-role-card--custom" : ""}`}>
                     <div className="rbac-role-header">
                       <h3 className="rbac-role-name">{label}</h3>
-                      <button
+                      {isCustom && <button
                         type="button"
                         className="rbac-delete-btn"
                         title={`Delete "${role}" group`}
@@ -142,17 +143,18 @@ export function GroupsTab({
                             confirmLabel: "Delete role",
                           }).then((confirmed) => { if (confirmed) void deleteGroup(role); });
                         }}
-                      >✕</button>
+                      >✕</button>}
                     </div>
                     <ul className="rbac-perm-list">
                       {rolePermissions.permissions.map((perm) => {
-                        const granted = (localRolePerms[role] ?? []).includes(perm.key);
+                        const granted = isSuperAdmin || (localRolePerms[role] ?? []).includes(perm.key);
                         return (
                           <li key={perm.key} className="rbac-perm-row">
                             <label className="rbac-perm-label">
                               <input
                                 type="checkbox"
                                 checked={granted}
+                                disabled={isSuperAdmin}
                                 onChange={(e) => {
                                   setLocalRolePerms((prev) => {
                                     const current = prev[role] ?? [];

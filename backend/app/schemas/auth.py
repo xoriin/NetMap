@@ -76,6 +76,7 @@ class UserRead(BaseModel):
     sso_last_login_at: datetime | None = None
     whats_new_acknowledged_version: str | None = None
     entity_colors_enabled: bool = True
+    permissions: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

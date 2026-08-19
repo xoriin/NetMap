@@ -170,6 +170,21 @@ const tabs = [
   ["Security", "Single Sign-On (OIDC)", "security"],
 ] as const;
 
+test("shows every built-in role and the complete permission matrix", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections").getByRole("button", { name: "Groups", exact: true }).click();
+  const cards = page.locator(".rbac-role-card");
+  await expect(cards).toHaveCount(4);
+  await expect(cards.locator(".rbac-role-name")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
+  const superAdmin = cards.filter({ hasText: "SuperAdmin" });
+  await expect(superAdmin.locator('input[type="checkbox"]')).toHaveCount(2);
+  for (const checkbox of await superAdmin.locator('input[type="checkbox"]').all()) {
+    await expect(checkbox).toBeChecked();
+    await expect(checkbox).toBeDisabled();
+  }
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`all Admin tabs use the canonical panel hierarchy in ${theme} mode`, async ({ page }) => {
     await setupAdminMocks(page);

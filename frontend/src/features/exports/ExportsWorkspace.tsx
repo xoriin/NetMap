@@ -5,6 +5,7 @@ import { api, type DownloadResult, type ExportSummary, type User } from "../../a
 import { useToast } from "../../components/Toast";
 import { triggerDownload } from "../../utils/download";
 import { formatEventTime } from "../../utils/format";
+import { userHasPermission } from "../../utils/permissions";
 
 function ExportPanelHeader({ icon, title, allowed }: { icon: ReactNode; title: string; allowed: boolean }) {
   return (
@@ -23,8 +24,9 @@ const EMPTY_FIREWALL_FILTERS = {
 
 export function ExportsWorkspace({ accessToken, user }: { accessToken: string; user: User }) {
   const toast = useToast();
-  const canExportInventory = user.role === "SuperAdmin" || user.role === "NetworkAdmin";
-  const canExportFirewall = canExportInventory || user.role === "SecurityAnalyst";
+  const canExportInventory = userHasPermission(user, "inventory_export");
+  const canExportFirewall = userHasPermission(user, "firewall_export");
+  const canExportReport = userHasPermission(user, "report_export");
   const [firewallFormat, setFirewallFormat] = useState<"csv" | "json">("csv");
   const [inventoryFormat, setInventoryFormat] = useState<"csv" | "json">("csv");
   const [firewallFilters, setFirewallFilters] = useState(EMPTY_FIREWALL_FILTERS);
@@ -105,15 +107,15 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
           </section>
 
           <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<FileText size={18} />} title="Network report" allowed={canExportInventory} />
+            <ExportPanelHeader icon={<FileText size={18} />} title="Network report" allowed={canExportReport} />
             <div className="exports-panel-body">
               <p className="exports-panel-copy">Generate a presentation-ready report combining topology, inventory, subnet utilisation and blocked-traffic leaders.</p>
               <div className="exports-report-contents" aria-label="Report contents">
                 <span>Topology summary</span><span>Inventory snapshot</span><span>Subnet summary</span><span>Traffic leaders</span>
               </div>
-              {!canExportInventory && <p className="exports-permission-note">Only NetworkAdmin and SuperAdmin can generate reports.</p>}
+              {!canExportReport && <p className="exports-permission-note">Your role cannot generate reports.</p>}
               <div className="exports-panel-actions">
-                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportReport || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
                   <Download size={15} />{busyKey === "report" ? "Preparing…" : "Download PDF report"}
                 </button>
               </div>

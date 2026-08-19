@@ -7,7 +7,7 @@ import {
   type DnsRecordType, type DnsLookupResult, type ReverseDnsResult,
   type PingResult, type TracerouteResult, type TcpPortCheckResult,
   type SubnetCalculatorResult, type SnmpProbeResult, type SnmpProfile,
-  type LldpNeighbour, type Device, type TopologyGraph, type User,
+  type LldpNeighbour, type Device, type TopologyGraph,
 } from "../../api/client";
 import { SUBNET_REF } from "../../constants";
 import { deviceLabel, formatMs } from "../../utils/format";
@@ -138,14 +138,13 @@ export function ToolsWorkspace({
   accessToken,
   graph,
   selectedDevice,
-  userRole,
+  canRunActiveTools,
 }: {
   accessToken: string;
   graph: TopologyGraph;
   selectedDevice: Device | null;
-  userRole: User["role"];
+  canRunActiveTools: boolean;
 }) {
-  const canRunActiveTools = userRole === "SuperAdmin" || userRole === "NetworkAdmin";
   const [dnsName, setDnsName] = useState("");
   const [dnsRecordType, setDnsRecordType] = useState<DnsRecordType>("A");
   const [dnsResult, setDnsResult] = useState<DnsLookupResult | null>(null);
