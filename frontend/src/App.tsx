@@ -21,6 +21,7 @@ import { Sidebar, AppTopbar } from "./Sidebar";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 import { userHasPermission } from "./utils/permissions";
+import { availableAdminTabs } from "./features/admin/adminNavigation";
 
 export function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
@@ -45,7 +46,7 @@ export function App() {
   const canViewSecurity = userHasPermission(user, "security_view");
   const canAccessExports = ["inventory_export", "firewall_export", "report_export"]
     .some((permission) => userHasPermission(user, permission));
-  const canAccessAdmin = user?.role === "SuperAdmin";
+  const canAccessAdmin = user ? availableAdminTabs(user).length > 0 : false;
   const [openObservationCount, setOpenObservationCount] = useState(0);
 
   const screen = useMemo(() => {
@@ -397,6 +398,7 @@ export function App() {
           window.scrollTo({ top: 0, behavior: "smooth" });
         }}
         versionInfo={versionInfo}
+        user={user}
       />
       <section className="app-main">
         <AppTopbar currentRoute={currentRoute} user={user} note={topbarNote} />

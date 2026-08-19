@@ -16,6 +16,8 @@ export function UsersTab({
   onShowUserAudit,
   onError,
   onSuccess,
+  canManageSuperAdmins = true,
+  canViewAudit = true,
 }: {
   accessToken: string;
   users: User[];
@@ -25,6 +27,8 @@ export function UsersTab({
   onShowUserAudit: (userId: number) => void;
   onError: (message: string | null) => void;
   onSuccess: (message: string | null) => void;
+  canManageSuperAdmins?: boolean;
+  canViewAudit?: boolean;
 }) {
   const [userSearch, setUserSearch] = useState("");
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
@@ -205,10 +209,10 @@ export function UsersTab({
                   <select
                     className={`admin-role-select admin-role-select--${row.role.toLowerCase()}`}
                     value={row.role}
-                    disabled={busyUserId === row.id}
+                    disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")}
                     onChange={(e) => void updateUser(row.id, { role: e.target.value })}
                   >
-                    <option value="SuperAdmin">SuperAdmin</option>
+                    {canManageSuperAdmins && <option value="SuperAdmin">SuperAdmin</option>}
                     <option value="NetworkAdmin">NetworkAdmin</option>
                     <option value="SecurityAnalyst">SecurityAnalyst</option>
                     <option value="Viewer">Viewer</option>
@@ -219,17 +223,17 @@ export function UsersTab({
                 </div>
                 <div className="admin-col-center">
                   <label className="admin-status-toggle">
-                    <input type="checkbox" checked={row.is_active} disabled={busyUserId === row.id} onChange={(e) => void updateUser(row.id, { is_active: e.target.checked })} />
+                    <input type="checkbox" checked={row.is_active} disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onChange={(e) => void updateUser(row.id, { is_active: e.target.checked })} />
                     <span className={`admin-status-pill ${row.is_active ? "active" : "suspended"}`}>
                       {row.is_active ? "Active" : "Disabled"}
                     </span>
                   </label>
                 </div>
                 <div className="admin-row-actions">
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id} onClick={() => setResetPasswordForm({ userId: row.id, password: "" })}>Reset PW</button>
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id} onClick={() => void unlockLogin(row.id)}>Unlock</button>
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busyUserId === row.id} onClick={() => void forceLogout(row.id)}>Logout</button>
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onShowUserAudit(row.id)}>Audit</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => setResetPasswordForm({ userId: row.id, password: "" })}>Reset PW</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void unlockLogin(row.id)}>Unlock</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void forceLogout(row.id)}>Logout</button>
+                  {canViewAudit && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onShowUserAudit(row.id)}>Audit</button>}
                 </div>
               </div>
             ))}
@@ -261,7 +265,7 @@ export function UsersTab({
                 <option value="Viewer">Viewer</option>
                 <option value="SecurityAnalyst">SecurityAnalyst</option>
                 <option value="NetworkAdmin">NetworkAdmin</option>
-                <option value="SuperAdmin">SuperAdmin</option>
+                {canManageSuperAdmins && <option value="SuperAdmin">SuperAdmin</option>}
                 {customRoles.map(r => (
                   <option key={r} value={r}>{r}</option>
                 ))}

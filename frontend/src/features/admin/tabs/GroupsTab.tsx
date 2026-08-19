@@ -42,16 +42,21 @@ export function GroupsTab({
   }
 
   async function createGroup(name: string) {
-    if (!name.trim()) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(trimmedName)) {
+      onError("Group names must start with a letter and contain only letters, numbers, underscores, or hyphens.");
+      return;
+    }
     setGroupsBusy(true);
     onError(null); onSuccess(null);
     try {
-      const updated = await api.createRole(accessToken, name.trim());
+      const updated = await api.createRole(accessToken, trimmedName);
       permsQuery.setData(updated);
       setLocalRolePerms(updated.roles);
       setNewGroupName("");
       setShowNewGroupForm(false);
-      onSuccess(`Role "${name.trim()}" created.`);
+      onSuccess(`Role "${trimmedName}" created.`);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Unable to create role");
     } finally {

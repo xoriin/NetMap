@@ -394,10 +394,12 @@ export function SecurityTab({
   accessToken,
   users,
   initialUserFilter,
+  showSensitivePanels = true,
 }: {
   accessToken: string;
   users: User[];
   initialUserFilter: number | null;
+  showSensitivePanels?: boolean;
 }) {
   const [auditOffset, setAuditOffset] = useState(0);
   const [auditUserFilter, setAuditUserFilter] = useState<number | null>(initialUserFilter);
@@ -451,8 +453,8 @@ export function SecurityTab({
 
   return (
     <div className="admin-tab-content">
-      <SsoSettingsPanel accessToken={accessToken} />
-      <ApiKeysOversightPanel accessToken={accessToken} />
+      {showSensitivePanels && <SsoSettingsPanel accessToken={accessToken} />}
+      {showSensitivePanels && <ApiKeysOversightPanel accessToken={accessToken} />}
       <section className="panel admin-panel nm-app-panel admin-security-audit-panel">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : auditView === "login" ? "Login History" : "Login & Audit History"}</h2>

@@ -5,7 +5,7 @@ import { type User, type VersionInfo } from "./api/client";
 import { useTheme } from "./providers/ThemeProvider";
 import {
   ADMIN_TAB_CHANGE_EVENT,
-  adminTabs,
+  availableAdminTabs,
   navigateToAdminTab,
   readAdminTabFromLocation,
   type AdminTabId,
@@ -29,6 +29,7 @@ export function Sidebar({
   openObservationCount,
   onNavigate,
   versionInfo,
+  user,
 }: {
   canAccessAdmin: boolean;
   canAccessExports: boolean;
@@ -40,6 +41,7 @@ export function Sidebar({
   openObservationCount?: number;
   onNavigate: (route: AppRoute) => void;
   versionInfo: VersionInfo | null;
+  user: User;
 }) {
   const { theme, toggleTheme } = useTheme();
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTabId>(() => readAdminTabFromLocation());
@@ -153,7 +155,7 @@ export function Sidebar({
                 </button>
                 {route.href === "/admin" && currentRoute === "/admin" && !collapsed && adminMenuExpanded && (
                   <div className="sidebar-admin-subnav" aria-label="Administration sections">
-                    {adminTabs.map(({ id, label, Icon: AdminIcon }) => (
+                    {availableAdminTabs(user).map(({ id, label, Icon: AdminIcon }) => (
                       <button
                         key={id}
                         type="button"

@@ -241,6 +241,10 @@
   min-width: 0;
 }
 
+.admin-layout .admin-purpose-content > .form-error {
+  margin: 6px 0 18px;
+}
+
 .admin-layout .admin-tab-content {
   display: grid;
   gap: 16px;
@@ -888,4 +892,3 @@
     grid-template-columns: 1fr;
   }
 }
-

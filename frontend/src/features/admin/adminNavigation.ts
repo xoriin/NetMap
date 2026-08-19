@@ -1,4 +1,6 @@
 import { Settings, Shield } from "lucide-react";
+import type { User } from "../../api/client";
+import { userHasPermission } from "../../utils/permissions";
 import {
   IconAlertCircle,
   IconCalendarClock,
@@ -21,16 +23,22 @@ export type AdminTabId =
   | "security";
 
 export const adminTabs = [
-  { id: "system", label: "System", Icon: Settings },
-  { id: "devices-icons", label: "Devices & Icons", Icon: IconPalette },
-  { id: "users", label: "Users", Icon: IconUsers },
-  { id: "groups", label: "Groups", Icon: IconShieldCheck },
-  { id: "credentials", label: "SNMP Profiles", Icon: IconServer },
-  { id: "notifications", label: "Notifications", Icon: IconCloud },
-  { id: "alerts", label: "Alerts", Icon: IconAlertCircle },
-  { id: "automation", label: "Automation", Icon: IconCalendarClock },
-  { id: "security", label: "Security", Icon: Shield },
+  { id: "system", label: "System", Icon: Settings, permissions: ["diagnostics_view", "backup_manage"] },
+  { id: "devices-icons", label: "Devices & Icons", Icon: IconPalette, permissions: ["device_catalog_manage"] },
+  { id: "users", label: "Users", Icon: IconUsers, permissions: ["user_manage"] },
+  { id: "groups", label: "Groups", Icon: IconShieldCheck, superAdminOnly: true },
+  { id: "credentials", label: "SNMP Profiles", Icon: IconServer, permissions: ["snmp_profile_manage"] },
+  { id: "notifications", label: "Notifications", Icon: IconCloud, permissions: ["notification_manage"] },
+  { id: "alerts", label: "Alerts", Icon: IconAlertCircle, permissions: ["alert_write"] },
+  { id: "automation", label: "Automation", Icon: IconCalendarClock, permissions: ["automation_manage", "discovery_manage"] },
+  { id: "security", label: "Security", Icon: Shield, permissions: ["audit_view"] },
 ] as const;
+
+export function availableAdminTabs(user: User) {
+  if (user.role === "SuperAdmin") return [...adminTabs];
+  return adminTabs.filter((tab) => !(("superAdminOnly" in tab) && tab.superAdminOnly)
+    && (("permissions" in tab) && tab.permissions.some((permission) => userHasPermission(user, permission))));
+}
 
 export const ADMIN_TAB_CHANGE_EVENT = "netmap:admin-tab-change";
 

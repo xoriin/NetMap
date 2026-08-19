@@ -12,10 +12,14 @@ export function AutomationTab({
   accessToken,
   onError,
   onSuccess,
+  canManageAutomation = true,
+  canManageDiscovery = true,
 }: {
   accessToken: string;
   onError: (message: string | null) => void;
   onSuccess: (message: string | null) => void;
+  canManageAutomation?: boolean;
+  canManageDiscovery?: boolean;
 }) {
   const confirmAction = useConfirm();
   const [mutationBusy, setMutationBusy] = useState(false);
@@ -26,13 +30,13 @@ export function AutomationTab({
 
   const automationQuery = useApiQuery(async () => {
     const [schedules, observations, groups, profiles] = await Promise.all([
-      api.listDiscoverySchedules(accessToken),
-      api.listDiscoveryObservations(accessToken, { status_filter: "all" }),
+      canManageAutomation ? api.listDiscoverySchedules(accessToken) : Promise.resolve([]),
+      canManageDiscovery ? api.listDiscoveryObservations(accessToken, { status_filter: "all" }) : Promise.resolve([]),
       api.topologyGroups(accessToken),
       api.listNotificationProfiles(accessToken),
     ]);
     return { schedules, observations, groups, profiles };
-  }, [accessToken]);
+  }, [accessToken, canManageAutomation, canManageDiscovery]);
 
   const schedules = automationQuery.data?.schedules ?? [];
   const observations = automationQuery.data?.observations ?? [];
@@ -148,7 +152,7 @@ export function AutomationTab({
 
   return (
     <div className="admin-tab-content">
-      <section className="panel admin-panel nm-app-panel">
+      {canManageAutomation && <section className="panel admin-panel nm-app-panel">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconCalendarClock size={16} />Scheduled scans</h2>
           <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void automationQuery.reload()}>Refresh</button>
@@ -263,9 +267,9 @@ export function AutomationTab({
               )}
           </section>
         </div>
-      </section>
+      </section>}
 
-      <section className="panel admin-panel nm-app-panel admin-panel-spaced">
+      {canManageDiscovery && <section className="panel admin-panel nm-app-panel admin-panel-spaced">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconCalendarClock size={16} />Change observations</h2>
           <span className="tool-note">{openObs.length} open · {resolvedObs.length} resolved</span>
@@ -309,7 +313,7 @@ export function AutomationTab({
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }
