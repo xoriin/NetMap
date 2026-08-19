@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_super_admin
+from app.api.deps import require_diagnostics_view
 from app.core.config import installed_app_channel, installed_app_version, settings
 from app.db.session import get_db
 from app.models.device import Device
@@ -94,7 +94,7 @@ def get_version() -> dict:
 
 @router.get("/diagnostics")
 def get_diagnostics(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_diagnostics_view)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
     retention = get_retention_status()

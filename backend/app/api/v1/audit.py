@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_super_admin
+from app.api.deps import require_audit_view
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
@@ -35,7 +35,7 @@ _IP_DETAIL_RE = re.compile(r"ip=(\S+)")
 
 @router.get("/logs", response_model=AuditLogList)
 def list_audit_logs(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_audit_view)],
     db: Annotated[Session, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -64,7 +64,7 @@ def list_audit_logs(
 
 @router.get("/logs/export")
 def export_login_history(
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_audit_view)],
     db: Annotated[Session, Depends(get_db)],
     actor_user_id: Annotated[int | None, Query()] = None,
 ) -> Response:

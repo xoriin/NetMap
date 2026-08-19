@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_topology_write
+from app.api.deps import require_automation_manage, require_discovery_apply, require_discovery_manage
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.device import Device
@@ -90,7 +90,7 @@ def scan_to_read_with_inventory(scan: DiscoveryScan, db: Session) -> DiscoverySc
 @router.post("/scans", response_model=DiscoveryScanRead, status_code=status.HTTP_201_CREATED)
 def start_scan(
     payload: DiscoveryStart,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryScanRead:
     enforce_rate_limit(current_user.id)
@@ -103,7 +103,7 @@ def start_scan(
 
 @router.get("/scans", response_model=list[DiscoveryScanRead])
 def list_scans(
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DiscoveryScanRead]:
     scans = db.scalars(select(DiscoveryScan).order_by(DiscoveryScan.created_at.desc()).limit(20)).all()
@@ -112,7 +112,7 @@ def list_scans(
 
 @router.get("/schedules", response_model=list[DiscoveryScheduleRead])
 def list_schedules(
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_automation_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DiscoveryScheduleRead]:
     schedules = db.scalars(select(DiscoverySchedule).order_by(DiscoverySchedule.created_at.desc())).all()
@@ -129,7 +129,7 @@ def list_schedules(
 @router.post("/schedules", response_model=DiscoveryScheduleRead, status_code=status.HTTP_201_CREATED)
 def create_schedule(
     payload: DiscoveryScheduleCreate,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_automation_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryScheduleRead:
     _validate_schedule_payload(payload)
@@ -169,7 +169,7 @@ def create_schedule(
 def update_schedule(
     schedule_id: int,
     payload: DiscoveryScheduleUpdate,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_automation_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryScheduleRead:
     schedule = db.get(DiscoverySchedule, schedule_id)
@@ -215,7 +215,7 @@ def update_schedule(
 @router.delete("/schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule(
     schedule_id: int,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_automation_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     schedule = db.get(DiscoverySchedule, schedule_id)
@@ -235,7 +235,7 @@ def delete_schedule(
 @router.post("/schedules/{schedule_id}/run", response_model=DiscoveryScanRead)
 def run_schedule_now(
     schedule_id: int,
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_automation_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryScanRead:
     schedule = db.get(DiscoverySchedule, schedule_id)
@@ -253,7 +253,7 @@ def run_schedule_now(
 
 @router.get("/observations", response_model=list[DiscoveryObservationRead])
 def list_observations(
-    _current_user: Annotated[User, Depends(require_topology_write)],
+    _current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
     schedule_id: int | None = None,
     status_filter: str = "open",
@@ -294,7 +294,7 @@ def list_observations(
 def update_observation(
     observation_id: int,
     payload: DiscoveryObservationUpdate,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryObservationRead:
     observation = db.get(DiscoveryObservation, observation_id)
@@ -316,7 +316,7 @@ def update_observation(
 
 @router.post("/observations/resolve-all", response_model=dict[str, int])
 def resolve_all_observations(
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, int]:
     open_observations = db.scalars(
@@ -342,7 +342,7 @@ _APPLY_ALLOWED_FIELDS = {"ip_address", "hostname", "mac_address", "vendor", "dev
 @router.post("/observations/{observation_id}/apply", response_model=DiscoveryObservationRead)
 def apply_observation(
     observation_id: int,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_discovery_apply)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryObservationRead:
     observation = db.get(DiscoveryObservation, observation_id)
@@ -415,7 +415,7 @@ def apply_observation(
 @router.post("/import", response_model=DiscoveryImportResult)
 def import_scan_results(
     payload: DiscoveryImportRequest,
-    current_user: Annotated[User, Depends(require_topology_write)],
+    current_user: Annotated[User, Depends(require_discovery_apply)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryImportResult:
     scan = db.get(DiscoveryScan, payload.scan_id)

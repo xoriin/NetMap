@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_super_admin, require_tools_active, require_tools_passive
+from app.api.deps import require_snmp_profile_manage, require_tools_active, require_tools_passive
 from app.api.v1.admin import load_settings
 from app.db.session import get_db
 from app.models.user import User
@@ -220,7 +220,7 @@ def run_snmp_probe(
 
 @router.get("/snmp/profiles", response_model=list[SnmpProfileRead])
 def list_snmp_profiles(
-    _current_user: Annotated[User, Depends(require_tools_active)],
+    _current_user: Annotated[User, Depends(require_snmp_profile_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[SnmpProfileRead]:
     profiles = db.scalars(select(SnmpProfile).order_by(SnmpProfile.name)).all()
@@ -230,7 +230,7 @@ def list_snmp_profiles(
 @router.post("/snmp/profiles", response_model=SnmpProfileRead, status_code=status.HTTP_201_CREATED)
 def create_snmp_profile(
     payload: SnmpProfileCreate,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_snmp_profile_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SnmpProfileRead:
     profile = create_profile(
@@ -258,7 +258,7 @@ def create_snmp_profile(
 def update_snmp_profile(
     profile_id: int,
     payload: SnmpProfileUpdate,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_snmp_profile_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SnmpProfileRead:
     profile = db.get(SnmpProfile, profile_id)
@@ -280,7 +280,7 @@ def update_snmp_profile(
 @router.delete("/snmp/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_snmp_profile(
     profile_id: int,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_snmp_profile_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     profile = db.get(SnmpProfile, profile_id)

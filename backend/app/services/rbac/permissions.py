@@ -26,6 +26,15 @@ PERMISSION_KEYS: list[str] = [
     "ipam_reservation_claim",
     "monitoring_write",
     "alert_write",
+    "user_manage",
+    "notification_manage",
+    "device_catalog_manage",
+    "snmp_profile_manage",
+    "audit_view",
+    "diagnostics_view",
+    "backup_manage",
+    "automation_manage",
+    "discovery_manage",
 ]
 
 PERMISSION_META: dict[str, dict[str, str]] = {
@@ -40,6 +49,15 @@ PERMISSION_META: dict[str, dict[str, str]] = {
     "ipam_reservation_claim": {"label": "Claim reserved IPs",      "description": "Convert an IP reservation into an inventory device after confirmation"},
     "monitoring_write": {"label": "Configure monitoring",          "description": "Add and remove port monitoring targets"},
     "alert_write":      {"label": "Manage alert rules",            "description": "Create, edit and delete alert notification rules"},
+    "user_manage": {"label": "Manage users & sessions", "description": "Create and edit users, reset access and revoke sessions"},
+    "notification_manage": {"label": "Manage notifications", "description": "Configure notification profiles, delivery settings and tests"},
+    "device_catalog_manage": {"label": "Manage device catalogue", "description": "Configure device types, icons and entity colours"},
+    "snmp_profile_manage": {"label": "Manage SNMP profiles", "description": "Create, edit and delete stored SNMP credential profiles"},
+    "audit_view": {"label": "View audit logs", "description": "Review and export application audit history"},
+    "diagnostics_view": {"label": "View system diagnostics", "description": "View runtime, database and monitoring diagnostics"},
+    "backup_manage": {"label": "Manage backups", "description": "Create, download and delete backups; restore remains SuperAdmin-only"},
+    "automation_manage": {"label": "Manage automation", "description": "Create, edit, run and delete scheduled operations"},
+    "discovery_manage": {"label": "Manage discovery", "description": "Run discovery, review observations and import scan results"},
 }
 
 # Default permissions per role — mirrors the hardcoded behaviour that existed before
@@ -48,6 +66,8 @@ ROLE_DEFAULTS: dict[str, list[str]] = {
         "topology_write", "security_view", "tools_passive", "tools_active",
         "inventory_export", "firewall_export", "report_export",
         "ipam_write", "ipam_reservation_claim", "monitoring_write", "alert_write",
+        "user_manage", "notification_manage", "device_catalog_manage", "snmp_profile_manage",
+        "audit_view", "diagnostics_view", "backup_manage", "automation_manage", "discovery_manage",
     ],
     "SecurityAnalyst": [
         "security_view", "tools_passive", "firewall_export",

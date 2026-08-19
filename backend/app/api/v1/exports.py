@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import (
     get_current_user,
+    require_backup_manage,
     require_firewall_export,
     require_inventory_export,
     require_report_export,
@@ -213,7 +214,7 @@ def export_network_report(
 
 @router.get("/backup")
 def export_database_backup(
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_backup_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     try:
@@ -299,7 +300,7 @@ async def restore_database_backup(
 
 @router.get("/scheduled-backups", response_model=list[ScheduledBackupRead])
 def list_scheduled_backup_files(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_backup_manage)],
 ) -> list[ScheduledBackupRead]:
     return [ScheduledBackupRead(**entry) for entry in list_scheduled_backups()]
 
@@ -307,7 +308,7 @@ def list_scheduled_backup_files(
 @router.get("/scheduled-backups/{filename}")
 def download_scheduled_backup(
     filename: str,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_backup_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     path = backup_filename_path(filename)
@@ -326,7 +327,7 @@ def download_scheduled_backup(
 @router.delete("/scheduled-backups/{filename}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_scheduled_backup(
     filename: str,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_backup_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     path = backup_filename_path(filename)

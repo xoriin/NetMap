@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_super_admin
+from app.api.deps import get_current_user, require_device_catalog_manage, require_notification_manage, require_super_admin, require_user_manage
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.device import Device
@@ -182,7 +182,7 @@ def list_device_types(
 @router.put("/device-type-colors", response_model=list[DeviceTypeRead])
 def update_device_type_colors(
     payload: DeviceTypeColorsUpdate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DeviceTypeRead]:
     """Replace the whole colour map. Values not listed fall back to the
@@ -209,7 +209,7 @@ def update_device_type_colors(
 @router.post("/device-types", response_model=DeviceTypeRead, status_code=status.HTTP_201_CREATED)
 def create_device_type(
     payload: DeviceTypeCreate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeviceTypeRead:
     value = payload.value or normalize_device_type_value(payload.label)
@@ -230,7 +230,7 @@ def create_device_type(
 def update_device_type(
     value: str,
     payload: DeviceTypeUpdate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeviceTypeRead:
     normalized = normalize_device_type_value(value)
@@ -264,7 +264,7 @@ def update_device_type(
 @router.delete("/device-types/{value}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_device_type(
     value: str,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     normalized = normalize_device_type_value(value)
@@ -308,7 +308,7 @@ def update_settings(
 
 @router.get("/notification-settings", response_model=NotificationSettings)
 def get_notification_settings(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NotificationSettings:
     return NotificationSettings(**load_notification_settings_redacted(db))
@@ -317,7 +317,7 @@ def get_notification_settings(
 @router.put("/notification-settings", response_model=NotificationSettings)
 def update_notification_settings(
     payload: NotificationSettingsUpdate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NotificationSettings:
     updates = payload.model_dump(exclude_unset=True)
@@ -333,7 +333,7 @@ def update_notification_settings(
 @router.post("/notifications/test")
 def test_notification(
     payload: TestNotificationRequest,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
     result = send_notification(payload.channel, payload.message, load_notification_settings(db))
@@ -342,7 +342,7 @@ def test_notification(
 
 @router.get("/notification-profiles", response_model=list[NotificationProfileRead])
 def list_notification_profiles_endpoint(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[NotificationProfileRead]:
     return [NotificationProfileRead(**profile) for profile in list_notification_profiles(db, redacted=True)]
@@ -351,7 +351,7 @@ def list_notification_profiles_endpoint(
 @router.post("/notification-profiles", response_model=NotificationProfileRead, status_code=status.HTTP_201_CREATED)
 def create_notification_profile_endpoint(
     payload: NotificationProfileCreate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NotificationProfileRead:
     profile = create_notification_profile(
@@ -368,7 +368,7 @@ def create_notification_profile_endpoint(
 def update_notification_profile_endpoint(
     profile_id: int,
     payload: NotificationProfileUpdate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NotificationProfileRead:
     from app.models.notification_profile import NotificationProfile
@@ -383,7 +383,7 @@ def update_notification_profile_endpoint(
 @router.delete("/notification-profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification_profile_endpoint(
     profile_id: int,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     from app.models.notification_profile import NotificationProfile
@@ -398,7 +398,7 @@ def delete_notification_profile_endpoint(
 @router.post("/notification-profiles/{profile_id}/test")
 def test_notification_profile_endpoint(
     profile_id: int,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_notification_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
     profile = get_notification_profile(db, profile_id, redacted=False)
@@ -410,7 +410,7 @@ def test_notification_profile_endpoint(
 
 @router.get("/role-permissions", response_model=RolePermissionsResponse)
 def get_role_permissions(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_user_manage)],
 ) -> RolePermissionsResponse:
     return RolePermissionsResponse(
         permissions=[

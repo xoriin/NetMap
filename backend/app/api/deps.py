@@ -172,3 +172,25 @@ def require_monitoring_write(current_user: Annotated[User, Depends(get_current_u
     return _check(
         current_user, "monitoring_write", "Monitoring configuration is not permitted for your role"
     )
+
+
+def _permission_dependency(permission: str, label: str):
+    def dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+        return _check(current_user, permission, f"{label} is not permitted for your role")
+    return dependency
+
+
+require_user_manage = _permission_dependency("user_manage", "User management")
+require_notification_manage = _permission_dependency("notification_manage", "Notification management")
+require_device_catalog_manage = _permission_dependency("device_catalog_manage", "Device catalogue management")
+require_snmp_profile_manage = _permission_dependency("snmp_profile_manage", "SNMP profile management")
+require_audit_view = _permission_dependency("audit_view", "Audit log access")
+require_diagnostics_view = _permission_dependency("diagnostics_view", "System diagnostics access")
+require_backup_manage = _permission_dependency("backup_manage", "Backup management")
+require_automation_manage = _permission_dependency("automation_manage", "Automation management")
+require_discovery_manage = _permission_dependency("discovery_manage", "Discovery management")
+
+
+def require_discovery_apply(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    _check(current_user, "discovery_manage", "Discovery management is not permitted for your role")
+    return _check(current_user, "topology_write", "Topology write access is required to apply discoveries")

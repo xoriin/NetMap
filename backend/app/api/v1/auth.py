@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_super_admin
+from app.api.deps import get_current_user, require_super_admin, require_user_manage
 from app.core.config import settings
 from app.core.network import request_client_ip
 from app.core.security import (
@@ -357,7 +357,7 @@ def change_password(
 
 @router.get("/auth/users", response_model=list[UserRead])
 def list_users(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    _current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[UserRead]:
     from app.services.oidc.accounts import auth_source_map
@@ -379,9 +379,11 @@ def list_users(
 @router.post("/auth/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreateRequest,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> User:
+    if current_user.role != UserRole.SUPER_ADMIN and payload.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can assign the SuperAdmin role")
     existing_user = db.scalar(select(User).where(User.username == payload.username))
     if existing_user is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is unavailable")
@@ -422,15 +424,19 @@ def create_user(
 def update_user(
     user_id: int,
     payload: UserUpdateRequest,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> User:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
 
     updates = payload.model_dump(exclude_unset=True)
     if "role" in updates and updates["role"] is not None:
+        if current_user.role != UserRole.SUPER_ADMIN and updates["role"] == UserRole.SUPER_ADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can assign the SuperAdmin role")
         user.role = updates["role"]
     if "is_active" in updates and updates["is_active"] is not None:
         user.is_active = updates["is_active"]
@@ -457,12 +463,14 @@ def update_user(
 @router.post("/auth/users/{user_id}/unlock-login", status_code=status.HTTP_204_NO_CONTENT)
 def unlock_user_login(
     user_id: int,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
 
     cleared = clear_user_login_lockout(db, user.username)
     write_audit(
@@ -479,13 +487,15 @@ def unlock_user_login(
 def admin_reset_password(
     user_id: int,
     payload: AdminPasswordResetRequest,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_user_manage)],
     request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
     user.password_hash = hash_password(payload.new_password)
     _invalidate_pending_reset_tokens(db, user.id)
     revoke_all_user_refresh_tokens(db, user_id=user.id, reason="admin_password_reset")
@@ -516,13 +526,15 @@ def admin_reset_password(
 @router.delete("/auth/users/{user_id}/sessions", status_code=status.HTTP_204_NO_CONTENT)
 def force_logout_user(
     user_id: int,
-    current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     from app.models.auth_session import RefreshTokenState
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
     now = datetime.now(timezone.utc)
     active_sessions = db.scalars(
         select(RefreshTokenState).where(
