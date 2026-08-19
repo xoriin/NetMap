@@ -275,3 +275,11 @@ def test_port_target_http_options_defaults_and_validation():
 
     with pytest.raises(ValidationError):
         PortTargetCreate(port=443, label="HTTPS", check_type="https", timeout_seconds=60)
+
+
+def test_network_probe_errors_are_human_readable():
+    from app.services.monitoring.port_checker import _network_error_message
+
+    assert _network_error_message(ConnectionRefusedError(111, "Connection refused")) == "Connection refused"
+    assert _network_error_message(TimeoutError(110, "Connection timed out")) == "Timed Out"
+    assert "Errno" not in _network_error_message(OSError(113, "No route to host"))

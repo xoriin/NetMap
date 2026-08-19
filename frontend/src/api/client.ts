@@ -14,10 +14,13 @@ export type User = {
   whats_new_acknowledged_version?: string | null;
   /** Per-user opt-out for coloured entity chips. Defaults to on. */
   entity_colors_enabled?: boolean;
+  /** Effective permissions for the user's current role. */
+  permissions?: string[];
 };
 
 export type OidcStatus = {
   enabled: boolean;
+  sort_order: number;
   provider_name: string;
   require_sso: boolean;
 };
@@ -182,6 +185,7 @@ export type DevicePayload = {
   snmp_profile_id: number | null;
   tags: string[];
   notes: string | null;
+  claim_reservation?: boolean;
 };
 
 export type Relationship = {
@@ -1585,11 +1589,11 @@ export const api = {
     }),
   previewSharedTopologyLayout: (token: string, code: string) =>
     request<TopologyLayout>(`/api/v1/topology/layouts/shared/${encodeURIComponent(code)}`, { token }),
-  createDevice: (token: string, payload: DevicePayload) =>
+  createDevice: (token: string, payload: DevicePayload, claimReservation = false) =>
     request<Device>("/api/v1/topology/devices", {
       method: "POST",
       token,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, claim_reservation: claimReservation }),
     }),
   updateDevice: (token: string, id: number, payload: Partial<DevicePayload>) =>
     request<Device>(`/api/v1/topology/devices/${id}`, {
@@ -2014,6 +2018,18 @@ export const api = {
     timeout_seconds?: number | null; verify_tls?: boolean; follow_redirects?: boolean; enabled?: boolean;
   }) =>
     request<PortTarget>("/api/v1/monitoring/service-checks", { method: "POST", token, body: JSON.stringify(payload) }),
+  updatePortTarget: (token: string, id: number, payload: {
+    device_id: number | null; port: number; label: string; check_type?: ServiceCheckType; http_path?: string | null;
+    http_method?: HttpMethod; expected_status_min?: number; expected_status_max?: number;
+    timeout_seconds?: number | null; verify_tls?: boolean; follow_redirects?: boolean; enabled?: boolean;
+  }) =>
+    request<PortTarget>(`/api/v1/monitoring/service-checks/${id}`, { method: "PUT", token, body: JSON.stringify(payload) }),
+  reorderPortTargets: (token: string, targetIds: number[]) =>
+    request<PortTarget[]>("/api/v1/monitoring/service-checks/order", { method: "PUT", token, body: JSON.stringify({ target_ids: targetIds }) }),
+  getPortTargetOrderConfig: (token: string) =>
+    request<{ mode: "alphabetical" | "manual" }>("/api/v1/monitoring/service-checks/order-config", { token }),
+  setPortTargetOrderConfig: (token: string, mode: "alphabetical" | "manual", targetIds?: number[]) =>
+    request<PortTarget[]>("/api/v1/monitoring/service-checks/order-config", { method: "PUT", token, body: JSON.stringify({ mode, target_ids: targetIds }) }),
   deletePortTarget: (token: string, id: number) =>
     request<void>(`/api/v1/monitoring/service-checks/${id}`, { method: "DELETE", token }),
   listMonitors: (token: string) =>

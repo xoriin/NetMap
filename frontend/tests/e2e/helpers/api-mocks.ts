@@ -248,6 +248,9 @@ export async function setupMonitoringMocks(
   await page.route("**/api/v1/monitoring/service-checks", (route) =>
     route.fulfill({ json: [] })
   );
+  await page.route("**/api/v1/monitoring/service-checks/order-config", (route) =>
+    route.fulfill({ json: { mode: "alphabetical" } })
+  );
   await page.route("**/api/v1/monitors", (route) =>
     route.fulfill({ json: [] })
   );

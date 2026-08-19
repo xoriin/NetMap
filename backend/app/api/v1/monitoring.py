@@ -10,12 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Row, case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_monitoring_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.port_target import DevicePortTarget
 from app.models.site import Site
+from app.models.system_setting import SystemSetting
 from app.models.topology_group import TopologyGroup
 from app.models.user import User
 from app.schemas.monitoring import (
@@ -26,10 +27,32 @@ from app.schemas.monitoring import (
     PortResult,
     PortTargetCreate,
     PortTargetOut,
+    PortTargetOrder,
+    PortTargetOrderConfig,
 )
 from app.services.monitoring.health import observed_health, observed_is_healthy
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+SERVICE_CHECK_ORDER_MODE_KEY = "service_check_order_mode"
+
+
+def _service_check_order_mode(db: Session) -> str:
+    row = db.get(SystemSetting, SERVICE_CHECK_ORDER_MODE_KEY)
+    return row.value if row is not None and row.value in {"alphabetical", "manual"} else "alphabetical"
+
+
+def _reindex_service_checks(db: Session, mode: str, target_ids: list[int] | None = None) -> list[DevicePortTarget]:
+    rows = list(db.scalars(select(DevicePortTarget)).all())
+    if mode == "alphabetical":
+        rows.sort(key=lambda row: (row.label.casefold(), row.port, row.id))
+    else:
+        by_id = {row.id: row for row in rows}
+        if target_ids is None or len(target_ids) != len(set(target_ids)) or set(target_ids) != set(by_id):
+            raise HTTPException(status_code=400, detail="Manual order must contain every service check exactly once")
+        rows = [by_id[target_id] for target_id in target_ids]
+    for index, row in enumerate(rows, start=1):
+        row.sort_order = index
+    return rows
 
 # (device_id, checked_at, status, rtt_ms, port_results) — the heartbeat columns.
 _HeartbeatRow = Row[tuple[int, datetime, str, float | None, str, str, bool | None]]
@@ -65,7 +88,8 @@ def monitoring_cache_status() -> dict[str, object]:
 def _parse_port_results(raw: str) -> list[PortResult]:
     try:
         items = json.loads(raw) if raw else []
-        return [PortResult(**item) for item in items]
+        results = [PortResult(**item) for item in items]
+        return sorted(results, key=lambda item: (item.label.casefold(), item.port, item.target_id or 0))
     except Exception:
         return []
 
@@ -508,18 +532,19 @@ def list_port_targets(
     _current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[PortTargetOut]:
-    return list(db.scalars(select(DevicePortTarget).order_by(DevicePortTarget.device_id.nulls_first(), DevicePortTarget.label)))
+    rows = db.scalars(select(DevicePortTarget)).all()
+    if _service_check_order_mode(db) == "alphabetical":
+        return sorted(rows, key=lambda row: (row.label.casefold(), row.port, row.id))
+    return sorted(rows, key=lambda row: (row.sort_order, row.id))
 
 
 @router.post("/service-checks", response_model=PortTargetOut, status_code=201)
 @router.post("/port-targets", response_model=PortTargetOut, status_code=201)
 def create_port_target(
     payload: PortTargetCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_monitoring_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> PortTargetOut:
-    if current_user.role not in ("SuperAdmin", "NetworkAdmin"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
     if payload.device_id is not None and db.get(Device, payload.device_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
     is_http = payload.check_type in ("http", "https")
@@ -536,8 +561,94 @@ def create_port_target(
         verify_tls=payload.verify_tls if is_http else False,
         follow_redirects=payload.follow_redirects if is_http else True,
         enabled=payload.enabled,
+        sort_order=(db.scalar(select(func.max(DevicePortTarget.sort_order))) or 0) + 1,
     )
     db.add(target)
+    db.flush()
+    if _service_check_order_mode(db) == "alphabetical":
+        _reindex_service_checks(db, "alphabetical")
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+@router.get("/service-checks/order-config", response_model=PortTargetOrderConfig)
+def get_port_target_order_config(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> PortTargetOrderConfig:
+    return PortTargetOrderConfig(mode=_service_check_order_mode(db))
+
+
+@router.put("/service-checks/order-config", response_model=list[PortTargetOut])
+def set_port_target_order_config(
+    payload: PortTargetOrderConfig,
+    current_user: Annotated[User, Depends(require_monitoring_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[PortTargetOut]:
+    rows = _reindex_service_checks(db, payload.mode, payload.target_ids)
+    setting = db.get(SystemSetting, SERVICE_CHECK_ORDER_MODE_KEY)
+    if setting is None:
+        db.add(SystemSetting(key=SERVICE_CHECK_ORDER_MODE_KEY, value=payload.mode))
+    else:
+        setting.value = payload.mode
+        setting.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return rows
+
+
+@router.put("/service-checks/order", response_model=list[PortTargetOut])
+@router.put("/port-targets/order", response_model=list[PortTargetOut])
+def reorder_port_targets(
+    payload: PortTargetOrder,
+    current_user: Annotated[User, Depends(require_monitoring_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[PortTargetOut]:
+    rows = db.scalars(select(DevicePortTarget)).all()
+    existing_ids = {row.id for row in rows}
+    if len(payload.target_ids) != len(set(payload.target_ids)) or set(payload.target_ids) != existing_ids:
+        raise HTTPException(status_code=400, detail="Order must contain every service check exactly once")
+    by_id = {row.id: row for row in rows}
+    for index, target_id in enumerate(payload.target_ids, start=1):
+        by_id[target_id].sort_order = index
+    setting = db.get(SystemSetting, SERVICE_CHECK_ORDER_MODE_KEY)
+    if setting is None:
+        db.add(SystemSetting(key=SERVICE_CHECK_ORDER_MODE_KEY, value="manual"))
+    else:
+        setting.value = "manual"
+        setting.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return [by_id[target_id] for target_id in payload.target_ids]
+
+
+@router.put("/service-checks/{target_id}", response_model=PortTargetOut)
+@router.put("/port-targets/{target_id}", response_model=PortTargetOut)
+def update_port_target(
+    target_id: int,
+    payload: PortTargetCreate,
+    current_user: Annotated[User, Depends(require_monitoring_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> PortTargetOut:
+    target = db.get(DevicePortTarget, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Port target not found")
+    if payload.device_id is not None and db.get(Device, payload.device_id) is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    is_http = payload.check_type in ("http", "https")
+    target.device_id = payload.device_id
+    target.port = payload.port
+    target.label = payload.label
+    target.check_type = payload.check_type
+    target.http_path = payload.http_path if is_http else None
+    target.http_method = payload.http_method if is_http else "GET"
+    target.expected_status_min = payload.expected_status_min
+    target.expected_status_max = payload.expected_status_max
+    target.timeout_seconds = payload.timeout_seconds if is_http else None
+    target.verify_tls = payload.verify_tls if is_http else False
+    target.follow_redirects = payload.follow_redirects if is_http else True
+    target.enabled = payload.enabled
+    if _service_check_order_mode(db) == "alphabetical":
+        _reindex_service_checks(db, "alphabetical")
     db.commit()
     db.refresh(target)
     return target
@@ -547,11 +658,9 @@ def create_port_target(
 @router.delete("/port-targets/{target_id}", status_code=204, response_model=None)
 def delete_port_target(
     target_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_monitoring_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    if current_user.role not in ("SuperAdmin", "NetworkAdmin"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
     target = db.get(DevicePortTarget, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Port target not found")

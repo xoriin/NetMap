@@ -22,6 +22,11 @@ test.describe("Monitoring workspace", () => {
         ip_address: "192.168.100.1",
         device_type: undefined,
         icon: undefined,
+        latest_port_results: [
+          { target_id: 3, port: 443, label: "Web", check_type: "tcp", open: true, status: "open" },
+          { target_id: 2, port: 53, label: "dns", check_type: "udp", open: true, status: "open" },
+          { target_id: 1, port: 22, label: "SSH", check_type: "tcp", open: true, status: "open" },
+        ],
       }),
       mockMonitoringDevice({
         device_id: 2,
@@ -72,6 +77,73 @@ test.describe("Monitoring workspace", () => {
     // most of the device cell rather than an absolute pixel width.
     expect(widths!.heartbeat).toBeGreaterThan(widths!.device * 0.4);
     expect(widths!.services).toBeLessThanOrEqual(240);
+  });
+
+  test("shows the full device name above the heartbeat strip", async ({ page }) => {
+    const cell = page.locator(".mon-row", { hasText: "Core Router With A Longer Name" }).locator(".mon-device-cell");
+    const name = cell.locator(".mon-device-name");
+    const heartbeat = cell.locator(".heartbeat-bar--sm");
+    await expect(name).toHaveText("Core Router With A Longer Name");
+    const layout = await cell.evaluate((element) => {
+      const nameRect = element.querySelector(".mon-device-name")!.getBoundingClientRect();
+      const heartbeatRect = element.querySelector(".heartbeat-bar--sm")!.getBoundingClientRect();
+      return { nameBottom: nameRect.bottom, heartbeatTop: heartbeatRect.top, clipped: element.querySelector(".mon-device-name")!.scrollWidth > element.querySelector(".mon-device-name")!.clientWidth };
+    });
+    expect(layout.nameBottom).toBeLessThanOrEqual(layout.heartbeatTop);
+    expect(layout.clipped).toBe(false);
+  });
+
+  test("sorts service badges alphabetically for every device", async ({ page }) => {
+    const badges = page.locator(".mon-row", { hasText: "Core Router With A Longer Name" }).locator(".mon-port-badge");
+    await expect(badges).toHaveCount(3);
+    await expect(badges).toHaveText(["dns", "SSH", "Web"]);
+  });
+
+  test("edits an existing port monitoring method without recreating it", async ({ page }) => {
+    const target = {
+      id: 12, device_id: null, port: 443, label: "Web health", check_type: "https",
+      http_path: "/health", http_method: "GET", expected_status_min: 200,
+      expected_status_max: 399, timeout_seconds: 5, verify_tls: true,
+      follow_redirects: true, enabled: true, created_at: "2026-08-19T00:00:00Z",
+    };
+    let updateBody: Record<string, unknown> | null = null;
+    await page.route("**/api/v1/monitoring/service-checks", (route) => route.fulfill({ json: [target] }));
+    await page.route("**/api/v1/monitoring/service-checks/12", async (route) => {
+      updateBody = route.request().postDataJSON();
+      await route.fulfill({ json: { ...target, ...updateBody } });
+    });
+    await page.reload();
+
+    await page.getByRole("button", { name: /Monitored ports/ }).click();
+    await page.getByRole("button", { name: "Edit Web health" }).click();
+    await page.getByLabel("Method").selectOption("HEAD");
+    await page.getByRole("button", { name: "Update", exact: true }).click();
+
+    await expect.poll(() => updateBody?.http_method).toBe("HEAD");
+  });
+
+  test("lets an authorised user organise service checks into a custom order", async ({ page }) => {
+    const targets = [
+      { id: 1, device_id: null, port: 53, label: "DNS", check_type: "udp", http_path: null, http_method: "GET", expected_status_min: 200, expected_status_max: 399, timeout_seconds: null, verify_tls: false, follow_redirects: true, enabled: true, sort_order: 1, created_at: "2026-08-19T00:00:00Z" },
+      { id: 2, device_id: null, port: 22, label: "SSH", check_type: "tcp", http_path: null, http_method: "GET", expected_status_min: 200, expected_status_max: 399, timeout_seconds: null, verify_tls: false, follow_redirects: true, enabled: true, sort_order: 2, created_at: "2026-08-19T00:00:00Z" },
+    ];
+    let savedOrder: number[] | null = null;
+    await page.route("**/api/v1/monitoring/service-checks", (route) => route.fulfill({ json: targets }));
+    await page.route("**/api/v1/monitoring/service-checks/order-config", async (route) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { mode: "alphabetical" } });
+      const body = route.request().postDataJSON();
+      if (body.mode === "manual" && body.target_ids) savedOrder = body.target_ids;
+      const order = body.target_ids ?? targets.map((target) => target.id);
+      await route.fulfill({ json: order.map((id: number, index: number) => ({ ...targets.find((target) => target.id === id)!, sort_order: index + 1 })) });
+    });
+    await page.reload();
+
+    await page.getByRole("button", { name: /Monitored ports/ }).click();
+    await page.getByRole("button", { name: "Organise" }).click();
+    await page.getByRole("button", { name: "Manual" }).click();
+    await page.getByRole("button", { name: "Drag DNS to reorder" }).dragTo(page.locator(".incident-row", { hasText: "SSH" }));
+
+    await expect.poll(() => savedOrder).toEqual([2, 1]);
   });
 
   test("uses the clean solid grid treatment without losing table behaviour", async ({ page }) => {

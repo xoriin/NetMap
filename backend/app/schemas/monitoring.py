@@ -108,6 +108,7 @@ class PortTargetOut(BaseModel):
     verify_tls: bool = False
     follow_redirects: bool = True
     enabled: bool = True
+    sort_order: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -159,3 +160,12 @@ class PortTargetCreate(BaseModel):
             if self.port != 67:
                 raise ValueError("DHCP checks use server port 67")
         return self
+
+
+class PortTargetOrder(BaseModel):
+    target_ids: list[int] = Field(..., min_length=1)
+
+
+class PortTargetOrderConfig(BaseModel):
+    mode: str = Field(..., pattern="^(alphabetical|manual)$")
+    target_ids: list[int] | None = None

@@ -1236,16 +1236,15 @@ body.route-ipam .workspace > .dash-alert--announcement {
 
 .mon-device-cell {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
   min-width: 0;
 }
 .mon-device-meta {
-  flex: 0 0 120px;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
 }
 
 .mon-device-name {
@@ -1700,6 +1699,17 @@ body.theme-dark .mon-checks-group-label { color: #4a7a96; }
   padding: 0 2px;
   margin-left: 2px;
 }
+.mon-port-row-actions { display: inline-flex; align-items: center; gap: 3px; }
+.mon-ports-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.mon-order-mode { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 12px; border: 1px solid var(--nm-border); border-radius: 6px; background: var(--nm-surface-subtle); }
+.mon-order-mode button { min-height: 28px; border: 0; border-radius: 4px; color: var(--nm-text-muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }
+.mon-order-mode button.active { color: var(--nm-text); background: var(--nm-surface); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
+.mon-port-drag-handle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 28px; padding: 0; border: 0; color: var(--nm-text-muted); background: transparent; cursor: grab; }
+.mon-port-drag-handle:active { cursor: grabbing; }
+.mon-port-sort-row { position: relative; transition: opacity 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+.mon-port-sort-row.is-dragging { opacity: .28; background: color-mix(in srgb, var(--nm-accent) 8%, transparent); }
+.mon-port-sort-row.is-drag-over::before { content: ""; position: absolute; z-index: 2; top: -2px; left: 8px; right: 8px; height: 2px; border-radius: 999px; background: color-mix(in srgb, var(--nm-text-muted) 72%, transparent); }
+.mon-port-drag-preview { position: fixed; top: -1000px; left: -1000px; z-index: 99999; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--nm-accent) 55%, var(--nm-border)); border-radius: 6px; color: var(--nm-text); background: color-mix(in srgb, var(--nm-surface) 78%, transparent); box-shadow: 0 12px 30px rgb(0 0 0 / 24%); opacity: .78; pointer-events: none; }
 .mon-port-chip-del:hover { color: var(--dash-red); }
 .btn-icon-sm {
   background: none;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import errno
 import re
 import secrets
 import socket
@@ -18,6 +19,21 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import httpx
 
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
+def _network_error_message(exc: OSError) -> str:
+    if isinstance(exc, TimeoutError):
+        return "Timed Out"
+    friendly = {
+        errno.ECONNREFUSED: "Connection refused",
+        errno.ETIMEDOUT: "Timed Out",
+        errno.EHOSTUNREACH: "Host unreachable",
+        errno.ENETUNREACH: "Network unreachable",
+        errno.ECONNRESET: "Connection reset",
+    }.get(exc.errno)
+    if friendly:
+        return friendly
+    return re.sub(r"^\[Errno \d+\]\s*", "", str(exc))[:255] or "Connection failed"
 
 
 @dataclass(frozen=True)
@@ -65,7 +81,7 @@ def check_port(
         with socket.create_connection((host, port), timeout=timeout):
             return CheckResult(open=True, response_time_ms=(time.monotonic() - start) * 1000)
     except OSError as exc:
-        return CheckResult(open=False, error=str(exc)[:255])
+        return CheckResult(open=False, error=_network_error_message(exc))
 
 
 def check_url(
@@ -199,7 +215,7 @@ def check_url(
     except httpx.TooManyRedirects:
         return CheckResult(open=upside_down, error=None if upside_down else f"Exceeded {max_redirects} redirects")
     except (httpx.HTTPError, OSError, ValueError, ssl.SSLError) as exc:
-        message = f"{type(exc).__name__}: {exc}"[:255]
+        message = re.sub(r"\btimed out\b", "Timed Out", f"{type(exc).__name__}: {exc}", flags=re.IGNORECASE)[:255]
         return CheckResult(open=upside_down, error=None if upside_down else message, assertion_detail="Inverted transport failure" if upside_down else None)
     finally:
         if temp_dir is not None:
@@ -390,7 +406,7 @@ def _check_udp(host: str, port: int, timeout: float) -> CheckResult:
         sock.recvfrom(1024)
         return CheckResult(open=True, response_time_ms=(time.monotonic() - start) * 1000)
     except (socket.timeout, ConnectionRefusedError, OSError) as exc:
-        return CheckResult(open=False, error=str(exc)[:255])
+        return CheckResult(open=False, error=_network_error_message(exc))
     finally:
         sock.close()
 

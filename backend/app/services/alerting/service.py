@@ -191,6 +191,10 @@ class AlertMonitorService:
                     port_map.setdefault(device_id, []).append(entry)
                     current_ports[(device_id, target.id)] = entry
 
+        target_order = {target.id: target.sort_order for target in port_targets}
+        for results in port_map.values():
+            results.sort(key=lambda item: (target_order.get(item["target_id"], 0), item["label"].casefold(), item["port"], item["target_id"]))
+
         # Persist history and update device monitor_status
         with SessionLocal() as db:
             history_rows = []

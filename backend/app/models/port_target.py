@@ -26,6 +26,7 @@ class DevicePortTarget(Base):
     verify_tls: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     follow_redirects: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

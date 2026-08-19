@@ -166,3 +166,9 @@ def require_alert_write(current_user: Annotated[User, Depends(get_current_user)]
 
 def require_ipam_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     return _check(current_user, "ipam_write", "IPAM write access is not permitted for your role")
+
+
+def require_monitoring_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return _check(
+        current_user, "monitoring_write", "Monitoring configuration is not permitted for your role"
+    )

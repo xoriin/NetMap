@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useContext, type FormEvent } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
-import { Search, Star, ChevronUp, ChevronDown, Activity, X } from "lucide-react";
+import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
 import {
   api,
@@ -80,21 +80,23 @@ function saveMonitoringSnapshot(snapshot: Omit<MonitoringSnapshot, "cachedAt">) 
 export function MonitoringWorkspace({
   accessToken,
   canWrite,
+  canManageAlerts,
+  canManageMonitoring,
   favouriteIds,
   inventoryDevices,
   livePingEnabled,
   monitorIntervalSeconds,
   onToggleFavourite,
-  userRole,
 }: {
   accessToken: string;
   canWrite: boolean;
+  canManageAlerts: boolean;
+  canManageMonitoring: boolean;
   favouriteIds: Set<number>;
   inventoryDevices: Device[];
   livePingEnabled: boolean;
   monitorIntervalSeconds: number;
   onToggleFavourite: (deviceId: number) => void;
-  userRole: string;
 }) {
   const [viewTab, setViewTab] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
@@ -212,6 +214,14 @@ export function MonitoringWorkspace({
   const [portDeviceSearch, setPortDeviceSearch] = useState("");
   const [portBusy, setPortBusy] = useState(false);
   const [portError, setPortError] = useState<string | null>(null);
+  const [editingPortTargetId, setEditingPortTargetId] = useState<number | null>(null);
+  const [organisingPortTargets, setOrganisingPortTargets] = useState(false);
+  const [portTargetOrderMode, setPortTargetOrderMode] = useState<"alphabetical" | "manual">("alphabetical");
+  const [draggedPortTargetId, setDraggedPortTargetId] = useState<number | null>(null);
+  const [dragOverPortTargetId, setDragOverPortTargetId] = useState<number | null>(null);
+  const draggedPortTargetIdRef = useRef<number | null>(null);
+  const dragOriginalOrderRef = useRef<PortTarget[] | null>(null);
+  const dragDropCommittedRef = useRef(false);
   const [pauseBusyId, setPauseBusyId] = useState<number | null>(null);
   const [expectationBusyId, setExpectationBusyId] = useState<number | null>(null);
   const [searchQ, setSearchQ] = useState("");
@@ -288,6 +298,7 @@ export function MonitoringWorkspace({
     const restPromise = Promise.all([
       api.listMonitoringDevices(accessToken),
       api.listPortTargets(accessToken),
+      api.getPortTargetOrderConfig(accessToken),
     ]).then((value) => value, () => null);
 
     const f = await summaryPromise;
@@ -296,9 +307,10 @@ export function MonitoringWorkspace({
 
     const rest = await restPromise;
     if (rest) {
-      const [d, p] = rest;
+      const [d, p, orderConfig] = rest;
       setDevices(d);
       setPortTargets(p);
+      setPortTargetOrderMode(orderConfig.mode);
       devicesRef.current = d;
       portTargetsRef.current = p;
     }
@@ -634,6 +646,10 @@ export function MonitoringWorkspace({
       setPortError(isDhcp ? "Select at least one DHCP server device" : "Select at least one device");
       return;
     }
+    if (editingPortTargetId !== null && portFormScope === "device" && portFormDeviceIds.size !== 1) {
+      setPortError("Select exactly one device when editing a service check");
+      return;
+    }
     const isHttp = portFormProtocol === "http" || portFormProtocol === "https";
     const statusMin = parseInt(portFormStatusMin, 10);
     const statusMax = parseInt(portFormStatusMax, 10);
@@ -650,35 +666,140 @@ export function MonitoringWorkspace({
     setPortError(null);
     try {
       const deviceIds = portFormScope === "device" || isDhcp ? Array.from(portFormDeviceIds) : [null];
-      await Promise.all(
-        deviceIds.flatMap((deviceId) =>
-          ports.map((port) =>
-            api.createPortTarget(accessToken, {
-              device_id: deviceId,
-              port,
-              label: portFormLabel.trim(),
-              check_type: portFormProtocol,
-              http_path: isHttp && portFormPath.trim() ? portFormPath.trim() : null,
-              http_method: isHttp ? portFormMethod : undefined,
-              expected_status_min: isHttp ? statusMin : undefined,
-              expected_status_max: isHttp ? statusMax : undefined,
-              timeout_seconds: isHttp ? timeoutSeconds : undefined,
-              verify_tls: isHttp ? portFormVerifyTls : undefined,
-              follow_redirects: isHttp ? portFormFollowRedirects : undefined,
-              enabled: true,
-            })
-          )
-        )
-      );
+      const payloadFor = (deviceId: number | null, port: number) => ({
+        device_id: deviceId,
+        port,
+        label: portFormLabel.trim(),
+        check_type: portFormProtocol,
+        http_path: isHttp && portFormPath.trim() ? portFormPath.trim() : null,
+        http_method: isHttp ? portFormMethod : undefined,
+        expected_status_min: isHttp ? statusMin : undefined,
+        expected_status_max: isHttp ? statusMax : undefined,
+        timeout_seconds: isHttp ? timeoutSeconds : undefined,
+        verify_tls: isHttp ? portFormVerifyTls : undefined,
+        follow_redirects: isHttp ? portFormFollowRedirects : undefined,
+        enabled: true,
+      });
+      if (editingPortTargetId !== null) {
+        if (ports.length !== 1) {
+          setPortError("Enter exactly one port when editing a service check");
+          return;
+        }
+        await api.updatePortTarget(accessToken, editingPortTargetId, payloadFor(deviceIds[0], ports[0]));
+      } else {
+        await Promise.all(deviceIds.flatMap((deviceId) =>
+          ports.map((port) => api.createPortTarget(accessToken, payloadFor(deviceId, port)))
+        ));
+      }
       setPortFormPort(""); setPortFormLabel(""); setPortFormScope("global"); setPortFormDeviceIds(new Set()); setPortDeviceSearch("");
       setPortFormMethod("GET"); setPortFormStatusMin("200"); setPortFormStatusMax("399");
       setPortFormTimeout(""); setPortFormVerifyTls(false); setPortFormFollowRedirects(true);
+      setEditingPortTargetId(null);
       setPortTargets(await api.listPortTargets(accessToken));
     } catch {
-      setPortError("Failed to add service check");
+      setPortError(editingPortTargetId === null ? "Failed to add service check" : "Failed to update service check");
     } finally {
       setPortBusy(false);
     }
+  }
+
+  function editPortTarget(target: PortTarget) {
+    setEditingPortTargetId(target.id);
+    setPortFormLabel(target.label);
+    setPortFormPort(String(target.port));
+    setPortFormProtocol(target.check_type);
+    setPortFormPath(target.http_path ?? "");
+    setPortFormMethod(target.http_method);
+    setPortFormStatusMin(String(target.expected_status_min));
+    setPortFormStatusMax(String(target.expected_status_max));
+    setPortFormTimeout(target.timeout_seconds == null ? "" : String(target.timeout_seconds));
+    setPortFormVerifyTls(target.verify_tls);
+    setPortFormFollowRedirects(target.follow_redirects);
+    setPortFormScope(target.device_id == null ? "global" : "device");
+    setPortFormDeviceIds(target.device_id == null ? new Set() : new Set([target.device_id]));
+    setPortError(null);
+  }
+
+  async function setPortOrderMode(mode: "alphabetical" | "manual") {
+    const previous = portTargets;
+    const previousMode = portTargetOrderMode;
+    setPortTargetOrderMode(mode);
+    try {
+      setPortTargets(await api.setPortTargetOrderConfig(accessToken, mode, mode === "manual" ? portTargets.map((target) => target.id) : undefined));
+    } catch {
+      setPortTargets(previous);
+      setPortTargetOrderMode(previousMode);
+      setPortError("Failed to save service check order");
+    }
+  }
+
+  function beginPortTargetDrag(event: DragEvent<HTMLButtonElement>, targetId: number) {
+    draggedPortTargetIdRef.current = targetId;
+    dragOriginalOrderRef.current = portTargets;
+    dragDropCommittedRef.current = false;
+    setDraggedPortTargetId(targetId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(targetId));
+    const row = event.currentTarget.closest(".incident-row") as HTMLElement | null;
+    if (row) {
+      const ghost = row.cloneNode(true) as HTMLElement;
+      ghost.className = "mon-port-drag-preview";
+      ghost.style.width = `${row.getBoundingClientRect().width}px`;
+      document.body.appendChild(ghost);
+      event.dataTransfer.setDragImage(ghost, 28, Math.round(row.getBoundingClientRect().height / 2));
+      window.setTimeout(() => ghost.remove(), 0);
+    }
+  }
+
+  function previewPortTargetDrop(event: DragEvent<HTMLDivElement>, targetId: number) {
+    if (portTargetOrderMode !== "manual") return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverPortTargetId(targetId);
+    const draggedId = draggedPortTargetIdRef.current;
+    if (draggedId === null || draggedId === targetId) return;
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    const pointerAfterMidpoint = event.clientY >= targetRect.top + targetRect.height / 2;
+    setPortTargets((current) => {
+      const dragged = current.find((target) => target.id === draggedId);
+      if (!dragged) return current;
+      const sourceIndex = current.findIndex((target) => target.id === draggedId);
+      const targetIndex = current.findIndex((target) => target.id === targetId);
+      const placeAfter = sourceIndex < targetIndex || pointerAfterMidpoint;
+      const reordered = current.filter((target) => target.id !== draggedId);
+      const destination = reordered.findIndex((target) => target.id === targetId);
+      if (destination < 0) return current;
+      reordered.splice(destination + (placeAfter ? 1 : 0), 0, dragged);
+      if (reordered.every((target, index) => target.id === current[index]?.id)) return current;
+      portTargetsRef.current = reordered;
+      return reordered;
+    });
+  }
+
+  async function dropPortTarget() {
+    if (draggedPortTargetIdRef.current === null || portTargetOrderMode !== "manual") return;
+    const previous = dragOriginalOrderRef.current ?? portTargetsRef.current;
+    const reordered = portTargetsRef.current;
+    dragDropCommittedRef.current = true;
+    draggedPortTargetIdRef.current = null;
+    setDraggedPortTargetId(null);
+    setDragOverPortTargetId(null);
+    try {
+      setPortTargets(await api.setPortTargetOrderConfig(accessToken, "manual", reordered.map((target) => target.id)));
+    } catch {
+      setPortTargets(previous);
+      setPortError("Failed to save service check order");
+    }
+  }
+
+  function endPortTargetDrag() {
+    if (!dragDropCommittedRef.current && dragOriginalOrderRef.current) {
+      setPortTargets(dragOriginalOrderRef.current);
+    }
+    draggedPortTargetIdRef.current = null;
+    dragOriginalOrderRef.current = null;
+    setDraggedPortTargetId(null);
+    setDragOverPortTargetId(null);
   }
 
   async function removePortTarget(id: number) {
@@ -776,7 +897,7 @@ export function MonitoringWorkspace({
   if (loading) return <div className="dash-layout"><p className="dash-empty">Loading monitoring data…</p></div>;
   if (error) return <div className="dash-layout"><p className="dash-empty" style={{ color: "var(--dash-red)" }}>{error}</p></div>;
 
-  const canManagePorts = userRole === "SuperAdmin" || userRole === "NetworkAdmin";
+  const canManagePorts = canManageMonitoring;
   const globalPortTargets = portTargets.filter((p) => p.device_id === null);
   const selectedPortTargets = selectedId === null ? [] : portTargets.filter((p) => p.device_id === selectedId);
 
@@ -1120,7 +1241,15 @@ export function MonitoringWorkspace({
                           <span className="dash-panel-meta">—</span>
                         ) : (
                           <span className="mon-port-badges">
-                            {d.latest_port_results.map((r) => (
+                            {[...d.latest_port_results]
+                              .sort((left, right) => {
+                                const leftIndex = portTargets.findIndex((target) => target.id === left.target_id);
+                                const rightIndex = portTargets.findIndex((target) => target.id === right.target_id);
+                                return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex)
+                                  || left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+                                  || left.port - right.port;
+                              })
+                              .map((r) => (
                               <span
                               key={r.target_id ?? `${r.label}-${r.port}`}
                               className={`mon-port-badge mon-port-badge--${r.open ? "open" : "closed"}`}
@@ -1185,10 +1314,10 @@ export function MonitoringWorkspace({
           wide
           onCancel={() => {
             setPortFormPort(""); setPortFormLabel(""); setPortFormScope("global");
-            setPortFormDeviceIds(new Set()); setPortDeviceSearch(""); setShowPortsModal(false);
+            setPortFormDeviceIds(new Set()); setPortDeviceSearch(""); setEditingPortTargetId(null); setOrganisingPortTargets(false); setShowPortsModal(false);
           }}
           headerSubmitFormId={canManagePorts ? "service-check-form" : undefined}
-          headerSubmitLabel={canManagePorts ? "Add" : undefined}
+          headerSubmitLabel={canManagePorts ? (editingPortTargetId === null ? "Add" : "Update") : undefined}
           headerSubmitDisabled={portBusy}
         >
           <div className="mon-ports-modal-body">
@@ -1398,21 +1527,41 @@ export function MonitoringWorkspace({
             {/* Right column: existing checks list */}
             {portTargets.length > 0 && (
               <div className="mon-ports-list-col">
+                {canManagePorts && (
+                  <div className="mon-ports-list-toolbar">
+                    <strong>Configured checks</strong>
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => setOrganisingPortTargets((current) => !current)}>
+                      {organisingPortTargets ? "Done" : "Organise"}
+                    </button>
+                  </div>
+                )}
+                {canManagePorts && organisingPortTargets && (
+                  <div className="mon-order-mode" role="group" aria-label="Service check order">
+                    <button type="button" className={portTargetOrderMode === "alphabetical" ? "active" : ""} onClick={() => void setPortOrderMode("alphabetical")}>Alphabetical</button>
+                    <button type="button" className={portTargetOrderMode === "manual" ? "active" : ""} onClick={() => void setPortOrderMode("manual")}>Manual</button>
+                  </div>
+                )}
                 {portTargets.filter((p) => p.device_id === null).length > 0 && (
                   <div>
                     <p className="mon-checks-group-label">All devices</p>
                     <div className="incident-log">
                       {portTargets.filter((p) => p.device_id === null).map((p) => (
-                        <div key={p.id} className="incident-row" style={{ alignItems: "center" }}>
+                        <div key={p.id} className={`incident-row mon-port-sort-row${draggedPortTargetId === p.id ? " is-dragging" : ""}${dragOverPortTargetId === p.id && draggedPortTargetId !== p.id ? " is-drag-over" : ""}`} style={{ alignItems: "center" }} onDragOver={(event) => previewPortTargetDrop(event, p.id)} onDragLeave={() => setDragOverPortTargetId((current) => current === p.id ? null : current)} onDrop={(event) => { event.preventDefault(); void dropPortTarget(); }}>
+                          {organisingPortTargets && portTargetOrderMode === "manual" && <button type="button" draggable className="mon-port-drag-handle" onDragStart={(event) => beginPortTargetDrag(event, p.id)} onDragEnd={endPortTargetDrag} title={`Drag ${p.label} to reorder`} aria-label={`Drag ${p.label} to reorder`}><GripVertical size={15} /></button>}
                           <span className="mon-dot mon-dot-online" />
                           <div className="incident-row-body">
                             <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.label}</span>
                             <span className="dash-panel-meta">{p.check_type.toUpperCase()} port {p.port}</span>
                           </div>
                           {canManagePorts && (
-                            <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`}>
-                              <X size={13} />
-                            </button>
+                            <div className="mon-port-row-actions">
+                              <button type="button" className="mon-port-chip-del" onClick={() => editPortTarget(p)} title={`Edit ${p.label}`} aria-label={`Edit ${p.label}`}>
+                                <Pencil size={13} />
+                              </button>
+                              <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`} aria-label={`Remove ${p.label}`}>
+                                <X size={13} />
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -1437,16 +1586,22 @@ export function MonitoringWorkspace({
                           const dev = devices.find((d) => d.device_id === devId);
                           const devName = dev ? (dev.display_name ?? dev.hostname ?? dev.ip_address) : `Device #${devId}`;
                           return checks.map((p) => (
-                            <div key={p.id} className="incident-row" style={{ alignItems: "center" }}>
+                            <div key={p.id} className={`incident-row mon-port-sort-row${draggedPortTargetId === p.id ? " is-dragging" : ""}${dragOverPortTargetId === p.id && draggedPortTargetId !== p.id ? " is-drag-over" : ""}`} style={{ alignItems: "center" }} onDragOver={(event) => previewPortTargetDrop(event, p.id)} onDragLeave={() => setDragOverPortTargetId((current) => current === p.id ? null : current)} onDrop={(event) => { event.preventDefault(); void dropPortTarget(); }}>
+                              {organisingPortTargets && portTargetOrderMode === "manual" && <button type="button" draggable className="mon-port-drag-handle" onDragStart={(event) => beginPortTargetDrag(event, p.id)} onDragEnd={endPortTargetDrag} title={`Drag ${p.label} to reorder`} aria-label={`Drag ${p.label} to reorder`}><GripVertical size={15} /></button>}
                               <span className="mon-dot mon-dot-online" />
                               <div className="incident-row-body" style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
                                 <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.label}</span>
                                 <span className="dash-panel-meta">{devName} · {p.check_type.toUpperCase()} port {p.port}</span>
                               </div>
                               {canManagePorts && (
-                                <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`}>
-                                  <X size={13} />
-                                </button>
+                                <div className="mon-port-row-actions">
+                                  <button type="button" className="mon-port-chip-del" onClick={() => editPortTarget(p)} title={`Edit ${p.label}`} aria-label={`Edit ${p.label}`}>
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button type="button" className="mon-port-chip-del" onClick={() => void removePortTarget(p.id)} title={`Remove ${p.label}`} aria-label={`Remove ${p.label}`}>
+                                    <X size={13} />
+                                  </button>
+                                </div>
                               )}
                             </div>
                           ));
@@ -1627,7 +1782,13 @@ export function MonitoringWorkspace({
                         <span className="dash-panel-meta">latest check</span>
                       </div>
                       <div className="mon-port-rows">
-                        {selectedDevice.latest_port_results.map((r) => (
+                        {[...selectedDevice.latest_port_results].sort((left, right) => {
+                          const leftIndex = portTargets.findIndex((target) => target.id === left.target_id);
+                          const rightIndex = portTargets.findIndex((target) => target.id === right.target_id);
+                          return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex)
+                            || left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+                            || left.port - right.port;
+                        }).map((r) => (
                           <div key={r.target_id ?? `${r.label}-${r.port}`} className="mon-port-row">
                             <span className={`mon-dot mon-dot-${r.open ? "online" : "offline"}`} />
                             <span className="mon-port-label">{r.label}</span>
@@ -1662,7 +1823,7 @@ export function MonitoringWorkspace({
                           {relevantRules.length === 0 ? (
                             <p className="dash-empty" style={{ margin: 0, padding: "8px 0", textAlign: "center" }}>
                               No alert rules for this device.
-                              {(userRole === "SuperAdmin" || userRole === "NetworkAdmin") && (
+                              {canManageAlerts && (
                                 <> Configure them in <strong>Admin → Alerts</strong>.</>
                               )}
                             </p>

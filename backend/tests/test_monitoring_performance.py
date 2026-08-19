@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1.admin import get_public_settings, update_settings
-from app.api.v1.monitoring import _build_device_summaries, device_analysis, get_device_summary, list_device_summaries
+from app.api.v1.monitoring import _build_device_summaries, _parse_port_results, device_analysis, get_device_summary, list_device_summaries
 from app.db.session import Base, _migrate_device_expected_status, _migrate_monitor_history_uptime_index
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
@@ -16,6 +16,11 @@ from app.models.topology_group import TopologyGroup
 from app.schemas.admin import SystemSettingsUpdate
 from app.services.alerting import service as alerting_service
 from app.services.monitoring.health import observed_health, observed_is_healthy
+
+
+def test_latest_service_results_are_sorted_case_insensitively():
+    results = _parse_port_results('[{"target_id":3,"port":443,"label":"Web","check_type":"tcp","open":true},{"target_id":2,"port":53,"label":"dns","check_type":"udp","open":true},{"target_id":1,"port":22,"label":"SSH","check_type":"tcp","open":true}]')
+    assert [result.label for result in results] == ["dns", "SSH", "Web"]
 
 
 def _session():

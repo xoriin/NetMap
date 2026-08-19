@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_monitoring_write
 from app.db.session import get_db
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.user import User
@@ -38,8 +38,12 @@ def _as_utc_required(value: datetime) -> datetime:
 
 
 def _require_write(current_user: User) -> None:
+    # Kept for direct service-level tests; route dependencies enforce the same
+    # configurable RBAC permission before these handlers run.
     if current_user.role not in ("SuperAdmin", "NetworkAdmin"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        from app.services.rbac.permissions import has_permission
+        if not has_permission(current_user.role, "monitoring_write"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
 
 
 def _build_reads(db: Session, monitors: list[Monitor], user: User | None = None) -> list[MonitorRead]:

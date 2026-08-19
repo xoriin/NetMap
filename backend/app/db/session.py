@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from datetime import datetime, timezone
+import json
 import logging
 import sqlite3
 
@@ -162,6 +163,8 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0060_api_key_display_suffix", _migrate_api_key_display_suffix)
         _run_migration(conn, inspector, "0061_external_ip_tracking", _migrate_external_ip_tracking)
         _run_migration(conn, inspector, "0062_user_monitor_favourites", _migrate_user_monitor_favourites)
+        _run_migration(conn, inspector, "0063_ipam_reservation_claim_permission", _migrate_ipam_reservation_claim_permission)
+        _run_migration(conn, inspector, "0064_service_check_order", _migrate_service_check_order)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1322,3 +1325,40 @@ def _migrate_user_entity_colors(conn, inspector) -> None:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN entity_colors_enabled BOOLEAN NOT NULL DEFAULT 1"
         ))
+
+
+def _migrate_ipam_reservation_claim_permission(conn, inspector) -> None:
+    if "system_settings" not in inspector.get_table_names():
+        return
+    raw = conn.execute(text(
+        "SELECT value FROM system_settings WHERE key = 'role_permissions'"
+    )).scalar_one_or_none()
+    if not raw:
+        return
+    try:
+        roles = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    network_admin = roles.get("NetworkAdmin")
+    if not isinstance(network_admin, list) or "ipam_reservation_claim" in network_admin:
+        return
+    network_admin.append("ipam_reservation_claim")
+    conn.execute(
+        text("UPDATE system_settings SET value = :value, updated_at = :now WHERE key = 'role_permissions'"),
+        {"value": json.dumps(roles), "now": datetime.now(timezone.utc).isoformat()},
+    )
+
+
+def _migrate_service_check_order(conn, inspector) -> None:
+    if "device_port_targets" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("device_port_targets")}
+    if "sort_order" not in existing:
+        conn.execute(text("ALTER TABLE device_port_targets ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
+    rows = conn.execute(text(
+        "SELECT id FROM device_port_targets ORDER BY lower(label), port, id"
+    )).all()
+    for index, row in enumerate(rows, start=1):
+        conn.execute(text(
+            "UPDATE device_port_targets SET sort_order = :sort_order WHERE id = :id"
+        ), {"sort_order": index, "id": row[0]})
