@@ -97,7 +97,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
                   <option value="json">JSON — Structured data</option>
                 </select>
               </label>
-              {!canExportInventory && <p className="exports-permission-note">Only NetworkAdmin and SuperAdmin can export inventory data.</p>}
+              {!canExportInventory && <p className="exports-permission-note">Your role cannot export inventory data.</p>}
               <div className="exports-panel-actions">
                 <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
                   <Download size={15} />{busyKey === "inventory" ? "Preparing…" : "Download inventory"}
