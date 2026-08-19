@@ -79,6 +79,7 @@ function overviewDeviceHealthLabel(device: Device): string {
 export function OverviewWorkspace({
   accessToken,
   canWrite,
+  canManageDiscovery,
   favouriteIds,
   graph,
   onDeviceChange,
@@ -92,6 +93,7 @@ export function OverviewWorkspace({
 }: {
   accessToken: string | null;
   canWrite: boolean;
+  canManageDiscovery: boolean;
   favouriteIds: Set<number>;
   graph: TopologyGraph;
   onDeviceChange: (device: Device) => void;
@@ -605,14 +607,14 @@ export function OverviewWorkspace({
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
             <OverviewPanelIdentity icon={<IconDeviceDesktop size={18} />} title="Recently updated" />
             <div className="dash-panel-actions">
-              {canWrite && (
+              {(canWrite || canManageDiscovery) && (
                 <>
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>
+                  {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>
                     + Device
-                  </button>
-                  <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>
+                  </button>}
+                  {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>
                     Scan
-                  </button>
+                  </button>}
                 </>
               )}
               <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
@@ -627,10 +629,10 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconDeviceDesktop size={22} /></div>
                 <div className="dash-empty-title">No devices yet</div>
                 <div className="dash-empty-desc">Add your first device to start mapping your network.</div>
-                {canWrite ? (
+                {(canWrite || canManageDiscovery) ? (
                   <div className="dash-empty-actions">
-                    <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>+ Device</button>
-                    <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>
+                    {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>+ Device</button>}
+                    {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>}
                   </div>
                 ) : (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/inventory")}>View inventory</button>
@@ -813,6 +815,7 @@ export function OverviewWorkspace({
       {showScanModal && accessToken && (
         <DiscoveryModal
           accessToken={accessToken}
+          canImport={canWrite}
           onCancel={() => setShowScanModal(false)}
           onImported={async () => {
             setShowScanModal(false);

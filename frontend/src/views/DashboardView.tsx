@@ -94,6 +94,7 @@ export function DashboardView({
   const canWriteIpam = userHasPermission(user, "ipam_write");
   const canManageMonitoring = userHasPermission(user, "monitoring_write");
   const canManageAlerts = userHasPermission(user, "alert_write");
+  const canManageDiscovery = userHasPermission(user, "discovery_manage");
   const canRunActiveTools = userHasPermission(user, "tools_active");
   const canAccessExports = ["inventory_export", "firewall_export", "report_export"]
     .some((permission) => userHasPermission(user, permission));
@@ -136,6 +137,7 @@ export function DashboardView({
         <OverviewWorkspace
           accessToken={accessToken}
           canWrite={canWrite}
+          canManageDiscovery={canManageDiscovery}
           favouriteIds={favouriteIds}
           graph={graph}
           onDeviceChange={onDeviceChange}
@@ -153,6 +155,7 @@ export function DashboardView({
           accessToken={accessToken}
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
+          canManageDiscovery={canManageDiscovery}
           graph={graph}
           onGraphChange={onGraphChange}
           jumpTarget={jumpTarget}
@@ -167,6 +170,7 @@ export function DashboardView({
           accessToken={accessToken}
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
+          canManageDiscovery={canManageDiscovery}
           favouriteIds={favouriteIds}
           graph={graph}
           onDeviceChange={onDeviceChange}
@@ -209,13 +213,14 @@ export function DashboardView({
           onJumpToTopologyDevice={jumpToTopologyDevice}
         />
       )}
-      {currentRoute === "/admin" && user.role === "SuperAdmin" && accessToken && (
+      {currentRoute === "/admin" && accessToken && (
         <AdminWorkspace
           accessToken={accessToken}
           graph={graph}
           onSettingsChange={onSettingsChange}
           onOpenWhatsNew={onOpenWhatsNew}
           versionInfo={versionInfo}
+          user={user}
         />
       )}
       {currentRoute === "/profile" && accessToken && (

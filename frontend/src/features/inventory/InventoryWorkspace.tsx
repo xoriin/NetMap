@@ -55,6 +55,7 @@ export function InventoryWorkspace({
   accessToken,
   canViewSecurity,
   canWrite,
+  canManageDiscovery,
   favouriteIds,
   graph,
   livePingEnabled,
@@ -69,6 +70,7 @@ export function InventoryWorkspace({
   accessToken: string;
   canViewSecurity: boolean;
   canWrite: boolean;
+  canManageDiscovery: boolean;
   favouriteIds: Set<number>;
   graph: TopologyGraph;
   livePingEnabled: boolean;
@@ -820,14 +822,12 @@ export function InventoryWorkspace({
                 <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowDeviceForm(true)}>
                   + Device
                 </button>
-                <button type="button" className="nm-btn" onClick={() => setShowScanModal(true)}>
-                  Scan
-                </button>
                 <button type="button" className="nm-btn" onClick={() => setShowImportModal(true)}>
                   Import
                 </button>
               </>
             )}
+            {canManageDiscovery && <button type="button" className="nm-btn" onClick={() => setShowScanModal(true)}>Scan</button>}
             <div className="inv-search-box nm-search">
               <Search size={14} className="nm-search-icon" />
               <input
@@ -1033,6 +1033,7 @@ export function InventoryWorkspace({
       )}
       {showScanModal && (
         <DiscoveryModal accessToken={accessToken} onCancel={() => setShowScanModal(false)}
+          canImport={canWrite}
           onImported={async () => { setShowScanModal(false); await onGraphChange(); }} />
       )}
       {showImportModal && (

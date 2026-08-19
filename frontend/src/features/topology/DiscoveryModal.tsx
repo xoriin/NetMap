@@ -22,10 +22,12 @@ const proposedUpdateLabels: Record<string, string> = {
 
 export function DiscoveryModal({
   accessToken,
+  canImport,
   onCancel,
   onImported,
 }: {
   accessToken: string | null;
+  canImport: boolean;
   onCancel: () => void;
   onImported: () => Promise<void>;
 }) {
@@ -455,7 +457,7 @@ export function DiscoveryModal({
                   </label>
                 ))}
               </div>
-              <div className="scan-target-info">
+              {canImport && <div className="scan-target-info">
                 <label>
                   Existing devices
                   <select value={importMode} onChange={(event) => setImportMode(event.target.value as typeof importMode)}>
@@ -512,8 +514,8 @@ export function DiscoveryModal({
                     OS
                   </label>
                 </div>
-              </div>
-              <div className="modal-actions modal-actions--plain scan-import-actions">
+              </div>}
+              {canImport ? <div className="modal-actions modal-actions--plain scan-import-actions">
                 <button type="button" className="nm-btn nm-btn--primary" disabled={busy || selectedIps.size === 0} onClick={() => void importSelected()}>
                   Import selected
                 </button>
@@ -522,7 +524,7 @@ export function DiscoveryModal({
                     Update {scanCounts.changed} existing
                   </button>
                 )}
-              </div>
+              </div> : <div className="tool-note">You can review these results. Importing or updating inventory also requires Edit inventory &amp; topology.</div>}
             </>
           )}
         </div>

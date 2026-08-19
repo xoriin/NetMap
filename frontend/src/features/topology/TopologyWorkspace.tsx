@@ -54,6 +54,7 @@ export function TopologyWorkspace({
   accessToken,
   canViewSecurity,
   canWrite,
+  canManageDiscovery,
   graph,
   onGraphChange,
   jumpTarget,
@@ -65,6 +66,7 @@ export function TopologyWorkspace({
   accessToken: string | null;
   canViewSecurity: boolean;
   canWrite: boolean;
+  canManageDiscovery: boolean;
   graph: TopologyGraph;
   onGraphChange: () => Promise<void>;
   jumpTarget: { deviceId: number; token: number } | null;
@@ -1729,6 +1731,7 @@ export function TopologyWorkspace({
         selectedSiteId={selectedSiteId}
         statusCounts={topoStatusCounts}
         canWrite={canWrite}
+        canManageDiscovery={canManageDiscovery}
         totalDeviceCount={liveGraph.devices.length}
         showNodeIcons={showNodeIcons}
         showNodeLabels={showNodeLabels}
@@ -1981,6 +1984,7 @@ export function TopologyWorkspace({
       {showScanModal && (
         <DiscoveryModal
           accessToken={accessToken}
+          canImport={canWrite}
           onCancel={() => setShowScanModal(false)}
           onImported={async () => {
             setShowScanModal(false);

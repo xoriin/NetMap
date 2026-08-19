@@ -147,6 +147,7 @@ export function TopologyToolbar({
   selectedSiteId,
   statusCounts,
   canWrite,
+  canManageDiscovery,
   totalDeviceCount,
   showNodeIcons,
   showNodeLabels,
@@ -188,6 +189,7 @@ export function TopologyToolbar({
   selectedSiteId: number | null;
   statusCounts: { online: number; offline: number };
   canWrite: boolean;
+  canManageDiscovery: boolean;
   totalDeviceCount: number;
   showNodeIcons: boolean;
   showNodeLabels: boolean;
@@ -431,11 +433,11 @@ export function TopologyToolbar({
               </div>
             )}
           </div>
-          {canWrite && (
+          {(canWrite || canManageDiscovery) && (
             <>
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={onAddDevice}>+ Device</button>
-              <button type="button" className="nm-btn nm-btn--sm" onClick={onScan}>Scan</button>
-              <button type="button" className="nm-btn nm-btn--sm" disabled={totalDeviceCount < 2} onClick={onAddLink}>+ Link</button>
+              {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={onAddDevice}>+ Device</button>}
+              {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" onClick={onScan}>Scan</button>}
+              {canWrite && <button type="button" className="nm-btn nm-btn--sm" disabled={totalDeviceCount < 2} onClick={onAddLink}>+ Link</button>}
             </>
           )}
         </div>
