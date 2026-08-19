@@ -25,10 +25,10 @@ Everything runs in a single container. The web UI, API, database, and syslog rec
 
 ## Screenshots
 
-<img src="https://github.com/user-attachments/assets/ffd0c6d9-072f-41c1-bd4e-15c3737ede6b" width="800" alt="Overview" />
-<img src="https://github.com/user-attachments/assets/f58ae91d-6b8e-40cb-95e5-f0a9975e97a6" width="800" alt="Topology" />
-<img src="https://github.com/user-attachments/assets/b6a666bb-ca75-4732-9416-4da65afcecfe" width="800" alt="Monitoring" />
-<img src="https://github.com/user-attachments/assets/13713071-f86e-432c-a503-d6069616109b" width="800" alt="IPAM" />
+<img src="frontend/public/readme/overview.png" width="1200" alt="NetMap Overview dashboard" />
+<img src="frontend/public/readme/topology.png" width="1200" alt="NetMap interactive topology" />
+<img src="frontend/public/readme/monitoring.png" width="1200" alt="NetMap device monitoring" />
+<img src="frontend/public/readme/ipam.png" width="1200" alt="NetMap IP address management" />
 
 ---
 
