@@ -25,11 +25,13 @@ import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge } from "../../components/MonitorBadges";
 import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
 import { DeviceForm } from "../devices/DeviceForm";
+import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { DiscoveryModal } from "../topology/DiscoveryModal";
 import { computeIncidents } from "../../utils/monitoring";
 import { readJson, writeJson } from "../../utils/storage";
@@ -101,6 +103,7 @@ export function OverviewWorkspace({
   summary: DashboardSummary | null;
   user: User;
 }) {
+  const confirmAction = useConfirm();
   const deviceTypesQuery = useDeviceTypes(accessToken);
   const deviceTypeOptions = deviceTypesQuery.options;
   const monQuery = useApiQuery(
@@ -191,7 +194,7 @@ export function OverviewWorkspace({
   }, [favouriteMonitors, favouriteSearch]);
 
   const createDevice = useApiMutation(
-    (payload: DevicePayload) => api.createDevice(accessToken!, payload),
+    (payload: DevicePayload) => createDeviceWithReservationConfirmation(accessToken!, payload, confirmAction),
     { successMessage: "Device created", errorToast: false },
   );
   const busy = createDevice.isBusy;

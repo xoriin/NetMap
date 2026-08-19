@@ -32,6 +32,7 @@ import { DashStat } from "../../components/DashStat";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { DeviceDetails } from "../devices/DeviceDetails";
 import { DeviceForm } from "../devices/DeviceForm";
+import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { DiscoveryModal } from "../topology/DiscoveryModal";
 import { DeviceImportModal } from "../devices/DeviceImportModal";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
@@ -619,7 +620,8 @@ export function InventoryWorkspace({
     setBusy(true);
     setInventoryError(null);
     try {
-      const created = await api.createDevice(accessToken, payload);
+      const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
+      if (!created) return;
       onDeviceChange(created);
       setShowDeviceForm(false);
       toast.success("Device added", { detail: deviceLabel(created) });

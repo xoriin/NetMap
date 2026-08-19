@@ -19,6 +19,7 @@ from app.api.deps import get_current_user, require_security_view, require_topolo
 from app.db.firewall_session import get_firewall_db
 from app.db.session import get_db
 from app.models.device import Device
+from app.models.ip_reservation import IpReservation
 from app.models.relationship import DeviceRelationship
 from app.models.site import Site
 from app.models.snmp_profile import SnmpProfile
@@ -63,6 +64,7 @@ from app.schemas.topology import (
 from app.schemas.tools import PingRequest
 from app.services.search import build_device_event_counts, correlation_window_start, list_recent_device_events
 from app.services.audit.service import write_audit
+from app.services.rbac.permissions import has_permission
 from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
 from app.services.snmp import OID_SYS_DESCR, OID_SYS_NAME, SnmpError, read_snmp_arp_table, SnmpClient, value_to_text
@@ -772,6 +774,36 @@ def create_device(
     current_user: Annotated[User, Depends(require_topology_write)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeviceRead:
+    reservation = None
+    if payload.ip_address:
+        reservation = db.scalar(
+            select(IpReservation).where(IpReservation.ip_address == payload.ip_address)
+        )
+    if reservation is not None and not payload.claim_reservation:
+        can_claim = current_user.role == "SuperAdmin" or has_permission(
+            current_user.role, "ipam_reservation_claim"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "ip_reservation_conflict",
+                "reservation_id": reservation.id,
+                "ip_address": reservation.ip_address,
+                "label": reservation.label,
+                "mac_address": reservation.mac_address,
+                "can_claim": can_claim,
+            },
+        )
+    if reservation is not None and payload.claim_reservation:
+        if current_user.role != "SuperAdmin" and not has_permission(
+            current_user.role, "ipam_reservation_claim"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Claiming an IP reservation is not permitted for your role",
+            )
+        db.delete(reservation)
+
     group_id = payload.topology_group_id
     group_name = payload.topology_group
     if group_id is not None:
@@ -822,6 +854,14 @@ def create_device(
         target=f"device:{device.id}",
         detail=device.ip_address,
     )
+    if reservation is not None:
+        write_audit(
+            db,
+            action="ipam.reservation_claimed",
+            actor_user_id=current_user.id,
+            target=f"device:{device.id}",
+            detail=f"{reservation.ip_address} ({reservation.label})",
+        )
     db.commit()
     db.refresh(device)
     sync_topology_group_entities(db)

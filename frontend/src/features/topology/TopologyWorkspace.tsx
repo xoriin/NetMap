@@ -25,6 +25,7 @@ import { isDeviceMonitoringPaused } from "../../utils/device";
 import { deviceIconUrl, deviceIconPath, resolveDeviceIcon } from "../../icons";
 import { relationshipVisualSourceNodeId, relationshipVisualTargetNodeId } from "../../utils/relationship";
 import { DeviceForm } from "../devices/DeviceForm";
+import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { RelationshipEditForm, RelationshipForm, formatLinkSpeed } from "./RelationshipForm";
 import { DiscoveryModal } from "./DiscoveryModal";
 import { LayoutsModal } from "./LayoutsModal";
@@ -1245,7 +1246,8 @@ export function TopologyWorkspace({
     setBusy(true);
     setTopologyError(null);
     try {
-      const created = await api.createDevice(accessToken, payload);
+      const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
+      if (!created) return;
       setLiveGraph((current) => ({
         ...current,
         devices: [...current.devices, created],

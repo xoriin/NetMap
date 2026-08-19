@@ -108,6 +108,45 @@ test.describe("Inventory device type filter", () => {
   });
 });
 
+test.describe("Reserved IP allocation", () => {
+  test("confirms before deleting a reservation and creating the device", async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, []);
+    await setupInventoryMocks(page, []);
+    const requests: Record<string, unknown>[] = [];
+    await page.route("**/api/v1/topology/devices", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = await route.request().postDataJSON() as Record<string, unknown>;
+      requests.push(body);
+      if (!body.claim_reservation) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { code: "ip_reservation_conflict", reservation_id: 7, ip_address: "192.168.1.50", label: "Printer allocation", mac_address: "00:11:22:33:44:55", can_claim: true } }),
+        });
+        return;
+      }
+      await route.fulfill({ json: mockDevice({ id: 50, hostname: "printer", ip_address: "192.168.1.50" }) });
+    });
+    await page.goto("/inventory");
+    await page.getByRole("button", { name: "+ Device" }).click();
+    const deviceDialog = page.getByRole("dialog", { name: "Add device" });
+    await deviceDialog.getByLabel("Hostname").fill("printer");
+    await deviceDialog.getByLabel("IP address").fill("192.168.1.50");
+    await deviceDialog.getByRole("button", { name: "Save" }).click();
+
+    const confirmDialog = page.getByRole("dialog", { name: "Use reserved IP address?" });
+    await expect(confirmDialog).toContainText("Printer allocation");
+    await expect(confirmDialog).toContainText("00:11:22:33:44:55");
+    await confirmDialog.getByRole("button", { name: "Delete reservation and create device" }).click();
+
+    await expect(deviceDialog).toBeHidden();
+    expect(requests).toHaveLength(2);
+    expect(requests[0].claim_reservation).toBe(false);
+    expect(requests[1].claim_reservation).toBe(true);
+  });
+});
+
 test.describe("Inventory approved workspace hierarchy", () => {
   const devices = [
     mockDevice({ id: 1, hostname: "router-01", display_name: "Core Router", ip_address: "192.168.1.1", device_type: "router" }),

@@ -76,6 +76,8 @@ class DeviceBase(BaseModel):
         return value
 
 class DeviceCreate(DeviceBase):
+    claim_reservation: bool = False
+
     @field_validator("ip_address")
     @classmethod
     def validate_ip_address(cls, ip_address: str | None) -> str | None:

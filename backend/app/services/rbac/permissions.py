@@ -23,6 +23,7 @@ PERMISSION_KEYS: list[str] = [
     "firewall_export",
     "report_export",
     "ipam_write",
+    "ipam_reservation_claim",
     "monitoring_write",
     "alert_write",
 ]
@@ -36,6 +37,7 @@ PERMISSION_META: dict[str, dict[str, str]] = {
     "firewall_export":  {"label": "Export firewall logs",          "description": "Download syslog and firewall event logs as CSV"},
     "report_export":    {"label": "Generate PDF reports",          "description": "Generate and download full network PDF reports"},
     "ipam_write":       {"label": "Edit IPAM",                     "description": "Create and modify subnets, import DHCP lease files"},
+    "ipam_reservation_claim": {"label": "Claim reserved IPs",      "description": "Convert an IP reservation into an inventory device after confirmation"},
     "monitoring_write": {"label": "Configure monitoring",          "description": "Add and remove port monitoring targets"},
     "alert_write":      {"label": "Manage alert rules",            "description": "Create, edit and delete alert notification rules"},
 }
@@ -45,7 +47,7 @@ ROLE_DEFAULTS: dict[str, list[str]] = {
     "NetworkAdmin": [
         "topology_write", "security_view", "tools_passive", "tools_active",
         "inventory_export", "firewall_export", "report_export",
-        "ipam_write", "monitoring_write", "alert_write",
+        "ipam_write", "ipam_reservation_claim", "monitoring_write", "alert_write",
     ],
     "SecurityAnalyst": [
         "security_view", "tools_passive", "firewall_export",
