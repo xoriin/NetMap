@@ -13,7 +13,7 @@ An external allocation can be entered in whichever form the provider supplied:
 
 An allocation records its provider, cloud service/area, account or circuit reference, region, and purpose. NetMap preserves and displays the normalized form, then derives in-use, reserved, available, and utilization totals from its actual boundaries.
 
-Each allocation can also use a user-selected asset icon. The picker shares the application icon catalogue, including installed custom packs, and the chosen mark appears in the allocation tier of the tree. Provider brand icons remain managed separately in Cloud provider administration.
+Each allocation can also use a user-selected allocation icon. The picker shares the application icon catalogue, including installed custom packs, and the chosen mark appears in the allocation tier of the tree. Provider brand icons remain managed separately in Cloud provider administration.
 
 The External IPs page is organised as **Provider → Service/area → Allocation → IP address**. Providers remain the main organisational point, while services such as Amazon EC2, AWS Lambda, Azure Virtual Machines, or Azure Functions keep different parts of a cloud estate distinct. Provider and service groups open initially; allocations stay collapsed except for single-address `/32` and `/128` records. Rows can be expanded either by clicking the row or its chevron.
 
