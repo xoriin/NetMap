@@ -161,6 +161,7 @@ async function setupAdminMocks(page: Page) {
 const tabs = [
   ["System", "App settings", "system"],
   ["Devices & Icons", "Device types", "devices-icons"],
+  ["Cloud providers", "Cloud providers", "cloud-providers"],
   ["Users", "Users", "users"],
   ["Groups", "Role Permissions", "groups"],
   ["SNMP Profiles", "SNMP profiles", "credentials"],
@@ -170,10 +171,85 @@ const tabs = [
   ["Security", "Single Sign-On (OIDC)", "security"],
 ] as const;
 
+test("every cloud provider can be removed, built-in or not", async ({ page }) => {
+  // Built-ins used to be undeletable (422 from the API, no Remove button in the UI). They
+  // are a convenience seed from migration 0068, not a fixed set, and that seed runs once —
+  // so a deleted built-in stays deleted. An install using neither AWS nor Azure should not
+  // be stuck with them in every provider picker.
+  const providers = [
+    { id: 1, key: "aws", name: "AWS", aliases: ["Amazon"], icon: "aws", icon_data: null, builtin: true },
+    { id: 2, key: "oracle-cloud", name: "Oracle Cloud", aliases: [], icon: "custom", icon_data: null, builtin: false },
+  ];
+  const deleted: string[] = [];
+  // After setupAdminMocks: it installs a `**/api/v1/**` catch-all, and Playwright matches
+  // the most recently registered route first.
+  await setupAdminMocks(page);
+  await page.route("**/api/v1/admin/cloud-providers", (route) => route.fulfill({ json: providers }));
+  await page.route("**/api/v1/admin/cloud-providers/*", (route) => {
+    if (route.request().method() === "DELETE") {
+      deleted.push(new URL(route.request().url()).pathname.split("/").pop() ?? "");
+      return route.fulfill({ status: 204, body: "" });
+    }
+    return route.fulfill({ json: providers[0] });
+  });
+
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Cloud providers", exact: true }).click();
+
+  const rows = page.locator(".cloud-provider-row");
+  await expect(rows).toHaveCount(2);
+  // Every row offers Remove — not just the custom one.
+  await expect(rows.getByRole("button", { name: "Remove" })).toHaveCount(2);
+
+  await rows.filter({ hasText: "AWS" }).getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "Remove provider" }).click();
+  await expect.poll(() => deleted).toEqual(["aws"]);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`focused text fields show a muted indicator, not a coloured glow (${theme})`, async ({ page }) => {
+    // Inputs used to take the full accent border plus a 3px --nm-accent-soft halo, which
+    // read as an illuminated box while typing. Both halves matter: the halo must be gone,
+    // and a focus indicator must still exist — removing it outright is a WCAG 2.4.7 failure.
+    await setupAdminMocks(page);
+    await page.addInitScript((t) => window.localStorage.setItem("netmap.theme", t), theme);
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Cloud providers", exact: true }).click();
+
+    const field = page.locator(".cloud-provider-create .nm-input").first();
+    const other = page.locator(".cloud-provider-create .nm-input").nth(1);
+    await field.focus();
+    await page.mouse.move(5, 5); // hover has its own border colour; keep it out of the reading
+
+    const read = (l: typeof field) => l.evaluate((n) => {
+      const s = getComputedStyle(n);
+      return { shadow: s.boxShadow, outlineStyle: s.outlineStyle, outlineColor: s.outlineColor };
+    });
+    const focused = await read(field);
+    const resting = await read(other);
+
+    // No coloured halo anywhere.
+    expect(focused.shadow).toBe("none");
+    // ...but the focused field is still distinguishable from an unfocused one.
+    expect(focused.outlineStyle).not.toBe("none");
+    expect(resting.outlineStyle).toBe("none");
+    // ...and the indicator is the muted token, not the accent.
+    const accent = await field.evaluate((n) => {
+      const probe = document.createElement("div");
+      n.parentElement!.appendChild(probe);
+      probe.style.color = getComputedStyle(n).getPropertyValue("--nm-accent").trim();
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    });
+    expect(focused.outlineColor).not.toBe(accent);
+  });
+}
+
 test("shows every built-in role and the complete permission matrix", async ({ page }) => {
   await setupAdminMocks(page);
   await page.goto("/admin");
-  await page.getByLabel("Administration sections").getByRole("button", { name: "Groups", exact: true }).click();
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Groups", exact: true }).click();
   const cards = page.locator(".rbac-role-card");
   await expect(cards).toHaveCount(4);
   await expect(cards.locator(".rbac-role-name")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
@@ -193,30 +269,47 @@ for (const theme of ["light", "dark"] as const) {
     }, theme);
     await page.goto("/admin");
 
-    const adminNav = page.getByLabel("Administration sections");
+    const adminNav = page.getByLabel("Administration sections", { exact: true });
     const adminParent = page.getByRole("button", { name: "Admin", exact: true });
-    await expect(adminParent.locator(".sidebar-parent-chevron")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Monitoring", exact: true }).locator(".sidebar-parent-chevron")).toBeVisible();
-    await expect(adminParent).toHaveAttribute("aria-expanded", "true");
+    // The chevron is its own control beside the link, not part of it: the link navigates,
+    // the chevron opens and closes the menu.
+    const adminToggle = page.getByRole("button", { name: /(Collapse|Expand) Admin sections/ });
+    await expect(adminToggle.locator(".sidebar-parent-chevron")).toBeVisible();
+    await expect(page.getByRole("button", { name: /(Collapse|Expand) Monitoring sections/ })).toBeVisible();
+    await expect(adminToggle).toHaveAttribute("aria-expanded", "true");
     await expect(adminNav).toBeVisible();
     await expect(adminNav.getByRole("button")).toHaveCount(tabs.length);
     await expect(page.locator(".admin-live-console")).toHaveCount(0);
     await expect(page.locator(".admin-system-stats")).toHaveCount(0);
     await expect(page.locator(".admin-purpose-content")).toBeVisible();
 
-    await adminParent.click();
-    await expect(adminParent).toHaveAttribute("aria-expanded", "false");
+    await adminToggle.click();
+    await expect(adminToggle).toHaveAttribute("aria-expanded", "false");
     await expect(adminNav).toBeHidden();
-    await adminParent.click();
-    await expect(adminParent).toHaveAttribute("aria-expanded", "true");
+    await adminToggle.click();
+    await expect(adminToggle).toHaveAttribute("aria-expanded", "true");
     await expect(adminNav).toBeVisible();
 
+    // The parent link drops the menu down rather than closing it.
+    await adminParent.click();
+    await expect(adminNav).toBeVisible();
+
+    const headingStyles: Record<string, string> = {};
     for (const [tabName, heading, hash] of tabs) {
       const sectionLink = adminNav.getByRole("button", { name: tabName, exact: true });
       await sectionLink.click();
       await expect(sectionLink).toHaveAttribute("aria-current", "page");
       await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(`#${hash}`);
-      await expect(page.locator(".admin-section-title", { hasText: heading }).first()).toBeVisible();
+      // Two header patterns coexist while Admin migrates: the legacy `.admin-section-title`
+      // copy block, and the canonical compact bar (`.admin-panel-title` + `.admin-panel-icon`)
+      // that Devices & Icons and Cloud providers now use. Assert the intent — the header
+      // names its section — not which class spells it.
+      const headingEl = page.locator(".admin-section-title, .admin-panel-title").filter({ hasText: heading }).first();
+      await expect(headingEl).toBeVisible();
+      headingStyles[tabName] = await headingEl.evaluate((node) => {
+        const s = getComputedStyle(node);
+        return `${s.fontSize}/${s.fontWeight}`;
+      });
 
       const panel = page.locator(".admin-tab-content .nm-app-panel").first();
       const header = panel.locator(":scope > .nm-app-panel-header").first();
@@ -226,7 +319,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(header).toHaveCSS("background-image", "none");
       expect((await header.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       const headerBox = await header.boundingBox();
-      const iconBox = await header.locator(".admin-section-title svg").first().boundingBox();
+      const iconBox = await header.locator(".admin-section-title svg, .admin-panel-icon svg").first().boundingBox();
       expect(headerBox).not.toBeNull();
       expect(iconBox).not.toBeNull();
       if (headerBox && iconBox) {
@@ -288,6 +381,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(adminNav).toBeHidden();
     await page.getByRole("button", { name: "Expand sidebar" }).click();
     await expect(adminNav).toBeVisible();
+    // Every tab's section heading is the same size and weight. Admin used to mix a legacy
+    // --nm-text-lg/750 heading with the canonical bar, which is what made the tabs read as
+    // separate products bolted together.
+    const distinct = new Set(Object.values(headingStyles));
+    expect(distinct.size, `heading styles differ across tabs: ${JSON.stringify(headingStyles)}`).toBe(1);
   });
 }
 

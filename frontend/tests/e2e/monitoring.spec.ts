@@ -146,20 +146,56 @@ test.describe("Monitoring workspace", () => {
     await expect.poll(() => savedOrder).toEqual([2, 1]);
   });
 
-  test("uses the clean solid grid treatment without losing table behaviour", async ({ page }) => {
+  test("uses the shared table header treatment without losing table behaviour", async ({ page }) => {
+    // Monitoring's header used to be 12px sentence case on the same surface as its own
+    // rows, so it did not read as a header and the page looked unrelated to Inventory
+    // and IPAM. All three now share Inventory's treatment: 11px/700 uppercase at 0.06em
+    // on --nm-modal-header, divided from --nm-modal-section rows by --nm-border-strong.
     const header = page.locator(".mon-table--fleet th").nth(2);
     const cell = page.locator(".mon-row td").nth(2);
-    await expect(header).toHaveCSS("text-transform", "none");
-    await expect(header).toHaveCSS("font-weight", "600");
+    await expect(header).toHaveCSS("text-transform", "uppercase");
+    await expect(header).toHaveCSS("font-weight", "700");
+    await expect(header).toHaveCSS("font-size", "11px");
+    await expect(header).toHaveCSS("letter-spacing", "0.66px");
     await expect(header).toHaveCSS("border-right-width", "0px");
-    const surfaces = await Promise.all([
-      header.evaluate((element) => getComputedStyle(element).backgroundColor),
-      page.locator(".mon-row").first().evaluate((element) => getComputedStyle(element).backgroundColor),
-    ]);
-    expect(surfaces[0]).toBe(surfaces[1]);
+
+    const resolved = await header.evaluate((node) => {
+      const probe = document.createElement("div");
+      node.appendChild(probe);
+      const read = (name: string) => {
+        probe.style.backgroundColor = getComputedStyle(node).getPropertyValue(name).trim();
+        return getComputedStyle(probe).backgroundColor;
+      };
+      const out = { header: read("--nm-table-header-bg"), section: read("--nm-table-row-bg") };
+      probe.remove();
+      return out;
+    });
+    await expect(header).toHaveCSS("background-color", resolved.header);
+    await expect(page.locator(".mon-row").first()).toHaveCSS("background-color", resolved.section);
     await expect(page.locator(".mon-view-window")).toHaveCSS("border-radius", "6px");
     await expect(page.locator(".mon-table--fleet th").nth(3)).toContainText("Type");
     await expect(page.locator(".mon-row", { hasText: "Core Router" }).locator("td").nth(3).locator(".nm-chip")).toContainText("Router");
+  });
+
+  test("fills every fleet-table cell on row hover", async ({ page }) => {
+    const row = page.locator(".mon-row", { hasText: "Core Router With A Longer Name" });
+    for (const dark of [false, true]) {
+      await page.evaluate((useDarkTheme) => document.body.classList.toggle("theme-dark", useDarkTheme), dark);
+      await row.hover();
+
+      await expect.poll(async () => {
+        const cellBackgrounds = await row.locator("td").evaluateAll((cells) =>
+          cells.map((cell) => getComputedStyle(cell).backgroundColor)
+        );
+        return {
+          distinctBackgrounds: new Set(cellBackgrounds).size,
+          firstBackground: cellBackgrounds[0],
+        };
+      }).toEqual({
+        distinctBackgrounds: 1,
+        firstBackground: expect.not.stringMatching(/^rgba\(0, 0, 0, 0\)$/),
+      });
+    }
   });
 
   test("filters the fleet by device type", async ({ page }) => {
@@ -214,17 +250,24 @@ test.describe("Monitoring workspace", () => {
 
   test("uses collapsible sidebar navigation for devices and endpoints", async ({ page }) => {
     const monitoringParent = page.getByRole("button", { name: "Monitoring", exact: true });
-    const monitoringNav = page.getByLabel("Monitoring sections");
-    await expect(monitoringParent.locator(".sidebar-parent-chevron")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Admin", exact: true }).locator(".sidebar-parent-chevron")).toBeVisible();
-    await expect(monitoringParent).toHaveAttribute("aria-expanded", "true");
+    const monitoringNav = page.getByLabel("Monitoring sections", { exact: true });
+    // The chevron is its own control now: the parent link navigates, the chevron opens and
+    // closes the menu, so neither click has to mean both.
+    const monitoringToggle = page.getByRole("button", { name: /(Collapse|Expand) Monitoring sections/ });
+    await expect(monitoringToggle.locator(".sidebar-parent-chevron")).toBeVisible();
+    await expect(page.getByRole("button", { name: /(Collapse|Expand) Admin sections/ })).toBeVisible();
+    await expect(monitoringToggle).toHaveAttribute("aria-expanded", "true");
     await expect(monitoringNav.getByRole("button")).toHaveCount(2);
     await expect(monitoringNav.getByRole("button", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("tablist", { name: "Monitoring view" })).toHaveCount(0);
 
-    await monitoringParent.click();
-    await expect(monitoringParent).toHaveAttribute("aria-expanded", "false");
+    await monitoringToggle.click();
+    await expect(monitoringToggle).toHaveAttribute("aria-expanded", "false");
     await expect(monitoringNav).toBeHidden();
+    await monitoringToggle.click();
+    await expect(monitoringNav).toBeVisible();
+
+    // The parent link navigates and leaves the menu open — it must never collapse it.
     await monitoringParent.click();
     await expect(monitoringNav).toBeVisible();
 
@@ -252,11 +295,28 @@ test.describe("Monitoring workspace", () => {
       heartbeat: ["online", "online", "offline", "online"],
     }] }));
 
-    await page.getByLabel("Monitoring sections").getByRole("button", { name: "Endpoints", exact: true }).click();
+    await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Endpoints", exact: true }).click();
     const row = page.locator(".monitors-table tbody tr", { hasText: "Public API" });
     await expect(row).toBeVisible();
     await expect(row.locator(".monitors-heartbeat-cell .heartbeat-bar--sm")).toBeVisible();
     await expect(row.locator(".monitors-heartbeat-cell .heartbeat-beat")).toHaveCount(4);
+
+    for (const dark of [false, true]) {
+      await page.evaluate((useDarkTheme) => document.body.classList.toggle("theme-dark", useDarkTheme), dark);
+      await row.hover();
+      await expect.poll(async () => {
+        const cellBackgrounds = await row.locator("td").evaluateAll((cells) =>
+          cells.map((cell) => getComputedStyle(cell).backgroundColor)
+        );
+        return {
+          distinctBackgrounds: new Set(cellBackgrounds).size,
+          firstBackground: cellBackgrounds[0],
+        };
+      }).toEqual({
+        distinctBackgrounds: 1,
+        firstBackground: expect.not.stringMatching(/^rgba\(0, 0, 0, 0\)$/),
+      });
+    }
   });
 });
 

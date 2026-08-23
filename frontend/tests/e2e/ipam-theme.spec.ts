@@ -63,6 +63,19 @@ async function setupIpam(page: Page, theme: "light" | "dark" = "dark", beforeGot
   await page.locator(".ipam-subnets-panel").waitFor({ state: "visible", timeout: 8000 });
 }
 
+/** External IPs is its own page, reached through the IPAM sidebar sub-nav — the in-page
+ *  tab strip is gone. Using the real nav also exercises the sub-view routing. */
+async function openExternalIps(page: Page) {
+  // On /ipam the sub-nav is already expanded, and clicking the parent there collapses it
+  // (the same "already on the first sub-view" rule as Inventory and Monitoring).
+  const link = page.getByRole("button", { name: "External IPs" });
+  if (!await link.isVisible().catch(() => false)) {
+    await page.getByRole("button", { name: "IPAM", exact: true }).click();
+  }
+  await link.click();
+  await page.locator(".external-ip-panel").waitFor({ state: "visible", timeout: 8000 });
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`IPAM uses the approved solid panel hierarchy in ${theme} mode`, async ({ page }) => {
     await setupIpam(page, theme);
@@ -75,7 +88,10 @@ for (const theme of ["light", "dark"] as const) {
       await expect(header).toBeVisible();
       await expect(header).toHaveCSS("min-height", "44px");
       await expect(header).toHaveCSS("background-image", "none");
-      await expect(header.locator(".ipam-panel-icon")).toBeVisible();
+      // The subnets panel's header hosts the Internal/External section tabs in place
+      // of the identity icon; every other panel still leads with the icon.
+      const mark = header.locator(".ipam-panel-icon, .nm-section-tabs");
+      await expect(mark.first()).toBeVisible();
     }
 
     await expect(page.locator(".ipam-data-table th").first()).toHaveCSS("border-right-width", "0px");
@@ -138,40 +154,464 @@ test("the dense /24 map shows all addresses without scaling or horizontal overfl
   expect(Math.abs(dialogHeightWithBroadcast - dialogHeightBefore)).toBeLessThanOrEqual(0.5);
 });
 
-test("external ranges use the existing subnet workflow", async ({ page }) => {
-  await setupIpam(page, "dark", async () => {
-    await page.route("**/api/v1/ipam/external/summary", (route) => route.fulfill({ json: {
-    pool_count: 1, total: 6, in_use: 1, reserved: 0, free: 5,
-    } }));
-    await page.route("**/api/v1/ipam/external/pools", (route) => route.fulfill({ json: [{
-    id: 10, name: "Primary WAN", cidr: "8.8.8.0/29", provider: "Example ISP", account: "Circuit 42",
-    description: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
-    total: 6, in_use: 1, reserved: 0, free: 5, utilization: 1 / 6,
-    }] }));
-    await page.route("**/api/v1/ipam/external/assignments", (route) => route.fulfill({ json: [] }));
-    await page.route("**/api/v1/ipam/external/pools/10/addresses**", (route) => route.fulfill({ json: {
-    total: 6, offset: 0, limit: 256, addresses: Array.from({ length: 6 }, (_, index) => ({
-      ip_address: `8.8.8.${index + 1}`, status: index === 1 ? "in_use" : "available",
-      assignment: index === 1 ? { id: 21, pool_id: 10, ip_address: "8.8.8.2", label: "Public web", status: "in_use", provider: "Example ISP", account: "Circuit 42", owner: "Web", service: "HTTPS", tags: null, notes: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z" } : null,
+const AWS = { id: 1, key: "aws", name: "AWS", aliases: [], icon: "aws", icon_data: null, builtin: true };
+
+const POOL = {
+  id: 10, name: "AWS individual addresses", provider_id: 1, provider: AWS, account: "acct-1", region: null,
+  description: null, created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
+  total: 6, in_use: 1, reserved: 0, free: 5, utilization: 0.16,
+  allocations: [{ id: 1, pool_id: 10, cidr: "13.54.22.0/29", total: 6, created_at: "2026-08-02T00:00:00Z" }],
+};
+
+const ASSET = {
+  id: 5, name: "web-prod-01", kind: "ec2", provider_id: 1, provider: AWS, account: "acct-1",
+  region: "ap-southeast-2", device_id: null, description: null,
+  created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
+  address_count: 1, in_use: 1, reserved: 0,
+};
+
+const DEVICE = { id: 7, display_name: "web-prod-01", hostname: null, ip_address: "10.0.0.5", device_type: "server", site_id: null };
+
+const ASSIGNMENT = {
+  id: 21, pool_id: 10, device_id: 7, device: DEVICE, asset_id: 5, asset: ASSET, ip_address: "13.54.22.1", label: "web-prod-01",
+  status: "in_use", owner: null, tags: null, notes: null,
+  created_at: "2026-08-02T00:00:00Z", updated_at: "2026-08-02T00:00:00Z",
+};
+
+async function mockExternal(page: Page, pools = [POOL], assets = [ASSET], assignments = [ASSIGNMENT]) {
+  await page.route("**/api/v1/ipam/external/summary", (route) => route.fulfill({ json: {
+    pool_count: pools.length, total: 6, in_use: 1, reserved: 0, free: 5,
+    asset_count: assets.length, unassigned_address_count: 0,
+  } }));
+  await page.route("**/api/v1/ipam/external/pools", (route) => route.fulfill({ json: pools }));
+  await page.route("**/api/v1/ipam/external/assets", (route) => route.fulfill({ json: assets }));
+  await page.route("**/api/v1/ipam/external/assignments**", (route) => route.fulfill({ json: assignments }));
+  await page.route("**/api/v1/admin/cloud-providers", (route) => route.fulfill({ json: [AWS] }));
+  await page.route("**/api/v1/ipam/external/pools/10/addresses**", (route) => route.fulfill({ json: {
+    total: 6, offset: 0, limit: 256,
+    addresses: Array.from({ length: 6 }, (_, index) => ({
+      ip_address: `13.54.22.${index + 1}`,
+      status: index === 0 ? "in_use" : "available",
+      assignment: index === 0 ? ASSIGNMENT : null,
     })),
-    } }));
+  } }));
+}
+
+test("External IPs shows allocations and spare capacity, not asset management", async ({ page }) => {
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await openExternalIps(page);
+
+  // Provider rolls up capacity so spare addresses are visible without drilling in.
+  const providerRow = page.locator(".external-ip-provider-row");
+  await expect(providerRow).toContainText("AWS");
+  await expect(providerRow).toContainText("5 free of 6");
+
+  // Assets are Inventory's concern — IPAM must not create or delete them.
+  await expect(page.getByRole("button", { name: "Add asset" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Allocations/ })).toHaveCount(0);
+
+  // Providers and small allocations are open on arrival — a six-address allocation should
+  // not cost two clicks to reveal six rows.
+  const allocationRow = page.locator(".external-ip-pool-row").first();
+  await expect(allocationRow).toContainText("AWS individual addresses");
+  await expect(allocationRow).toContainText("13.54.22.0/29");
+
+  // One IP per row, in the same table, rather than a grid of tiles in a colSpan cell.
+  await expect(page.locator("tr.external-ip-address-row--available")).toHaveCount(5);
+  await expect(page.locator("tr.external-ip-address-row--in_use")).toContainText("web-prod-01");
+  await expect(page.locator(".external-ip-grid")).toHaveCount(0);
+
+  // Nothing interrupts the run of IP rows: no ranges strip between an allocation and its
+  // addresses. Ranges are edit-time detail and live in the allocation modal instead.
+  await expect(page.locator(".external-ip-ranges-row")).toHaveCount(0);
+  const kinds = await page.locator(".external-ip-table tbody tr").evaluateAll((rows) =>
+    rows.map((row) => row.className.split(" ").find((name) => name.endsWith("-row")) ?? ""),
+  );
+  expect(kinds.filter((kind) => kind === "external-ip-address-row")).toHaveLength(6);
+
+  // The Addresses column means the same thing on a provider as on its allocations.
+  const providerAddresses = await page.locator(".external-ip-provider-row td").nth(3).innerText();
+  const allocationAddresses = await page.locator(".external-ip-pool-row td").nth(3).innerText();
+  expect(providerAddresses.trim()).toBe(allocationAddresses.trim());
+
+  // Collapsing is still available, it is just no longer the starting state.
+  await allocationRow.click();
+  await expect(page.locator("tr.external-ip-address-row--available")).toHaveCount(0);
+  await providerRow.click();
+  await expect(page.locator(".external-ip-pool-row")).toHaveCount(0);
+});
+
+test("Cloud assets is a device-centric page fed by IPAM", async ({ page }) => {
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  // Cloud assets is an Inventory sub-view, the same shape as Monitoring's
+  // Devices / Endpoints split — reached through the sidebar, not a top-level page.
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Cloud assets" }).click();
+
+  // Grouped provider → device → address, the same order as IPAM's External IPs table.
+  const providerRow = page.locator(".cloud-group-row");
+  await expect(providerRow).toHaveCount(1);
+  await expect(providerRow).toContainText("AWS");
+  await expect(providerRow).toContainText("1 device");
+
+  // One row per device holding public addresses — not a second inventory of assets.
+  const deviceRow = page.locator(".cloud-device-row");
+  await expect(deviceRow).toHaveCount(1);
+  await expect(deviceRow).toContainText("web-prod-01");
+
+  // Devices arrive here through the IPAM toggle, so the page offers no create action.
+  await expect(page.getByRole("button", { name: /^Add asset/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Manage in IPAM/ })).toBeVisible();
+
+  // Groups start open: collapsing by default would hide the only content the page has.
+  const addressRow = page.locator(".cloud-address-row").first();
+  await expect(addressRow).toContainText("13.54.22.1");
+  await expect(addressRow).toContainText("AWS");
+
+  await deviceRow.click();
+  await expect(page.locator(".cloud-address-row")).toHaveCount(0);
+
+  // Collapsing the provider takes its devices with it.
+  await providerRow.click();
+  await expect(page.locator(".cloud-device-row")).toHaveCount(0);
+});
+
+test("the Inventory parent navigates and drops the menu down, never collapsing it", async ({ page }) => {
+  // The link and the chevron are separate controls. Clicking the section name goes to its
+  // first sub-view and leaves the menu open; only the chevron closes it. Earlier revisions
+  // made the parent collapse the menu as a side effect, which hid the sub-items you were
+  // about to click.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
+  const inventoryToggle = page.getByRole("button", { name: /(Collapse|Expand) Inventory sections/ });
+  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+
+  await inventoryParent.click();
+  await cloudLink.click();
+  await expect(page.locator(".cloud-table")).toBeVisible();
+
+  // Parent click: back to Devices, menu still down.
+  await inventoryParent.click();
+  await expect(page.locator(".inventory-table")).toBeVisible();
+  await expect(cloudLink).toBeVisible();
+
+  // Chevron closes it without navigating away from Devices.
+  await inventoryToggle.click();
+  await expect(cloudLink).toHaveCount(0);
+  await expect(page.locator(".inventory-table")).toBeVisible();
+
+  // ...and the parent drops it back down.
+  await inventoryParent.click();
+  await expect(cloudLink).toBeVisible();
+});
+
+test("Manage in IPAM opens the External IPs tab directly", async ({ page }) => {
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Cloud assets" }).click();
+
+  const manage = page.getByRole("button", { name: "Manage in IPAM" });
+  // Text only — the icon was noise on a button that already reads as a link.
+  await expect(manage.locator("svg")).toHaveCount(0);
+  await manage.click();
+
+  // Lands on External IPs, not on Internal networks with the user hunting for it.
+  await expect(page.locator(".external-ip-provider-row")).toBeVisible();
+  await expect(page.getByRole("button", { name: "External IPs" })).toHaveAttribute("aria-current", "page");
+  // ...and it is a page of its own: none of Internal networks' panels come with it.
+  await expect(page.locator(".ipam-subnets-panel")).toHaveCount(0);
+  await expect(page.locator(".ipam-reservations-panel")).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`Inventory and IPAM render the same table header in ${theme} mode`, async ({ page }) => {
+    // The pages felt unrelated because each table themed its own header: Monitoring sat
+    // on the same surface as its rows in sentence case, IPAM used the canonical treatment,
+    // Inventory a third. They now all read --nm-table-header-*; Inventory is the reference.
+    await setupIpam(page, theme, async () => { await mockExternal(page); });
+    const read = (selector: string) => page.locator(selector).first().evaluate((node) => {
+      const s = getComputedStyle(node);
+      return {
+        bg: s.backgroundColor, color: s.color, fontSize: s.fontSize,
+        fontWeight: s.fontWeight, textTransform: s.textTransform, letterSpacing: s.letterSpacing,
+      };
+    });
+
+    await page.getByRole("button", { name: "Inventory", exact: true }).click();
+    await expect(page.locator(".inventory-table-header").first()).toBeVisible();
+    const inventory = await read(".inventory-table-header");
+
+    await page.getByRole("button", { name: "IPAM", exact: true }).click();
+    await openExternalIps(page);
+    const ipam = await read(".external-ip-table thead th");
+
+    expect(ipam).toEqual(inventory);
+    // ...and it is genuinely the shared token, not a coincidence of two hard-coded values.
+    const token = await page.locator(".external-ip-table thead th").first().evaluate((node) => {
+      const probe = document.createElement("div");
+      node.appendChild(probe);
+      probe.style.backgroundColor = getComputedStyle(node).getPropertyValue("--nm-table-header-bg").trim();
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    });
+    expect(inventory.bg).toBe(token);
+
+    // Rows too — the headers matching while the row surfaces differed is exactly what
+    // still made the two pages look unrelated after the first pass at this.
+    // Expand: collapsed, the only rows are provider group rows, which deliberately wear
+    // the header surface (a tier Inventory has no equivalent of).
+    const ordinaryRow = page.locator(".external-ip-pool-row td").first();
+    const rowToken = await ordinaryRow.evaluate((node) => {
+      const probe = document.createElement("div");
+      node.appendChild(probe);
+      probe.style.backgroundColor = getComputedStyle(node).getPropertyValue("--nm-table-row-bg").trim();
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    });
+    const ipamRow = await ordinaryRow.evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(ipamRow).toBe(rowToken);
   });
+}
 
-  await expect(page.getByText("External address ranges")).toBeVisible();
-  await expect(page.getByText("Primary WAN")).toBeVisible();
-  await expect(page.locator(".ipam-subnets-panel")).toBeVisible();
+for (const theme of ["light", "dark"] as const) {
+  test(`address rows carry status in the pill, not in the row edge (${theme})`, async ({ page }) => {
+    // Regression guard. An earlier pass painted the row's 3px inset left edge green for
+    // "in use" and amber for "reserved" — inventing a colour vocabulary the design system
+    // does not have, and stealing the canonical teal hover affordance to do it.
+    await setupIpam(page, theme, async () => { await mockExternal(page); });
+    await openExternalIps(page);
 
-  await page.getByRole("button", { name: "Add subnet" }).click();
-  const addDialog = page.getByRole("dialog", { name: "Add subnet" });
-  await addDialog.getByRole("button", { name: /External range/ }).click();
-  await expect(addDialog.getByText(/A small assigned range or full CIDR/)).toBeVisible();
-  await expect(addDialog.getByLabel("Public IP range *")).toHaveAttribute("placeholder", "e.g. 1.1.1.8-1.1.1.14");
-  await expect(addDialog.getByLabel("Provider")).toBeVisible();
-  await expect(addDialog.getByLabel("Account / circuit")).toBeVisible();
-  await expect(addDialog.getByLabel("Gateway")).toHaveCount(0);
-  await addDialog.getByRole("button", { name: "Cancel" }).click();
+    const tracked = page.locator("tr.external-ip-address-row--in_use");
+    const free = page.locator("tr.external-ip-address-row--available").first();
+    await expect(tracked).toBeVisible();
 
-  await page.getByText("Primary WAN").click();
-  await expect(page.locator(".external-ip-address")).toHaveCount(6);
-  await expect(page.locator(".external-ip-address--in_use")).toContainText("Public web");
+    // At rest, a tracked row is styled exactly like a free one: no status colour anywhere.
+    for (const row of [tracked, free]) {
+      await expect(row.locator("td").first()).toHaveCSS("box-shadow", "none");
+    }
+
+    // Status lives in the pill, and only there.
+    await expect(tracked.locator(".nm-status")).toHaveText("In use");
+
+    // Hover still produces the canonical teal edge, unobstructed.
+    await tracked.hover();
+    const shadow = await tracked.locator("td").first().evaluate((n) => getComputedStyle(n).boxShadow);
+    expect(shadow).toContain("rgba(29, 154, 176, 0.3)");
+  });
+}
+
+test("Cloud assets survives the Admin stylesheet being loaded", async ({ page }) => {
+  // Regression guard, and it must visit Admin first: `admin.css` ships with the Admin
+  // chunk, so its `.cloud-provider-row { display: grid }` only exists in the document once
+  // a user has been there. Cloud assets reused that class name and its provider rows
+  // stopped being table rows — but only for users who had opened Admin, which is why a
+  // single-page test saw nothing wrong.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await page.getByRole("button", { name: "Admin", exact: true }).click();
+  await page.locator(".admin-layout, .admin-workspace").first().waitFor({ state: "visible", timeout: 8000 });
+
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Cloud assets" }).click();
+
+  const groupRow = page.locator(".cloud-group-row").first();
+  await expect(groupRow).toBeVisible();
+  await expect(groupRow).toHaveCSS("display", "table-row");
+
+  // Every cell sits on one baseline: a grid would stack them into a tall block.
+  const cellTops = await groupRow.locator("td").evaluateAll((cells) =>
+    cells.map((cell) => Math.round(cell.getBoundingClientRect().top)),
+  );
+  expect(new Set(cellTops).size).toBe(1);
+  const height = (await groupRow.boundingBox())!.height;
+  expect(height).toBeLessThan(80);
+});
+
+test("sidebar section menus stay open when you leave the section", async ({ page }) => {
+  // They used to be seeded from the current route and force-expanded on arrival, so leaving
+  // a section collapsed its menu and returning discarded a deliberate collapse.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
+  const topology = page.getByRole("button", { name: "Topology", exact: true });
+  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+
+  await inventoryParent.click();
+  await expect(cloudLink).toBeVisible();
+
+  // Leaving Inventory entirely no longer closes its menu...
+  await topology.click();
+  await expect(cloudLink).toBeVisible();
+  // ...and nothing in it claims to be the current page while we are elsewhere.
+  await expect(page.getByRole("button", { name: "Devices", exact: true })).not.toHaveAttribute("aria-current", "page");
+
+  // A sub-item still works from off-route: it takes you back to its section.
+  await cloudLink.click();
+  await expect(page.locator(".cloud-table")).toBeVisible();
+  await expect(cloudLink).toHaveAttribute("aria-current", "page");
+});
+
+test("a collapsed sidebar menu stays collapsed across navigation and reload", async ({ page }) => {
+  // "Sticky" means the collapse survives moving around the app and reloading. Clicking the
+  // section's own name is not "moving around" — that deliberately drops the menu back down,
+  // which is covered by the parent-click test above.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
+  const inventoryToggle = page.getByRole("button", { name: /(Collapse|Expand) Inventory sections/ });
+  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+
+  await inventoryParent.click();
+  await expect(cloudLink).toBeVisible();
+  await inventoryToggle.click();
+  await expect(cloudLink).toHaveCount(0);
+
+  // Move elsewhere: still collapsed.
+  await page.getByRole("button", { name: "Topology", exact: true }).click();
+  await expect(cloudLink).toHaveCount(0);
+
+  // Persisted, not just held in memory.
+  await page.reload();
+  await expect(cloudLink).toHaveCount(0);
+});
+
+test("Cloud assets loads its own stylesheet", async ({ page }) => {
+  // Regression guard. This page began life inside IPAM and kept IPAM's `.external-ip-*`
+  // class names when it moved under Inventory — but `ipam.css` is imported by
+  // `IpamWorkspace` alone, so the page rendered with no styling whatsoever. Text-only
+  // assertions passed the whole time, which is why these are computed-style checks.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Cloud assets" }).click();
+
+  const table = page.locator(".cloud-table");
+  await expect(table).toHaveClass(/\bnm-table\b/);
+
+  // The provider row wears the workspace header surface. If inventory.css's cloud block
+  // were missing, this would fall back to a transparent/section background.
+  const modalHeader = await table.evaluate((node) => {
+    const probe = document.createElement("div");
+    node.appendChild(probe);
+    probe.style.backgroundColor = getComputedStyle(node).getPropertyValue("--nm-modal-header").trim();
+    const resolved = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return resolved;
+  });
+  const rowBackground = await page.locator(".cloud-group-row td").first()
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
+  expect(rowBackground).toBe(modalHeader);
+
+  // Indentation is what carries the provider > device > address hierarchy.
+  const padding = async (selector: string) => parseFloat(
+    await page.locator(selector).first().evaluate((node) => getComputedStyle(node).paddingLeft),
+  );
+  const providerPad = await padding(".cloud-group-row td");
+  const devicePad = await padding(".cloud-device-row td");
+  const addressPad = await padding(".cloud-address-row td");
+  expect(devicePad).toBeGreaterThan(providerPad);
+  expect(addressPad).toBeGreaterThan(devicePad);
+});
+
+test("Cloud assets keeps provider marks icon-sized", async ({ page }) => {
+  // The bundled provider marks are SVGs with their own viewBox. `CloudProviderIcon`
+  // used to ignore `size` for those, so outside a caller that happened to constrain
+  // `img` the logo rendered full-page and blew the table out sideways.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await page.getByRole("button", { name: "Inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Cloud assets" }).click();
+
+  const mark = page.locator(".cloud-group-icon > *").first();
+  const box = await mark.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeLessThanOrEqual(24);
+  expect(box!.height).toBeLessThanOrEqual(24);
+
+  // ...and the table therefore fits its wrapper instead of scrolling sideways.
+  const overflow = await page.locator(".cloud-table-wrap").evaluate(
+    (node) => node.scrollWidth - node.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`External IPs keeps the canonical table treatment in ${theme} mode`, async ({ page }) => {
+    await setupIpam(page, theme, async () => { await mockExternal(page); });
+    await openExternalIps(page);
+
+    const table = page.locator(".external-ip-table");
+    await expect(table).toHaveClass(/\bnm-table\b/);
+    await expect(page.locator(".nm-table-wrap.external-ip-table-wrap")).toBeVisible();
+
+    const th = table.locator("thead th").first();
+    await expect(th).toHaveCSS("text-transform", "uppercase");
+    await expect(th).toHaveCSS("position", "sticky");
+
+    // Surfaces follow the workspace --nm-modal-* hierarchy, not the darker component default.
+    const tokens = await table.evaluate((node) => {
+      const s = getComputedStyle(node);
+      const probe = document.createElement("div");
+      node.appendChild(probe);
+      const resolve = (name: string) => {
+        probe.style.backgroundColor = s.getPropertyValue(name).trim();
+        return getComputedStyle(probe).backgroundColor;
+      };
+      const out = { header: resolve("--nm-table-header-bg"), section: resolve("--nm-table-row-bg"), surface: resolve("--nm-surface") };
+      probe.remove();
+      return out;
+    });
+    expect(await th.evaluate((n) => getComputedStyle(n).backgroundColor)).toBe(tokens.header);
+
+    const row = page.locator(".external-ip-pool-row").first();
+    // Rows wear the shared --nm-table-row-bg, and the table surface behind them stays
+    // lighter. This deliberately supersedes an earlier rule that IPAM rows must not be
+    // --nm-surface: that fix was for a table sitting deeper than its own panel. Inventory
+    // — the reference — puts --nm-surface rows on a --nm-modal-section table, and it is
+    // that row/surface contrast, not the row colour alone, that keeps it from reading dark.
+    const rowBg = await row.locator("td").first().evaluate((n) => getComputedStyle(n).backgroundColor);
+    expect(rowBg).toBe(tokens.section);
+    if (theme === "dark") {
+      // In dark the table surface stays lighter than its rows, which is the contrast that
+      // keeps Inventory's --nm-surface rows from reading as a hole. Light mode resolves
+      // both to the same value, so there is nothing to assert there.
+      const tableBg = await page.locator(".external-ip-table-wrap").evaluate((n) => getComputedStyle(n).backgroundColor);
+      expect(tableBg).not.toBe(rowBg);
+    }
+
+    // Canonical hover: soft tint plus the 3px teal left edge.
+    await row.hover();
+    expect(await row.locator("td").first().evaluate((n) => getComputedStyle(n).boxShadow)).toContain("29, 154, 176");
+
+    // Every data row fills the same columns as the header.
+    const headerCells = await table.locator("thead th").count();
+    for (const dataRow of await table.locator("tbody tr").all()) {
+      if (await dataRow.locator("td[colspan]").count() > 0) continue;
+      expect(await dataRow.locator("td").count()).toBe(headerCells);
+    }
+
+    // Row actions sit flush right, as the design system places them.
+    await expect(table.locator("thead th.external-ip-actions")).toHaveCSS("text-align", "right");
+    const cell = row.locator("td.external-ip-actions");
+    const cellBox = await cell.boundingBox();
+    const padRight = await cell.evaluate((n) => parseFloat(getComputedStyle(n).paddingRight));
+    const boxes = await Promise.all((await cell.getByRole("button").all()).map((b) => b.boundingBox()));
+    const groupRight = Math.max(...boxes.map((b) => b!.x + b!.width));
+    expect(Math.abs(groupRight - (cellBox!.x + cellBox!.width - padRight))).toBeLessThanOrEqual(2);
+  });
+}
+
+test("two-column form rows keep their controls aligned", async ({ page }) => {
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await openExternalIps(page);
+  const tracked = page.locator("tr.external-ip-address-row--in_use");
+  await expect(tracked).toBeVisible();
+  await tracked.click();
+
+  const dialog = page.getByRole("dialog", { name: /Edit external IP/ });
+  await expect(dialog).toBeVisible();
+
+  // "Cloud asset" carries helper text; "Status" beside it does not. With the grid's
+  // default `stretch` the taller cell grew its neighbour's control out of alignment.
+  const left = await dialog.getByLabel(/Cloud asset/).boundingBox();
+  const right = await dialog.getByLabel(/^Status/).boundingBox();
+  expect(Math.abs(left!.y - right!.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(left!.height - right!.height)).toBeLessThanOrEqual(1);
 });
