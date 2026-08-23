@@ -313,6 +313,15 @@ def _external_address(value: str):
     return address
 
 
+def _external_interval_value(version: int, start: int, end: int) -> str:
+    """Serialize a remaining inclusive address interval without reintroducing removed IPs."""
+    first = ipaddress.ip_address(start)
+    last = ipaddress.ip_address(end)
+    if start == end:
+        return f"{first}/{32 if version == 4 else 128}"
+    return f"{first}-{last}"
+
+
 def _as_utc(value: datetime | None) -> datetime | None:
     """SQLite drops tzinfo on read; re-stamp UTC before serialization (GitHub #33)."""
     if value is None:
@@ -402,7 +411,7 @@ def _external_pool_out(db: Session, pool: ExternalIpPool, assignments: list[Exte
     provider = db.get(CloudProvider, pool.provider_id) if pool.provider_id else None
     return ExternalIpPoolOut(
         id=pool.id, name=pool.name, provider_id=pool.provider_id, provider=_cloud_provider_out(provider),
-        account=pool.account, region=pool.region,
+        service=pool.service, icon=pool.icon or "cloud", account=pool.account, region=pool.region,
         description=pool.description, created_at=_as_utc(pool.created_at), updated_at=_as_utc(pool.updated_at),
         total=total, in_use=in_use, reserved=reserved, free=max(0, total - consumed),
         utilization=consumed / total if total else 0.0,
@@ -1026,7 +1035,24 @@ def delete_cloud_asset(
 INDIVIDUAL_ALLOCATION_SUFFIX = "individual addresses"
 
 
-def _allocation_for_address(db: Session, address, provider: CloudProvider | None) -> ExternalIpPool:
+def _cloud_service_label(provider: CloudProvider | None, kind: str | None) -> str:
+    labels = {
+        "ec2": "Amazon EC2" if provider and provider.key == "aws" else "EC2",
+        "vm": "Virtual Machines",
+        "load_balancer": "Load Balancing",
+        "nat_gateway": "NAT Gateway",
+        "k8s_ingress": "Kubernetes",
+        "database": "Database",
+        "storage": "Storage",
+        "cdn": "CDN",
+        "other": "Other services",
+    }
+    if not kind:
+        return "Other services"
+    return labels.get(kind, kind.replace("_", " ").title())
+
+
+def _allocation_for_address(db: Session, address, provider: CloudProvider | None, service: str | None = None) -> ExternalIpPool:
     """Find the allocation covering `address`, creating one on demand.
 
     Cloud addresses arrive one at a time, so an allocation must not be a prerequisite
@@ -1041,15 +1067,21 @@ def _allocation_for_address(db: Session, address, provider: CloudProvider | None
             if pool is not None:
                 return pool
 
-    name = f"{provider.name} {INDIVIDUAL_ALLOCATION_SUFFIX}" if provider else INDIVIDUAL_ALLOCATION_SUFFIX.capitalize()
+    service_name = (service or "").strip() or "Other services"
+    name_parts = [provider.name] if provider else []
+    if service_name != "Other services":
+        name_parts.append(service_name)
+    name_parts.append(INDIVIDUAL_ALLOCATION_SUFFIX)
+    name = " ".join(name_parts).capitalize() if not provider else " ".join(name_parts)
     pool = db.scalar(
         select(ExternalIpPool).where(
             ExternalIpPool.name == name,
             ExternalIpPool.provider_id.is_(None) if provider is None else ExternalIpPool.provider_id == provider.id,
+            ExternalIpPool.service == service_name,
         )
     )
     if pool is None:
-        pool = ExternalIpPool(name=name, provider_id=provider.id if provider else None)
+        pool = ExternalIpPool(name=name, provider_id=provider.id if provider else None, service=service_name)
         db.add(pool)
         db.flush()
     db.add(ExternalIpRange(pool_id=pool.id, cidr=f"{address}/{address.max_prefixlen}"))
@@ -1074,7 +1106,7 @@ def add_address_to_cloud_asset(
         pool = _validate_external_assignment(db, payload.pool_id, address)
     else:
         provider = db.get(CloudProvider, asset.provider_id) if asset.provider_id else None
-        pool = _allocation_for_address(db, address, provider)
+        pool = _allocation_for_address(db, address, provider, _cloud_service_label(provider, asset.kind))
 
     assignment = ExternalIpAssignment(
         pool_id=pool.id, asset_id=asset.id, ip_address=str(address),
@@ -1181,6 +1213,7 @@ def create_external_ip_pool(
     _resolve_provider(db, payload.provider_id)
     pool = ExternalIpPool(
         name=payload.name.strip(), provider_id=payload.provider_id,
+        service=(payload.service or "").strip() or None, icon=payload.icon.strip(),
         account=payload.account or None, region=payload.region or None, description=payload.description or None,
     )
     db.add(pool)
@@ -1208,6 +1241,8 @@ def update_external_ip_pool(
     updates = payload.model_dump(exclude_unset=True)
     if "provider_id" in updates:
         _resolve_provider(db, updates["provider_id"])
+    if "icon" in updates:
+        updates["icon"] = (updates["icon"] or "cloud").strip()
     for field, value in updates.items():
         setattr(pool, field, value.strip() if isinstance(value, str) else value)
     try:
@@ -1368,6 +1403,62 @@ def list_external_pool_addresses(
             current_range += 1
             range_offset = 0
     return ExternalIpAddressPage(total=total, offset=offset, limit=limit, addresses=addresses)
+
+
+@router.delete("/external/pools/{pool_id}/addresses/{ip_address}", status_code=204, response_model=None)
+def delete_external_pool_address(
+    pool_id: int,
+    ip_address: str,
+    _current_user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Remove exactly one address from an allocation, splitting its range if needed.
+
+    An address row is the user's unit of work. Removing one address must therefore not
+    delete the rest of its CIDR/range. If it is the allocation's final address, the now
+    empty allocation is removed as well because empty allocation groups are invalid.
+    """
+    pool = db.get(ExternalIpPool, pool_id)
+    if pool is None:
+        raise HTTPException(status_code=404, detail="External IP pool not found")
+    address = _external_address(ip_address)
+    ranges = _external_ranges_for_pool(db, pool)
+    match: tuple[ExternalIpRange, _ExternalRange] | None = None
+    for row in ranges:
+        item = _external_range(row.cidr, validate_public=False)
+        if address.version == item.version and item.start <= int(address) <= item.end:
+            match = (row, item)
+            break
+    if match is None:
+        raise HTTPException(status_code=404, detail="External IP address is not part of this allocation")
+
+    assignment = db.scalar(select(ExternalIpAssignment).where(
+        ExternalIpAssignment.pool_id == pool_id,
+        ExternalIpAssignment.ip_address == str(address),
+    ))
+    if assignment is not None:
+        db.delete(assignment)
+
+    row, item = match
+    remaining: list[str] = []
+    number = int(address)
+    if item.start < number:
+        remaining.append(_external_interval_value(item.version, item.start, number - 1))
+    if number < item.end:
+        remaining.append(_external_interval_value(item.version, number + 1, item.end))
+
+    if remaining:
+        row.cidr = remaining[0]
+        for value in remaining[1:]:
+            db.add(ExternalIpRange(pool_id=pool_id, cidr=value))
+        pool.updated_at = datetime.now(timezone.utc)
+    elif len(ranges) > 1:
+        db.delete(row)
+        pool.updated_at = datetime.now(timezone.utc)
+    else:
+        db.delete(row)
+        db.delete(pool)
+    db.commit()
 
 
 @router.get("/external/assignments", response_model=list[ExternalIpAssignmentOut])

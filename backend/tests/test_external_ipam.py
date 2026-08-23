@@ -17,6 +17,7 @@ from app.api.v1.ipam import (
     create_external_ip_assignment,
     create_external_ip_pool,
     create_external_ip_range,
+    delete_external_pool_address,
     delete_external_ip_range,
     delete_external_ip_pool,
     external_ip_summary,
@@ -164,7 +165,7 @@ def test_external_range_overlap_and_order_validation():
 def test_allocation_group_accepts_unrelated_ranges_and_pages_them_together():
     db = _session()
     pool = create_external_ip_pool(
-        ExternalIpPoolCreate(name="Azure production", cidr="9.9.9.9", account="sub-123", region="Australia East"),
+        ExternalIpPoolCreate(name="Azure production", cidr="9.9.9.9", service="Azure Functions", icon="server", account="sub-123", region="Australia East"),
         None,
         db,
     )
@@ -173,6 +174,8 @@ def test_allocation_group_accepts_unrelated_ranges_and_pages_them_together():
 
     pools = list_external_ip_pools(None, db)
     group = next(row for row in pools if row.id == pool.id)
+    assert group.service == "Azure Functions"
+    assert group.icon == "server"
     assert group.region == "Australia East"
     assert [row.cidr for row in group.allocations] == ["9.9.9.9/32", "8.8.8.8/32", "8.8.4.0/31"]
     assert group.total == 4
@@ -186,6 +189,44 @@ def test_allocation_group_accepts_unrelated_ranges_and_pages_them_together():
     delete_external_ip_range(pool.id, third.id, None, db)
     group = next(row for row in list_external_ip_pools(None, db) if row.id == pool.id)
     assert [row.id for row in group.allocations] == [pool.allocations[0].id, second.id]
+
+    updated = update_external_ip_pool(pool.id, ExternalIpPoolUpdate(icon="database"), None, db)
+    assert updated.icon == "database"
+    assert db.get(ExternalIpPool, pool.id).icon == "database"
+    fallback = update_external_ip_pool(pool.id, ExternalIpPoolUpdate(icon=None), None, db)
+    assert fallback.icon == "cloud"
+
+
+def test_delete_one_external_address_splits_its_range_and_removes_only_its_assignment():
+    db = _session()
+    pool = create_external_ip_pool(
+        ExternalIpPoolCreate(name="AWS production", cidr="8.8.8.0/29"), None, db,
+    )
+    create_external_ip_assignment(
+        ExternalIpAssignmentCreate(pool_id=pool.id, ip_address="8.8.8.3", label="Old endpoint", status="in_use"),
+        None,
+        db,
+    )
+
+    delete_external_pool_address(pool.id, "8.8.8.3", None, db)
+
+    refreshed = next(row for row in list_external_ip_pools(None, db) if row.id == pool.id)
+    assert [row.cidr for row in refreshed.allocations] == ["8.8.8.1-8.8.8.2", "8.8.8.4-8.8.8.6"]
+    page = list_external_pool_addresses(pool.id, None, db, offset=0, limit=256)
+    assert [row.ip_address for row in page.addresses] == ["8.8.8.1", "8.8.8.2", "8.8.8.4", "8.8.8.5", "8.8.8.6"]
+    assert list_external_ip_assignments(None, db) == []
+
+
+def test_delete_final_external_address_removes_the_empty_allocation():
+    db = _session()
+    pool = create_external_ip_pool(
+        ExternalIpPoolCreate(name="Single cloud IP", cidr="9.9.9.9"), None, db,
+    )
+
+    delete_external_pool_address(pool.id, "9.9.9.9", None, db)
+
+    assert db.get(ExternalIpPool, pool.id) is None
+    assert db.query(ExternalIpRange).count() == 0
 
 
 def test_provider_icon_lives_on_the_provider_not_the_pool():
@@ -451,9 +492,10 @@ def test_address_can_be_added_straight_to_an_asset():
     # Label defaults to the asset name rather than forcing the user to retype it.
     assert first.label == "web-prod-01"
 
-    # Both were filed under one auto-created per-provider allocation.
+    # Both were filed under one auto-created provider/service allocation.
     pools = list_external_ip_pools(None, db)
-    assert [pool.name for pool in pools] == ["AWS individual addresses"]
+    assert [pool.name for pool in pools] == ["AWS Amazon EC2 individual addresses"]
+    assert pools[0].service == "Amazon EC2"
     assert pools[0].total == 2
     assert first.pool_id == second.pool_id
 

@@ -239,6 +239,8 @@ class ExternalIpPoolCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     cidr: str = Field(..., min_length=1, max_length=128)
     provider_id: int | None = None
+    service: str | None = Field(default=None, max_length=120)
+    icon: str = Field(default="cloud", min_length=1, max_length=80)
     account: str | None = Field(default=None, max_length=120)
     region: str | None = Field(default=None, max_length=120)
     description: str | None = None
@@ -247,6 +249,8 @@ class ExternalIpPoolCreate(BaseModel):
 class ExternalIpPoolUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     provider_id: int | None = None
+    service: str | None = Field(default=None, max_length=120)
+    icon: str | None = Field(default=None, min_length=1, max_length=80)
     account: str | None = Field(default=None, max_length=120)
     region: str | None = Field(default=None, max_length=120)
     description: str | None = None
@@ -257,6 +261,8 @@ class ExternalIpPoolOut(BaseModel):
     name: str
     provider_id: int | None = None
     provider: CloudProviderOut | None = None
+    service: str | None
+    icon: str
     account: str | None
     region: str | None
     description: str | None

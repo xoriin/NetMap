@@ -24,25 +24,64 @@
    this table matches its sibling Internal networks table (`.ipam-data-table`) rather
    than the component's darker `--nm-surface` default, which read as a separate app. */
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
-.external-ip-table { min-width: 1180px; table-layout: fixed; background: var(--nm-modal-section); }
+.external-ip-table { min-width: 980px; table-layout: fixed; background: var(--nm-modal-section); }
 .external-ip-table tbody td { background: var(--nm-table-row-bg); }
-.external-ip-table .external-ip-col-provider { width: 30%; }
-.external-ip-table .external-ip-col-account { width: 15%; }
-.external-ip-table .external-ip-col-version { width: 11%; }
+.external-ip-table .external-ip-col-provider { width: 31%; }
+.external-ip-table .external-ip-col-account { width: 17%; }
+.external-ip-table .external-ip-col-status { width: 10%; }
 .external-ip-table .external-ip-col-stat { width: 8%; }
-/* Wide enough for the asset row's four actions on one line — see the clipping
-   regression test in tests/e2e/ipam-theme.spec.ts. */
-.external-ip-table .external-ip-col-actions { width: 28%; }
-.external-ip-table .external-ip-provider-row { cursor: pointer; }
+.external-ip-table .external-ip-col-util { width: 14%; }
+.external-ip-table .external-ip-col-actions { width: 12%; }
+.external-ip-table .external-ip-provider-row,
+.external-ip-table .external-ip-service-row,
+.external-ip-table .external-ip-pool-row { cursor: pointer; }
 .external-ip-table .external-ip-provider-row td {
   border-top: 1px solid var(--nm-border-strong);
-  padding-top: 9px;
-  padding-bottom: 9px;
-  background: var(--nm-modal-header);
+  background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }
-.external-ip-provider-identity { display: flex; align-items: center; gap: 9px; }
-.external-ip-provider-chevron { display: inline-flex; width: 16px; flex: 0 0 auto; color: var(--nm-accent-strong); }
+.external-ip-table .external-ip-service-row td { background: var(--nm-row-alt-soft); }
+.external-ip-toolbar { background: var(--nm-modal-section); }
+.external-ip-search { min-width: 280px; flex: 1 1 420px; }
+.external-ip-status-filter { display: flex; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
+.external-ip-status-filter .nm-select { width: 130px; }
+
+.external-ip-tree-cell { position: relative; display: flex; min-width: 0; align-items: center; gap: 8px; }
+.external-ip-tree-level-0 { padding-left: 0; }
+.external-ip-tree-level-1 { padding-left: 28px; }
+.external-ip-tree-level-2 { padding-left: 56px; }
+.external-ip-tree-level-3 { padding-left: 110px; }
+.external-ip-tree-level-1::before,
+.external-ip-tree-level-2::before,
+.external-ip-tree-level-3::before { content: ""; position: absolute; top: -14px; bottom: 50%; border-left: 1px solid var(--nm-border-strong); }
+.external-ip-tree-level-1::after,
+.external-ip-tree-level-2::after,
+.external-ip-tree-level-3::after { content: ""; position: absolute; top: 50%; border-top: 1px solid var(--nm-border-strong); }
+.external-ip-tree-level-1::before,
+.external-ip-tree-level-1::after { left: 40px; }
+.external-ip-tree-level-1::after { width: 12px; }
+.external-ip-tree-level-2::before,
+.external-ip-tree-level-2::after { left: 66px; }
+.external-ip-tree-level-2::after { width: 14px; }
+.external-ip-tree-level-3::before,
+.external-ip-tree-level-3::after { left: 94px; }
+.external-ip-tree-level-3::after { width: 14px; }
+.external-ip-tree-toggle { position: relative; z-index: 1; display: inline-flex; width: 18px; height: 24px; flex: 0 0 auto; align-items: center; justify-content: center; border: 0; padding: 0; background: transparent; color: var(--nm-accent-strong); cursor: pointer; }
+.external-ip-tree-toggle:focus-visible { border-radius: var(--nm-radius-sm); outline: 2px solid var(--nm-accent); outline-offset: 1px; }
+.external-ip-tree-icon,
+.external-ip-leaf-mark { position: relative; z-index: 1; display: inline-flex; width: 24px; height: 24px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-table-row-bg); color: var(--nm-text-muted); }
+.external-ip-service-row .external-ip-tree-icon { background: var(--nm-row-alt-soft); }
+.external-ip-tree-icon img { display: block; width: 15px; height: 15px; }
+.external-ip-leaf-mark { border-color: transparent; }
+.external-ip-leaf-mark i { width: 7px; height: 7px; border: 2px solid var(--nm-accent); border-radius: 50%; background: var(--nm-table-row-bg); }
+.external-ip-tree-identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; overflow: hidden; }
+.external-ip-tree-identity strong,
+.external-ip-tree-identity code,
+.external-ip-tree-identity small { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.external-ip-tree-identity strong { color: var(--nm-text); font-size: var(--nm-text-sm); font-weight: 650; }
+.external-ip-tree-identity code { color: var(--nm-text); font-size: var(--nm-text-xs); font-weight: 650; }
+.external-ip-tree-identity small { color: var(--nm-text-faint); font-size: var(--nm-text-xs); font-weight: 500; }
+.external-ip-count-badge { flex: 0 0 auto; border: 1px solid var(--nm-border); border-radius: 999px; padding: 2px 7px; background: var(--nm-surface-soft); color: var(--nm-text-muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
 .external-ip-provider-icon {
   display: inline-flex;
   width: 28px;
@@ -64,14 +103,10 @@
 .external-ip-provider-icon--cloudflare { color: #f48120; }
 .external-ip-provider-icon--cloud,
 .external-ip-provider-icon--globe { color: var(--nm-accent-strong); }
-.external-ip-provider-identity > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.external-ip-table .external-ip-provider-identity strong { font-size: var(--nm-text-sm); }
-.external-ip-table .external-ip-provider-identity small { margin: 0; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 500; }
 .external-ip-provider-accounts { color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 600; }
 .external-ip-provider-stat { color: var(--nm-text); font-weight: 700; }
-.external-ip-version { display: inline-flex; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); padding: 2px 7px; background: var(--nm-modal-input); color: var(--nm-text-muted); font-family: var(--nm-font-mono); font-size: 10px; font-weight: 700; }
 .external-ip-table td strong, .external-ip-table td small { display: block; }
-.external-ip-table td code { display: block; margin-top: 3px; color: var(--nm-accent-strong); }
+.external-ip-table td code { display: block; color: var(--nm-accent-strong); }
 .external-ip-table td small { margin-top: 3px; color: var(--nm-text-faint); }
 .external-ip-table th.external-ip-actions,
 .external-ip-table td.external-ip-actions { padding-right: 12px; padding-left: 12px; text-align: right; }
@@ -88,6 +123,31 @@
    defeat the right alignment. Natural widths, flush right. */
 .external-ip-table td.external-ip-actions .nm-table-actions .nm-btn--sm { flex: 0 0 auto; }
 .external-ip-table td.external-ip-actions .nm-btn { white-space: nowrap; }
+.external-ip-table .external-ip-address-delete { width: 28px; min-width: 28px; padding-right: 0; padding-left: 0; }
+.external-ip-utilization { display: flex; align-items: center; gap: 7px; }
+.external-ip-utilization .ipam-util-bar { width: 68px; flex: 0 1 68px; }
+.external-ip-utilization small { flex: 0 0 auto; margin: 0; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-variant-numeric: tabular-nums; }
+.external-ip-actions-menu { position: relative; display: inline-flex; }
+.external-ip-actions-trigger { min-width: 84px; }
+.external-ip-actions-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  display: flex;
+  width: 178px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-header);
+  box-shadow: var(--nm-shadow-md);
+  text-align: left;
+}
+.external-ip-actions-popover button { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 8px 10px; background: transparent; color: var(--nm-text); text-align: left; cursor: pointer; font-size: var(--nm-text-xs); font-weight: 600; }
+.external-ip-actions-popover button:hover { background: var(--nm-row-hover); color: var(--nm-accent-strong); }
+.external-ip-actions-popover button.is-danger { color: var(--nm-danger); }
+.external-ip-actions-separator { height: 1px; margin: 3px 0; background: var(--nm-border); }
 .external-ip-allocation-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-modal-input); }
 .external-ip-allocation-chip code { color: var(--nm-accent-strong); }
 .external-ip-allocation-chip small { color: var(--nm-text-faint); }
@@ -108,33 +168,24 @@
    Re-apply the standard hover background at a specificity that beats the banding, and
    keep the canonical 3px teal left edge from components.css. */
 .external-ip-table tbody tr.is-alt:hover td,
-.external-ip-table .external-ip-provider-row:hover td { background: var(--nm-row-hover); }
+.external-ip-table .external-ip-provider-row:hover td,
+.external-ip-table .external-ip-service-row:hover td { background: var(--nm-row-hover); }
 
-/* ── asset tier ──────────────────────────────────────────────────────────────
-   Provider > asset > address. Indentation carries the hierarchy: the asset row
-   sits one step in from its provider, and its addresses one step further. */
+/* ── service tree ────────────────────────────────────────────────────────────
+   Provider > service > allocation > address. Indentation and the deliberately
+   short connector segments carry the hierarchy without ancestor ghost rails. */
 
 .external-ip-table .external-ip-address-row td { padding-top: 6px; padding-bottom: 6px; }
-.external-ip-table .external-ip-address-row td:first-child { padding-left: 90px; }
 .external-ip-table .external-ip-address-row { cursor: pointer; }
 .external-ip-table .external-ip-address-row:hover td { background: var(--nm-row-hover); }
-.external-ip-table .external-ip-address-row.is-alt td { background: var(--nm-row-alt-soft); }
 .external-ip-table .external-ip-address-row.is-alt:hover td { background: var(--nm-row-hover); }
 .external-ip-table .external-ip-address-row--unassigned code { color: var(--nm-text-muted); }
 .external-ip-table .external-ip-address-row--unassigned small { color: var(--nm-text-faint); }
-.external-ip-address-identity { display: flex; flex-direction: column; gap: 1px; }
-.external-ip-table .external-ip-address-identity code { margin-top: 0; font-size: var(--nm-text-xs); }
-.external-ip-table .external-ip-address-row--unassigned td:first-child { padding-left: 90px; }
 
-/* Marks an asset that is also a monitored inventory device. */
-
-/* Allocations are a secondary concern now — collapsed by default. */
-
-/* Allocations render as rows inside the provider drill-down, so spare capacity sits
-   next to the assets consuming it instead of behind a separate surface. */
+/* Allocations render inside their service group, so spare capacity remains visible
+   alongside the individual address records instead of moving to another surface. */
 .external-ip-table .external-ip-pool-row { cursor: pointer; }
 .external-ip-table .external-ip-pool-row td { padding-top: 6px; padding-bottom: 6px; }
-.external-ip-table .external-ip-pool-row td:first-child { padding-left: 66px; }
 .external-ip-table .external-ip-pool-row:hover td { background: var(--nm-row-hover); }
 .external-ip-table .external-ip-pool-row.is-alt td { background: var(--nm-row-alt-soft); }
 .external-ip-table .external-ip-pool-row.is-alt:hover td { background: var(--nm-row-hover); }
@@ -143,7 +194,7 @@
 /* ── Address rows ────────────────────────────────────────────────────────────
    Addresses used to render as a grid of tiles inside a colSpan cell, which read as a
    separate widget bolted onto the table. They are ordinary rows now — one IP per row,
-   two steps in from their provider — so the whole drill-down is one continuous table. */
+   three steps in from their provider — so the whole drill-down is one continuous table. */
 
 /* Status reads from the nm-status pill in the Status column and nowhere else. The 3px
    inset left edge is the canonical hover affordance and is teal — do not repurpose it to
@@ -154,7 +205,7 @@
 
 .external-ip-table .external-ip-pager-row td,
 .external-ip-table .external-ip-pager-row:hover td {
-  padding: 0 12px 0 90px;
+  padding: 0 12px;
   background: var(--nm-table-row-bg);
   box-shadow: none;
 }

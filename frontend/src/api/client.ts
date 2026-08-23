@@ -1124,6 +1124,8 @@ export type ExternalIpPool = {
   name: string;
   provider_id: number | null;
   provider: CloudProviderOption | null;
+  service: string | null;
+  icon: DeviceIcon;
   account: string | null;
   region: string | null;
   description: string | null;
@@ -1175,7 +1177,7 @@ export type ExternalIpAssignment = {
 };
 
 export type ExternalIpAssignmentPayload = Omit<ExternalIpAssignment, "id" | "asset" | "device" | "created_at" | "updated_at">;
-export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "provider_id" | "account" | "region" | "description"> & { cidr?: string };
+export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "provider_id" | "service" | "icon" | "account" | "region" | "description"> & { cidr?: string };
 
 export type ExternalIpAddressPage = {
   total: number;
@@ -2217,6 +2219,8 @@ export const api = {
     request<void>(`/api/v1/ipam/external/pools/${poolId}/ranges/${rangeId}`, { method: "DELETE", token }),
   getExternalPoolAddresses: (token: string, id: number, offset = 0, limit = 256) =>
     request<ExternalIpAddressPage>(`/api/v1/ipam/external/pools/${id}/addresses?offset=${offset}&limit=${limit}`, { token }),
+  deleteExternalPoolAddress: (token: string, poolId: number, ipAddress: string) =>
+    request<void>(`/api/v1/ipam/external/pools/${poolId}/addresses/${encodeURIComponent(ipAddress)}`, { method: "DELETE", token }),
   listExternalIpAssignments: (token: string, assetId?: number) =>
     request<ExternalIpAssignment[]>(`/api/v1/ipam/external/assignments${assetId ? `?asset_id=${assetId}` : ""}`, { token }),
   listCloudAssets: (token: string) =>

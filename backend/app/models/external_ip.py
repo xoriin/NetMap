@@ -16,6 +16,14 @@ class ExternalIpPool(Base):
     provider_id: Mapped[int | None] = mapped_column(
         ForeignKey("cloud_providers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Provider-specific organisational tier used by the External IPAM tree, for
+    # example "Amazon EC2", "AWS Lambda", or "Azure Functions". This describes
+    # the cloud service an allocation belongs to; individual devices remain linked
+    # from assignments and Inventory.
+    service: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    # User-selected mark for this allocation in the External IP tree. Provider
+    # branding remains owned by CloudProvider; this icon identifies the allocation itself.
+    icon: Mapped[str] = mapped_column(String(80), nullable=False, default="cloud")
     account: Mapped[str | None] = mapped_column(String(120), nullable=True)
     region: Mapped[str | None] = mapped_column(String(120), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

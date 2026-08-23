@@ -1,9 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Cloud, Globe2, Link2, Plus, Server, Boxes } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Boxes, ChevronDown, ChevronRight, Cloud, Globe2, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
 import {
   api,
-  type CloudAsset,
-  type CloudAssetPayload,
   type CloudProviderOption,
   type ExternalIpAssignment,
   type ExternalIpAssignmentPayload,
@@ -11,24 +9,36 @@ import {
   type ExternalIpPoolPayload,
 } from "../../api/client";
 import { CloudProviderIcon } from "../../components/CloudProviderIcon";
+import { IconPickerTrigger } from "../../components/IconPicker";
 import { DashStat } from "../../components/DashStat";
 import { Modal, ModalFooterActions } from "../../components/Modal";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
+import { UtilizationBar } from "../../components/UtilizationBar";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import type { Device, DevicePayload } from "../../api/client";
+import { deviceIconUrl } from "../../icons";
 
-const EMPTY_POOL: ExternalIpPoolPayload = { name: "", cidr: "", provider_id: null, account: null, region: null, description: null };
+const EMPTY_POOL: ExternalIpPoolPayload = { name: "", cidr: "", provider_id: null, service: null, icon: "cloud", account: null, region: null, description: null };
 const EMPTY_ASSIGNMENT: ExternalIpAssignmentPayload = {
   pool_id: 0, device_id: null, asset_id: null, ip_address: "", label: "", status: "in_use",
   owner: null, tags: null, notes: null,
 };
 
-/** Sentinel key for addresses that belong to no asset. */
+/** Sentinel key for allocations that have no provider. */
 const UNASSIGNED = "__unassigned__";
+
+type ExternalStatusFilter = "all" | ExternalIpAssignment["status"];
+
+const CLOUD_SERVICE_SUGGESTIONS: Record<string, string[]> = {
+  aws: ["Amazon EC2", "AWS Lambda", "Amazon ECS", "Amazon EKS", "AWS Elastic Beanstalk", "Amazon RDS", "Amazon S3", "Elastic Load Balancing", "Amazon CloudFront"],
+  azure: ["Virtual Machines", "Azure Kubernetes Service (AKS)", "App Service", "Azure Functions", "Virtual Machine Scale Sets", "Storage", "Azure SQL", "Azure Load Balancer"],
+  "google-cloud": ["Compute Engine", "Google Kubernetes Engine (GKE)", "Cloud Run", "Cloud Functions", "App Engine", "Cloud Storage", "Cloud SQL", "Cloud CDN"],
+  cloudflare: ["DNS", "CDN", "Load Balancing", "Workers", "R2 Storage", "Zero Trust"],
+};
 
 function statusLabel(status: ExternalIpAssignment["status"]) {
   return status === "in_use" ? "In use" : status === "reserved" ? "Reserved" : "Available";
@@ -39,115 +49,156 @@ function nullable(value: string) {
   return trimmed || null;
 }
 
+function AllocationActionsMenu({ onAddRange, onEdit, onDelete }: { onAddRange: () => void; onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const run = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
+  return <span className="external-ip-actions-menu" ref={rootRef} onClick={(event) => event.stopPropagation()}>
+    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary external-ip-actions-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+      Actions <ChevronDown size={13} />
+    </button>
+    {open && <span className="external-ip-actions-popover" role="menu">
+      <button type="button" role="menuitem" onClick={() => run(onAddRange)}><Plus size={13} /> Add range</button>
+      <button type="button" role="menuitem" onClick={() => run(onEdit)}><Pencil size={13} /> Edit allocation</button>
+      <span className="external-ip-actions-separator" />
+      <button type="button" role="menuitem" className="is-danger" onClick={() => run(onDelete)}><Trash2 size={13} /> Delete allocation</button>
+    </span>}
+  </span>;
+}
+
 export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false, onDeviceChange, showSummary = true, allowCreatePool = true, headerContent }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; onDeviceChange?: (device: Device) => void; showSummary?: boolean; allowCreatePool?: boolean; headerContent?: ReactNode }) {
   const toast = useToast();
   const confirmAction = useConfirm();
   const query = useApiQuery(async () => {
-    const [summary, pools, assignments, assets, cloudProviders, graph] = await Promise.all([
+    const [summary, pools, assignments, cloudProviders, graph] = await Promise.all([
       api.getExternalIpSummary(accessToken),
       api.listExternalIpPools(accessToken),
       api.listExternalIpAssignments(accessToken),
-      api.listCloudAssets(accessToken),
       api.listCloudProviders(accessToken),
       api.topologyGraph(accessToken).catch(() => ({ devices: [], relationships: [] })),
     ]);
-    return { summary, pools, assignments, assets, cloudProviders, devices: graph.devices };
+    return { summary, pools, assignments, cloudProviders, devices: graph.devices };
   }, [accessToken]);
 
   const pools = useMemo(() => query.data?.pools ?? [], [query.data]);
   const assignments = useMemo(() => query.data?.assignments ?? [], [query.data]);
-  const assets = useMemo(() => query.data?.assets ?? [], [query.data]);
   const cloudProviders = useMemo(() => query.data?.cloudProviders ?? [], [query.data]);
   const inventoryDevices = useMemo(() => query.data?.devices ?? [], [query.data]);
 
-  /**
-   * Provider → assets → addresses.
-   *
-   * Grouping keys off the provider *row id*, not a lowercased name string as it used
-   * to — renaming a provider no longer splits its group in two.
-   */
+  /** Provider → cloud service → allocation. Provider IDs remain the stable root key. */
   const providerGroups = useMemo(() => {
-    const addressesByAsset = new Map<number, ExternalIpAssignment[]>();
-    const unassigned: ExternalIpAssignment[] = [];
-    for (const row of assignments) {
-      if (row.asset_id === null) unassigned.push(row);
-      else {
-        const current = addressesByAsset.get(row.asset_id);
-        if (current) current.push(row);
-        else addressesByAsset.set(row.asset_id, [row]);
-      }
-    }
-
     const grouped = new Map<string, {
       key: string;
       name: string;
       provider: CloudProviderOption | null;
-      assets: Array<{ asset: CloudAsset; addresses: ExternalIpAssignment[] }>;
-      unassigned: ExternalIpAssignment[];
       pools: ExternalIpPool[];
     }>();
     const ensure = (provider: CloudProviderOption | null) => {
       const key = provider ? String(provider.id ?? provider.key) : UNASSIGNED;
       let entry = grouped.get(key);
       if (!entry) {
-        entry = { key, name: provider?.name ?? "No provider", provider, assets: [], unassigned: [], pools: [] };
+        entry = { key, name: provider?.name ?? "No provider", provider, pools: [] };
         grouped.set(key, entry);
       }
       return entry;
     };
-
-    for (const asset of assets) {
-      ensure(asset.provider).assets.push({ asset, addresses: addressesByAsset.get(asset.id) ?? [] });
-    }
-    // Addresses with no asset hang off the provider of their allocation group.
-    for (const row of unassigned) {
-      const pool = pools.find((item) => item.id === row.pool_id) ?? null;
-      ensure(pool?.provider ?? null).unassigned.push(row);
-    }
-    // Allocations hang off their provider so spare capacity shows up in the same
-    // drill-down as the assets, rather than behind a separate surface.
     for (const pool of pools) ensure(pool.provider ?? null).pools.push(pool);
 
     return [...grouped.values()]
       .map((group) => {
-        const addressCount = group.assets.reduce((sum, entry) => sum + entry.addresses.length, 0) + group.unassigned.length;
-        const all = [...group.assets.flatMap((entry) => entry.addresses), ...group.unassigned];
+        const services = new Map<string, { key: string; name: string; pools: ExternalIpPool[] }>();
+        for (const pool of group.pools) {
+          const name = pool.service?.trim() || "Other services";
+          const key = `${group.key}:${name.toLocaleLowerCase()}`;
+          const service = services.get(key) ?? { key, name, pools: [] };
+          service.pools.push(pool);
+          services.set(key, service);
+        }
+        const serviceGroups = [...services.values()].map((service) => {
+          const servicePools = [...service.pools].sort((a, b) => a.name.localeCompare(b.name));
+          const capacity = servicePools.reduce((sum, pool) => sum + pool.total, 0);
+          const inUse = servicePools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
+          return { ...service, pools: servicePools, capacity, inUse, free: servicePools.reduce((sum, pool) => sum + pool.free, 0), utilization: capacity ? inUse / capacity : 0 };
+        }).sort((a, b) => (a.name === "Other services" ? 1 : b.name === "Other services" ? -1 : a.name.localeCompare(b.name)));
+        const capacity = group.pools.reduce((sum, pool) => sum + pool.total, 0);
+        const inUse = group.pools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
         return {
           ...group,
-          assets: [...group.assets].sort((a, b) => a.asset.name.localeCompare(b.asset.name)),
-          pools: [...group.pools].sort((a, b) => a.name.localeCompare(b.name)),
-          capacity: group.pools.reduce((sum, pool) => sum + pool.total, 0),
+          services: serviceGroups,
+          capacity,
           free: group.pools.reduce((sum, pool) => sum + pool.free, 0),
-          // The Addresses / In use columns must mean the same thing at every tier. They
-          // are the allocation's capacity and consumption, summed up — not a count of
-          // tracked assignment rows, which made a provider read 0 above an allocation
-          // reading 1 for the same addresses.
-          addressCount: group.pools.reduce((sum, pool) => sum + pool.total, 0),
-          inUse: group.pools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0),
-          trackedCount: addressCount,
-          reserved: all.filter((row) => row.status === "reserved").length,
+          addressCount: capacity,
+          inUse,
+          utilization: capacity ? inUse / capacity : 0,
         };
       })
-      .filter((group) => group.assets.length > 0 || group.unassigned.length > 0 || group.pools.length > 0 || group.provider !== null)
+      .filter((group) => group.services.length > 0 || group.provider !== null)
       .sort((a, b) => (a.key === UNASSIGNED ? 1 : b.key === UNASSIGNED ? -1 : a.name.localeCompare(b.name)));
-  }, [assets, assignments, pools]);
+  }, [pools]);
 
-  /**
-   * Allocations small enough to read at a glance are open from the start.
-   *
-   * The tier exists because an allocation carries spare capacity, and because its
-   * addresses are fetched per allocation rather than up front — a /24 is 254 rows. But a
-   * /32 allocation holding one address made you click a row to reveal the single address
-   * named in that row, which is not a tier, just an obstacle. Anything at or under this
-   * many addresses opens itself; bigger ones stay behind a click and paginate.
-   */
-  const AUTO_OPEN_MAX_ADDRESSES = 32;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ExternalStatusFilter>("all");
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
+  const assignmentsByPool = useMemo(() => {
+    const grouped = new Map<number, ExternalIpAssignment[]>();
+    for (const assignment of assignments) grouped.set(assignment.pool_id, [...(grouped.get(assignment.pool_id) ?? []), assignment]);
+    return grouped;
+  }, [assignments]);
+  const filteredProviderGroups = useMemo(() => providerGroups.map((group) => {
+    const providerMatch = !normalizedSearch || `${group.name} ${group.provider?.key ?? ""}`.toLocaleLowerCase().includes(normalizedSearch);
+    const services = group.services.map((service) => {
+      const serviceMatch = providerMatch || service.name.toLocaleLowerCase().includes(normalizedSearch);
+      const visiblePools = service.pools.filter((pool) => {
+        const statusMatch = statusFilter === "all" || (statusFilter === "available" ? pool.free > 0 : statusFilter === "in_use" ? pool.in_use > 0 : pool.reserved > 0);
+        if (!statusMatch) return false;
+        if (serviceMatch) return true;
+        const tracked = assignmentsByPool.get(pool.id) ?? [];
+        return [pool.name, pool.account, pool.region, pool.description, ...(pool.allocations ?? []).map((item) => item.cidr), ...tracked.flatMap((row) => [row.ip_address, row.label, row.owner, row.device?.display_name, row.device?.hostname])]
+          .filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
+      });
+      if (visiblePools.length === 0) return null;
+      const capacity = visiblePools.reduce((sum, pool) => sum + pool.total, 0);
+      const inUse = visiblePools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
+      return { ...service, pools: visiblePools, capacity, inUse, free: visiblePools.reduce((sum, pool) => sum + pool.free, 0), utilization: capacity ? inUse / capacity : 0 };
+    }).filter((service): service is NonNullable<typeof service> => service !== null);
+    if (services.length === 0) return null;
+    const capacity = services.reduce((sum, service) => sum + service.capacity, 0);
+    const inUse = services.reduce((sum, service) => sum + service.inUse, 0);
+    return { ...group, services, capacity, addressCount: capacity, inUse, free: services.reduce((sum, service) => sum + service.free, 0), utilization: capacity ? inUse / capacity : 0 };
+  }).filter((group): group is NonNullable<typeof group> => group !== null), [assignmentsByPool, normalizedSearch, providerGroups, statusFilter]);
+
+  /** Providers and service groups start open. Allocations start collapsed, except a
+   * single-address /32 or /128 where another click would only reveal one row. */
+  const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
+  const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set());
   const [poolOverrides, setPoolOverrides] = useState<Record<number, boolean>>({});
   const isPoolOpen = useCallback(
-    (pool: ExternalIpPool) => poolOverrides[pool.id] ?? pool.total <= AUTO_OPEN_MAX_ADDRESSES,
+    (pool: ExternalIpPool) => poolOverrides[pool.id] ?? pool.total === 1,
     [poolOverrides],
   );
-  const openPools = useMemo(() => pools.filter(isPoolOpen), [pools, isPoolOpen]);
+  const filteredPools = useMemo(() => filteredProviderGroups.flatMap((group) => group.services.flatMap((service) => service.pools)), [filteredProviderGroups]);
+  const openPools = useMemo(() => filteredPools.filter(isPoolOpen), [filteredPools, isPoolOpen]);
   const openPoolKey = openPools.map((pool) => pool.id).join(",");
 
   /** `selectedPoolId` is now only "which allocation is the Range modal acting on". */
@@ -166,6 +217,8 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
 
   const [poolModal, setPoolModal] = useState<ExternalIpPool | "new" | null>(null);
   const [poolForm, setPoolForm] = useState<ExternalIpPoolPayload>(EMPTY_POOL);
+  const selectedPoolProvider = cloudProviders.find((provider) => provider.id === poolForm.provider_id) ?? null;
+  const serviceSuggestions = CLOUD_SERVICE_SUGGESTIONS[selectedPoolProvider?.key ?? ""] ?? [];
   const [assignmentModal, setAssignmentModal] = useState<ExternalIpAssignment | "new" | null>(null);
   const [assignmentForm, setAssignmentForm] = useState<ExternalIpAssignmentPayload>(EMPTY_ASSIGNMENT);
   const [busy, setBusy] = useState(false);
@@ -175,11 +228,6 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
   const [addToInventory, setAddToInventory] = useState(false);
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
   const [seededAssignmentId, setSeededAssignmentId] = useState<number | null>(null);
-  /** Providers start open. Collapsing by default cost a click to see anything at all,
-   *  and the page has nothing else on it. Tracked as the collapsed set so groups that
-   *  arrive later are open too, without an effect to seed them. */
-  const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
-
   const deviceMetadataQuery = useApiQuery(
     deviceSeed === null ? null : async () => {
       const [groups, sites, snmpProfiles, deviceTypes] = await Promise.all([
@@ -205,11 +253,19 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
     });
   }
 
+  function toggleService(key: string) {
+    setCollapsedServices((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
   function openPool(pool?: ExternalIpPool, providerId: number | null = null) {
     setPoolModal(pool ?? "new");
     setPoolForm(pool ? {
       name: pool.name, provider_id: pool.provider_id,
-      account: pool.account, region: pool.region, description: pool.description,
+      service: pool.service, icon: pool.icon, account: pool.account, region: pool.region, description: pool.description,
     } : { ...EMPTY_POOL, provider_id: providerId });
     setFormError(null);
   }
@@ -228,7 +284,13 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
   async function savePool(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setFormError(null);
-    const payload = { ...poolForm, account: nullable(poolForm.account ?? ""), description: nullable(poolForm.description ?? "") };
+    const payload = {
+      ...poolForm,
+      service: nullable(poolForm.service ?? ""),
+      account: nullable(poolForm.account ?? ""),
+      region: nullable(poolForm.region ?? ""),
+      description: nullable(poolForm.description ?? ""),
+    };
     try {
       if (poolModal === "new") await api.createExternalIpPool(accessToken, payload);
       else if (poolModal) {
@@ -313,6 +375,32 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to remove external IP"); }
   }
 
+  async function removeAddress(pool: ExternalIpPool, ipAddress: string, assignment: ExternalIpAssignment | null) {
+    const removesAllocation = pool.total === 1;
+    const details = [
+      assignment ? "Its tracking record will also be removed; any linked Inventory device will remain." : null,
+      removesAllocation ? "This is the allocation's final address, so the empty allocation will also be removed." : null,
+    ].filter(Boolean).join(" ");
+    if (!await confirmAction({
+      title: "Delete external IP address",
+      message: `Delete ${ipAddress} from ${pool.name}?${details ? ` ${details}` : ""}`,
+      confirmLabel: "Delete address",
+    })) return;
+    try {
+      await api.deleteExternalPoolAddress(accessToken, pool.id, ipAddress);
+      if (removesAllocation) {
+        setPoolOverrides((current) => {
+          const next = { ...current };
+          delete next[pool.id];
+          return next;
+        });
+      }
+      await query.reload();
+      if (!removesAllocation) await addressQuery.reload();
+      toast.success("External IP address deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete external IP address"); }
+  }
+
   async function createInventoryDevice(payload: DevicePayload) {
     setBusy(true); setFormError(null);
     try {
@@ -357,96 +445,110 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
           {canWrite && allowCreatePool && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={() => openPool()}><Plus size={14} /> Add allocation</button>}
         </header>
 
-        {providerGroups.length === 0 ? <div className="external-ip-empty">Add an allocation for an ISP or cloud account, then create the assets — EC2 instances, VMs, load balancers — that use its addresses.</div> : (
-          <div className="nm-table-wrap external-ip-table-wrap"><table className="nm-table nm-table--selectable external-ip-table">
-            <colgroup><col className="external-ip-col-provider" /><col className="external-ip-col-account" /><col className="external-ip-col-version" /><col className="external-ip-col-stat" /><col className="external-ip-col-stat" /><col className="external-ip-col-actions" /></colgroup>
-            <thead><tr><th>Provider / allocation / address</th><th>Account / owner</th><th>Status</th><th className="nm-table-num">Addresses</th><th className="nm-table-num">In use</th><th className="external-ip-actions">Actions</th></tr></thead>
-            <tbody>{providerGroups.map((group) => {
+        {providerGroups.length === 0 ? <div className="external-ip-empty">Add an allocation for an ISP or cloud provider, then organise it under the service or area that uses its addresses.</div> : <>
+          <div className="nm-toolbar external-ip-toolbar">
+            <div className="nm-search nm-search--toolbar external-ip-search">
+              <Search size={14} className="nm-search-icon" aria-hidden="true" />
+              <input className="nm-input" type="search" aria-label="Search external IPs" placeholder="Search providers, services, allocations, IPs or owners…" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+            </div>
+            <label className="external-ip-status-filter"><span>Status</span><select className="nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ExternalStatusFilter)}><option value="all">All</option><option value="in_use">In use</option><option value="reserved">Reserved</option><option value="available">Available</option></select></label>
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!searchTerm && statusFilter === "all"} onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>Clear filters</button>
+          </div>
+          {filteredProviderGroups.length === 0 ? <div className="external-ip-empty">No external IP records match these filters.</div> : <div className="nm-table-wrap external-ip-table-wrap"><table className="nm-table nm-table--selectable external-ip-table">
+            <colgroup><col className="external-ip-col-provider" /><col className="external-ip-col-account" /><col className="external-ip-col-status" /><col className="external-ip-col-stat" /><col className="external-ip-col-stat" /><col className="external-ip-col-util" /><col className="external-ip-col-actions" /></colgroup>
+            <thead><tr><th>Provider / service / allocation / address</th><th>Account / owner</th><th>Status</th><th className="nm-table-num">Addresses</th><th className="nm-table-num">In use</th><th>Utilisation</th><th className="external-ip-actions">Actions</th></tr></thead>
+            <tbody>{filteredProviderGroups.map((group) => {
               const collapsed = collapsedProviders.has(group.key);
-              const accounts = [...new Set(group.assets.map((entry) => entry.asset.account?.trim()).filter((value): value is string => Boolean(value)))];
+              const accounts = [...new Set(group.services.flatMap((service) => service.pools.map((pool) => pool.account?.trim())).filter((value): value is string => Boolean(value)))];
               return <Fragment key={group.key}>
-                <tr className="external-ip-provider-row" onClick={() => toggleProvider(group.key)}>
-                  <td><span className="external-ip-provider-identity">
-                    <span className="external-ip-provider-chevron" aria-hidden="true">{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</span>
+                <tr className="external-ip-provider-row" aria-expanded={!collapsed} onClick={() => toggleProvider(group.key)}>
+                  <td><span className="external-ip-tree-cell external-ip-tree-level-0">
+                    <button type="button" className="external-ip-tree-toggle" aria-label={`${collapsed ? "Expand" : "Collapse"} ${group.name}`} onClick={(event) => { event.stopPropagation(); toggleProvider(group.key); }}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
                     <span className={`external-ip-provider-icon external-ip-provider-icon--${group.provider?.icon ?? "cloud"}`} aria-hidden="true"><CloudProviderIcon icon={group.provider?.icon} iconData={group.provider?.icon_data} size={20} /></span>
-                    <span><strong>{group.name}</strong><small>{group.pools.length} allocation{group.pools.length === 1 ? "" : "s"} · {group.trackedCount} tracked · {group.free} free of {group.capacity}</small></span>
+                    <span className="external-ip-tree-identity"><strong>{group.name}</strong><small>{group.services.length} service{group.services.length === 1 ? "" : "s"} · {group.free} free of {group.capacity}</small></span>
+                    <span className="external-ip-count-badge">{group.services.length} service{group.services.length === 1 ? "" : "s"}</span>
                   </span></td>
                   <td><span className="external-ip-provider-accounts">{accounts.length > 0 ? accounts.join(" · ") : "No account references"}</span></td>
                   <td />
                   <td className="nm-table-num external-ip-provider-stat">{group.addressCount}</td>
                   <td className="nm-table-num external-ip-provider-stat">{group.inUse}</td>
-                  <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>{canWrite && group.provider && <button type="button" className="nm-btn nm-btn--sm" onClick={() => openPool(undefined, group.provider?.id ?? null)}><Plus size={13} /> Allocation</button>}</td>
+                  <td><span className="external-ip-utilization"><UtilizationBar value={group.utilization} size="thin" /><small>{Math.round(group.utilization * 100)}%</small></span></td>
+                  <td className="external-ip-actions" />
                 </tr>
 
-                {!collapsed && <>
-                  {group.pools.map((pool, poolIndex) => {
-                    const poolOpen = isPoolOpen(pool);
-                    const poolPage = addressQuery.data?.get(pool.id);
-                    const poolOffset = pageOffsets[pool.id] ?? 0;
-                    return <Fragment key={`pool-${pool.id}`}>
-                      <tr
-                        className={`external-ip-pool-row${poolIndex % 2 === 1 ? " is-alt" : ""}`}
-                        onClick={() => setPoolOverrides((current) => ({ ...current, [pool.id]: !poolOpen }))}
-                      >
-                        <td><span className="external-ip-address-identity">
-                          <code className="nm-table-mono">{pool.name}</code>
-                          <small>{(pool.allocations ?? []).map((item) => item.cidr).join(", ") || "No ranges"}</small>
-                        </span></td>
-                        <td><small>{pool.account ?? "—"}{pool.region ? ` · ${pool.region}` : ""}</small></td>
-                        <td><span className={`nm-status nm-status--${pool.free === 0 ? "offline" : pool.utilization > 0 ? "online" : "unknown"}`}>{pool.free} free</span></td>
-                        <td className="nm-table-num">{pool.total}</td>
-                        <td className="nm-table-num">{pool.in_use + pool.reserved}</td>
-                        <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>{canWrite && <span className="nm-table-actions">
-                          <button className="nm-btn nm-btn--sm" type="button" onClick={() => { setSelectedPoolId(pool.id); setRangeValue(""); setFormError(null); setRangeModal(true); }}><Plus size={13} /> Range</button>
-                          <button className="nm-btn nm-btn--sm" type="button" onClick={() => openPool(pool)}>Edit</button>
-                          <button className="nm-btn nm-btn--sm nm-btn--danger" type="button" onClick={() => void removePool(pool)}>Delete</button>
-                        </span>}</td>
-                      </tr>
-                      {/* One address per row, in the same table as everything above it.
-                          This used to be a grid of tiles inside a colSpan cell, which read
-                          as a separate widget bolted onto the table rather than part of it. */}
-                      {poolOpen && <>
-                        {addressQuery.isLoading && !poolPage && <tr className="external-ip-address-row"><td colSpan={6}><small>Loading addresses…</small></td></tr>}
+                {!collapsed && group.services.map((service) => {
+                  const serviceCollapsed = collapsedServices.has(service.key);
+                  return <Fragment key={service.key}>
+                    <tr className="external-ip-service-row" aria-expanded={!serviceCollapsed} onClick={() => toggleService(service.key)}>
+                      <td><span className="external-ip-tree-cell external-ip-tree-level-1">
+                        <button type="button" className="external-ip-tree-toggle" aria-label={`${serviceCollapsed ? "Expand" : "Collapse"} ${service.name}`} onClick={(event) => { event.stopPropagation(); toggleService(service.key); }}>{serviceCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
+                        <span className="external-ip-tree-icon" aria-hidden="true"><Boxes size={14} /></span>
+                        <span className="external-ip-tree-identity"><strong>{service.name}</strong><small>{service.pools.length} allocation{service.pools.length === 1 ? "" : "s"}</small></span>
+                        <span className="external-ip-count-badge">{service.pools.length} allocation{service.pools.length === 1 ? "" : "s"}</span>
+                      </span></td>
+                      <td><span className="external-ip-provider-accounts">{[...new Set(service.pools.map((pool) => pool.account).filter(Boolean))].join(" · ") || "—"}</span></td>
+                      <td />
+                      <td className="nm-table-num external-ip-provider-stat">{service.capacity}</td>
+                      <td className="nm-table-num external-ip-provider-stat">{service.inUse}</td>
+                      <td><span className="external-ip-utilization"><UtilizationBar value={service.utilization} size="thin" /><small>{Math.round(service.utilization * 100)}%</small></span></td>
+                      <td className="external-ip-actions" />
+                    </tr>
 
-                        {(poolPage?.addresses ?? []).map((entry, addressIndex) => {
-                          const assignment = entry.assignment;
-                          return <tr
-                            key={entry.ip_address}
-                            className={`external-ip-address-row external-ip-address-row--${entry.status}${addressIndex % 2 === 1 ? " is-alt" : ""}${assignment ? "" : " external-ip-address-row--unassigned"}`}
-                            onClick={() => assignment ? openAssignment(assignment) : canWrite && openAssignment(undefined, entry.ip_address, pool.id)}
-                          >
-                            <td><span className="external-ip-address-identity">
-                              <code className="nm-table-mono">{entry.ip_address}</code>
-                              <small>{assignment?.asset?.name ?? assignment?.label ?? "Unassigned"}</small>
-                            </span></td>
-                            <td><small>{assignment?.device?.display_name ?? assignment?.device?.hostname ?? assignment?.owner ?? "—"}</small></td>
-                            <td><span className={`nm-status nm-status--${entry.status === "in_use" ? "online" : entry.status === "reserved" ? "paused" : "unknown"}`}>{statusLabel(entry.status)}</span></td>
-                            <td className="nm-table-num" />
-                            <td className="nm-table-num" />
-                            <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>{canWrite && <span className="nm-table-actions">
-                              <button className="nm-btn nm-btn--sm" type="button" onClick={() => assignment ? openAssignment(assignment) : openAssignment(undefined, entry.ip_address, pool.id)}>{assignment ? "Edit" : "Assign"}</button>
-                            </span>}</td>
-                          </tr>;
-                        })}
-
-                        {(poolPage?.total ?? 0) > 256 && <tr className="external-ip-pager-row">
-                          <td colSpan={6}>
-                            <footer className="external-ip-pager">
-                              <span>{poolOffset + 1}–{Math.min(poolOffset + 256, poolPage?.total ?? 0)} of {poolPage?.total}</span>
-                              <button className="nm-btn nm-btn--sm" disabled={poolOffset === 0} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: Math.max(0, poolOffset - 256) }))}>Previous</button>
-                              <button className="nm-btn nm-btn--sm" disabled={poolOffset + 256 >= (poolPage?.total ?? 0)} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: poolOffset + 256 }))}>Next</button>
-                            </footer>
-                          </td>
-                        </tr>}
-                      </>}
-                    </Fragment>;
-                  })}
-                </>}
-
+                    {!serviceCollapsed && service.pools.map((pool, poolIndex) => {
+                      const poolOpen = isPoolOpen(pool);
+                      const poolPage = addressQuery.data?.get(pool.id);
+                      const poolOffset = pageOffsets[pool.id] ?? 0;
+                      const poolMetaMatches = !normalizedSearch || [group.name, service.name, pool.name, pool.account, pool.region, pool.description, ...(pool.allocations ?? []).map((item) => item.cidr)].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
+                      const visibleAddresses = (poolPage?.addresses ?? []).filter((entry) => {
+                        if (statusFilter !== "all" && entry.status !== statusFilter) return false;
+                        if (poolMetaMatches) return true;
+                        const assignment = entry.assignment;
+                        return [entry.ip_address, assignment?.label, assignment?.owner, assignment?.device?.display_name, assignment?.device?.hostname].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
+                      });
+                      return <Fragment key={`pool-${pool.id}`}>
+                        <tr className={`external-ip-pool-row${poolIndex % 2 === 1 ? " is-alt" : ""}`} aria-expanded={poolOpen} onClick={() => setPoolOverrides((current) => ({ ...current, [pool.id]: !poolOpen }))}>
+                          <td><span className="external-ip-tree-cell external-ip-tree-level-2">
+                            <button type="button" className="external-ip-tree-toggle" aria-label={`${poolOpen ? "Collapse" : "Expand"} ${pool.name}`} onClick={(event) => { event.stopPropagation(); setPoolOverrides((current) => ({ ...current, [pool.id]: !poolOpen })); }}>{poolOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
+                            <span className="external-ip-tree-icon" aria-hidden="true"><img src={deviceIconUrl(pool.icon)} width={15} height={15} alt="" /></span>
+                            <span className="external-ip-tree-identity"><strong>{pool.name}</strong><small className="nm-table-mono">{(pool.allocations ?? []).map((item) => item.cidr).join(", ") || "No ranges"}</small></span>
+                            <span className="external-ip-count-badge">{pool.total} address{pool.total === 1 ? "" : "es"}</span>
+                          </span></td>
+                          <td><small>{pool.account ?? "—"}{pool.region ? ` · ${pool.region}` : ""}</small></td>
+                          <td><span className={`nm-status nm-status--${pool.free === 0 ? "offline" : pool.utilization > 0 ? "online" : "unknown"}`}>{pool.free} free</span></td>
+                          <td className="nm-table-num">{pool.total}</td>
+                          <td className="nm-table-num">{pool.in_use + pool.reserved}</td>
+                          <td><span className="external-ip-utilization"><UtilizationBar value={pool.utilization} size="thin" /><small>{Math.round(pool.utilization * 100)}%</small></span></td>
+                          <td className="external-ip-actions">{canWrite && <AllocationActionsMenu
+                            onAddRange={() => { setSelectedPoolId(pool.id); setRangeValue(""); setFormError(null); setRangeModal(true); }}
+                            onEdit={() => openPool(pool)}
+                            onDelete={() => void removePool(pool)}
+                          />}</td>
+                        </tr>
+                        {poolOpen && <>
+                          {addressQuery.isLoading && !poolPage && <tr className="external-ip-address-row"><td colSpan={7}><small>Loading addresses…</small></td></tr>}
+                          {visibleAddresses.map((entry, addressIndex) => {
+                            const assignment = entry.assignment;
+                            return <tr key={entry.ip_address} className={`external-ip-address-row external-ip-address-row--${entry.status}${addressIndex % 2 === 1 ? " is-alt" : ""}${assignment ? "" : " external-ip-address-row--unassigned"}`} onClick={() => assignment ? openAssignment(assignment) : canWrite && openAssignment(undefined, entry.ip_address, pool.id)}>
+                              <td><span className="external-ip-tree-cell external-ip-tree-level-3"><span className="external-ip-leaf-mark" aria-hidden="true"><i /></span><span className="external-ip-tree-identity"><code className="nm-table-mono">{entry.ip_address}</code><small>{assignment?.device?.display_name ?? assignment?.device?.hostname ?? assignment?.asset?.name ?? assignment?.label ?? "Unassigned"}</small></span></span></td>
+                              <td><small>{assignment?.owner ?? assignment?.device?.display_name ?? assignment?.device?.hostname ?? "—"}</small></td>
+                              <td><span className={`nm-status nm-status--${entry.status === "in_use" ? "online" : entry.status === "reserved" ? "paused" : "unknown"}`}>{statusLabel(entry.status)}</span></td>
+                              <td className="nm-table-num" /><td className="nm-table-num" /><td />
+                              <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>{canWrite && <span className="nm-table-actions">
+                                <button className="nm-btn nm-btn--sm nm-btn--secondary" type="button" onClick={() => assignment ? openAssignment(assignment) : openAssignment(undefined, entry.ip_address, pool.id)}>{assignment ? "Edit" : "Assign"}</button>
+                                <button className="nm-btn nm-btn--sm nm-btn--danger external-ip-address-delete" type="button" aria-label={`Delete ${entry.ip_address}`} title="Delete address" onClick={() => void removeAddress(pool, entry.ip_address, assignment)}><Trash2 size={13} /></button>
+                              </span>}</td>
+                            </tr>;
+                          })}
+                          {(poolPage?.total ?? 0) > 256 && <tr className="external-ip-pager-row"><td colSpan={7}><footer className="external-ip-pager"><span>{poolOffset + 1}–{Math.min(poolOffset + 256, poolPage?.total ?? 0)} of {poolPage?.total}</span><button className="nm-btn nm-btn--sm" disabled={poolOffset === 0} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: Math.max(0, poolOffset - 256) }))}>Previous</button><button className="nm-btn nm-btn--sm" disabled={poolOffset + 256 >= (poolPage?.total ?? 0)} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: poolOffset + 256 }))}>Next</button></footer></td></tr>}
+                        </>}
+                      </Fragment>;
+                    })}
+                  </Fragment>;
+                })}
               </Fragment>;
             })}</tbody>
-          </table></div>
-        )}
+          </table></div>}
+        </>}
       </section>
 
       {poolModal && <Modal title={poolModal === "new" ? "Add allocation" : "Edit allocation"} titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>} onCancel={() => setPoolModal(null)} footer={<ModalFooterActions onCancel={() => setPoolModal(null)} primaryLabel={busy ? "Saving…" : "Save allocation"} primaryDisabled={busy} formId="external-pool-form" />}>
@@ -457,9 +559,13 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
           </div>
           <div className="nm-form-row">
             <label>Provider<select value={poolForm.provider_id ?? ""} onChange={(e) => setPoolForm({ ...poolForm, provider_id: e.target.value ? Number(e.target.value) : null })}><option value="">No provider</option>{cloudProviders.map((provider) => <option key={provider.key} value={provider.id ?? ""}>{provider.name}</option>)}</select></label>
-            <label>Account / subscription<input value={poolForm.account ?? ""} onChange={(e) => setPoolForm({ ...poolForm, account: e.target.value })} placeholder="Subscription, project, or circuit" /></label>
+            <label>Cloud service / area<input required list="external-ip-service-options" value={poolForm.service ?? ""} onChange={(e) => setPoolForm({ ...poolForm, service: e.target.value })} placeholder={selectedPoolProvider ? `Service within ${selectedPoolProvider.name}` : "Service or organisational area"} /><datalist id="external-ip-service-options">{serviceSuggestions.map((service) => <option key={service} value={service} />)}</datalist><small>Groups this allocation beneath the provider.</small></label>
           </div>
-          <label>Region<input value={poolForm.region ?? ""} onChange={(e) => setPoolForm({ ...poolForm, region: e.target.value })} placeholder="Cloud region or service area" /></label>
+          <label className="icon-picker-field"><span className="icon-picker-field-label">Allocation icon</span><IconPickerTrigger value={poolForm.icon} onChange={(icon) => setPoolForm({ ...poolForm, icon })} /></label>
+          <div className="nm-form-row">
+            <label>Account / subscription<input value={poolForm.account ?? ""} onChange={(e) => setPoolForm({ ...poolForm, account: e.target.value })} placeholder="Subscription, project, or circuit" /></label>
+            <label>Region<input value={poolForm.region ?? ""} onChange={(e) => setPoolForm({ ...poolForm, region: e.target.value })} placeholder="Cloud region" /></label>
+          </div>
           <label>Description<textarea rows={3} value={poolForm.description ?? ""} onChange={(e) => setPoolForm({ ...poolForm, description: e.target.value })} placeholder="How this allocation is used" /></label>
           {/* Ranges live here rather than in the table. On the page they were a strip of
               chips between an allocation and its addresses, which broke the run of IP rows

@@ -175,6 +175,8 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0071_external_ip_pool_cleanup", _migrate_external_ip_pool_cleanup)
         _run_migration(conn, inspector, "0072_user_schema_repair", _migrate_user_schema_repair)
         _run_migration(conn, inspector, "0073_external_ip_device_link", _migrate_external_ip_device_link)
+        _run_migration(conn, inspector, "0074_external_ip_cloud_services", _migrate_external_ip_cloud_services)
+        _run_migration(conn, inspector, "0075_external_ip_allocation_icons", _migrate_external_ip_allocation_icons)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1738,3 +1740,75 @@ def _migrate_external_ip_device_link(conn, inspector) -> None:
             )
             WHERE device_id IS NULL AND asset_id IS NOT NULL
         """))
+
+
+def _migrate_external_ip_cloud_services(conn, inspector) -> None:
+    """Add the provider → cloud service organisational tier to allocations.
+
+    Old address records carried a free-text service, and the short-lived cloud asset
+    tier carried a normalized kind. Reuse either only when every linked address in an
+    allocation agrees; mixed allocations remain uncategorised instead of being assigned
+    a misleading service.
+    """
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "external_ip_pools")
+    if "service" not in columns:
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN service VARCHAR(120)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_service ON external_ip_pools (service)"))
+
+    assignment_columns = _live_columns(conn, "external_ip_assignments") if "external_ip_assignments" in _live_tables(conn) else set()
+    for (pool_id,) in conn.execute(text("SELECT id FROM external_ip_pools WHERE TRIM(COALESCE(service, '')) = ''")).fetchall():
+        candidates: list[str] = []
+        if "service" in assignment_columns:
+            candidates = [
+                row[0].strip() for row in conn.execute(text("""
+                    SELECT DISTINCT service FROM external_ip_assignments
+                    WHERE pool_id = :pool_id AND TRIM(COALESCE(service, '')) <> ''
+                """), {"pool_id": pool_id}).fetchall()
+                if row[0] and row[0].strip()
+            ]
+        if len(candidates) == 1:
+            conn.execute(text("UPDATE external_ip_pools SET service = :service WHERE id = :id"), {"service": candidates[0], "id": pool_id})
+            continue
+
+        if "asset_id" not in assignment_columns or "cloud_assets" not in _live_tables(conn):
+            continue
+        kinds = [
+            row[0] for row in conn.execute(text("""
+                SELECT DISTINCT c.kind
+                FROM external_ip_assignments a
+                JOIN cloud_assets c ON c.id = a.asset_id
+                WHERE a.pool_id = :pool_id AND TRIM(COALESCE(c.kind, '')) <> ''
+            """), {"pool_id": pool_id}).fetchall()
+            if row[0]
+        ]
+        if len(kinds) != 1:
+            continue
+        provider_key = conn.execute(text("""
+            SELECT p.key FROM external_ip_pools e
+            LEFT JOIN cloud_providers p ON p.id = e.provider_id
+            WHERE e.id = :pool_id
+        """), {"pool_id": pool_id}).scalar()
+        kind = kinds[0]
+        labels = {
+            "ec2": "Amazon EC2" if provider_key == "aws" else "EC2",
+            "vm": "Virtual Machines",
+            "load_balancer": "Load Balancing",
+            "nat_gateway": "NAT Gateway",
+            "k8s_ingress": "Kubernetes",
+            "database": "Database",
+            "storage": "Storage",
+            "cdn": "CDN",
+            "other": "Other services",
+        }
+        label = labels.get(kind, kind.replace("_", " ").title())
+        conn.execute(text("UPDATE external_ip_pools SET service = :service WHERE id = :id"), {"service": label, "id": pool_id})
+
+
+def _migrate_external_ip_allocation_icons(conn, inspector) -> None:
+    """Give each External IP allocation its own selectable design-system icon."""
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    if "icon" not in _live_columns(conn, "external_ip_pools"):
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN icon VARCHAR(80) NOT NULL DEFAULT 'cloud'"))

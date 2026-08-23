@@ -14,6 +14,8 @@ from app.db.session import (
     _migrate_cloud_assets,
     _migrate_cloud_providers,
     _migrate_external_ip_asset_backfill,
+    _migrate_external_ip_cloud_services,
+    _migrate_external_ip_allocation_icons,
     _migrate_external_ip_pool_cleanup,
 )
 
@@ -130,6 +132,8 @@ def _run_all(conn):
         _migrate_cloud_assets,
         _migrate_external_ip_asset_backfill,
         _migrate_external_ip_pool_cleanup,
+        _migrate_external_ip_cloud_services,
+        _migrate_external_ip_allocation_icons,
     ):
         fn(conn, stale_inspector)
     conn.commit()
@@ -194,6 +198,9 @@ def test_pool_cleanup_drops_vestigial_columns_and_keeps_ranges():
     assert "provider_icon" not in columns
     assert "provider_icon_data" not in columns
     assert "provider_id" in columns
+    assert "service" in columns
+    assert "icon" in columns
+    assert conn.execute(text("SELECT icon FROM external_ip_pools WHERE id = 1")).scalar() == "cloud"
 
     # The pool's CIDR survives as a range rather than being lost with the column.
     ranges = [row[0] for row in conn.execute(text("SELECT cidr FROM external_ip_ranges WHERE pool_id = 1")).fetchall()]
@@ -212,6 +219,26 @@ def test_migrations_are_idempotent():
     assert conn.execute(text("SELECT COUNT(*) FROM cloud_assets")).scalar() == assets_before
     assert conn.execute(text("SELECT COUNT(*) FROM cloud_providers")).scalar() == providers_before
     assert conn.execute(text("SELECT COUNT(*) FROM external_ip_assignments")).scalar() == 4
+
+
+def test_service_tier_backfills_only_an_unambiguous_legacy_service():
+    conn = _legacy_db()
+    conn.execute(text("""
+        INSERT INTO external_ip_pools (id, name, cidr, provider, provider_icon, account, region, created_at, updated_at)
+        VALUES (2, 'Lambda outbound', '52.62.1.9', 'AWS', 'aws', 'acct-1', 'ap-southeast-2', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """))
+    conn.execute(text("INSERT INTO external_ip_ranges (pool_id, cidr, created_at) VALUES (2, '52.62.1.9', CURRENT_TIMESTAMP)"))
+    conn.execute(text("""
+        INSERT INTO external_ip_assignments (pool_id, ip_address, label, status, provider, account, service, created_at, updated_at)
+        VALUES (2, '52.62.1.9', 'function-egress', 'in_use', 'AWS', 'acct-1', 'AWS Lambda', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """))
+    conn.commit()
+
+    _run_all(conn)
+
+    assert conn.execute(text("SELECT service FROM external_ip_pools WHERE id = 2")).scalar() == "AWS Lambda"
+    # Pool 1 mixed EC2 and load-balancer addresses, so guessing would be misleading.
+    assert conn.execute(text("SELECT service FROM external_ip_pools WHERE id = 1")).scalar() is None
 
 
 def test_migrations_are_a_noop_on_a_fresh_database():

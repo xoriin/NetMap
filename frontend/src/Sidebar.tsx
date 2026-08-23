@@ -187,7 +187,11 @@ export function Sidebar({
             const isIpamParent = route.href === "/ipam" && currentRoute === "/ipam";
             const isContextParent = isAdminParent || isMonitoringParent || isInventoryParent || isIpamParent;
             const isContextRoute = route.href === "/admin" || route.href === "/monitoring" || route.href === "/inventory" || route.href === "/ipam";
-            const isContextExpanded = isAdminParent ? adminMenuExpanded : isMonitoringParent ? monitoringMenuExpanded : isInventoryParent ? inventoryMenuExpanded : isIpamParent ? ipamMenuExpanded : false;
+            const isContextExpanded = route.href === "/admin" ? adminMenuExpanded
+              : route.href === "/monitoring" ? monitoringMenuExpanded
+              : route.href === "/inventory" ? inventoryMenuExpanded
+              : route.href === "/ipam" ? ipamMenuExpanded
+              : false;
             return (
               <div key={route.href}>
 	                {route.section && !collapsed && (
@@ -252,7 +256,7 @@ export function Sidebar({
                       if (route.href === "/ipam") setIpamMenuExpanded((expanded) => !expanded);
                     }}
                   >
-                    <ChevronDown className={`sidebar-parent-chevron${isContextExpanded ? " is-expanded" : ""}`} size={14} aria-hidden="true" />
+                    <ChevronDown className="sidebar-parent-chevron" size={14} aria-hidden="true" />
                   </button>
                 )}
                 </div>

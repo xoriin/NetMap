@@ -289,10 +289,15 @@
   margin-left: auto;
   color: var(--nm-shell-muted);
   transform: rotate(-90deg);
-  transition: transform 0.15s ease;
+  transform-origin: center;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sidebar-parent-chevron.is-expanded { transform: rotate(0deg); }
+.sidebar-parent-toggle[aria-expanded="true"] .sidebar-parent-chevron { transform: rotate(0deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-parent-chevron { transition-duration: 0.01ms; }
+}
 
 .sidebar-admin-subnav {
   display: grid;
