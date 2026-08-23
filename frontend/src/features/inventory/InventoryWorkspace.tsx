@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./inventory.css";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
+import { CloudAssetsPanel } from "./CloudAssetsPanel";
+import {
+  INVENTORY_VIEW_CHANGE_EVENT,
+  readInventoryViewFromLocation,
+  type InventoryViewId,
+} from "./inventoryNavigation";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { Search, Star, ChevronUp, ChevronDown, X } from "lucide-react";
@@ -103,6 +109,7 @@ export function InventoryWorkspace({
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [inventorySortKey, setInventorySortKey] = useState<string>("device");
   const [inventorySortDir, setInventorySortDir] = useState<"asc" | "desc">("asc");
+  const [inventoryView, setInventoryView] = useState<InventoryViewId>(() => readInventoryViewFromLocation());
   const [inventorySearch, setInventorySearch] = useState("");
   const [showDeviceForm, setShowDeviceForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -653,6 +660,22 @@ export function InventoryWorkspace({
 
   useEffect(() => () => setTopbarNote(""), [setTopbarNote]);
 
+  useEffect(() => {
+    const sync = () => setInventoryView(readInventoryViewFromLocation());
+    window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
+    window.addEventListener(INVENTORY_VIEW_CHANGE_EVENT, sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
+      window.removeEventListener(INVENTORY_VIEW_CHANGE_EVENT, sync);
+    };
+  }, []);
+
+  if (inventoryView === "cloud") {
+    return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate} />;
+  }
+
   return (
     <section className="topology-layout inventory-layout">
       <div className="dash-stats inventory-stats nm-summary-band">
@@ -693,7 +716,6 @@ export function InventoryWorkspace({
       />
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
-      {/* ── Purpose-built inventory table ─────────────────────────────── */}
       <div className={selectedDevice ? "topology-content details-open" : "topology-content"}>
         <div className="inventory-surface nm-app-panel">
           <div className="inventory-panel-header nm-app-panel-header">
@@ -843,7 +865,7 @@ export function InventoryWorkspace({
             style={colWidths ? ({ "--inv-grid-template": invGridTemplate(colWidths) } as CSSProperties) : undefined}
           >
             <div className="inventory-table-header" ref={headerRef}>
-              <span>Select</span>
+              <span aria-label="Device selection" />
               {["device", "ip", "type", "os", "status", "latency", "group", "location"].map((key, i) => {
                 const labels = ["Device", "IP", "Device Type", "OS", "Status", "Latency", "VLAN / Group", "Location"];
                 const active = inventorySortKey === key;

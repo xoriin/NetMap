@@ -84,8 +84,9 @@
 }
 
 .inventory-layout .inv-search-box .nm-input:focus {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .inventory-layout .inv-bulk-menu-panel {
@@ -262,3 +263,167 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   }
 }
 
+
+
+/* ── Cloud assets sub-view (Inventory → Cloud assets) ─────────────────────────
+   A device-centric tree over external addresses: device row, then the public
+   addresses it holds. It reuses the Devices sub-view's shell above
+   (`inventory-surface`, `inv-panel-*`) and the canonical `.nm-table`, so only the
+   tree treatment lives here.
+
+   These rules are deliberately NOT shared with IPAM's `.external-ip-*` block:
+   `ipam.css` is imported by `IpamWorkspace` alone, so borrowing those class names
+   left this page completely unstyled. */
+.cloud-assets-layout .cloud-header-action {
+  margin-left: auto;
+}
+
+.cloud-assets-layout .cloud-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: var(--nm-table-row-bg);
+}
+
+.cloud-assets-layout .cloud-col-type { width: 190px; }
+.cloud-assets-layout .cloud-col-stat { width: 110px; }
+.cloud-assets-layout .cloud-col-status { width: 130px; }
+
+/* ── Tiers: provider > device > address ──────────────────────────────────────
+   Same order as IPAM's External IPs table, so the two pages read the same way.
+   Weight and indentation carry the hierarchy; only the provider tier gets the
+   heavy separator, so a provider's devices stay visually inside it. */
+/* Named `cloud-group-*`, not `cloud-provider-*`: Admin's Cloud providers list already owns
+   `.cloud-provider-row`, and it is `display: grid`. Because `admin.css` loads with the Admin
+   chunk, the collision only appeared once a user had visited Admin — the table looked fine
+   until then, which is exactly the kind of bug a test that never leaves one page will miss. */
+.cloud-assets-layout .cloud-group-row { cursor: pointer; }
+
+.cloud-assets-layout .cloud-group-row td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-top: 1px solid var(--nm-border-strong);
+  background: var(--nm-modal-header);
+  color: var(--nm-text);
+}
+
+.cloud-assets-layout .cloud-group-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--nm-accent) 38%, var(--nm-border));
+  border-radius: var(--nm-radius-sm);
+  background: color-mix(in srgb, var(--nm-accent) 11%, var(--nm-modal-input));
+  color: var(--nm-accent-strong);
+}
+
+/* Brand marks — the documented exception to the tokens-only rule: these are
+   third-party identities, not theme colours. See docs/UI_THEME_RULES.md § Tokens. */
+.cloud-assets-layout .cloud-group-icon--aws { color: #ff9900; }
+.cloud-assets-layout .cloud-group-icon--azure { color: #38a9ed; }
+.cloud-assets-layout .cloud-group-icon--cloudflare { color: #f48120; }
+.cloud-assets-layout .cloud-group-icon--cloud,
+.cloud-assets-layout .cloud-group-icon--globe { color: var(--nm-accent-strong); }
+
+.cloud-assets-layout .cloud-device-row { cursor: pointer; }
+
+.cloud-assets-layout .cloud-device-row td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: var(--nm-table-row-bg);
+  color: var(--nm-text);
+}
+
+.cloud-assets-layout .cloud-device-row td:first-child { padding-left: 34px; }
+
+.cloud-assets-layout .cloud-identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.cloud-assets-layout .cloud-chevron {
+  display: inline-flex;
+  width: 16px;
+  flex: 0 0 auto;
+  color: var(--nm-accent-strong);
+}
+
+.cloud-assets-layout .cloud-device-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--nm-accent) 38%, var(--nm-border));
+  border-radius: var(--nm-radius-sm);
+  background: color-mix(in srgb, var(--nm-accent) 11%, var(--nm-modal-input));
+  color: var(--nm-accent-strong);
+}
+
+.cloud-assets-layout .cloud-device-row--unlinked .cloud-device-icon {
+  border-color: var(--nm-border);
+  background: var(--nm-modal-input);
+  color: var(--nm-text-muted);
+}
+
+.cloud-assets-layout .cloud-identity-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cloud-assets-layout .cloud-identity-text strong { font-size: var(--nm-text-sm); }
+
+.cloud-assets-layout .cloud-identity-text small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+.cloud-assets-layout .cloud-identity-text code {
+  color: var(--nm-accent-strong);
+  font-size: var(--nm-text-xs);
+}
+
+.cloud-assets-layout .cloud-stat {
+  color: var(--nm-text);
+  font-weight: 700;
+}
+
+.cloud-assets-layout .cloud-type {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+}
+
+/* Address (child) row — one step in from its device. */
+.cloud-assets-layout .cloud-address-row td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.cloud-assets-layout .cloud-address-row td:first-child { padding-left: 90px; }
+
+/* ── Row banding ─────────────────────────────────────────────────────────────
+   Parity comes from the component (`is-alt`), not :nth-child, because the rows are
+   a flattened tree — sibling index at each level is what should alternate. */
+.cloud-assets-layout .cloud-device-row.is-alt td { background: var(--nm-row-alt); }
+.cloud-assets-layout .cloud-address-row.is-alt td { background: var(--nm-row-alt-soft); }
+
+/* Banding paints on the `td`, so the canonical `tr`-level hover would sit under it.
+   Re-apply the standard hover at a specificity that beats the banding, and keep the
+   canonical 3px teal left edge from components.css. */
+.cloud-assets-layout .cloud-table tbody tr:hover td { background: var(--nm-row-hover); }
+
+.cloud-assets-layout .cloud-empty {
+  padding: 28px 18px;
+  color: var(--nm-text-muted);
+  text-align: center;
+}
+
+.cloud-assets-layout .cloud-empty--error { color: var(--dash-red); }

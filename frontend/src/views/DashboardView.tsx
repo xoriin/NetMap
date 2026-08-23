@@ -193,7 +193,7 @@ export function DashboardView({
         <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} canManageAlerts={canManageAlerts} canManageMonitoring={canManageMonitoring} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} />
       )}
       {currentRoute === "/ipam" && accessToken && (
-        <IpamWorkspace accessToken={accessToken} canWrite={canWriteIpam} />
+        <IpamWorkspace accessToken={accessToken} canWrite={canWriteIpam} canCreateDevice={canWrite} onDeviceChange={onDeviceChange} />
       )}
       {currentRoute === "/tools" && accessToken && (
         <ToolsWorkspace

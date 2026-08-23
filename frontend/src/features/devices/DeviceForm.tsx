@@ -22,6 +22,7 @@ export function DeviceForm({
   busy,
   cloneSource,
   device,
+  initialValues,
   deviceTypes,
   groups,
   snmpProfiles,
@@ -32,6 +33,7 @@ export function DeviceForm({
   busy: boolean;
   cloneSource: Device | null;
   device: Device | null;
+  initialValues?: Partial<Device>;
   deviceTypes?: DeviceTypeOption[];
   groups: TopologyGroup[];
   snmpProfiles: SnmpProfile[];
@@ -55,9 +57,9 @@ export function DeviceForm({
     { value: "__custom__", label: "Custom…" },
   ];
   const [form, setForm] = useState({
-    display_name: device?.display_name ?? cloneSource?.display_name ?? "",
-    hostname: initialDeviceName(device, cloneSource),
-    ip_address: cloneSource ? "" : device?.ip_address ?? "",
+    display_name: device?.display_name ?? cloneSource?.display_name ?? initialValues?.display_name ?? "",
+    hostname: initialDeviceName(device, cloneSource) || initialValues?.hostname || "",
+    ip_address: cloneSource ? "" : device?.ip_address ?? initialValues?.ip_address ?? "",
     mac_address: cloneSource ? "" : device?.mac_address ?? "",
     vendor: device?.vendor ?? cloneSource?.vendor ?? "",
     os: device?.os ?? cloneSource?.os ?? "",
@@ -71,12 +73,12 @@ export function DeviceForm({
     topology_group_id: String(device?.topology_group_id ?? cloneSource?.topology_group_id ?? ""),
     site_id: String(device?.site_id ?? cloneSource?.site_id ?? ""),
     snmp_profile_id: String(device?.snmp_profile_id ?? cloneSource?.snmp_profile_id ?? ""),
-    tags: (device?.tags ?? cloneSource?.tags ?? []).join(", "),
-    notes: device?.notes ?? cloneSource?.notes ?? "",
+    tags: (device?.tags ?? cloneSource?.tags ?? initialValues?.tags ?? []).join(", "),
+    notes: device?.notes ?? cloneSource?.notes ?? initialValues?.notes ?? "",
   });
   const initialType = device?.device_type ?? cloneSource?.device_type ?? "";
   const [customType, setCustomType] = useState(Boolean(initialType) && !typeValues.includes(initialType));
-  const [monitoringPaused, setMonitoringPaused] = useState(device?.monitoring_paused ?? false);
+  const [monitoringPaused, setMonitoringPaused] = useState(device?.monitoring_paused ?? initialValues?.monitoring_paused ?? false);
   function update(field: keyof typeof form, value: string) {
     setForm((current) => {
       const next = { ...current, [field]: value };
