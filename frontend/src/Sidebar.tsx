@@ -1,4 +1,47 @@
 import { useState, useEffect, type ReactNode } from "react";
+
+const STICKY_MENU_PREFIX = "netmap.sidebar.menu.";
+
+/**
+ * Sidebar section menus remember whether they are open.
+ *
+ * They used to be plain state seeded from the current route and force-expanded on arrival,
+ * so leaving a section collapsed it and coming back discarded a deliberate collapse. The
+ * choice now survives navigation and reloads.
+ */
+function readStickyMenu(key: string): "open" | "closed" | null {
+  try {
+    const stored = window.localStorage.getItem(`${STICKY_MENU_PREFIX}${key}`);
+    return stored === "open" || stored === "closed" ? stored : null;
+  } catch {
+    // Private mode or blocked storage.
+    return null;
+  }
+}
+
+function useStickyMenu(key: string, fallback: boolean) {
+  const stored = readStickyMenu(key);
+  const [expanded, setExpandedState] = useState<boolean>(stored === null ? fallback : stored === "open");
+
+  /**
+   * Only an explicit toggle is persisted. Writing the derived default on mount would turn
+   * "never chosen" into "closed" the moment you loaded any other page, and the menu would
+   * then refuse to open on arrival.
+   */
+  const setExpanded = (next: boolean | ((current: boolean) => boolean)) => {
+    setExpandedState((current) => {
+      const value = typeof next === "function" ? next(current) : next;
+      try {
+        window.localStorage.setItem(`${STICKY_MENU_PREFIX}${key}`, value ? "open" : "closed");
+      } catch {
+        // Nothing to do — the menu still works for this session.
+      }
+      return value;
+    });
+  };
+
+  return [expanded, setExpanded] as const;
+}
 import { ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { type AppRoute, appRoutes, appRouteByHref, appRouteCopy } from "./routes";
 import { type User, type VersionInfo } from "./api/client";
@@ -17,6 +60,20 @@ import {
   readMonitoringViewFromLocation,
   type MonitoringViewId,
 } from "./features/monitoring/monitoringNavigation";
+import {
+  INVENTORY_VIEW_CHANGE_EVENT,
+  inventoryViews,
+  navigateToInventoryView,
+  readInventoryViewFromLocation,
+  type InventoryViewId,
+} from "./features/inventory/inventoryNavigation";
+import {
+  IPAM_VIEW_CHANGE_EVENT,
+  ipamViews,
+  navigateToIpamView,
+  readIpamViewFromLocation,
+  type IpamViewId,
+} from "./features/ipam/ipamNavigation";
 
 export function Sidebar({
   canAccessAdmin,
@@ -45,9 +102,13 @@ export function Sidebar({
 }) {
   const { theme, toggleTheme } = useTheme();
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTabId>(() => readAdminTabFromLocation());
-  const [adminMenuExpanded, setAdminMenuExpanded] = useState(currentRoute === "/admin");
+  const [adminMenuExpanded, setAdminMenuExpanded] = useStickyMenu("admin", currentRoute === "/admin");
   const [activeMonitoringView, setActiveMonitoringView] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
-  const [monitoringMenuExpanded, setMonitoringMenuExpanded] = useState(currentRoute === "/monitoring");
+  const [activeInventoryView, setActiveInventoryView] = useState<InventoryViewId>(() => readInventoryViewFromLocation());
+  const [activeIpamView, setActiveIpamView] = useState<IpamViewId>(() => readIpamViewFromLocation());
+  const [inventoryMenuExpanded, setInventoryMenuExpanded] = useStickyMenu("inventory", currentRoute === "/inventory");
+  const [ipamMenuExpanded, setIpamMenuExpanded] = useStickyMenu("ipam", currentRoute === "/ipam");
+  const [monitoringMenuExpanded, setMonitoringMenuExpanded] = useStickyMenu("monitoring", currentRoute === "/monitoring");
   const versionLabel = versionInfo
     ? `${versionInfo.channel ? `${versionInfo.channel}: ` : "v"}${versionInfo.current}`
     : "";
@@ -66,28 +127,38 @@ export function Sidebar({
 
   useEffect(() => {
     const syncMonitoringView = () => setActiveMonitoringView(readMonitoringViewFromLocation());
+    const syncInventoryView = () => setActiveInventoryView(readInventoryViewFromLocation());
+    const syncIpamView = () => setActiveIpamView(readIpamViewFromLocation());
+    window.addEventListener("popstate", syncIpamView);
+    window.addEventListener("hashchange", syncIpamView);
+    window.addEventListener(IPAM_VIEW_CHANGE_EVENT, syncIpamView);
+    window.addEventListener("popstate", syncInventoryView);
+    window.addEventListener("hashchange", syncInventoryView);
+    window.addEventListener(INVENTORY_VIEW_CHANGE_EVENT, syncInventoryView);
     window.addEventListener("popstate", syncMonitoringView);
     window.addEventListener("hashchange", syncMonitoringView);
     window.addEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
     return () => {
+      window.removeEventListener("popstate", syncInventoryView);
+      window.removeEventListener("hashchange", syncInventoryView);
+      window.removeEventListener(INVENTORY_VIEW_CHANGE_EVENT, syncInventoryView);
+      window.removeEventListener("popstate", syncIpamView);
+      window.removeEventListener("hashchange", syncIpamView);
+      window.removeEventListener(IPAM_VIEW_CHANGE_EVENT, syncIpamView);
       window.removeEventListener("popstate", syncMonitoringView);
       window.removeEventListener("hashchange", syncMonitoringView);
       window.removeEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
     };
   }, []);
 
+  // Arriving on a section syncs which sub-view is current, but no longer forces the menu
+  // open: the expanded state is the user's, and re-expanding here threw away a collapse
+  // every time they came back.
   useEffect(() => {
-    if (currentRoute === "/admin") {
-      setActiveAdminTab(readAdminTabFromLocation());
-      setAdminMenuExpanded(true);
-    }
-  }, [currentRoute]);
-
-  useEffect(() => {
-    if (currentRoute === "/monitoring") {
-      setActiveMonitoringView(readMonitoringViewFromLocation());
-      setMonitoringMenuExpanded(true);
-    }
+    if (currentRoute === "/admin") setActiveAdminTab(readAdminTabFromLocation());
+    if (currentRoute === "/monitoring") setActiveMonitoringView(readMonitoringViewFromLocation());
+    if (currentRoute === "/ipam") setActiveIpamView(readIpamViewFromLocation());
+    if (currentRoute === "/inventory") setActiveInventoryView(readInventoryViewFromLocation());
   }, [currentRoute]);
 
   return (
@@ -112,9 +183,11 @@ export function Sidebar({
             const Icon = route.icon;
             const isAdminParent = route.href === "/admin" && currentRoute === "/admin";
             const isMonitoringParent = route.href === "/monitoring" && currentRoute === "/monitoring";
-            const isContextParent = isAdminParent || isMonitoringParent;
-            const isContextRoute = route.href === "/admin" || route.href === "/monitoring";
-            const isContextExpanded = isAdminParent ? adminMenuExpanded : isMonitoringParent ? monitoringMenuExpanded : false;
+            const isInventoryParent = route.href === "/inventory" && currentRoute === "/inventory";
+            const isIpamParent = route.href === "/ipam" && currentRoute === "/ipam";
+            const isContextParent = isAdminParent || isMonitoringParent || isInventoryParent || isIpamParent;
+            const isContextRoute = route.href === "/admin" || route.href === "/monitoring" || route.href === "/inventory" || route.href === "/ipam";
+            const isContextExpanded = isAdminParent ? adminMenuExpanded : isMonitoringParent ? monitoringMenuExpanded : isInventoryParent ? inventoryMenuExpanded : isIpamParent ? ipamMenuExpanded : false;
             return (
               <div key={route.href}>
 	                {route.section && !collapsed && (
@@ -123,24 +196,40 @@ export function Sidebar({
 	                    <div className="sidebar-section-label">{route.section}</div>
 	                  </>
 	                )}
+                <div className={isContextRoute && !collapsed ? "sidebar-link-row" : undefined}>
                 <button
                   className={`${route.href === currentRoute ? "sidebar-link active" : "sidebar-link"}${isContextParent ? " sidebar-link--parent" : ""}`}
                   type="button"
                   title={collapsed ? route.label : undefined}
                   onClick={() => {
-                    if (route.href === "/admin" && currentRoute === "/admin" && !collapsed) {
-                      setAdminMenuExpanded((expanded) => !expanded);
+                    // The parent navigates and opens its menu — it never collapses it.
+                    // Collapsing is the chevron's job, so the two never fight over a click.
+                    if (isContextParent && !collapsed) {
+                      if (route.href === "/admin") setAdminMenuExpanded(true);
+                      if (route.href === "/monitoring") {
+                        setMonitoringMenuExpanded(true);
+                        if (activeMonitoringView !== "devices") { navigateToMonitoringView("devices"); setActiveMonitoringView("devices"); }
+                      }
+                      if (route.href === "/inventory") {
+                        setInventoryMenuExpanded(true);
+                        if (activeInventoryView !== "devices") { navigateToInventoryView("devices"); setActiveInventoryView("devices"); }
+                      }
+                      if (route.href === "/ipam") {
+                        setIpamMenuExpanded(true);
+                        if (activeIpamView !== "internal") { navigateToIpamView("internal"); setActiveIpamView("internal"); }
+                      }
                       return;
                     }
-                    if (route.href === "/monitoring" && currentRoute === "/monitoring" && !collapsed) {
-                      setMonitoringMenuExpanded((expanded) => !expanded);
-                      return;
-                    }
+                    // Clicking a section name always drops its menu down, even if it was
+                    // collapsed earlier — you clicked the section, so you want its contents.
+                    // The chevron is what keeps a menu shut.
                     if (route.href === "/admin") setAdminMenuExpanded(true);
-                    if (route.href === "/monitoring") setMonitoringMenuExpanded(true);
+                    if (route.href === "/monitoring") { setMonitoringMenuExpanded(true); setActiveMonitoringView("devices"); }
+                    if (route.href === "/inventory") { setInventoryMenuExpanded(true); setActiveInventoryView("devices"); }
+                    if (route.href === "/ipam") { setIpamMenuExpanded(true); setActiveIpamView("internal"); }
                     onNavigate(route.href);
                   }}
-                  aria-expanded={isContextParent && !collapsed ? isContextExpanded : undefined}
+
                 >
                   <Icon size={18} aria-hidden="true" />
                   {!collapsed && <span className="sidebar-link-label">{route.label}</span>}
@@ -149,19 +238,36 @@ export function Sidebar({
                       {openObservationCount > 99 ? "99+" : openObservationCount}
                     </span>
                   ) : null}
-                  {isContextRoute && !collapsed && (
-                    <ChevronDown className={`sidebar-parent-chevron${isContextExpanded ? " is-expanded" : ""}`} size={14} aria-hidden="true" />
-                  )}
                 </button>
-                {route.href === "/admin" && currentRoute === "/admin" && !collapsed && adminMenuExpanded && (
+                {isContextRoute && !collapsed && (
+                  <button
+                    type="button"
+                    className="sidebar-parent-toggle"
+                    aria-label={`${isContextExpanded ? "Collapse" : "Expand"} ${route.label} sections`}
+                    aria-expanded={isContextExpanded}
+                    onClick={() => {
+                      if (route.href === "/admin") setAdminMenuExpanded((expanded) => !expanded);
+                      if (route.href === "/monitoring") setMonitoringMenuExpanded((expanded) => !expanded);
+                      if (route.href === "/inventory") setInventoryMenuExpanded((expanded) => !expanded);
+                      if (route.href === "/ipam") setIpamMenuExpanded((expanded) => !expanded);
+                    }}
+                  >
+                    <ChevronDown className={`sidebar-parent-chevron${isContextExpanded ? " is-expanded" : ""}`} size={14} aria-hidden="true" />
+                  </button>
+                )}
+                </div>
+                {route.href === "/admin" && !collapsed && adminMenuExpanded && (
                   <div className="sidebar-admin-subnav" aria-label="Administration sections">
                     {availableAdminTabs(user).map(({ id, label, Icon: AdminIcon }) => (
                       <button
                         key={id}
                         type="button"
-                        className={activeAdminTab === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
-                        aria-current={activeAdminTab === id ? "page" : undefined}
+                        className={currentRoute === "/admin" && activeAdminTab === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={currentRoute === "/admin" && activeAdminTab === id ? "page" : undefined}
                         onClick={() => {
+                          // The menu stays open off-route, so a sub-item may need to take
+                          // you back to its section before selecting the view.
+                          if (currentRoute !== "/admin") onNavigate("/admin");
                           navigateToAdminTab(id);
                           setActiveAdminTab(id);
                           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -173,15 +279,64 @@ export function Sidebar({
                     ))}
                   </div>
                 )}
-                {route.href === "/monitoring" && currentRoute === "/monitoring" && !collapsed && monitoringMenuExpanded && (
+                {route.href === "/inventory" && !collapsed && inventoryMenuExpanded && (
+                  <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Inventory sections">
+                    {inventoryViews.map(({ id, label, Icon: InventoryIcon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={currentRoute === "/inventory" && activeInventoryView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={currentRoute === "/inventory" && activeInventoryView === id ? "page" : undefined}
+                        onClick={() => {
+                          // The menu stays open off-route, so a sub-item may need to take
+                          // you back to its section before selecting the view.
+                          if (currentRoute !== "/inventory") onNavigate("/inventory");
+                          navigateToInventoryView(id);
+                          setActiveInventoryView(id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <InventoryIcon size={14} aria-hidden="true" />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {route.href === "/ipam" && !collapsed && ipamMenuExpanded && (
+                  <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="IP address management sections">
+                    {ipamViews.map(({ id, label, Icon: IpamIcon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={currentRoute === "/ipam" && activeIpamView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={currentRoute === "/ipam" && activeIpamView === id ? "page" : undefined}
+                        onClick={() => {
+                          // The menu stays open off-route, so a sub-item may need to take
+                          // you back to its section before selecting the view.
+                          if (currentRoute !== "/ipam") onNavigate("/ipam");
+                          navigateToIpamView(id);
+                          setActiveIpamView(id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <IpamIcon size={14} aria-hidden="true" />
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {route.href === "/monitoring" && !collapsed && monitoringMenuExpanded && (
                   <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Monitoring sections">
                     {monitoringViews.map(({ id, label, Icon: MonitoringIcon }) => (
                       <button
                         key={id}
                         type="button"
-                        className={activeMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
-                        aria-current={activeMonitoringView === id ? "page" : undefined}
+                        className={currentRoute === "/monitoring" && activeMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={currentRoute === "/monitoring" && activeMonitoringView === id ? "page" : undefined}
                         onClick={() => {
+                          // The menu stays open off-route, so a sub-item may need to take
+                          // you back to its section before selecting the view.
+                          if (currentRoute !== "/monitoring") onNavigate("/monitoring");
                           navigateToMonitoringView(id);
                           setActiveMonitoringView(id);
                           window.scrollTo({ top: 0, behavior: "smooth" });

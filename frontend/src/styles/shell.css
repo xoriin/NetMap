@@ -1099,3 +1099,39 @@ body.route-locations .topology-content {
   border: 1px solid rgba(224, 80, 80, 0.25);
   color: #7a1a1a;
 }
+
+/* Section parents pair a navigating link with a chevron that only opens/closes the menu.
+   They are separate controls so a click never has to mean both — the link was previously
+   collapsing the menu as a side effect of navigating. */
+.sidebar-link-row {
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-link-row > .sidebar-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-parent-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  background: transparent;
+  color: var(--nm-shell-muted);
+  cursor: pointer;
+}
+
+.sidebar-parent-toggle:hover {
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-tab-hover-text);
+}
+
+.sidebar-parent-toggle .sidebar-parent-chevron { margin-left: 0; }
