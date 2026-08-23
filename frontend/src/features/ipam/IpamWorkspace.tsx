@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent, type ReactNode } from "react";
 import "./ipam.css";
-import { Network, Activity, X, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  IPAM_VIEW_CHANGE_EVENT,
+  navigateToIpamView,
+  readIpamViewFromLocation,
+  type IpamViewId,
+} from "./ipamNavigation";
+import { Network, Activity, X, ChevronUp, ChevronDown, Globe2 } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMapPin, IconAlertCircle, IconArrowRight,
   IconTag, IconFingerprint, IconNote, IconUsers, IconDeviceLaptop, IconClock, IconCalendar,
@@ -9,7 +15,7 @@ import {
   api,
   type IpamSummary, type IpamSubnet, type IpamConflict, type DhcpLease,
   type IpReservation, type IpReservationPayload, type IpAddressEntry,
-  type SubnetPayload, type VlanSuggestion, type ExternalIpPoolPayload,
+  type SubnetPayload, type VlanSuggestion,
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
@@ -53,10 +59,10 @@ function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: stri
   );
 }
 
-export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; canWrite: boolean }) {
+export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, onDeviceChange }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; onDeviceChange?: (device: import("../../api/client").Device) => void }) {
   const confirmAction = useConfirm();
   const toast = useToast();
-  const [externalRefreshKey, setExternalRefreshKey] = useState(0);
+  const [ipamView, setIpamView] = useState<IpamViewId>(() => readIpamViewFromLocation());
   const ipamQuery = useApiQuery(async () => {
     const [summary, subnets, conflicts, dhcpLeases, reservations, settings] = await Promise.all([
       api.getIpamSummary(accessToken),
@@ -138,6 +144,19 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
     return () => setTopbarNote("");
   }, [setTopbarNote]);
 
+  // Keep the tab in step with the URL so a deep link (and Back) lands on the right one.
+  useEffect(() => {
+    const sync = () => setIpamView(readIpamViewFromLocation());
+    window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
+    window.addEventListener(IPAM_VIEW_CHANGE_EVENT, sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
+      window.removeEventListener(IPAM_VIEW_CHANGE_EVENT, sync);
+    };
+  }, []);
+
   const addressesQuery = useApiQuery(
     selectedSubnet ? () => api.getSubnetAddresses(accessToken, selectedSubnet.id) : null,
     [accessToken, selectedSubnet?.id],
@@ -173,18 +192,6 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save subnet");
-    } finally { setFormBusy(false); }
-  }
-
-  async function saveExternalPool(payload: ExternalIpPoolPayload) {
-    setFormBusy(true); setFormError(null);
-    try {
-      await api.createExternalIpPool(accessToken, payload);
-      setShowSubnetForm(false);
-      setExternalRefreshKey((value) => value + 1);
-      toast.success("External address range added");
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to save external address range");
     } finally { setFormBusy(false); }
   }
 
@@ -437,19 +444,37 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
 
   const errorConflicts = conflicts.filter((c) => c.severity === "error");
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
+  const summaryCards = (
+    <div className="dash-stats ipam-stats nm-summary-band">
+      <DashStat label="Subnets" value={summary?.subnet_count ?? 0} sub="defined" icon={<Network size={20} />} accent="teal" />
+      <DashStat label="Total hosts" value={summary?.total_hosts ?? 0} sub="across all subnets" icon={<IconServer size={20} />} accent="blue" />
+      <DashStat label="Used" value={summary?.used ?? 0} sub="addresses assigned" icon={<IconWifi size={20} />} accent="green" />
+      <DashStat label="Free" value={summary?.free ?? 0} sub="addresses available" icon={<IconWifiOff size={20} />} accent="indigo" />
+      <DashStat label="Reserved" value={summary?.reservation_count ?? 0} sub="IP reservations" icon={<IconMapPin size={20} />} accent="purple" />
+      <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} sub="imported" icon={<Activity size={20} />} accent="blue" />
+    </div>
+  );
+
+  // External IPs is its own page now, not a tab inside this one. It shares nothing with
+  // Internal networks — the subnet stats, conflicts, reservations and DHCP leases below
+  // are all internal concerns and used to render above the external table regardless.
+  if (ipamView === "external") {
+    return (
+      <section className="dash-layout ipam-workspace ipam-workspace--external">
+        <ExternalIpPanel
+          accessToken={accessToken}
+          canWrite={canWrite}
+          canCreateDevice={canCreateDevice}
+          onDeviceChange={onDeviceChange}
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="dash-layout ipam-workspace">
-
       {/* Stat cards */}
-      <div className="dash-stats ipam-stats nm-summary-band">
-        <DashStat label="Subnets" value={summary?.subnet_count ?? 0} sub="defined" icon={<Network size={20} />} accent="teal" />
-        <DashStat label="Total hosts" value={summary?.total_hosts ?? 0} sub="across all subnets" icon={<IconServer size={20} />} accent="blue" />
-        <DashStat label="Used" value={summary?.used ?? 0} sub="addresses assigned" icon={<IconWifi size={20} />} accent="green" />
-        <DashStat label="Free" value={summary?.free ?? 0} sub="addresses available" icon={<IconWifiOff size={20} />} accent="indigo" />
-        <DashStat label="Reserved" value={summary?.reservation_count ?? 0} sub="IP reservations" icon={<IconMapPin size={20} />} accent="purple" />
-        <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} sub="imported" icon={<Activity size={20} />} accent="blue" />
-      </div>
+      {summaryCards}
 
       {/* Conflicts banner */}
       {conflicts.length > 0 && (
@@ -555,7 +580,6 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             <SubnetForm
               showVlanSync
               onSave={(p, createVlanGroup) => void saveSubnet(p, createVlanGroup)}
-              onSaveExternal={(p) => void saveExternalPool(p)}
               onCancel={() => { setShowSubnetForm(false); setFormError(null); }}
               busy={formBusy}
               error={formError}
@@ -686,10 +710,17 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
       </div>
 
       {/* Subnet list */}
-      <div className="ipam-subnets-panel-wrap">
+      {(
+        <div className="ipam-subnets-panel-wrap">
         <div className="dash-panel nm-app-panel ipam-panel ipam-subnets-panel">
           <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-            <IpamPanelIdentity icon={<Network size={18} />} title="Subnets" meta={`${subnets.length} defined`} />
+            <span className="ipam-panel-identity">
+              <span className="ipam-panel-icon" aria-hidden="true"><Network size={18} /></span>
+              <span className="ipam-panel-title-wrap">
+                <span className="ipam-panel-title">Internal networks</span>
+                <span className="ipam-panel-meta">{subnets.length} subnet{subnets.length === 1 ? "" : "s"}</span>
+              </span>
+            </span>
             {canWrite && !showSubnetForm && (
               <span style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="nm-btn" onClick={() => void openVlanImport()}>
@@ -769,9 +800,8 @@ export function IpamWorkspace({ accessToken, canWrite }: { accessToken: string; 
             )}
           </div>
         </div>
-      </div>
-
-      <ExternalIpPanel key={externalRefreshKey} accessToken={accessToken} canWrite={canWrite} showSummary={false} allowCreatePool={false} />
+        </div>
+      )}
 
       {/* Subnet detail modal */}
       {selectedSubnet && (
