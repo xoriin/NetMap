@@ -192,6 +192,37 @@ class DeviceTypeColorsUpdate(BaseModel):
         return normalized
 
 
+class CloudProviderRead(BaseModel):
+    id: int | None = None
+    key: str
+    name: str
+    aliases: list[str] = Field(default_factory=list)
+    icon: str = "cloud"
+    icon_data: str | None = None
+    builtin: bool = False
+
+
+class CloudProviderCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    aliases: list[str] = Field(default_factory=list, max_length=20)
+    icon: str = Field(default="custom", pattern="^(aws|azure|google_cloud|cloudflare|cloud|globe|custom)$")
+    icon_data: str | None = Field(default=None, max_length=400_000, pattern=r"^data:image/(png|jpeg|webp|svg\+xml);base64,")
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return " ".join(value.strip().split())
+
+    @field_validator("aliases")
+    @classmethod
+    def clean_aliases(cls, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(" ".join(value.strip().split())[:80] for value in values if value.strip()))
+
+
+class CloudProviderUpdate(CloudProviderCreate):
+    pass
+
+
 class DeviceTypeCreate(BaseModel):
     label: str = Field(min_length=2, max_length=80)
     value: str | None = Field(default=None, max_length=80)

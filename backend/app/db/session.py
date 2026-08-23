@@ -2,6 +2,7 @@ from collections.abc import Generator
 from datetime import datetime, timezone
 import json
 import logging
+import re
 import sqlite3
 
 from sqlalchemy import event, inspect, text
@@ -165,6 +166,15 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0062_user_monitor_favourites", _migrate_user_monitor_favourites)
         _run_migration(conn, inspector, "0063_ipam_reservation_claim_permission", _migrate_ipam_reservation_claim_permission)
         _run_migration(conn, inspector, "0064_service_check_order", _migrate_service_check_order)
+        _run_migration(conn, inspector, "0065_external_ip_allocation_groups", _migrate_external_ip_allocation_groups)
+        _run_migration(conn, inspector, "0066_external_ip_provider_icons", _migrate_external_ip_provider_icons)
+        _run_migration(conn, inspector, "0067_external_ip_custom_icons", _migrate_external_ip_custom_icons)
+        _run_migration(conn, inspector, "0068_cloud_providers", _migrate_cloud_providers)
+        _run_migration(conn, inspector, "0069_cloud_assets", _migrate_cloud_assets)
+        _run_migration(conn, inspector, "0070_external_ip_asset_backfill", _migrate_external_ip_asset_backfill)
+        _run_migration(conn, inspector, "0071_external_ip_pool_cleanup", _migrate_external_ip_pool_cleanup)
+        _run_migration(conn, inspector, "0072_user_schema_repair", _migrate_user_schema_repair)
+        _run_migration(conn, inspector, "0073_external_ip_device_link", _migrate_external_ip_device_link)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -172,6 +182,22 @@ def _run_migration(conn, inspector, name: str, fn) -> None:
         return
     fn(conn, inspector)
     _record_migration(conn, name)
+
+
+
+def _live_columns(conn, table: str) -> set[str]:
+    """Column names read from the live connection.
+
+    `apply_sqlite_schema_updates` builds one inspector *before* running any migration
+    and passes it to all of them, so it cannot see a column an earlier migration in the
+    same run just added. Any migration that depends on a prior step's DDL must read the
+    schema back through the connection instead.
+    """
+    return {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+
+
+def _live_tables(conn) -> set[str]:
+    return {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type = 'table'")).fetchall()}
 
 
 def _migrate_devices_columns(conn, inspector) -> None:
@@ -585,44 +611,51 @@ def _migrate_service_check_fields(conn, inspector) -> None:
 def _migrate_role_varchar(conn, inspector) -> None:
     # Remove the CHECK constraint on users.role so custom role names are accepted.
     # SQLite requires a full table recreation to drop constraints.
-    cols = {c["name"] for c in inspector.get_columns("users")}
-    # If the table already has role as unconstrained VARCHAR this migration is a no-op.
-    # We detect by trying to insert a known-bad value; simpler: always recreate.
-    conn.execute(text("PRAGMA foreign_keys = OFF"))
-    extra = ", avatar_data TEXT" if "avatar_data" in cols else ""
-    email_col = ", email VARCHAR(254)" if "email" in cols else ""
-    conn.execute(
-        text(
-            f"""
-            CREATE TABLE IF NOT EXISTS users_new (
-                id INTEGER NOT NULL PRIMARY KEY,
-                username VARCHAR(80) NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                is_active BOOLEAN NOT NULL,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
-                display_name VARCHAR(100){extra}{email_col}
-            )
-            """
-        )
-    )
-    col_list = "id, username, password_hash, role, is_active, created_at, updated_at, display_name"
-    if "avatar_data" in cols:
-        col_list += ", avatar_data"
-    if "email" in cols:
-        col_list += ", email"
-    conn.execute(text(f"INSERT INTO users_new SELECT {col_list} FROM users"))
-    conn.execute(text("DROP TABLE users"))
-    conn.execute(text("ALTER TABLE users_new RENAME TO users"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_id ON users (id)"))
-    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
+    table_sql = conn.execute(text(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+    )).scalar_one_or_none()
+    if not table_sql:
+        return
+
+    # Fresh databases already use an unconstrained VARCHAR role. Rebuilding them
+    # from the old fixed column list dropped every user column added after 0019.
+    role_has_check = re.search(r"CHECK\s*\([^)]*\brole\b", table_sql, re.IGNORECASE | re.DOTALL)
+    if role_has_check:
+        # Preserve every live column, including ones introduced after this old
+        # migration. PRAGMA exposes the column definitions without table-level
+        # CHECK constraints, which is exactly what this rebuild needs.
+        columns = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+
+        def quoted(identifier: str) -> str:
+            return '"' + identifier.replace('"', '""') + '"'
+
+        definitions: list[str] = []
+        names: list[str] = []
+        for _cid, name, declared_type, not_null, default, primary_key in columns:
+            names.append(quoted(name))
+            parts = [quoted(name), "VARCHAR(50)" if name == "role" else (declared_type or "BLOB")]
+            if primary_key:
+                parts.append("PRIMARY KEY")
+            elif not_null:
+                parts.append("NOT NULL")
+            if default is not None:
+                parts.append(f"DEFAULT {default}")
+            definitions.append(" ".join(parts))
+
+        column_list = ", ".join(names)
+        conn.execute(text("DROP TABLE IF EXISTS users_new"))
+        conn.execute(text(f"CREATE TABLE users_new ({', '.join(definitions)})"))
+        conn.execute(text(f"INSERT INTO users_new ({column_list}) SELECT {column_list} FROM users"))
+        conn.execute(text("DROP TABLE users"))
+        conn.execute(text("ALTER TABLE users_new RENAME TO users"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_id ON users (id)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
+
     # SQLAlchemy Enum stored member names (e.g. SUPER_ADMIN) instead of values (SuperAdmin).
     # Normalise to values so plain string comparisons work correctly.
     for name, value in [("SUPER_ADMIN", "SuperAdmin"), ("NETWORK_ADMIN", "NetworkAdmin"),
                         ("SECURITY_ANALYST", "SecurityAnalyst"), ("VIEWER", "Viewer")]:
         conn.execute(text(f"UPDATE users SET role = '{value}' WHERE role = '{name}'"))
-    conn.execute(text("PRAGMA foreign_keys = ON"))
 
 
 def _migrate_dhcp_leases(conn, inspector) -> None:
@@ -1230,7 +1263,8 @@ def _migrate_external_ip_tracking(conn, _inspector) -> None:
         )
     """))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_id ON external_ip_pools (id)"))
-    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_external_ip_pools_cidr ON external_ip_pools (cidr)"))
+    if "cidr" in _live_columns(conn, "external_ip_pools"):
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_external_ip_pools_cidr ON external_ip_pools (cidr)"))
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS external_ip_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1255,7 +1289,9 @@ def _migrate_external_ip_tracking(conn, _inspector) -> None:
 
 
 def _migrate_user_whats_new_ack(conn, inspector) -> None:
-    existing = {col["name"] for col in inspector.get_columns("users")}
+    if "users" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "users")
     if "whats_new_acknowledged_version" not in existing:
         conn.execute(text("ALTER TABLE users ADD COLUMN whats_new_acknowledged_version VARCHAR(40)"))
 
@@ -1318,9 +1354,27 @@ def _migrate_topology_group_color(conn, inspector) -> None:
 
 
 def _migrate_user_entity_colors(conn, inspector) -> None:
-    if "users" not in inspector.get_table_names():
+    if "users" not in _live_tables(conn):
         return
-    existing = {col["name"] for col in inspector.get_columns("users")}
+    existing = _live_columns(conn, "users")
+    if "entity_colors_enabled" not in existing:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN entity_colors_enabled BOOLEAN NOT NULL DEFAULT 1"
+        ))
+
+
+def _migrate_user_schema_repair(conn, inspector) -> None:
+    """Repair clean installs affected by the old destructive 0019 rebuild.
+
+    Some databases have 0047 and 0058 in ``schema_migrations`` even though the
+    stale inspector caused those migrations to skip their columns. This new
+    migration deliberately checks the live schema instead of trusting that ledger.
+    """
+    if "users" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "users")
+    if "whats_new_acknowledged_version" not in existing:
+        conn.execute(text("ALTER TABLE users ADD COLUMN whats_new_acknowledged_version VARCHAR(40)"))
     if "entity_colors_enabled" not in existing:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN entity_colors_enabled BOOLEAN NOT NULL DEFAULT 1"
@@ -1362,3 +1416,325 @@ def _migrate_service_check_order(conn, inspector) -> None:
         conn.execute(text(
             "UPDATE device_port_targets SET sort_order = :sort_order WHERE id = :id"
         ), {"sort_order": index, "id": row[0]})
+
+
+def _migrate_external_ip_allocation_groups(conn, inspector) -> None:
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "external_ip_pools")
+    if "region" not in existing:
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN region VARCHAR(120)"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS external_ip_ranges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pool_id INTEGER NOT NULL REFERENCES external_ip_pools (id) ON DELETE CASCADE,
+            cidr VARCHAR(128) NOT NULL UNIQUE,
+            created_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_ranges_id ON external_ip_ranges (id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_ranges_pool_id ON external_ip_ranges (pool_id)"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_external_ip_ranges_cidr ON external_ip_ranges (cidr)"))
+    if "cidr" in existing:
+        conn.execute(text("""
+            INSERT OR IGNORE INTO external_ip_ranges (pool_id, cidr, created_at)
+            SELECT id, cidr, created_at FROM external_ip_pools
+        """))
+
+
+def _migrate_external_ip_provider_icons(conn, inspector) -> None:
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "external_ip_pools")
+    if "provider" not in existing:
+        return
+    if "provider_icon" not in existing:
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN provider_icon VARCHAR(40) NOT NULL DEFAULT 'cloud'"))
+        conn.execute(text("""
+            UPDATE external_ip_pools
+            SET provider_icon = CASE
+                WHEN lower(trim(coalesce(provider, ''))) LIKE '%aws%' OR lower(trim(coalesce(provider, ''))) LIKE '%amazon%' THEN 'aws'
+                WHEN lower(trim(coalesce(provider, ''))) LIKE '%azure%' OR lower(trim(coalesce(provider, ''))) LIKE '%microsoft%' THEN 'azure'
+                WHEN lower(trim(coalesce(provider, ''))) LIKE '%cloudflare%' THEN 'cloudflare'
+                WHEN lower(trim(coalesce(provider, ''))) LIKE '%google cloud%' OR lower(trim(coalesce(provider, ''))) = 'gcp' THEN 'google_cloud'
+                ELSE provider_icon
+            END
+        """))
+
+
+def _migrate_external_ip_custom_icons(conn, inspector) -> None:
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "external_ip_pools")
+    if "provider" not in existing:
+        return
+    if "provider_icon_data" not in existing:
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN provider_icon_data TEXT"))
+
+
+# Built-in cloud providers seeded by 0068. The `builtin` flag now only marks provenance —
+# these rows can be edited and deleted like any other, and the seed never runs again.
+_BUILTIN_CLOUD_PROVIDERS = (
+    ("aws", "AWS", ["amazon", "amazon web services", "ec2"], "aws"),
+    ("azure", "Azure", ["microsoft", "microsoft azure"], "azure"),
+    ("google-cloud", "Google Cloud", ["gcp", "google"], "google_cloud"),
+    ("cloudflare", "Cloudflare", [], "cloudflare"),
+)
+
+
+def _migrate_cloud_providers(conn, inspector) -> None:
+    """Promote providers from a free-text string + JSON blob to a real table."""
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS cloud_providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key VARCHAR(60) NOT NULL UNIQUE,
+            name VARCHAR(80) NOT NULL,
+            aliases TEXT,
+            icon VARCHAR(40) NOT NULL DEFAULT 'cloud',
+            icon_data TEXT,
+            builtin BOOLEAN NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_cloud_providers_key ON cloud_providers (key)"))
+
+    now = datetime.now(timezone.utc)
+    for key, name, aliases, icon in _BUILTIN_CLOUD_PROVIDERS:
+        conn.execute(
+            text("""
+                INSERT OR IGNORE INTO cloud_providers (key, name, aliases, icon, builtin, created_at, updated_at)
+                VALUES (:key, :name, :aliases, :icon, 1, :now, :now)
+            """),
+            {"key": key, "name": name, "aliases": json.dumps(aliases), "icon": icon, "now": now},
+        )
+
+    # Import the custom catalogue that lived in the `cloud_provider_catalog` system setting.
+    # The setting row is deliberately left in place for one release as a rollback path.
+    row = conn.execute(text("SELECT value FROM system_settings WHERE key = 'cloud_provider_catalog'")).fetchone()
+    if row is not None and row[0]:
+        try:
+            entries = json.loads(row[0])
+        except (TypeError, ValueError):
+            entries = []
+        for entry in entries if isinstance(entries, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            key = str(entry.get("key") or "").strip()
+            name = str(entry.get("name") or "").strip()
+            if not key or not name:
+                continue
+            aliases = entry.get("aliases") or []
+            icon_data = entry.get("icon_data")
+            conn.execute(
+                text("""
+                    INSERT OR IGNORE INTO cloud_providers (key, name, aliases, icon, icon_data, builtin, created_at, updated_at)
+                    VALUES (:key, :name, :aliases, :icon, :icon_data, 0, :now, :now)
+                """),
+                {
+                    "key": key, "name": name,
+                    "aliases": json.dumps(aliases if isinstance(aliases, list) else []),
+                    "icon": "custom" if icon_data else "cloud",
+                    "icon_data": icon_data, "now": now,
+                },
+            )
+
+    # Adopt any provider strings already used by pools that matched no catalogue entry.
+    if "external_ip_pools" in _live_tables(conn):
+        existing = _live_columns(conn, "external_ip_pools")
+        if "provider" in existing:
+            for (value,) in conn.execute(text(
+                "SELECT DISTINCT TRIM(provider) FROM external_ip_pools WHERE TRIM(COALESCE(provider, '')) <> ''"
+            )).fetchall():
+                key = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")[:60]
+                if not key:
+                    continue
+                icon = "cloud"
+                if "provider_icon" in existing:
+                    icon_row = conn.execute(
+                        text("SELECT provider_icon FROM external_ip_pools WHERE TRIM(provider) = :value AND provider_icon IS NOT NULL LIMIT 1"),
+                        {"value": value.strip()},
+                    ).fetchone()
+                    if icon_row is not None and icon_row[0]:
+                        icon = icon_row[0]
+                conn.execute(
+                    text("""
+                        INSERT OR IGNORE INTO cloud_providers (key, name, aliases, icon, builtin, created_at, updated_at)
+                        VALUES (:key, :name, '[]', :icon, 0, :now, :now)
+                    """),
+                    {"key": key, "name": value.strip(), "icon": icon, "now": now},
+                )
+
+
+def _migrate_cloud_assets(conn, inspector) -> None:
+    """Create the asset tier and point assignments at it."""
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS cloud_assets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(120) NOT NULL,
+            kind VARCHAR(40),
+            provider_id INTEGER REFERENCES cloud_providers (id) ON DELETE SET NULL,
+            account VARCHAR(120),
+            region VARCHAR(120),
+            device_id INTEGER REFERENCES devices (id) ON DELETE SET NULL,
+            description TEXT,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            CONSTRAINT uq_cloud_assets_identity UNIQUE (provider_id, account, name)
+        )
+    """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cloud_assets_provider_id ON cloud_assets (provider_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cloud_assets_device_id ON cloud_assets (device_id)"))
+
+    if "external_ip_assignments" in _live_tables(conn):
+        existing = _live_columns(conn, "external_ip_assignments")
+        if "asset_id" not in existing:
+            conn.execute(text("ALTER TABLE external_ip_assignments ADD COLUMN asset_id INTEGER REFERENCES cloud_assets (id) ON DELETE SET NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_assignments_asset_id ON external_ip_assignments (asset_id)"))
+
+
+def _migrate_external_ip_asset_backfill(conn, inspector) -> None:
+    """Synthesise assets from the fields that were standing in for them.
+
+    Addresses that shared a (provider, account, service, label) tuple were the user's
+    way of saying "these belong to the same EC2 instance". Collapse each distinct tuple
+    into one asset. Nothing is deleted — rows with no usable label keep asset_id NULL
+    and surface under an "Unassigned" bucket in the UI.
+    """
+    if "external_ip_assignments" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "external_ip_assignments")
+    if "asset_id" not in existing or "service" not in existing:
+        return
+
+    now = datetime.now(timezone.utc)
+    rows = conn.execute(text("""
+        SELECT id, TRIM(COALESCE(provider, '')), TRIM(COALESCE(account, '')),
+               TRIM(COALESCE(service, '')), TRIM(COALESCE(label, ''))
+        FROM external_ip_assignments
+        WHERE asset_id IS NULL
+    """)).fetchall()
+
+    cache: dict[tuple, int] = {}
+    for assignment_id, provider, account, service, label in rows:
+        if not label:
+            continue
+        provider_id = None
+        if provider:
+            key = re.sub(r"[^a-z0-9]+", "-", provider.lower()).strip("-")[:60]
+            found = conn.execute(text("SELECT id FROM cloud_providers WHERE key = :key"), {"key": key}).fetchone()
+            provider_id = found[0] if found is not None else None
+        kind = re.sub(r"[^a-z0-9]+", "_", service.lower()).strip("_")[:40] or None
+        identity = (provider_id, account or None, label)
+        asset_id = cache.get(identity)
+        if asset_id is None:
+            found = conn.execute(
+                text("""
+                    SELECT id FROM cloud_assets
+                    WHERE name = :name
+                      AND ((provider_id IS NULL AND :provider_id IS NULL) OR provider_id = :provider_id)
+                      AND ((account IS NULL AND :account IS NULL) OR account = :account)
+                """),
+                {"name": label, "provider_id": provider_id, "account": account or None},
+            ).fetchone()
+            if found is not None:
+                asset_id = found[0]
+            else:
+                asset_id = conn.execute(
+                    text("""
+                        INSERT INTO cloud_assets (name, kind, provider_id, account, region, created_at, updated_at)
+                        VALUES (:name, :kind, :provider_id, :account, NULL, :now, :now)
+                    """),
+                    {"name": label, "kind": kind, "provider_id": provider_id, "account": account or None, "now": now},
+                ).lastrowid
+            cache[identity] = asset_id
+        conn.execute(
+            text("UPDATE external_ip_assignments SET asset_id = :asset_id WHERE id = :id"),
+            {"asset_id": asset_id, "id": assignment_id},
+        )
+
+
+def _migrate_external_ip_pool_cleanup(conn, inspector) -> None:
+    """Resolve pool.provider to a FK, then drop the vestigial cidr/provider columns.
+
+    `external_ip_pools.cidr` was NOT NULL + UNIQUE while every pool's ranges also lived
+    in `external_ip_ranges` (0065 back-filled the former into the latter), forcing a
+    privileged "primary" range and blocking two groups from sharing a CIDR.
+    """
+    if "external_ip_pools" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "external_ip_pools")
+    if "provider_id" not in existing:
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN provider_id INTEGER REFERENCES cloud_providers (id) ON DELETE SET NULL"))
+        existing.add("provider_id")
+    if "provider" in existing:
+        conn.execute(text("""
+            UPDATE external_ip_pools
+            SET provider_id = (
+                SELECT p.id FROM cloud_providers p
+                WHERE p.key = TRIM(LOWER(REPLACE(REPLACE(COALESCE(external_ip_pools.provider, ''), ' ', '-'), '.', '-')))
+            )
+            WHERE provider_id IS NULL AND TRIM(COALESCE(provider, '')) <> ''
+        """))
+
+    # Nothing legacy left to strip on a fresh database.
+    if "cidr" not in existing:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_provider_id ON external_ip_pools (provider_id)"))
+        return
+
+    # Any pool CIDR not yet represented in external_ip_ranges must survive the drop.
+    conn.execute(text("""
+        INSERT OR IGNORE INTO external_ip_ranges (pool_id, cidr, created_at)
+        SELECT id, cidr, created_at FROM external_ip_pools
+        WHERE TRIM(COALESCE(cidr, '')) <> ''
+    """))
+
+    # SQLite cannot DROP COLUMN on older files — rebuild the table.
+    conn.execute(text("""
+        CREATE TABLE external_ip_pools_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(120) NOT NULL,
+            provider_id INTEGER REFERENCES cloud_providers (id) ON DELETE SET NULL,
+            account VARCHAR(120),
+            region VARCHAR(120),
+            description TEXT,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("""
+        INSERT INTO external_ip_pools_new (id, name, provider_id, account, region, description, created_at, updated_at)
+        SELECT id, name, provider_id, account,
+               CASE WHEN :has_region THEN region ELSE NULL END,
+               description, created_at, updated_at
+        FROM external_ip_pools
+    """), {"has_region": 1 if "region" in existing else 0})
+    conn.execute(text("DROP TABLE external_ip_pools"))
+    conn.execute(text("ALTER TABLE external_ip_pools_new RENAME TO external_ip_pools"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_id ON external_ip_pools (id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_pools_provider_id ON external_ip_pools (provider_id)"))
+
+
+def _migrate_external_ip_device_link(conn, inspector) -> None:
+    """Point external addresses straight at their inventory device.
+
+    A cloud asset *is* a device, so `cloud_assets` was an extra hop between an address
+    and the thing holding it. Addresses now carry `device_id`; the value is taken from
+    the asset they were attached to. `cloud_assets` and `asset_id` are left in place for
+    one release as a rollback path, but nothing writes them.
+    """
+    if "external_ip_assignments" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "external_ip_assignments")
+    if "device_id" not in columns:
+        conn.execute(text("ALTER TABLE external_ip_assignments ADD COLUMN device_id INTEGER REFERENCES devices (id) ON DELETE SET NULL"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_external_ip_assignments_device_id ON external_ip_assignments (device_id)"))
+
+    if "asset_id" in columns and "cloud_assets" in _live_tables(conn):
+        conn.execute(text("""
+            UPDATE external_ip_assignments
+            SET device_id = (
+                SELECT c.device_id FROM cloud_assets c WHERE c.id = external_ip_assignments.asset_id
+            )
+            WHERE device_id IS NULL AND asset_id IS NOT NULL
+        """))

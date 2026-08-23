@@ -3,11 +3,12 @@
 from app.models.alert_event import AlertEvent
 from app.models.api_key import ApiKey, ApiKeyThrottleState
 from app.models.audit_log import AuditLog
+from app.models.cloud import CloudAsset, CloudProvider
 from app.models.auth_session import LoginThrottleState, RefreshTokenState
 from app.models.device import Device, DeviceStatus
 from app.models.device_type import DeviceType
 from app.models.discovery import DiscoveryObservation, DiscoveryScan, DiscoverySchedule
-from app.models.external_ip import ExternalIpAssignment, ExternalIpPool
+from app.models.external_ip import ExternalIpAssignment, ExternalIpPool, ExternalIpRange
 from app.models.lldp import LldpNeighbour
 from app.models.firewall_event import FirewallEvent
 from app.models.ip_reservation import IpReservation
@@ -28,6 +29,8 @@ __all__ = [
     "ApiKey",
     "ApiKeyThrottleState",
     "AuditLog",
+    "CloudAsset",
+    "CloudProvider",
     "IpReservation",
     "NotificationProfile",
     "LoginThrottleState",
@@ -43,6 +46,7 @@ __all__ = [
     "ExternalIdentity",
     "ExternalIpAssignment",
     "ExternalIpPool",
+    "ExternalIpRange",
     "LldpNeighbour",
     "OidcLoginState",
     "FirewallEvent",

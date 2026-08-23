@@ -14,6 +14,9 @@ from app.models.device_type import DeviceType
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.admin import (
+    CloudProviderCreate,
+    CloudProviderRead,
+    CloudProviderUpdate,
     DeviceTypeColorsUpdate,
     DeviceTypeCreate,
     DeviceTypeRead,
@@ -29,6 +32,9 @@ from app.schemas.admin import (
     TestNotificationRequest,
     normalize_device_type_value,
 )
+from app.models.cloud import CloudAsset, CloudProvider
+from app.models.external_ip import ExternalIpPool
+from app.services.cloud_providers import provider_key
 from app.schemas.notification import (
     NotificationProfileCreate,
     NotificationProfileRead,
@@ -177,6 +183,95 @@ def list_device_types(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DeviceTypeRead]:
     return _list_device_types(db)
+
+
+def _cloud_provider_read(row: CloudProvider) -> CloudProviderRead:
+    try:
+        aliases = json.loads(row.aliases) if row.aliases else []
+    except (TypeError, ValueError):
+        aliases = []
+    return CloudProviderRead(
+        id=row.id, key=row.key, name=row.name,
+        aliases=aliases if isinstance(aliases, list) else [],
+        icon=row.icon or "cloud", icon_data=row.icon_data, builtin=bool(row.builtin),
+    )
+
+
+@router.get("/cloud-providers", response_model=list[CloudProviderRead])
+def list_cloud_providers(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[CloudProviderRead]:
+    return [_cloud_provider_read(row) for row in db.scalars(select(CloudProvider).order_by(CloudProvider.name)).all()]
+
+
+@router.post("/cloud-providers", response_model=CloudProviderRead, status_code=status.HTTP_201_CREATED)
+def create_cloud_provider(
+    payload: CloudProviderCreate,
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CloudProviderRead:
+    key = provider_key(payload.name)
+    if not key:
+        raise HTTPException(status_code=422, detail="Provider name must contain a letter or number")
+    if db.scalar(select(CloudProvider).where(CloudProvider.key == key)) is not None:
+        raise HTTPException(status_code=409, detail="Cloud provider already exists")
+    row = CloudProvider(
+        key=key, name=payload.name, aliases=json.dumps(payload.aliases),
+        icon=payload.icon, icon_data=payload.icon_data, builtin=False,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _cloud_provider_read(row)
+
+
+@router.put("/cloud-providers/{key}", response_model=CloudProviderRead)
+def update_cloud_provider(
+    key: str,
+    payload: CloudProviderUpdate,
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CloudProviderRead:
+    row = db.scalar(select(CloudProvider).where(CloudProvider.key == key))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Cloud provider not found")
+    next_key = provider_key(payload.name)
+    clash = db.scalar(select(CloudProvider).where(CloudProvider.key == next_key, CloudProvider.id != row.id))
+    if clash is not None:
+        raise HTTPException(status_code=409, detail="Cloud provider already exists")
+    # A built-in keeps its stable key so existing references survive a rename.
+    if not row.builtin:
+        row.key = next_key
+    row.name = payload.name
+    row.aliases = json.dumps(payload.aliases)
+    row.icon = payload.icon
+    row.icon_data = payload.icon_data
+    db.commit()
+    db.refresh(row)
+    return _cloud_provider_read(row)
+
+
+@router.delete("/cloud-providers/{key}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cloud_provider(
+    key: str,
+    _current_user: Annotated[User, Depends(require_device_catalog_manage)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    row = db.scalar(select(CloudProvider).where(CloudProvider.key == key))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Cloud provider not found")
+    # Built-ins are deletable too: they are only a convenience seed from migration 0068,
+    # not a fixed set, and an install that uses neither AWS nor Azure should not be stuck
+    # with them in every provider picker. The seed runs once (recorded in the migrations
+    # table), so a deleted built-in stays deleted across restarts.
+    # Pools and assets fall back to "no provider" rather than being deleted.
+    for pool in db.scalars(select(ExternalIpPool).where(ExternalIpPool.provider_id == row.id)).all():
+        pool.provider_id = None
+    for asset in db.scalars(select(CloudAsset).where(CloudAsset.provider_id == row.id)).all():
+        asset.provider_id = None
+    db.delete(row)
+    db.commit()
 
 
 @router.put("/device-type-colors", response_model=list[DeviceTypeRead])
