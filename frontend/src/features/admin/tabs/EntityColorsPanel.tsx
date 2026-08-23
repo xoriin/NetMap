@@ -133,17 +133,16 @@ export function EntityColorsPanel({
 
   return (
     <section className="panel admin-panel nm-app-panel">
-      <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
-        <div>
-          <h2 className="admin-section-title" style={{ margin: 0 }}>
-            <IconPalette size={16} />Group &amp; location colours
-          </h2>
-          <p className="tool-note" style={{ margin: "2px 0 0" }}>
-            Colours for the VLAN/group and location chips in the inventory table. Unset entries use an
-            automatic colour derived from the name.
-          </p>
-        </div>
+      <div className="nm-app-panel-header admin-panel-header">
+        <span className="admin-panel-identity">
+          <span className="admin-panel-icon" aria-hidden="true"><IconPalette size={17} /></span>
+          <span className="admin-panel-title-wrap">
+            <span className="admin-panel-title">Group &amp; location colours</span>
+            <span className="admin-panel-meta">Chips in the inventory table</span>
+          </span>
+        </span>
       </div>
+
 
       {loading ? (
         <p className="tool-note">Loading…</p>

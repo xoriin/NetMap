@@ -205,9 +205,9 @@
 .admin-system-page .tool-form input:not([type="checkbox"]):focus,
 .admin-system-page .tool-form select:focus,
 .admin-system-page .tool-form textarea:focus {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
-  outline: none;
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .admin-system-page .tool-form input::placeholder,
@@ -303,22 +303,20 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 20px;
+  /* Was 20px to clear a hardcoded `::after { content: "-" }` that rendered a stray dash
+     between the icon and the title of every admin section. Both are gone. */
+  gap: 10px;
   min-width: 0;
   margin: 0;
   color: var(--nm-modal-label);
-  font-size: var(--nm-text-lg);
-  font-weight: 750;
+  /* Matches .admin-panel-title. The legacy headings ran at --nm-text-lg/750, which is why
+     Admin read as several products: a section title outweighed the page and sat level with
+     its own description. Restyling the shared class brings all nine remaining tabs into
+     line without rewriting nineteen JSX headings. */
+  font-size: var(--nm-text-sm);
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-}
-
-.admin-layout .admin-section-title::after {
-  content: "-";
-  position: absolute;
-  left: 38px;
-  color: var(--nm-text-faint);
-  font-weight: 600;
 }
 
 .admin-layout .admin-section-title svg {
@@ -378,9 +376,9 @@
 .admin-layout .tool-form textarea:focus,
 .admin-layout .nm-input:focus,
 .admin-layout .admin-search:focus {
-  border-color: var(--nm-accent);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .admin-layout input::placeholder,
@@ -517,7 +515,6 @@
 .admin-layout .admin-users-row:hover,
 .admin-layout .audit-log-row:hover,
 .admin-layout .notif-method-row:hover,
-.admin-layout .device-icons-row:hover,
 .admin-layout .entity-colors-row:hover {
   background: var(--nm-row-hover);
   box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
@@ -534,7 +531,6 @@
 .admin-layout .audit-actor,
 .admin-layout .audit-target,
 .admin-layout .rbac-perm-label-text strong,
-.admin-layout .device-icons-meta strong,
 .admin-layout .entity-colors-heading {
   color: var(--nm-text);
 }
@@ -544,7 +540,6 @@
 .admin-layout .audit-detail,
 .admin-layout .audit-time,
 .admin-layout .rbac-perm-desc,
-.admin-layout .device-icons-meta span,
 .admin-layout .entity-colors-note {
   color: var(--nm-text-muted);
 }
@@ -552,7 +547,6 @@
 .admin-layout .notif-methods-table { margin-top: 0; }
 
 .admin-layout .notif-method-row,
-.admin-layout .device-icons-row,
 .admin-layout .entity-colors-row {
   border-color: var(--nm-border);
   background: var(--nm-modal-section);
@@ -891,4 +885,183 @@
   .admin-layout .admin-automation-split {
     grid-template-columns: 1fr;
   }
+}
+
+.cloud-provider-admin { margin-top: 0; }
+.admin-layout .device-types-panel .device-icons-edit-grid {
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 190px) auto;
+  align-items: end;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+.admin-layout .device-types-panel .device-icons-edit-grid > * { min-width: 0; }
+.admin-layout .device-types-panel .device-icons-edit-grid .device-icons-actions {
+  justify-self: end;
+}
+.admin-layout .device-types-panel .device-icons-color { justify-self: center; }
+.admin-layout .device-types-panel .device-icons-actions { justify-self: end; white-space: nowrap; }
+.cloud-provider-create { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(220px, 1fr); gap: 12px; align-items: end; padding: 16px; border-bottom: 1px solid var(--nm-border); background: var(--nm-modal-section); }
+.cloud-provider-file { display: inline-flex; min-width: 138px; height: var(--nm-control-md); align-items: center; justify-content: center; gap: 8px; justify-self: start; color: var(--nm-text-muted); cursor: pointer; }
+.cloud-provider-file img { width: 24px; height: 24px; object-fit: contain; }
+.cloud-provider-file input,
+.cloud-provider-row label input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.cloud-provider-create > button { justify-self: end; }
+.cloud-provider-list { display: flex; flex-direction: column; background: var(--nm-modal-section); }
+.cloud-provider-list > .tool-note { padding: 16px; }
+.cloud-provider-row { display: grid; grid-template-columns: 38px minmax(180px, 1fr) auto; gap: 10px; align-items: center; min-height: 58px; padding: 10px 16px; border-top: 1px solid var(--nm-border); background: var(--nm-modal-section); }
+.cloud-provider-row:hover { background: var(--nm-row-hover); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--nm-accent) 50%, transparent); }
+.cloud-provider-row:first-child { border-top: 0; }
+.cloud-provider-logo { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-modal-input); }
+.cloud-provider-logo img { width: 24px; height: 24px; object-fit: contain; }
+.cloud-provider-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.cloud-provider-copy small { overflow: hidden; color: var(--nm-text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.cloud-provider-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.cloud-provider-row label.nm-btn { cursor: pointer; }
+
+@media (max-width: 900px) {
+  .cloud-provider-create { grid-template-columns: 1fr; }
+  .cloud-provider-row { grid-template-columns: 38px 1fr; }
+  .cloud-provider-actions { grid-column: 2; justify-content: flex-start; }
+  .admin-layout .device-types-panel .device-icons-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-layout .device-types-panel .device-icons-color,
+  .admin-layout .device-types-panel .device-icons-actions { justify-self: start; }
+}
+
+@media (max-width: 620px) {
+  .admin-layout .device-types-panel .device-icons-edit-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Devices & Icons: single-column settings page ────────────────────────────
+   Was a two-column grid holding four unrelated concerns (device types, icon packs,
+   entity colours, cloud providers) with wildly unbalanced columns. Cloud providers
+   moved to its own tab; icon packs folded into the Device types header, since its
+   entire body was one button. Settings pages are single column — see
+   docs/UI_THEME_RULES.md and the Profile page. */
+.admin-layout .admin-tab-content--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Canonical compact panel header, matching Inventory and IPAM rather than the tall
+   copy block this page used. The description moves out of the bar and under it. */
+.admin-layout .admin-panel-header.nm-app-panel-header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-3);
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-modal-header);
+}
+
+.admin-layout .admin-panel-identity {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.admin-layout .admin-panel-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nm-tab-hover-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent);
+}
+
+.admin-layout .admin-panel-title-wrap {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-layout .admin-panel-title {
+  color: var(--nm-modal-label);
+  font-size: var(--nm-text-sm);
+  font-weight: 700;
+}
+
+/* Descriptions sit *below* the title in size and weight. They used to render at the
+   same scale as the heading, so nothing led the section. */
+.admin-layout .admin-panel-meta,
+.admin-layout .admin-panel-copy {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+.admin-layout .admin-panel-copy {
+  margin: 0;
+  padding: 0 14px;
+}
+
+/* ── Device types table ──────────────────────────────────────────────────────
+   Was an unheaded stack of grid rows, so the colour swatch floated at the right of
+   each row with nothing naming it. */
+.admin-layout .device-types-table-wrap {
+  max-height: min(58dvh, 650px);
+}
+
+/* Proportional, not fixed-px with one flexible column: with `<col />` on the name and
+   pixel widths elsewhere, every extra pixel of a wide screen landed in column one, so a
+   row's name sat a long way from its own icon, colour and actions. `table-layout: fixed`
+   makes the browser honour these shares rather than re-fitting to content. */
+.admin-layout .device-types-table { table-layout: fixed; }
+.admin-layout .device-types-col-name { width: 34%; }
+.admin-layout .device-types-col-icon { width: 26%; }
+.admin-layout .device-types-col-colour { width: 18%; }
+.admin-layout .device-types-col-actions { width: 22%; }
+
+.admin-layout .device-types-table th.device-types-actions-head,
+.admin-layout .device-types-table td.device-types-actions {
+  text-align: right;
+}
+
+.admin-layout .device-types-table td.device-types-actions > .nm-table-actions {
+  display: inline-flex;
+}
+
+.admin-layout .device-types-table .nm-table-actions .nm-btn--sm {
+  flex: 0 0 auto;
+}
+
+.admin-layout .device-types-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-layout .device-types-identity strong { font-size: var(--nm-text-sm); }
+
+.admin-layout .device-types-identity small {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+}
+
+.admin-layout .device-types-locked { color: var(--nm-text-faint); }
+
+.admin-layout .device-types-row--editing td { padding: 12px 14px; }
+
+/* Legacy copy-block headers: bring their description text down to the same scale as
+   .admin-panel-meta so the title leads. These rendered at body size, level with the
+   heading above them. */
+.admin-layout .nm-app-panel-header--copy .tool-note {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+/* The taller copy header only needed its height for the oversized text it used to hold. */
+.admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header--copy {
+  min-height: 44px;
 }

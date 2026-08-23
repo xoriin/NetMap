@@ -121,8 +121,7 @@ export function DeviceIconsTab({
     });
   }
 
-  async function saveEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveEdit() {
     if (!editDraft) return;
     setBusy(`edit:${editDraft.originalValue}`);
     onError(null);
@@ -174,50 +173,70 @@ export function DeviceIconsTab({
   }
 
   return (
-    <div className="admin-tab-content">
-      <div className="system-tab-grid">
-        <div className="system-tab-col">
-          <section className="panel admin-panel nm-app-panel">
-            <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
-              <div>
-                <h2 className="admin-section-title" style={{ margin: 0 }}><IconDeviceDesktop size={16} />Device types</h2>
-                <p className="tool-note" style={{ margin: "2px 0 0" }}>
-                  Add custom types, choose their default icon, and remove unused custom entries.
-                </p>
-              </div>
-            </div>
+    <div className="admin-tab-content admin-tab-content--single">
+      <section className="panel admin-panel nm-app-panel device-types-panel">
+        {/* Icon pack is a one-control concern, so it rides in this panel's header rather
+            than occupying a panel of its own whose entire body was a single button. */}
+        <div className="nm-app-panel-header admin-panel-header">
+          <span className="admin-panel-identity">
+            <span className="admin-panel-icon" aria-hidden="true"><IconDeviceDesktop size={17} /></span>
+            <span className="admin-panel-title-wrap">
+              <span className="admin-panel-title">Device types</span>
+              <span className="admin-panel-meta">
+                {deviceTypesQuery.options.length} type{deviceTypesQuery.options.length === 1 ? "" : "s"}
+                {" · "}icon pack: <strong>{activePack.name}</strong>
+              </span>
+            </span>
+          </span>
+          <button type="button" className="nm-btn nm-btn--sm" onClick={() => setIconModalOpen(true)}>
+            <IconPalette size={14} /> Icon packs
+          </button>
+        </div>
 
-            <form className="device-icons-create-form" onSubmit={createDeviceType}>
-              <label className="nm-field">
-                <span>Device type</span>
-                <input
-                  className="nm-input"
-                  maxLength={80}
-                  placeholder="e.g. UPS, PDU, iDRAC"
-                  value={newDeviceTypeLabel}
-                  onChange={(event) => setNewDeviceTypeLabel(event.target.value)}
-                />
-              </label>
-              <label className="nm-field">
-                <span>Default icon</span>
-                <DeviceTypeIconPicker
-                  currentIcon={newDeviceTypeIcon}
-                  onSelect={setNewDeviceTypeIcon}
-                />
-              </label>
-              <button type="submit" className="nm-btn nm-btn--primary" disabled={busy === "create" || !newDeviceTypeValue}>
-                {busy === "create" ? "Adding..." : "Add type"}
-              </button>
-            </form>
+        <form className="device-icons-create-form" onSubmit={createDeviceType}>
+          <label className="nm-field">
+            <span>Device type</span>
+            <input
+              className="nm-input"
+              maxLength={80}
+              placeholder="e.g. UPS, PDU, iDRAC"
+              value={newDeviceTypeLabel}
+              onChange={(event) => setNewDeviceTypeLabel(event.target.value)}
+            />
+          </label>
+          <label className="nm-field">
+            <span>Default icon</span>
+            <DeviceTypeIconPicker currentIcon={newDeviceTypeIcon} onSelect={setNewDeviceTypeIcon} />
+          </label>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy === "create" || !newDeviceTypeValue}>
+            {busy === "create" ? "Adding..." : "Add type"}
+          </button>
+        </form>
 
-            <div className="device-icons-list">
-              {deviceTypesQuery.options.map((type) => {
-                const isEditing = editDraft?.originalValue === type.value;
-                const currentIcon = typeIconMap[type.value] || type.icon || "device";
+        <div className="nm-table-wrap device-types-table-wrap">
+          <table className="nm-table device-types-table">
+            <colgroup>
+              <col className="device-types-col-name" />
+              <col className="device-types-col-icon" />
+              <col className="device-types-col-colour" />
+              <col className="device-types-col-actions" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Default icon</th>
+                <th>Colour</th>
+                <th className="device-types-actions-head">Actions</th>
+              </tr>
+            </thead>
+            <tbody>{deviceTypesQuery.options.map((type) => {
+              const isEditing = editDraft?.originalValue === type.value;
+              const currentIcon = typeIconMap[type.value] || type.icon || "device";
+              if (isEditing && editDraft) {
                 return (
-                  <div key={type.value} className="device-icons-row">
-                    {isEditing && editDraft ? (
-                      <form className="device-icons-edit-form" onSubmit={saveEdit}>
+                  <tr key={type.value} className="device-types-row device-types-row--editing">
+                    <td colSpan={4}>
+                      <div className="device-icons-edit-grid">
                         <label className="nm-field">
                           <span>Name</span>
                           <input
@@ -243,106 +262,88 @@ export function DeviceIconsTab({
                             onSelect={(icon) => setEditDraft((current) => current ? { ...current, icon } : current)}
                           />
                         </label>
-                        <div className="device-icons-actions">
-                          <button type="submit" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy === `edit:${type.value}` || !editDraft.label.trim() || !editDraft.value.trim()}>
+                        <div className="nm-table-actions">
+                          <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy === `edit:${type.value}` || !editDraft.label.trim() || !editDraft.value.trim()} onClick={() => void saveEdit()}>
                             {busy === `edit:${type.value}` ? "Saving..." : "Save"}
                           </button>
-                          <button type="button" className="nm-btn nm-btn--sm" onClick={() => setEditDraft(null)}>
-                            Cancel
-                          </button>
+                          <button type="button" className="nm-btn nm-btn--sm" onClick={() => setEditDraft(null)}>Cancel</button>
                         </div>
-                      </form>
-                    ) : (
-                      <>
-                        <div className="device-icons-meta">
-                          <strong>{type.label || formatDeviceTypeLabel(type.value)}</strong>
-                          <span>
-                            {type.value}
-                            {type.is_builtin ? " · built-in" : " · custom"}
-                          </span>
-                        </div>
-                        <DeviceTypeIconPicker
-                          currentIcon={currentIcon}
-                          onSelect={(icon) => setTypeIconMap((current) => ({ ...current, [type.value]: icon }))}
-                        />
-                        <span className="device-icons-color">
-                          <input
-                            type="color"
-                            className="entity-colors-input"
-                            aria-label={`Colour for ${type.label || type.value}`}
-                            disabled={busy === `color:${type.value}`}
-                            value={resolveEntityColor(type.color, type.value)}
-                            onChange={(event) => void saveTypeColor(type.value, event.target.value)}
-                          />
-                          {isValidHexColor(type.color) && (
-                            <button
-                              type="button"
-                              className="nm-btn nm-btn--sm nm-btn--secondary"
-                              disabled={busy === `color:${type.value}`}
-                              title={`Reset to the automatic colour (${autoEntityColor(type.value)})`}
-                              onClick={() => void saveTypeColor(type.value, null)}
-                            >
-                              Reset
-                            </button>
-                          )}
-                        </span>
-                        <div className="device-icons-actions">
-                          {!type.is_builtin && (
-                            <button type="button" className="nm-btn nm-btn--sm" disabled={Boolean(busy)} onClick={() => startEdit(type)}>
-                              Edit
-                            </button>
-                          )}
-                          {!type.is_builtin && (
-                            <button
-                              type="button"
-                              className="nm-btn nm-btn--sm nm-btn--danger"
-                              disabled={Boolean(busy)}
-                              onClick={() => void deleteDeviceType(type)}
-                              aria-label={`Delete ${type.label || type.value}`}
-                            >
-                              <IconTrash size={14} />
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    </td>
+                  </tr>
                 );
-              })}
-            </div>
-
-            <div className="icon-mgr-device-types-actions nm-btn-row">
-              <button type="button" className="nm-btn nm-btn--primary" onClick={() => saveTypeIconMap(typeIconMap)}>
-                Save icon mapping
-              </button>
-              <button type="button" className="nm-btn" onClick={() => saveTypeIconMap({ ...defaultDeviceTypeIconMap })}>
-                Reset to defaults
-              </button>
-              {typeIconSaved && <span className="icon-mgr-saved-tick">Saved</span>}
-            </div>
-          </section>
+              }
+              return (
+                <tr key={type.value} className="device-types-row">
+                  <td>
+                    <span className="device-types-identity">
+                      <strong>{type.label || formatDeviceTypeLabel(type.value)}</strong>
+                      <small>{type.value}{type.is_builtin ? " · built-in" : " · custom"}</small>
+                    </span>
+                  </td>
+                  <td>
+                    <DeviceTypeIconPicker
+                      currentIcon={currentIcon}
+                      onSelect={(icon) => setTypeIconMap((current) => ({ ...current, [type.value]: icon }))}
+                    />
+                  </td>
+                  <td>
+                    <span className="device-icons-color">
+                      <input
+                        type="color"
+                        className="entity-colors-input"
+                        aria-label={`Colour for ${type.label || type.value}`}
+                        disabled={busy === `color:${type.value}`}
+                        value={resolveEntityColor(type.color, type.value)}
+                        onChange={(event) => void saveTypeColor(type.value, event.target.value)}
+                      />
+                      {isValidHexColor(type.color) && (
+                        <button
+                          type="button"
+                          className="nm-btn nm-btn--sm nm-btn--secondary"
+                          disabled={busy === `color:${type.value}`}
+                          title={`Reset to the automatic colour (${autoEntityColor(type.value)})`}
+                          onClick={() => void saveTypeColor(type.value, null)}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </span>
+                  </td>
+                  <td className="device-types-actions">
+                    {type.is_builtin ? <span className="device-types-locked">—</span> : (
+                      <span className="nm-table-actions">
+                        <button type="button" className="nm-btn nm-btn--sm" disabled={Boolean(busy)} onClick={() => startEdit(type)}>Edit</button>
+                        <button
+                          type="button"
+                          className="nm-btn nm-btn--sm nm-btn--danger"
+                          disabled={Boolean(busy)}
+                          onClick={() => void deleteDeviceType(type)}
+                          aria-label={`Delete ${type.label || type.value}`}
+                        >
+                          <IconTrash size={14} /> Delete
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
         </div>
 
-        <div className="system-tab-col">
-          <section className="panel admin-panel nm-app-panel">
-            <div className="system-icon-header nm-app-panel-header nm-app-panel-header--copy">
-              <div>
-                <h2 className="admin-section-title" style={{ margin: 0 }}><IconPalette size={16} />Icon packs</h2>
-                <p className="tool-note" style={{ margin: "2px 0 0" }}>
-                  Active: <strong>{activePack.name}</strong>
-                  {" · "}{allPacks.length} pack{allPacks.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <button type="button" className="nm-btn nm-btn--primary" onClick={() => setIconModalOpen(true)}>
-                Manage icons
-              </button>
-            </div>
-          </section>
-
-          <EntityColorsPanel accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
+        <div className="icon-mgr-device-types-actions nm-btn-row">
+          <button type="button" className="nm-btn nm-btn--primary" onClick={() => saveTypeIconMap(typeIconMap)}>
+            Save icon mapping
+          </button>
+          <button type="button" className="nm-btn" onClick={() => saveTypeIconMap({ ...defaultDeviceTypeIconMap })}>
+            Reset to defaults
+          </button>
+          {typeIconSaved && <span className="icon-mgr-saved-tick">Saved</span>}
         </div>
-      </div>
+      </section>
+
+      <EntityColorsPanel accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
 
       {iconModalOpen && (
         <IconManagerModal

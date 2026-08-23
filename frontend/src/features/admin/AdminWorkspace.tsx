@@ -17,6 +17,7 @@ import { GroupsTab } from "./tabs/GroupsTab";
 import { CredentialsTab } from "./tabs/CredentialsTab";
 import { AutomationTab } from "./tabs/AutomationTab";
 import { DeviceIconsTab } from "./tabs/DeviceIconsTab";
+import { CloudProvidersPanel } from "./tabs/CloudProvidersPanel";
 import { DelegatedSystemTab } from "./tabs/DelegatedSystemTab";
 import {
   ADMIN_TAB_CHANGE_EVENT,
@@ -117,6 +118,11 @@ export function AdminWorkspace({
         )}
         {activeTab === "devices-icons" && (
           <DeviceIconsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+        )}
+        {activeTab === "cloud-providers" && (
+          <div className="admin-tab-content admin-tab-content--single">
+            <CloudProvidersPanel accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+          </div>
         )}
         {activeTab === "security" && (
           <SecurityTab
