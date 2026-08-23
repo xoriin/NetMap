@@ -122,6 +122,87 @@ export type DeviceTypeOption = {
   color: string | null;
 };
 
+export type CloudProviderIcon = "aws" | "azure" | "google_cloud" | "cloudflare" | "cloud" | "globe" | "custom";
+
+export type CloudProviderOption = {
+  id?: number | null;
+  key: string;
+  name: string;
+  aliases: string[];
+  icon: CloudProviderIcon;
+  icon_data: string | null;
+  builtin: boolean;
+};
+
+export type CloudProviderPayload = {
+  name: string;
+  aliases: string[];
+  icon: CloudProviderIcon;
+  icon_data: string | null;
+};
+
+/** Fixed set — mirrors CLOUD_ASSET_KINDS in `backend/app/models/cloud.py`. */
+export const CLOUD_ASSET_KINDS = [
+  "ec2", "vm", "load_balancer", "nat_gateway", "k8s_ingress", "database", "storage", "cdn", "other",
+] as const;
+export type CloudAssetKind = (typeof CLOUD_ASSET_KINDS)[number];
+
+export const CLOUD_ASSET_KIND_LABELS: Record<string, string> = {
+  ec2: "EC2 instance",
+  vm: "Virtual machine",
+  load_balancer: "Load balancer",
+  nat_gateway: "NAT gateway",
+  k8s_ingress: "Kubernetes ingress",
+  database: "Database",
+  storage: "Storage",
+  cdn: "CDN",
+  other: "Other",
+};
+
+/**
+ * A cloud resource that owns one or more public addresses. This is the tier the
+ * model was missing — before it, several IPs on one EC2 instance were unrelated
+ * rows sharing a typed `service` string.
+ */
+export type CloudAsset = {
+  id: number;
+  name: string;
+  kind: string | null;
+  provider_id: number | null;
+  provider: CloudProviderOption | null;
+  account: string | null;
+  region: string | null;
+  /** Optional bridge into inventory; null keeps the asset IPAM-only. */
+  device_id: number | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  address_count: number;
+  in_use: number;
+  reserved: number;
+};
+
+export type CloudAssetAddressPayload = {
+  ip_address: string;
+  label?: string | null;
+  status?: ExternalIpAssignment["status"];
+  /** Optional — omit to match or create an allocation automatically. */
+  pool_id?: number | null;
+  owner?: string | null;
+  tags?: string | null;
+  notes?: string | null;
+};
+
+export type CloudAssetPayload = {
+  name: string;
+  kind: string | null;
+  provider_id: number | null;
+  account: string | null;
+  region: string | null;
+  device_id?: number | null;
+  description: string | null;
+};
+
 export type Device = {
   id: number;
   display_name: string | null;
@@ -1041,9 +1122,10 @@ export type IpamSummary = {
 export type ExternalIpPool = {
   id: number;
   name: string;
-  cidr: string;
-  provider: string | null;
+  provider_id: number | null;
+  provider: CloudProviderOption | null;
   account: string | null;
+  region: string | null;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -1052,26 +1134,48 @@ export type ExternalIpPool = {
   reserved: number;
   free: number;
   utilization: number;
+  allocations: ExternalIpRange[];
+};
+
+export type ExternalIpRange = {
+  id: number;
+  pool_id: number;
+  cidr: string;
+  total: number;
+  created_at: string;
+};
+
+/** Minimal device identity carried by an external address. */
+export type ExternalIpDevice = {
+  id: number;
+  display_name: string | null;
+  hostname: string | null;
+  ip_address: string;
+  device_type: string | null;
+  site_id: number | null;
 };
 
 export type ExternalIpAssignment = {
   id: number;
   pool_id: number;
+  /** The inventory device holding this address — a cloud asset is a device. */
+  device_id: number | null;
+  device: ExternalIpDevice | null;
+  /** @deprecated superseded by device_id; retained for one release. */
+  asset_id: number | null;
+  asset: CloudAsset | null;
   ip_address: string;
   label: string;
   status: "available" | "reserved" | "in_use";
-  provider: string | null;
-  account: string | null;
   owner: string | null;
-  service: string | null;
   tags: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ExternalIpAssignmentPayload = Omit<ExternalIpAssignment, "id" | "created_at" | "updated_at">;
-export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "cidr" | "provider" | "account" | "description">;
+export type ExternalIpAssignmentPayload = Omit<ExternalIpAssignment, "id" | "asset" | "device" | "created_at" | "updated_at">;
+export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "provider_id" | "account" | "region" | "description"> & { cidr?: string };
 
 export type ExternalIpAddressPage = {
   total: number;
@@ -1090,6 +1194,8 @@ export type ExternalIpSummary = {
   in_use: number;
   reserved: number;
   free: number;
+  asset_count: number;
+  unassigned_address_count: number;
 };
 
 export type IpReservation = {
@@ -1914,6 +2020,14 @@ export const api = {
     request<{ status: string }>(`/api/v1/admin/notification-profiles/${id}/test`, { method: "POST", token }),
   listDeviceTypes: (token: string) =>
     request<DeviceTypeOption[]>("/api/v1/admin/device-types", { token }),
+  listCloudProviders: (token: string) =>
+    request<CloudProviderOption[]>("/api/v1/admin/cloud-providers", { token }),
+  createCloudProvider: (token: string, payload: CloudProviderPayload) =>
+    request<CloudProviderOption>("/api/v1/admin/cloud-providers", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateCloudProvider: (token: string, key: string, payload: CloudProviderPayload) =>
+    request<CloudProviderOption>(`/api/v1/admin/cloud-providers/${encodeURIComponent(key)}`, { method: "PUT", token, body: JSON.stringify(payload) }),
+  deleteCloudProvider: (token: string, key: string) =>
+    request<void>(`/api/v1/admin/cloud-providers/${encodeURIComponent(key)}`, { method: "DELETE", token }),
   createDeviceType: (token: string, payload: { label: string; value?: string | null; icon?: string }) =>
     request<DeviceTypeOption>("/api/v1/admin/device-types", {
       method: "POST",
@@ -2097,10 +2211,30 @@ export const api = {
     request<ExternalIpPool>(`/api/v1/ipam/external/pools/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
   deleteExternalIpPool: (token: string, id: number) =>
     request<void>(`/api/v1/ipam/external/pools/${id}`, { method: "DELETE", token }),
+  createExternalIpRange: (token: string, id: number, cidr: string) =>
+    request<ExternalIpRange>(`/api/v1/ipam/external/pools/${id}/ranges`, { method: "POST", token, body: JSON.stringify({ cidr }) }),
+  deleteExternalIpRange: (token: string, poolId: number, rangeId: number) =>
+    request<void>(`/api/v1/ipam/external/pools/${poolId}/ranges/${rangeId}`, { method: "DELETE", token }),
   getExternalPoolAddresses: (token: string, id: number, offset = 0, limit = 256) =>
     request<ExternalIpAddressPage>(`/api/v1/ipam/external/pools/${id}/addresses?offset=${offset}&limit=${limit}`, { token }),
-  listExternalIpAssignments: (token: string) =>
-    request<ExternalIpAssignment[]>("/api/v1/ipam/external/assignments", { token }),
+  listExternalIpAssignments: (token: string, assetId?: number) =>
+    request<ExternalIpAssignment[]>(`/api/v1/ipam/external/assignments${assetId ? `?asset_id=${assetId}` : ""}`, { token }),
+  listCloudAssets: (token: string) =>
+    request<CloudAsset[]>("/api/v1/ipam/external/assets", { token }),
+  createCloudAsset: (token: string, payload: CloudAssetPayload) =>
+    request<CloudAsset>("/api/v1/ipam/external/assets", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateCloudAsset: (token: string, id: number, payload: Partial<CloudAssetPayload>) =>
+    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
+  deleteCloudAsset: (token: string, id: number) =>
+    request<void>(`/api/v1/ipam/external/assets/${id}`, { method: "DELETE", token }),
+  addCloudAssetAddress: (token: string, id: number, payload: CloudAssetAddressPayload) =>
+    request<ExternalIpAssignment>(`/api/v1/ipam/external/assets/${id}/addresses`, { method: "POST", token, body: JSON.stringify(payload) }),
+  linkCloudAssetDevice: (token: string, id: number, deviceId: number) =>
+    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}/link-device`, { method: "POST", token, body: JSON.stringify({ device_id: deviceId }) }),
+  unlinkCloudAssetDevice: (token: string, id: number) =>
+    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}/link-device`, { method: "DELETE", token }),
+  updateExternalIpRange: (token: string, poolId: number, rangeId: number, cidr: string) =>
+    request<ExternalIpRange>(`/api/v1/ipam/external/pools/${poolId}/ranges/${rangeId}`, { method: "PATCH", token, body: JSON.stringify({ cidr }) }),
   createExternalIpAssignment: (token: string, payload: ExternalIpAssignmentPayload) =>
     request<ExternalIpAssignment>("/api/v1/ipam/external/assignments", { method: "POST", token, body: JSON.stringify(payload) }),
   updateExternalIpAssignment: (token: string, id: number, payload: Partial<ExternalIpAssignmentPayload>) =>
