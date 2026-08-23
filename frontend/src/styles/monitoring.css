@@ -1154,18 +1154,21 @@ body.route-ipam .workspace > .dash-alert--announcement {
   background: var(--nm-modal-section);
 }
 
+/* Matches the Inventory table header (see .nm-table thead th in components.css).
+   This used to sit on --nm-modal-section — the same surface as its own rows — so the
+   header did not read as a header at all, and it was the odd one out app-wide. */
 .mon-table th {
   height: 38px;
   text-align: left;
   padding: 11px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--nm-text-muted);
-  text-transform: none;
-  letter-spacing: 0;
-  border-bottom: 1px solid var(--nm-border);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+  color: var(--nm-table-header-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--nm-table-header-border);
   white-space: nowrap;
-  background: var(--nm-modal-section);
+  background: var(--nm-table-header-bg);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1175,7 +1178,7 @@ body.route-ipam .workspace > .dash-alert--announcement {
   height: 50px;
   cursor: pointer;
   border-bottom: 1px solid var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
   transition: background 0.1s;
 }
 
@@ -1202,16 +1205,24 @@ body.route-ipam .workspace > .dash-alert--announcement {
   text-align: left;
 }
 
-/* Favourite matches Inventory: fixed at the far left while data columns scroll. */
-.mon-table--fleet th:first-child,
+/* Favourite matches Inventory: fixed at the far left while data columns scroll.
+   A sticky cell needs an opaque background of its own, so each takes the surface of
+   the band it belongs to — the header cell the header's, the body cell the row's. */
+.mon-table--fleet th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--nm-table-header-bg);
+}
+
 .mon-table--fleet .mon-row td:first-child {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
 }
 
-.mon-table--fleet .mon-row:hover td:first-child {
+.mon-table--fleet .mon-row:hover > td {
   background: var(--nm-row-hover);
 }
 
@@ -1219,7 +1230,7 @@ body.route-ipam .workspace > .dash-alert--announcement {
   background: rgba(29, 154, 176, 0.07);
 }
 
-.mon-table--fleet .mon-row--active:hover td:first-child {
+.mon-table--fleet .mon-row--active:hover > td {
   background: rgba(29, 154, 176, 0.10);
 }
 
@@ -2203,8 +2214,7 @@ body.theme-dark .modal-close:hover { background: rgba(90, 122, 149, 0.30); color
 body.theme-dark .ipam-modal-close { background: rgba(90, 122, 149, 0.18); color: #8ab4cc; }
 body.theme-dark .ipam-modal-close:hover { background: rgba(90, 122, 149, 0.30); color: #c8dff0; }
 
-body.theme-dark .mon-table th { background: var(--nm-modal-section); color: var(--nm-text-muted); border-color: var(--nm-border-strong); }
-body.theme-dark .mon-row { background: var(--nm-modal-section); border-color: var(--nm-border-strong); }
+body.theme-dark .mon-row { background: var(--nm-table-row-bg); border-color: var(--nm-border-strong); }
 body.theme-dark .mon-row--active { background: rgba(29,154,176,0.12); }
 body.theme-dark .mon-device-name { color: #d8eaf5; }
 body.theme-dark .mon-device-ip { color: var(--nm-text-faint); }
@@ -3809,8 +3819,9 @@ body.theme-dark .nm-btn.nm-btn--active {
 .nm-select:focus,
 .nm-textarea:focus {
   outline: none;
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .nm-input::placeholder,
@@ -3829,8 +3840,9 @@ body.theme-dark .nm-btn.nm-btn--active {
 }
 
 .nm-search:focus-within {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .nm-search-icon {
@@ -4107,8 +4119,9 @@ body.theme-dark .nm-status--warning { color: #e8b040; }
 .modal-form select:focus,
 .modal-form textarea:focus {
   outline: none;
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .modal-actions .nm-btn,
@@ -4306,7 +4319,10 @@ button.dash-stat {
 body.theme-dark .mon-view-window--endpoints .nm-table th,
 body.theme-dark .mon-view-window--endpoints .nm-table td {
   border-color: var(--nm-border-strong);
-  background: var(--nm-modal-section);
+}
+
+.mon-view-window--endpoints .nm-table tbody tr:hover > td {
+  background: var(--nm-row-hover);
 }
 
 /* ── Standalone monitors panel ─────────────────────────────────────────── */
@@ -4388,12 +4404,12 @@ body.theme-dark .mon-view-window--endpoints .nm-table td {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.monitors-table-wrap tr.is-active {
+.monitors-table-wrap tr.is-active > td {
   background: var(--nm-accent-soft);
 }
 /* Keep the selected row's accent tint on top of the generic hover tint instead
    of hover washing it out — selection should win, not the transient hover. */
-.monitors-table-wrap tr.is-active:hover {
+.monitors-table-wrap tr.is-active:hover > td {
   background: var(--nm-accent-soft);
 }
 /* Higher specificity than components.css's later-loaded `.nm-table .nm-table-num`

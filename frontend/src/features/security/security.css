@@ -184,10 +184,9 @@ body.route-security .security-saved-searches select:hover {
 body.route-security .security-filters input:focus,
 body.theme-dark.route-security .security-filters input:focus,
 body.route-security .security-saved-searches select:focus {
-  border-color: var(--nm-accent);
+  border-color: var(--nm-focus-border);
   background: var(--nm-modal-input);
   outline: 0;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
 }
 
 body.route-security .security-search {
@@ -206,8 +205,9 @@ body.theme-dark.route-security .security-search input:focus {
 }
 
 body.route-security .security-search:focus-within {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 body.route-security .quick-filters {

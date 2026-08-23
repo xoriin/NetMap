@@ -332,6 +332,10 @@
   color: var(--nm-text);
 }
 
+/* Header treatment is shared with the Inventory and Monitoring tables, which are
+   separate implementations. Inventory is the reference: 11px/700 uppercase at 0.06em
+   on --nm-modal-header, divided from the body by --nm-border-strong. Keep the three in
+   step — a table that themes itself is what made the pages feel unrelated. */
 .nm-table thead th {
   position: sticky;
   top: 0;
@@ -339,12 +343,12 @@
   padding: 7px 10px;
   text-align: left;
   font-size: var(--nm-text-xs);
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--nm-text-muted);
-  background: var(--nm-surface-soft);
-  border-bottom: 1px solid var(--nm-border-strong);
+  letter-spacing: 0.06em;
+  color: var(--nm-table-header-text);
+  background: var(--nm-table-header-bg);
+  border-bottom: 1px solid var(--nm-table-header-border);
   white-space: nowrap;
 }
 
@@ -787,8 +791,9 @@ body.theme-dark .nm-swatch-option--hl {
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 240px) auto;
   align-items: end;
   gap: var(--nm-space-3);
-  margin-top: var(--nm-space-4);
-  padding-bottom: var(--nm-space-4);
+  /* Sits directly under the panel header now that the descriptive paragraph is gone. */
+  margin-top: 0;
+  padding-bottom: var(--nm-space-3);
   border-bottom: 1px solid var(--nm-border);
 }
 
@@ -888,6 +893,10 @@ body.theme-dark .nm-swatch-option--hl {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--nm-space-3);
+  /* Size each cell to its own content. The grid default (`stretch`) makes a field with
+     helper text underneath grow the row, which then stretches its neighbour's control
+     so the two inputs no longer line up. */
+  align-items: start;
 }
 
 @media (max-width: 720px) {
@@ -1021,8 +1030,9 @@ body.theme-dark .nm-swatch-option--hl {
 .modal .nm-select:focus,
 .modal .nm-textarea:focus {
   outline: none;
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .modal .device-form-col + .device-form-col,
@@ -1071,3 +1081,47 @@ body.theme-dark .modal .nm-textarea {
   color: var(--nm-text);
   color-scheme: dark;
 }
+
+/* ── Workspace section tabs ───────────────────────────────────────────────
+   Splits one workspace into sibling sections (IPAM: Internal/External,
+   Inventory: Devices/Cloud assets). Lives in the panel header. */
+.nm-section-tabs {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 2px;
+}
+
+.nm-section-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: stretch;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+  transition: color 140ms ease, border-color 140ms ease, text-shadow 140ms ease;
+}
+
+.nm-section-tab:hover {
+  background: transparent;
+  border-bottom-color: color-mix(in srgb, var(--nm-accent) 45%, transparent);
+  color: var(--nm-accent-strong);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--nm-accent) 28%, transparent);
+}
+
+.nm-section-tab.is-active {
+  border-bottom-color: var(--nm-accent);
+  color: var(--nm-accent-strong);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--nm-accent) 22%, transparent);
+}
+
+.nm-section-tab:focus-visible {
+  outline: 2px solid var(--nm-accent);
+  outline-offset: -2px;
+}
+

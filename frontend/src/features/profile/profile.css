@@ -347,10 +347,9 @@ body.theme-dark.route-profile .profile-panel .nm-input {
 
 body.route-profile .profile-panel .nm-input:focus,
 body.theme-dark.route-profile .profile-panel .nm-input:focus {
-  border-color: var(--nm-accent);
+  border-color: var(--nm-focus-border);
   background: var(--nm-modal-input);
   outline: 0;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
 }
 
 body.route-profile .profile-field-hint {

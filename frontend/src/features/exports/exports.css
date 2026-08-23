@@ -194,10 +194,9 @@ body.theme-dark .exports-panel .nm-select {
 .exports-panel .nm-select:focus,
 body.theme-dark .exports-panel .nm-input:focus,
 body.theme-dark .exports-panel .nm-select:focus {
-  border-color: var(--nm-accent);
+  border-color: var(--nm-focus-border);
   background: var(--nm-modal-input);
   outline: 0;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
 }
 
 .exports-firewall-form {

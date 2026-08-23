@@ -212,9 +212,9 @@
 .theme-lab-field select:focus,
 .theme-lab-table-tools select:focus,
 .theme-lab-search:focus-within {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
-  outline: none;
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .theme-lab-helper {
@@ -676,9 +676,9 @@ body.theme-dark .theme-lab-workspace .nm-btn--primary:hover:not(:disabled),
 }
 
 .theme-lab-field textarea:focus {
-  border-color: var(--nm-accent);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .theme-lab-field small,
@@ -724,8 +724,9 @@ body.theme-dark .theme-lab-workspace .nm-btn--primary:hover:not(:disabled),
 }
 
 .theme-lab-secret:focus-within {
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .theme-lab-secret input,

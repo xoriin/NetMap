@@ -123,9 +123,10 @@ body.theme-dark .topology-toolbar--ribbon .topo-search-input {
 
 .topology-toolbar--ribbon .toolbar-select:focus,
 .topology-toolbar--ribbon .topo-search-input:focus {
-  border-color: var(--nm-accent);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
   background: var(--nm-modal-input);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
 }
 
 .topology-toolbar--ribbon .toolbar-toggle,
@@ -588,9 +589,9 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
 
 .topology-canvas-controls .topo-search-input:focus,
 .topology-canvas-controls .topology-canvas-control:focus-visible {
-  border-color: var(--nm-accent);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+  border-color: var(--nm-focus-border);
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: -1px;
 }
 
 .topology-canvas-control {

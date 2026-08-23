@@ -80,11 +80,6 @@
 }
 
 /* ── Light-mode table headers ─────────────────────────────────────────────── */
-body:not(.theme-dark) .mon-table th {
-  background: var(--nm-shell-text);
-  color: #4e6e82;
-  border-bottom-color: rgba(170, 200, 218, 0.7);
-}
 body:not(.theme-dark) .inventory-table-header {
   background: var(--nm-shell-text);
   color: #4e6e82;
@@ -129,6 +124,12 @@ body:not(.theme-dark) .admin-panel {
 .dash-stats--monitoring {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 8px;
+}
+
+/* For bands with fewer than six stats. The fixed six-column grid leaves them squeezed
+   into the left of the row, narrow enough that their labels wrap. */
+.dash-stats--fill {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 .inv-stat-chip {
   display: inline-flex;

@@ -20,6 +20,10 @@
   --nm-accent: #1d9ab0;
   --nm-accent-strong: #1d6472;
   --nm-accent-soft: rgba(29, 154, 176, 0.12);
+  /* Focused text field: the border brightens to a restrained tone, with no coloured halo.
+     Inputs used to take the full accent border plus a 3px --nm-accent-soft glow, which read
+     as an illuminated box while typing and matched nothing else in the product. */
+  --nm-focus-border: #5c6c7d;
   --nm-tab-hover-bg: rgba(29, 154, 176, 0.07);
   --nm-tab-active-bg: rgba(29, 154, 176, 0.11);
   --nm-tab-hover-border: rgba(29, 154, 176, 0.18);
@@ -37,7 +41,18 @@
   --nm-danger-soft: rgba(217, 75, 75, 0.1);
   --nm-warning-soft: rgba(212, 145, 44, 0.12);
   --nm-success-soft: rgba(45, 157, 120, 0.12);
+  /* Shared data-table header. Every table in the app — .nm-table, Monitoring's
+     .mon-table, Inventory's .inventory-table-header — renders these, so the pages
+     read as one product. Values are Inventory's, which is the reference treatment. */
+  --nm-table-row-bg: #f9fbfd;
+  --nm-table-header-bg: #e7edf2;
+  --nm-table-header-text: #3f6178;
+  --nm-table-header-border: rgba(137, 168, 192, 0.86);
   --nm-row-hover: #e7edf2;
+  /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
+     still reads on a banded row, and --alt-soft is weaker again for nested rows. */
+  --nm-row-alt: rgba(15, 23, 42, 0.035);
+  --nm-row-alt-soft: rgba(15, 23, 42, 0.018);
   --nm-radius-sm: 6px;
   --nm-radius-md: 8px;
   --nm-radius-lg: 10px;
