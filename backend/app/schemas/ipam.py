@@ -152,28 +152,113 @@ class VlanImportRequest(BaseModel):
     group_ids: list[int]
 
 
+class ExternalIpDeviceOut(BaseModel):
+    """Minimal device identity for an external address."""
+
+    id: int
+    display_name: str | None = None
+    hostname: str | None = None
+    ip_address: str
+    device_type: str | None = None
+    site_id: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class CloudProviderOut(BaseModel):
+    id: int
+    key: str
+    name: str
+    aliases: list[str] = Field(default_factory=list)
+    icon: str
+    icon_data: str | None = None
+    builtin: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class CloudAssetCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    kind: str | None = Field(default=None, max_length=40)
+    provider_id: int | None = None
+    account: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(default=None, max_length=120)
+    device_id: int | None = None
+    description: str | None = None
+
+
+class CloudAssetUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    kind: str | None = Field(default=None, max_length=40)
+    provider_id: int | None = None
+    account: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(default=None, max_length=120)
+    device_id: int | None = None
+    description: str | None = None
+
+
+class CloudAssetOut(BaseModel):
+    id: int
+    name: str
+    kind: str | None
+    provider_id: int | None
+    provider: CloudProviderOut | None = None
+    account: str | None
+    region: str | None
+    device_id: int | None
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+    address_count: int = 0
+    in_use: int = 0
+    reserved: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class CloudAssetAddressCreate(BaseModel):
+    """Attach a public address directly to a cloud asset.
+
+    `pool_id` is optional on purpose. A cloud elastic IP is a single address, not a
+    delegated block, so requiring the user to define an allocation first is friction
+    that does not match how cloud addressing works. When omitted, the address is
+    matched to an existing allocation or filed under the provider's individual-address
+    allocation, which is created on demand.
+    """
+
+    ip_address: str = Field(..., min_length=1, max_length=64)
+    label: str | None = Field(default=None, max_length=120)
+    status: Literal["available", "reserved", "in_use"] = "in_use"
+    pool_id: int | None = None
+    owner: str | None = Field(default=None, max_length=120)
+    tags: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
 class ExternalIpPoolCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     cidr: str = Field(..., min_length=1, max_length=128)
-    provider: str | None = Field(default=None, max_length=80)
+    provider_id: int | None = None
     account: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(default=None, max_length=120)
     description: str | None = None
 
 
 class ExternalIpPoolUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    cidr: str | None = Field(default=None, min_length=1, max_length=128)
-    provider: str | None = Field(default=None, max_length=80)
+    provider_id: int | None = None
     account: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(default=None, max_length=120)
     description: str | None = None
 
 
 class ExternalIpPoolOut(BaseModel):
     id: int
     name: str
-    cidr: str
-    provider: str | None
+    provider_id: int | None = None
+    provider: CloudProviderOut | None = None
     account: str | None
+    region: str | None
     description: str | None
     created_at: datetime
     updated_at: datetime
@@ -182,15 +267,34 @@ class ExternalIpPoolOut(BaseModel):
     reserved: int = 0
     free: int = 0
     utilization: float = 0.0
+    allocations: list["ExternalIpRangeOut"] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class ExternalIpRangeCreate(BaseModel):
+    cidr: str = Field(..., min_length=1, max_length=128)
+
+
+class ExternalIpRangeOut(BaseModel):
+    id: int
+    pool_id: int
+    cidr: str
+    total: int = 0
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class ExternalIpAssignmentCreate(BaseModel):
     pool_id: int = Field(..., ge=1)
+    device_id: int | None = None
+    asset_id: int | None = None
     ip_address: str = Field(..., min_length=1, max_length=64)
     label: str = Field(..., min_length=1, max_length=120)
     status: Literal["available", "reserved", "in_use"] = "in_use"
+    # DEPRECATED: superseded by `asset_id`. Still accepted so existing clients keep
+    # working; when `asset_id` is absent these seed or match an asset instead.
     provider: str | None = Field(default=None, max_length=80)
     account: str | None = Field(default=None, max_length=120)
     owner: str | None = Field(default=None, max_length=120)
@@ -201,6 +305,8 @@ class ExternalIpAssignmentCreate(BaseModel):
 
 class ExternalIpAssignmentUpdate(BaseModel):
     pool_id: int | None = None
+    device_id: int | None = None
+    asset_id: int | None = None
     ip_address: str | None = Field(default=None, min_length=1, max_length=64)
     label: str | None = Field(default=None, min_length=1, max_length=120)
     status: Literal["available", "reserved", "in_use"] | None = None
@@ -215,13 +321,14 @@ class ExternalIpAssignmentUpdate(BaseModel):
 class ExternalIpAssignmentOut(BaseModel):
     id: int
     pool_id: int
+    device_id: int | None = None
+    device: ExternalIpDeviceOut | None = None
+    asset_id: int | None = None
+    asset: CloudAssetOut | None = None
     ip_address: str
     label: str
     status: str
-    provider: str | None
-    account: str | None
     owner: str | None
-    service: str | None
     tags: str | None
     notes: str | None
     created_at: datetime
@@ -249,3 +356,8 @@ class ExternalIpSummary(BaseModel):
     in_use: int
     reserved: int
     free: int
+    asset_count: int = 0
+    unassigned_address_count: int = 0
+
+
+ExternalIpPoolOut.model_rebuild()
