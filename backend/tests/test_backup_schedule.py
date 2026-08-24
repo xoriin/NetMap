@@ -60,6 +60,20 @@ def test_backup_filename_path_rejects_traversal_and_missing_files(tmp_path, monk
     assert resolved.name == "netmap-backup-ok.db"
 
 
+def test_backup_filename_path_ignores_unmanaged_files_and_symlinks(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    directory = backup_schedule.scheduled_backup_dir()
+    unmanaged = directory / "notes.db"
+    unmanaged.write_bytes(b"not a scheduled backup")
+    outside = tmp_path / "outside.db"
+    outside.write_bytes(b"SQLite format 3\x00outside")
+    (directory / "netmap-backup-link.db").symlink_to(outside)
+
+    assert backup_schedule.backup_filename_path(unmanaged.name) is None
+    assert backup_schedule.backup_filename_path("netmap-backup-link.db") is None
+    assert backup_schedule.list_scheduled_backups() == []
+
+
 def test_check_skips_when_disabled(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", str(tmp_path))
     service = backup_schedule.BackupScheduleService()

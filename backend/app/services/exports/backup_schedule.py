@@ -23,7 +23,21 @@ def scheduled_backup_dir() -> Path:
 
 
 def _existing_backups() -> list[Path]:
-    return sorted(scheduled_backup_dir().glob(BACKUP_GLOB), key=lambda p: p.stat().st_mtime, reverse=True)
+    directory = scheduled_backup_dir().resolve()
+    backups: list[Path] = []
+    for candidate in directory.glob(BACKUP_GLOB):
+        # Scheduled backups are regular files created in this directory. Ignore
+        # symlinks and anything that no longer resolves beneath the fixed root.
+        if candidate.is_symlink():
+            continue
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(directory)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file():
+            backups.append(resolved)
+    return sorted(backups, key=lambda path: path.stat().st_mtime, reverse=True)
 
 
 def list_scheduled_backups() -> list[dict]:
@@ -47,18 +61,8 @@ def prune_scheduled_backups(retention_count: int) -> list[str]:
 
 
 def backup_filename_path(filename: str) -> Path | None:
-    """Resolve a backup filename to its path, rejecting anything but a bare filename in the backup dir."""
-    if "/" in filename or "\\" in filename or filename in (".", ".."):
-        return None
-    directory = scheduled_backup_dir()
-    candidate = directory / filename
-    try:
-        candidate.resolve().relative_to(directory.resolve())
-    except ValueError:
-        return None
-    if not candidate.is_file():
-        return None
-    return candidate
+    """Return a known scheduled backup without constructing a path from request data."""
+    return next((candidate for candidate in _existing_backups() if candidate.name == filename), None)
 
 
 class BackupScheduleService:

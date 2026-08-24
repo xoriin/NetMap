@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import hmac
 import secrets
 import string
@@ -28,11 +27,13 @@ def _random_token(length: int) -> str:
 
 
 def _hash_key(raw_key: str) -> str:
-    return hmac.new(
+    # This is a keyed MAC, not an unsalted password hash. Using hmac.digest keeps
+    # the construction explicit while preserving the existing HMAC-SHA256 output.
+    return hmac.digest(
         signing_secret().encode("utf-8"),
         raw_key.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+        "sha256",
+    ).hex()
 
 
 def _as_aware_utc(value: datetime) -> datetime:
