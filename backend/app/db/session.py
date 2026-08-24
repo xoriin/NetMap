@@ -177,6 +177,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0073_external_ip_device_link", _migrate_external_ip_device_link)
         _run_migration(conn, inspector, "0074_external_ip_cloud_services", _migrate_external_ip_cloud_services)
         _run_migration(conn, inspector, "0075_external_ip_allocation_icons", _migrate_external_ip_allocation_icons)
+        _run_migration(conn, inspector, "0076_core_cloud_providers", _migrate_core_cloud_providers)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1480,7 +1481,6 @@ _BUILTIN_CLOUD_PROVIDERS = (
     ("aws", "AWS", ["amazon", "amazon web services", "ec2"], "aws"),
     ("azure", "Azure", ["microsoft", "microsoft azure"], "azure"),
     ("google-cloud", "Google Cloud", ["gcp", "google"], "google_cloud"),
-    ("cloudflare", "Cloudflare", [], "cloudflare"),
 )
 
 
@@ -1812,3 +1812,43 @@ def _migrate_external_ip_allocation_icons(conn, inspector) -> None:
         return
     if "icon" not in _live_columns(conn, "external_ip_pools"):
         conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN icon VARCHAR(80) NOT NULL DEFAULT 'cloud'"))
+
+
+def _migrate_core_cloud_providers(conn, inspector) -> None:
+    """Keep only AWS, Azure, and Google Cloud in the stock provider catalogue.
+
+    An untouched, unused Cloudflare row came from the old four-provider seed and can be
+    removed safely. If it has been customised or is already referenced, retain it as a
+    normal provider so upgrading cannot detach allocations or cloud assets.
+    """
+    tables = _live_tables(conn)
+    if "cloud_providers" not in tables:
+        return
+    row = conn.execute(text("""
+        SELECT id, name, aliases, icon, icon_data, builtin
+        FROM cloud_providers WHERE key = 'cloudflare'
+    """)).fetchone()
+    if row is None or not row[5]:
+        return
+
+    provider_id = row[0]
+    referenced = False
+    if "external_ip_pools" in tables and "provider_id" in _live_columns(conn, "external_ip_pools"):
+        referenced = bool(conn.execute(
+            text("SELECT 1 FROM external_ip_pools WHERE provider_id = :provider_id LIMIT 1"),
+            {"provider_id": provider_id},
+        ).fetchone())
+    if not referenced and "cloud_assets" in tables and "provider_id" in _live_columns(conn, "cloud_assets"):
+        referenced = bool(conn.execute(
+            text("SELECT 1 FROM cloud_assets WHERE provider_id = :provider_id LIMIT 1"),
+            {"provider_id": provider_id},
+        ).fetchone())
+
+    untouched = row[1] == "Cloudflare" and row[2] in (None, "", "[]") and row[3] == "cloudflare" and not row[4]
+    if untouched and not referenced:
+        conn.execute(text("DELETE FROM cloud_providers WHERE id = :provider_id"), {"provider_id": provider_id})
+        return
+    conn.execute(
+        text("UPDATE cloud_providers SET builtin = 0, updated_at = :now WHERE id = :provider_id"),
+        {"provider_id": provider_id, "now": datetime.now(timezone.utc)},
+    )

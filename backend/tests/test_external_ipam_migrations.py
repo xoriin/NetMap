@@ -1,4 +1,4 @@
-"""Migration coverage for the External IPAM asset tier (0068-0071).
+"""Migration coverage for the External IPAM schema and catalogue (0068-0076).
 
 These exercise the migrations against a hand-built *pre-migration* schema rather than
 a fresh `create_all`, because the interesting behaviour is the 0070 backfill and the
@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.session import (
     _migrate_cloud_assets,
     _migrate_cloud_providers,
+    _migrate_core_cloud_providers,
     _migrate_external_ip_asset_backfill,
     _migrate_external_ip_cloud_services,
     _migrate_external_ip_allocation_icons,
@@ -134,6 +135,7 @@ def _run_all(conn):
         _migrate_external_ip_pool_cleanup,
         _migrate_external_ip_cloud_services,
         _migrate_external_ip_allocation_icons,
+        _migrate_core_cloud_providers,
     ):
         fn(conn, stale_inspector)
     conn.commit()
@@ -251,5 +253,37 @@ def test_migrations_are_a_noop_on_a_fresh_database():
 
     _run_all(conn)
 
-    assert conn.execute(text("SELECT COUNT(*) FROM cloud_providers")).scalar() == 4
+    assert conn.execute(text("SELECT COUNT(*) FROM cloud_providers")).scalar() == 3
     assert conn.execute(text("SELECT COUNT(*) FROM cloud_assets")).scalar() == 0
+
+
+def test_retired_stock_cloudflare_is_removed_only_when_safe():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    conn = engine.connect()
+    conn.execute(text("""
+        CREATE TABLE cloud_providers (
+            id INTEGER PRIMARY KEY, key TEXT UNIQUE, name TEXT, aliases TEXT, icon TEXT,
+            icon_data TEXT, builtin BOOLEAN, created_at DATETIME, updated_at DATETIME
+        )
+    """))
+    conn.execute(text("CREATE TABLE external_ip_pools (id INTEGER PRIMARY KEY, provider_id INTEGER)"))
+    conn.execute(text("CREATE TABLE cloud_assets (id INTEGER PRIMARY KEY, provider_id INTEGER)"))
+    conn.execute(text("""
+        INSERT INTO cloud_providers
+            (id, key, name, aliases, icon, icon_data, builtin, created_at, updated_at)
+        VALUES (1, 'cloudflare', 'Cloudflare', '[]', 'cloudflare', NULL, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """))
+
+    _migrate_core_cloud_providers(conn, inspect(conn))
+    assert conn.execute(text("SELECT COUNT(*) FROM cloud_providers WHERE key = 'cloudflare'")).scalar() == 0
+
+    conn.execute(text("""
+        INSERT INTO cloud_providers
+            (id, key, name, aliases, icon, icon_data, builtin, created_at, updated_at)
+        VALUES (2, 'cloudflare', 'Cloudflare', '[]', 'cloudflare', NULL, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """))
+    conn.execute(text("INSERT INTO external_ip_pools (id, provider_id) VALUES (1, 2)"))
+    _migrate_core_cloud_providers(conn, inspect(conn))
+    preserved = conn.execute(text("SELECT builtin FROM cloud_providers WHERE id = 2")).scalar()
+    assert preserved == 0
+    assert conn.execute(text("SELECT provider_id FROM external_ip_pools WHERE id = 1")).scalar() == 2
