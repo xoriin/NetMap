@@ -131,10 +131,8 @@
 .external-ip-actions-menu { position: relative; display: inline-flex; }
 .external-ip-actions-trigger { min-width: 84px; }
 .external-ip-actions-popover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 5px);
-  right: 0;
+  position: fixed;
+  z-index: 320;
   display: flex;
   width: 178px;
   flex-direction: column;
@@ -948,6 +946,20 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
 .ipam-detail-modal .ipam-legend-dot--gateway { border-color: var(--ipam-gateway); background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft)); }
 .ipam-detail-modal .ipam-legend-dot--system { border-color: var(--ipam-system); background: color-mix(in srgb, var(--ipam-system) 28%, var(--nm-surface-soft)); }
 .ipam-detail-modal .ipam-legend-dot--free { border-color: var(--nm-border); background: var(--nm-surface-soft); }
+
+.ipam-reservations-table td.ipam-reservation-actions {
+  text-align: center;
+}
+
+.ipam-reservation-actions > .ipam-row-actions {
+  display: inline-flex;
+  gap: var(--nm-space-2);
+}
+
+.modal-header-actions .ipam-reservation-convert-btn {
+  height: 30px;
+  min-height: 30px;
+}
 
 @media (max-width: 980px) {
   .ipam-workspace .ipam-panel-header.nm-app-panel-header {

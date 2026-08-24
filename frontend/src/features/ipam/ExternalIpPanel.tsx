@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Boxes, ChevronDown, ChevronRight, Cloud, Globe2, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
 import {
   api,
@@ -52,11 +53,47 @@ function nullable(value: string) {
 function AllocationActionsMenu({ onAddRange, onEdit, onDelete }: { onAddRange: () => void; onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLSpanElement>(null);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+
+  const updatePopoverPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = popoverRef.current?.getBoundingClientRect();
+    const menuWidth = menuRect?.width ?? 178;
+    const menuHeight = menuRect?.height ?? 112;
+    const viewportGap = 8;
+    const controlGap = 5;
+    const belowTop = triggerRect.bottom + controlGap;
+    const aboveTop = triggerRect.top - menuHeight - controlGap;
+    const openAbove = belowTop + menuHeight > window.innerHeight - viewportGap && aboveTop >= viewportGap;
+    setPopoverPosition({
+      top: Math.max(viewportGap, Math.min(openAbove ? aboveTop : belowTop, window.innerHeight - menuHeight - viewportGap)),
+      left: Math.max(viewportGap, Math.min(triggerRect.right - menuWidth, window.innerWidth - menuWidth - viewportGap)),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (open) updatePopoverPosition();
+  }, [open, updatePopoverPosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [open, updatePopoverPosition]);
 
   useEffect(() => {
     if (!open) return;
     const closeOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
@@ -75,15 +112,15 @@ function AllocationActionsMenu({ onAddRange, onEdit, onDelete }: { onAddRange: (
   };
 
   return <span className="external-ip-actions-menu" ref={rootRef} onClick={(event) => event.stopPropagation()}>
-    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary external-ip-actions-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+    <button ref={triggerRef} type="button" className="nm-btn nm-btn--sm nm-btn--secondary external-ip-actions-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
       Actions <ChevronDown size={13} />
     </button>
-    {open && <span className="external-ip-actions-popover" role="menu">
+    {open && createPortal(<span ref={popoverRef} className="external-ip-actions-popover" role="menu" style={{ top: popoverPosition.top, left: popoverPosition.left }} onClick={(event) => event.stopPropagation()}>
       <button type="button" role="menuitem" onClick={() => run(onAddRange)}><Plus size={13} /> Add range</button>
       <button type="button" role="menuitem" onClick={() => run(onEdit)}><Pencil size={13} /> Edit allocation</button>
       <span className="external-ip-actions-separator" />
       <button type="button" role="menuitem" className="is-danger" onClick={() => run(onDelete)}><Trash2 size={13} /> Delete allocation</button>
-    </span>}
+    </span>, document.body)}
   </span>;
 }
 
