@@ -15,7 +15,7 @@ import {
   api,
   type IpamSummary, type IpamSubnet, type IpamConflict, type DhcpLease,
   type IpReservation, type IpReservationPayload, type IpAddressEntry,
-  type SubnetPayload, type VlanSuggestion,
+  type SubnetPayload, type VlanSuggestion, type Device, type DevicePayload,
 } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
@@ -30,6 +30,8 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
 import { ExternalIpPanel } from "./ExternalIpPanel";
+import { DeviceForm } from "../devices/DeviceForm";
+import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 
 function ipamAddressLabel(entry: IpAddressEntry): string | null {
   const name = entry.display_name?.trim();
@@ -59,7 +61,7 @@ function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: stri
   );
 }
 
-export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, onDeviceChange }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; onDeviceChange?: (device: import("../../api/client").Device) => void }) {
+export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, canClaimReservation = false, onDeviceChange }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; canClaimReservation?: boolean; onDeviceChange?: (device: Device) => void }) {
   const confirmAction = useConfirm();
   const toast = useToast();
   const [ipamView, setIpamView] = useState<IpamViewId>(() => readIpamViewFromLocation());
@@ -112,6 +114,20 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
   const [nextFreeBusySubnetId, setNextFreeBusySubnetId] = useState<number | null>(null);
   const [showReservations, setShowReservations] = useState(false);
   const [resSubnetFilter, setResSubnetFilter] = useState<number | "all">("all");
+  const [reservationDevice, setReservationDevice] = useState<IpReservation | null>(null);
+  const [reservationDeviceBusy, setReservationDeviceBusy] = useState(false);
+  const reservationDeviceMetadataQuery = useApiQuery(
+    reservationDevice === null ? null : async () => {
+      const [groups, sites, snmpProfiles, deviceTypes] = await Promise.all([
+        api.topologyGroups(accessToken).catch(() => []),
+        api.sites(accessToken).catch(() => []),
+        api.listSnmpProfiles(accessToken).catch(() => []),
+        api.listDeviceTypes(accessToken).catch(() => []),
+      ]);
+      return { groups, sites, snmpProfiles, deviceTypes };
+    },
+    [accessToken, reservationDevice !== null],
+  );
 
   const [showVlanImport, setShowVlanImport] = useState(false);
   const [vlanSuggestions, setVlanSuggestions] = useState<VlanSuggestion[]>([]);
@@ -360,6 +376,28 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
       toast.success("Reservation removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove reservation");
+    }
+  }
+
+  function convertReservationToDevice(reservation: IpReservation) {
+    closeReserveDialog();
+    setReservationDevice(reservation);
+  }
+
+  async function createDeviceFromReservation(payload: DevicePayload) {
+    setReservationDeviceBusy(true);
+    try {
+      const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
+      if (!created) return;
+      setReservationDevice(null);
+      onDeviceChange?.(created);
+      await load();
+      if (selectedSubnet) void loadAddresses(selectedSubnet);
+      toast.success("Reservation converted to a device");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to convert reservation to a device");
+    } finally {
+      setReservationDeviceBusy(false);
     }
   }
 
@@ -674,7 +712,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
                     <th><IconNote size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Notes</th>
                     <th><IconUsers size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Reserved by</th>
                     <th><IconCalendar size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Expires</th>
-                    {canWrite && <th />}
+                    {(canWrite || (canCreateDevice && canClaimReservation)) && <th />}
                   </tr>
                 </thead>
                 <tbody>
@@ -692,11 +730,12 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
                             : r.expires_at.slice(0, 10)
                         ) : <span className="dash-panel-meta">—</span>}
                       </td>
-                      {canWrite && (
-                        <td>
+                      {(canWrite || (canCreateDevice && canClaimReservation)) && (
+                        <td className="ipam-reservation-actions">
                           <span className="ipam-row-actions">
-                            <button type="button" className="nm-btn nm-btn--sm" onClick={() => openEditReservation(r)}>Edit</button>
-                            <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>
+                            {canWrite && <button type="button" className="nm-btn nm-btn--sm" onClick={() => openEditReservation(r)}>Edit</button>}
+                            {!canWrite && canCreateDevice && canClaimReservation && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => convertReservationToDevice(r)}>Convert to device</button>}
+                            {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>}
                           </span>
                         </td>
                       )}
@@ -941,32 +980,26 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
           titleIcon={<IconMapPin size={18} />}
           onCancel={closeReserveDialog}
           size="sm"
+          headerActions={editingReservation && canCreateDevice && canClaimReservation ? (
+            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary ipam-reservation-convert-btn" onClick={() => convertReservationToDevice(editingReservation)}>
+              Convert to device
+            </button>
+          ) : undefined}
           footer={(
-            <div className="nm-btn-row" style={{ width: "100%", justifyContent: "space-between" }}>
-              {editingReservation && canWrite ? (
-                <button
-                  type="button"
-                  className="nm-btn nm-btn--danger"
-                  onClick={() => { closeReserveDialog(); void deleteReservation(editingReservation); }}
-                >
-                  Delete
-                </button>
-              ) : <span />}
-              <div className="nm-btn-row">
-                <button type="button" className="nm-btn" onClick={closeReserveDialog}>Cancel</button>
-                <button
-                  type="submit"
-                  form="reserve-ip-form"
-                  className="nm-btn nm-btn--secondary"
-                  disabled={reserveBusy || !reserveLabel.trim()}
-                >
-                  {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : (() => {
-                    const r = reserveIp ? parseReserveIpInput(reserveIp) : null;
-                    return Array.isArray(r) && r.length > 1 ? `Reserve ${r.length} addresses` : "Reserve IP";
-                  })()}
-                </button>
-              </div>
-            </div>
+            <>
+              <button type="button" className="nm-btn" onClick={closeReserveDialog}>Cancel</button>
+              <button
+                type="submit"
+                form="reserve-ip-form"
+                className="nm-btn nm-btn--secondary"
+                disabled={reserveBusy || !reserveLabel.trim()}
+              >
+                {reserveBusy ? "Saving…" : editingReservation ? "Save changes" : (() => {
+                  const r = reserveIp ? parseReserveIpInput(reserveIp) : null;
+                  return Array.isArray(r) && r.length > 1 ? `Reserve ${r.length} addresses` : "Reserve IP";
+                })()}
+              </button>
+            </>
           )}
         >
           <form id="reserve-ip-form" className="modal-form" onSubmit={(e) => void saveReservation(e)}>
@@ -1055,6 +1088,28 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
             {reserveError && <p className="nm-alert nm-alert--error">{reserveError}</p>}
           </form>
         </Modal>
+      )}
+
+      {reservationDevice && reservationDeviceMetadataQuery.data && (
+        <DeviceForm
+          busy={reservationDeviceBusy}
+          device={null}
+          cloneSource={null}
+          initialValues={{
+            display_name: reservationDevice.label,
+            ip_address: reservationDevice.ip_address,
+            mac_address: reservationDevice.mac_address,
+            notes: reservationDevice.notes,
+          }}
+          deviceTypes={reservationDeviceMetadataQuery.data.deviceTypes}
+          groups={reservationDeviceMetadataQuery.data.groups}
+          snmpProfiles={reservationDeviceMetadataQuery.data.snmpProfiles}
+          sites={reservationDeviceMetadataQuery.data.sites}
+          title="Convert reservation to device"
+          submitLabel="Convert to device"
+          onCancel={() => setReservationDevice(null)}
+          onSubmit={createDeviceFromReservation}
+        />
       )}
 
       {/* DHCP leases panel */}

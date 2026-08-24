@@ -27,6 +27,8 @@ export function DeviceForm({
   groups,
   snmpProfiles,
   sites,
+  title,
+  submitLabel,
   onCancel,
   onSubmit,
 }: {
@@ -38,6 +40,8 @@ export function DeviceForm({
   groups: TopologyGroup[];
   snmpProfiles: SnmpProfile[];
   sites: Site[];
+  title?: string;
+  submitLabel?: string;
   onCancel: () => void;
   onSubmit: (payload: DevicePayload) => Promise<void>;
 }) {
@@ -60,7 +64,7 @@ export function DeviceForm({
     display_name: device?.display_name ?? cloneSource?.display_name ?? initialValues?.display_name ?? "",
     hostname: initialDeviceName(device, cloneSource) || initialValues?.hostname || "",
     ip_address: cloneSource ? "" : device?.ip_address ?? initialValues?.ip_address ?? "",
-    mac_address: cloneSource ? "" : device?.mac_address ?? "",
+    mac_address: cloneSource ? "" : device?.mac_address ?? initialValues?.mac_address ?? "",
     vendor: device?.vendor ?? cloneSource?.vendor ?? "",
     os: device?.os ?? cloneSource?.os ?? "",
     device_type: device?.device_type ?? cloneSource?.device_type ?? "",
@@ -118,7 +122,7 @@ export function DeviceForm({
 
   return (
     <Modal
-      title={device ? "Edit device" : cloneSource ? "Clone device" : "Add device"}
+      title={title ?? (device ? "Edit device" : cloneSource ? "Clone device" : "Add device")}
       onCancel={onCancel}
       headerSubmitLabel={device ? "Save" : undefined}
       headerSubmitFormId={device ? formId : undefined}
@@ -280,7 +284,7 @@ export function DeviceForm({
 
         <div className="modal-actions device-form-actions">
           <button type="button" className="nm-btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>Save</button>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>{busy ? "Saving…" : submitLabel ?? "Save"}</button>
         </div>
       </form>
     </Modal>

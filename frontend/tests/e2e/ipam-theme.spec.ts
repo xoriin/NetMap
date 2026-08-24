@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 const subnet = {
   id: 1,
@@ -133,6 +133,104 @@ test("Internal IPAM tables own canonical typography independently of Monitoring"
   }
   await expect(page.locator(".ipam-subnets-table .mon-device-name")).toHaveCSS("font-size", "12px");
 });
+
+for (const theme of ["light", "dark"] as const) {
+test(`a reservation can be explicitly converted into a device from IPAM in ${theme} mode`, async ({ page }) => {
+  const reservation = {
+    id: 7,
+    ip_address: "10.30.20.30",
+    subnet_id: 1,
+    label: "Printer allocation",
+    mac_address: "00:11:22:33:44:55",
+    notes: "Office printer",
+    reserved_by: "Network team",
+    expires_at: null,
+    created_at: "2026-08-01T00:00:00Z",
+    updated_at: "2026-08-01T00:00:00Z",
+  };
+  const requests: Record<string, unknown>[] = [];
+  await setupIpam(page, theme, async () => {
+    await page.route("**/api/v1/ipam/reservations", (route) => route.fulfill({ json: [reservation] }));
+    await page.route("**/api/v1/admin/device-types", (route) => route.fulfill({ json: [] }));
+    await page.route("**/api/v1/topology/devices", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = await route.request().postDataJSON() as Record<string, unknown>;
+      requests.push(body);
+      if (!body.claim_reservation) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { code: "ip_reservation_conflict", reservation_id: reservation.id, ip_address: reservation.ip_address, label: reservation.label, mac_address: reservation.mac_address, can_claim: true } }),
+        });
+        return;
+      }
+      await route.fulfill({ json: mockDevice({ id: 30, display_name: reservation.label, hostname: null, ip_address: reservation.ip_address, mac_address: reservation.mac_address }) });
+    });
+  });
+
+  await page.locator(".ipam-reservations-panel").getByRole("button", { name: "Show" }).click();
+  const reservationRow = page.locator(".ipam-reservations-table tbody tr").first();
+  const actionCell = reservationRow.locator(".ipam-reservation-actions");
+  const actionGroup = actionCell.locator(".ipam-row-actions");
+  const editAction = actionCell.getByRole("button", { name: "Edit" });
+  const deleteAction = actionCell.getByRole("button", { name: "Delete" });
+  const [actionCellBox, actionGroupBox, editActionBox, deleteActionBox] = await Promise.all([
+    actionCell.boundingBox(),
+    actionGroup.boundingBox(),
+    editAction.boundingBox(),
+    deleteAction.boundingBox(),
+  ]);
+  expect(actionCellBox).not.toBeNull();
+  expect(actionGroupBox).not.toBeNull();
+  const actionCellCentreX = (actionCellBox?.x ?? 0) + (actionCellBox?.width ?? 0) / 2;
+  const actionGroupCentreX = (actionGroupBox?.x ?? 0) + (actionGroupBox?.width ?? 0) / 2;
+  expect(Math.abs(actionCellCentreX - actionGroupCentreX)).toBeLessThanOrEqual(2);
+  expect(actionGroupBox?.width ?? 0).toBeLessThan(130);
+  expect((deleteActionBox?.x ?? 0) - ((editActionBox?.x ?? 0) + (editActionBox?.width ?? 0))).toBeGreaterThanOrEqual(8);
+  await editAction.click();
+  const reservationDialog = page.getByRole("dialog", { name: "Edit reservation" });
+  const convertButton = reservationDialog.getByRole("button", { name: "Convert to device" });
+  await expect(convertButton).toBeVisible();
+  const closeButton = reservationDialog.getByRole("button", { name: "Close" });
+  const [convertBox, closeBox, cancelBox, saveBox] = await Promise.all([
+    convertButton.boundingBox(),
+    closeButton.boundingBox(),
+    reservationDialog.getByRole("button", { name: "Cancel" }).boundingBox(),
+    reservationDialog.getByRole("button", { name: "Save changes" }).boundingBox(),
+  ]);
+  await expect(reservationDialog.getByRole("button", { name: "Delete", exact: true })).toHaveCount(0);
+  expect(convertBox).not.toBeNull();
+  expect(closeBox).not.toBeNull();
+  expect(cancelBox).not.toBeNull();
+  expect(saveBox).not.toBeNull();
+  const convertCentreY = (convertBox?.y ?? 0) + (convertBox?.height ?? 0) / 2;
+  const closeCentreY = (closeBox?.y ?? 0) + (closeBox?.height ?? 0) / 2;
+  expect(Math.abs(convertCentreY - closeCentreY)).toBeLessThanOrEqual(1);
+  expect(Math.abs((convertBox?.height ?? 0) - (closeBox?.height ?? 0))).toBeLessThanOrEqual(1);
+  expect(convertBox?.x ?? 0).toBeLessThan(closeBox?.x ?? 0);
+  expect((closeBox?.y ?? 0) + (closeBox?.height ?? 0)).toBeLessThan(cancelBox?.y ?? 0);
+  expect(Math.abs((cancelBox?.y ?? 0) - (saveBox?.y ?? 0))).toBeLessThanOrEqual(1);
+  expect(cancelBox?.x ?? 0).toBeLessThan(saveBox?.x ?? 0);
+  await convertButton.click();
+
+  const deviceDialog = page.getByRole("dialog", { name: "Convert reservation to device" });
+  await expect(deviceDialog.getByLabel("Display name")).toHaveValue(reservation.label);
+  await expect(deviceDialog.getByLabel("IP address")).toHaveValue(reservation.ip_address);
+  await expect(deviceDialog.getByLabel("MAC address")).toHaveValue(reservation.mac_address);
+  await expect(deviceDialog.getByLabel("Notes")).toHaveValue(reservation.notes);
+  await deviceDialog.getByRole("button", { name: "Convert to device" }).click();
+
+  const confirmDialog = page.getByRole("dialog", { name: "Use reserved IP address?" });
+  await expect(confirmDialog).toContainText(reservation.label);
+  await expect(confirmDialog).toContainText(reservation.mac_address);
+  await confirmDialog.getByRole("button", { name: "Delete reservation and create device" }).click();
+
+  await expect(deviceDialog).toBeHidden();
+  expect(requests).toHaveLength(2);
+  expect(requests[0].claim_reservation).toBe(false);
+  expect(requests[1].claim_reservation).toBe(true);
+});
+}
 
 test("the dense /24 map shows all addresses without scaling or horizontal overflow", async ({ page }) => {
   await setupIpam(page);
@@ -370,6 +468,22 @@ test("External IPs uses the approved service tree, filters, and allocation menu"
   await expect(menu.getByRole("menuitem", { name: "Add range" })).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "Edit allocation" })).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "Delete allocation" })).toBeVisible();
+  const menuGeometry = await menu.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const bottomItem = node.querySelector<HTMLButtonElement>("button:last-of-type");
+    const bottomRect = bottomItem?.getBoundingClientRect();
+    const bottomPoint = bottomRect
+      ? document.elementFromPoint(bottomRect.left + bottomRect.width / 2, bottomRect.top + bottomRect.height / 2)
+      : null;
+    return {
+      fullyInViewport: rect.top >= 0 && rect.bottom <= window.innerHeight,
+      bottomItemIsExposed: bottomPoint !== null && node.contains(bottomPoint),
+      insideClippedPanel: Boolean(node.closest(".external-ip-panel")),
+    };
+  });
+  expect(menuGeometry.fullyInViewport).toBe(true);
+  expect(menuGeometry.bottomItemIsExposed).toBe(true);
+  expect(menuGeometry.insideClippedPanel).toBe(false);
 
   // Allocations use the shared searchable icon catalogue. The selected icon is
   // persisted with the allocation and immediately becomes its tree-row mark.

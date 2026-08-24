@@ -92,6 +92,7 @@ export function DashboardView({
   const canWrite = userHasPermission(user, "topology_write");
   const canViewSecurity = userHasPermission(user, "security_view");
   const canWriteIpam = userHasPermission(user, "ipam_write");
+  const canClaimIpReservations = canWrite && userHasPermission(user, "ipam_reservation_claim");
   const canManageMonitoring = userHasPermission(user, "monitoring_write");
   const canManageAlerts = userHasPermission(user, "alert_write");
   const canManageDiscovery = userHasPermission(user, "discovery_manage");
@@ -193,7 +194,7 @@ export function DashboardView({
         <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} canManageAlerts={canManageAlerts} canManageMonitoring={canManageMonitoring} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} />
       )}
       {currentRoute === "/ipam" && accessToken && (
-        <IpamWorkspace accessToken={accessToken} canWrite={canWriteIpam} canCreateDevice={canWrite} onDeviceChange={onDeviceChange} />
+        <IpamWorkspace accessToken={accessToken} canWrite={canWriteIpam} canCreateDevice={canWrite} canClaimReservation={canClaimIpReservations} onDeviceChange={onDeviceChange} />
       )}
       {currentRoute === "/tools" && accessToken && (
         <ToolsWorkspace
