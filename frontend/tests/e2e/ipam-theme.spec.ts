@@ -246,6 +246,31 @@ test("External IPs shows allocations and spare capacity, not asset management", 
   await expect(page.locator(".external-ip-pool-row")).toHaveCount(0);
 });
 
+test("Add allocation starts with essentials and reveals optional details on demand", async ({ page }) => {
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await openExternalIps(page);
+
+  await page.locator(".external-ip-panel-header").getByRole("button", { name: "Add allocation" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add allocation" });
+  await expect(dialog.getByLabel("Allocation name")).toBeVisible();
+  await expect(dialog.getByLabel("Public IP address or range")).toBeVisible();
+  await expect(dialog.getByLabel("Provider (optional)")).toBeVisible();
+  await expect(dialog.getByText("Enter one address, a CIDR block, or a start–end range.")).toBeVisible();
+
+  // Cloud metadata is useful but not part of the minimum setup task. It stays out of
+  // the way until requested, and service is genuinely optional in the API model.
+  const detailsToggle = dialog.getByRole("button", { name: /^More details/ });
+  await expect(detailsToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(dialog.locator("#external-ip-allocation-details")).toHaveCount(0);
+  await detailsToggle.click();
+  await expect(detailsToggle).toHaveAttribute("aria-expanded", "true");
+  const service = dialog.getByLabel("Service / area (optional)");
+  await expect(service).toBeVisible();
+  await expect(service).not.toHaveAttribute("required", "");
+  await expect(dialog.getByText("Cloud", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Add allocation" })).toBeVisible();
+});
+
 test("External IPs uses the approved service tree, filters, and allocation menu", async ({ page }) => {
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
   await openExternalIps(page);
@@ -257,6 +282,14 @@ test("External IPs uses the approved service tree, filters, and allocation menu"
   await expect(service).toContainText("Amazon EC2");
   await expect(allocation).toContainText("6 addresses");
   await expect(page.locator(".external-ip-utilization .ipam-util-bar")).toHaveCount(3);
+
+  // Filtering belongs in the panel header, where it uses the otherwise empty space
+  // beside the title instead of consuming a dedicated toolbar row above the table.
+  const panelHeader = page.locator(".external-ip-panel-header");
+  await expect(panelHeader.getByRole("searchbox", { name: "Search external IPs" })).toBeVisible();
+  await expect(panelHeader.getByLabel("Status")).toBeVisible();
+  await expect(panelHeader.getByRole("button", { name: "Clear filters" })).toBeVisible();
+  await expect(page.locator(".external-ip-panel > .external-ip-toolbar")).toHaveCount(0);
 
   // The hierarchy must not consume the spare width while the informational columns
   // remain cramped. The proportions fill the table and give account, totals,
@@ -317,7 +350,7 @@ test("External IPs uses the approved service tree, filters, and allocation menu"
     allocationPatch = route.request().postDataJSON();
     await route.fulfill({ json: { ...POOL, icon: "database" } });
   });
-  await allocationDialog.getByRole("button", { name: "Save allocation" }).click();
+  await allocationDialog.getByRole("button", { name: "Save changes" }).click();
   await expect.poll(() => allocationPatch?.icon).toBe("database");
 
   const search = page.getByRole("searchbox", { name: "Search external IPs" });

@@ -217,6 +217,7 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
 
   const [poolModal, setPoolModal] = useState<ExternalIpPool | "new" | null>(null);
   const [poolForm, setPoolForm] = useState<ExternalIpPoolPayload>(EMPTY_POOL);
+  const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const selectedPoolProvider = cloudProviders.find((provider) => provider.id === poolForm.provider_id) ?? null;
   const serviceSuggestions = CLOUD_SERVICE_SUGGESTIONS[selectedPoolProvider?.key ?? ""] ?? [];
   const [assignmentModal, setAssignmentModal] = useState<ExternalIpAssignment | "new" | null>(null);
@@ -267,6 +268,13 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
       name: pool.name, provider_id: pool.provider_id,
       service: pool.service, icon: pool.icon, account: pool.account, region: pool.region, description: pool.description,
     } : { ...EMPTY_POOL, provider_id: providerId });
+    setPoolDetailsOpen(Boolean(pool && (
+      pool.service?.trim()
+      || pool.account?.trim()
+      || pool.region?.trim()
+      || pool.description?.trim()
+      || pool.icon !== "cloud"
+    )));
     setFormError(null);
   }
 
@@ -442,18 +450,20 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
             <span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>
             <span className="ipam-panel-title-wrap"><span className="ipam-panel-title">External IPs</span><span className="ipam-panel-meta">{pools.length} allocation{pools.length === 1 ? "" : "s"} across {providerGroups.length} provider{providerGroups.length === 1 ? "" : "s"}</span></span>
           </span>}
-          {canWrite && allowCreatePool && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={() => openPool()}><Plus size={14} /> Add allocation</button>}
+          <div className="external-ip-panel-actions">
+            {providerGroups.length > 0 && <div className="external-ip-header-controls">
+              <div className="nm-search nm-search--toolbar external-ip-search">
+                <Search size={14} className="nm-search-icon" aria-hidden="true" />
+                <input className="nm-input" type="search" aria-label="Search external IPs" placeholder="Search providers, services, allocations, IPs or owners…" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+              </div>
+              <label className="external-ip-status-filter"><span>Status</span><select className="nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ExternalStatusFilter)}><option value="all">All</option><option value="in_use">In use</option><option value="reserved">Reserved</option><option value="available">Available</option></select></label>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!searchTerm && statusFilter === "all"} onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>Clear filters</button>
+            </div>}
+            {canWrite && allowCreatePool && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={() => openPool()}><Plus size={14} /> Add allocation</button>}
+          </div>
         </header>
 
         {providerGroups.length === 0 ? <div className="external-ip-empty">Add an allocation for an ISP or cloud provider, then organise it under the service or area that uses its addresses.</div> : <>
-          <div className="nm-toolbar external-ip-toolbar">
-            <div className="nm-search nm-search--toolbar external-ip-search">
-              <Search size={14} className="nm-search-icon" aria-hidden="true" />
-              <input className="nm-input" type="search" aria-label="Search external IPs" placeholder="Search providers, services, allocations, IPs or owners…" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
-            </div>
-            <label className="external-ip-status-filter"><span>Status</span><select className="nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ExternalStatusFilter)}><option value="all">All</option><option value="in_use">In use</option><option value="reserved">Reserved</option><option value="available">Available</option></select></label>
-            <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!searchTerm && statusFilter === "all"} onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>Clear filters</button>
-          </div>
           {filteredProviderGroups.length === 0 ? <div className="external-ip-empty">No external IP records match these filters.</div> : <div className="nm-table-wrap external-ip-table-wrap"><table className="nm-table nm-table--selectable external-ip-table">
             <colgroup><col className="external-ip-col-provider" /><col className="external-ip-col-account" /><col className="external-ip-col-status" /><col className="external-ip-col-stat" /><col className="external-ip-col-stat" /><col className="external-ip-col-util" /><col className="external-ip-col-actions" /></colgroup>
             <thead><tr><th>Provider / service / allocation / address</th><th>Account / owner</th><th>Status</th><th className="nm-table-num">Addresses</th><th className="nm-table-num">In use</th><th>Utilisation</th><th className="external-ip-actions">Actions</th></tr></thead>
@@ -551,22 +561,27 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
         </>}
       </section>
 
-      {poolModal && <Modal title={poolModal === "new" ? "Add allocation" : "Edit allocation"} titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>} onCancel={() => setPoolModal(null)} footer={<ModalFooterActions onCancel={() => setPoolModal(null)} primaryLabel={busy ? "Saving…" : "Save allocation"} primaryDisabled={busy} formId="external-pool-form" />}>
+      {poolModal && <Modal title={poolModal === "new" ? "Add allocation" : "Edit allocation"} titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>} onCancel={() => setPoolModal(null)} footer={<ModalFooterActions onCancel={() => setPoolModal(null)} primaryLabel={busy ? (poolModal === "new" ? "Adding…" : "Saving…") : (poolModal === "new" ? "Add allocation" : "Save changes")} primaryDisabled={busy} formId="external-pool-form" />}>
         <form id="external-pool-form" className="modal-form external-ip-form" onSubmit={(event) => void savePool(event)}>
-          <div className="nm-form-row">
-            <label>Name<input autoFocus required value={poolForm.name} onChange={(e) => setPoolForm({ ...poolForm, name: e.target.value })} placeholder="Primary WAN allocation" /></label>
-            {poolModal === "new" && <label>Public IP allocation<input required value={poolForm.cidr ?? ""} onChange={(e) => setPoolForm({ ...poolForm, cidr: e.target.value })} placeholder="1.1.1.8, 1.1.1.8/32, or 1.1.1.8-1.1.1.14" /></label>}
+          <p className="external-ip-form-intro">Add the public address space assigned by your provider. Ownership and cloud details can be added later.</p>
+          <div className="nm-form-row external-ip-core-fields">
+            <label>Allocation name<input autoFocus required value={poolForm.name} onChange={(e) => setPoolForm({ ...poolForm, name: e.target.value })} placeholder="Primary WAN allocation" /></label>
+            {poolModal === "new" && <label>Public IP address or range<input required value={poolForm.cidr ?? ""} onChange={(e) => setPoolForm({ ...poolForm, cidr: e.target.value })} placeholder="1.1.1.8, 1.1.1.8/32, or 1.1.1.8-1.1.1.14" /><small>Enter one address, a CIDR block, or a start–end range.</small></label>}
           </div>
-          <div className="nm-form-row">
-            <label>Provider<select value={poolForm.provider_id ?? ""} onChange={(e) => setPoolForm({ ...poolForm, provider_id: e.target.value ? Number(e.target.value) : null })}><option value="">No provider</option>{cloudProviders.map((provider) => <option key={provider.key} value={provider.id ?? ""}>{provider.name}</option>)}</select></label>
-            <label>Cloud service / area<input required list="external-ip-service-options" value={poolForm.service ?? ""} onChange={(e) => setPoolForm({ ...poolForm, service: e.target.value })} placeholder={selectedPoolProvider ? `Service within ${selectedPoolProvider.name}` : "Service or organisational area"} /><datalist id="external-ip-service-options">{serviceSuggestions.map((service) => <option key={service} value={service} />)}</datalist><small>Groups this allocation beneath the provider.</small></label>
-          </div>
-          <label className="icon-picker-field"><span className="icon-picker-field-label">Allocation icon</span><IconPickerTrigger value={poolForm.icon} onChange={(icon) => setPoolForm({ ...poolForm, icon })} /></label>
-          <div className="nm-form-row">
-            <label>Account / subscription<input value={poolForm.account ?? ""} onChange={(e) => setPoolForm({ ...poolForm, account: e.target.value })} placeholder="Subscription, project, or circuit" /></label>
-            <label>Region<input value={poolForm.region ?? ""} onChange={(e) => setPoolForm({ ...poolForm, region: e.target.value })} placeholder="Cloud region" /></label>
-          </div>
-          <label>Description<textarea rows={3} value={poolForm.description ?? ""} onChange={(e) => setPoolForm({ ...poolForm, description: e.target.value })} placeholder="How this allocation is used" /></label>
+          <label><span>Provider <span className="external-ip-optional-label">(optional)</span></span><select value={poolForm.provider_id ?? ""} onChange={(e) => setPoolForm({ ...poolForm, provider_id: e.target.value ? Number(e.target.value) : null })}><option value="">No provider</option>{cloudProviders.map((provider) => <option key={provider.key} value={provider.id ?? ""}>{provider.name}</option>)}</select><small>Used to group allocations by ISP or cloud provider.</small></label>
+          <button type="button" className="external-ip-details-toggle" aria-expanded={poolDetailsOpen} aria-controls="external-ip-allocation-details" onClick={() => setPoolDetailsOpen((open) => !open)}>
+            <span><strong>More details</strong><small>Service, account, region, icon and notes</small></span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          {poolDetailsOpen && <div id="external-ip-allocation-details" className="external-ip-details-section">
+            <label><span>Service / area <span className="external-ip-optional-label">(optional)</span></span><input list="external-ip-service-options" value={poolForm.service ?? ""} onChange={(e) => setPoolForm({ ...poolForm, service: e.target.value })} placeholder={selectedPoolProvider ? `Service within ${selectedPoolProvider.name}` : "Service or organisational area"} /><datalist id="external-ip-service-options">{serviceSuggestions.map((service) => <option key={service} value={service} />)}</datalist><small>Groups this allocation within the selected provider.</small></label>
+            <div className="nm-form-row">
+              <label>Account / subscription<input value={poolForm.account ?? ""} onChange={(e) => setPoolForm({ ...poolForm, account: e.target.value })} placeholder="Subscription, project, or circuit" /></label>
+              <label>Region<input value={poolForm.region ?? ""} onChange={(e) => setPoolForm({ ...poolForm, region: e.target.value })} placeholder="Cloud region" /></label>
+            </div>
+            <label className="icon-picker-field"><span className="icon-picker-field-label">Allocation icon</span><IconPickerTrigger value={poolForm.icon} onChange={(icon) => setPoolForm({ ...poolForm, icon })} /></label>
+            <label><span>Notes <span className="external-ip-optional-label">(optional)</span></span><textarea rows={3} value={poolForm.description ?? ""} onChange={(e) => setPoolForm({ ...poolForm, description: e.target.value })} placeholder="How this allocation is used" /></label>
+          </div>}
           {/* Ranges live here rather than in the table. On the page they were a strip of
               chips between an allocation and its addresses, which broke the run of IP rows
               and made the tree hard to read; they are edit-time detail, not scan-time. */}
