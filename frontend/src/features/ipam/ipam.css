@@ -452,6 +452,9 @@
 .ipam-workspace .ipam-data-table {
   width: 100%;
   border-collapse: collapse;
+  /* Internal IPAM owns its typography; do not inherit it from Monitoring's
+     legacy `.mon-table` class. This matches the canonical `.nm-table` scale. */
+  font-size: var(--nm-text-sm);
   background: var(--nm-modal-section);
   color: var(--nm-text);
 }

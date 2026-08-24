@@ -98,6 +98,42 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+test("Internal IPAM tables own canonical typography independently of Monitoring", async ({ page }) => {
+  await setupIpam(page, "dark", async () => {
+    await page.route("**/api/v1/ipam/reservations", (route) => route.fulfill({ json: [{
+      id: 1,
+      ip_address: "10.30.20.30",
+      subnet_id: 1,
+      label: "Printer allocation",
+      mac_address: null,
+      notes: "Office printer",
+      reserved_by: "Network team",
+      expires_at: null,
+      created_at: "2026-08-01T00:00:00Z",
+      updated_at: "2026-08-01T00:00:00Z",
+    }] }));
+    await page.route("**/api/v1/ipam/dhcp-leases", (route) => route.fulfill({ json: [{
+      id: 1,
+      ip_address: "10.30.20.20",
+      mac_address: "00:aa:bb:cc:dd:20",
+      hostname: "workstation-20",
+      expires_at: "2026-08-25T00:00:00Z",
+      is_active: true,
+      source: "test",
+      imported_at: "2026-08-24T00:00:00Z",
+    }] }));
+  });
+
+  await page.locator(".ipam-reservations-panel").getByRole("button", { name: "Show" }).click();
+  const tables = page.locator(".ipam-data-table");
+  await expect(tables).toHaveCount(3);
+  for (const table of await tables.all()) {
+    await expect(table).toHaveCSS("font-size", "12px");
+    await expect(table.locator("tbody td").first()).toHaveCSS("font-size", "12px");
+  }
+  await expect(page.locator(".ipam-subnets-table .mon-device-name")).toHaveCSS("font-size", "12px");
+});
+
 test("the dense /24 map shows all addresses without scaling or horizontal overflow", async ({ page }) => {
   await setupIpam(page);
   await page.locator(".ipam-subnet-row").click();
