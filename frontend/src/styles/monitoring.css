@@ -1150,7 +1150,6 @@ body.route-ipam .workspace > .dash-alert--announcement {
 .mon-table {
   width: max(100%, 1580px);
   border-collapse: collapse;
-  font-size: 12.5px;
   background: var(--nm-modal-section);
 }
 
@@ -1177,7 +1176,6 @@ body.route-ipam .workspace > .dash-alert--announcement {
 .mon-row {
   height: 50px;
   cursor: pointer;
-  border-bottom: 1px solid var(--nm-border);
   background: var(--nm-table-row-bg);
   transition: background 0.1s;
 }
@@ -1222,16 +1220,20 @@ body.route-ipam .workspace > .dash-alert--announcement {
   background: var(--nm-table-row-bg);
 }
 
+.mon-table--fleet .mon-row > td {
+  background: var(--nm-table-row-bg);
+}
+
 .mon-table--fleet .mon-row:hover > td {
   background: var(--nm-row-hover);
 }
 
-.mon-table--fleet .mon-row--active td:first-child {
-  background: rgba(29, 154, 176, 0.07);
+.mon-table--fleet .mon-row--active > td {
+  background: var(--nm-accent-soft);
 }
 
 .mon-table--fleet .mon-row--active:hover > td {
-  background: rgba(29, 154, 176, 0.10);
+  background: var(--nm-accent-soft);
 }
 
 .mon-table th:nth-child(n+4),
@@ -1242,8 +1244,8 @@ body.route-ipam .workspace > .dash-alert--announcement {
 }
 
 .mon-row:hover { background: var(--nm-row-hover); }
-.mon-row--active { background: rgba(29, 154, 176, 0.07); }
-.mon-row--active:hover { background: rgba(29, 154, 176, 0.10); }
+.mon-row--active,
+.mon-row--active:hover { background: var(--nm-accent-soft); }
 
 .mon-device-cell {
   display: flex;
@@ -2214,8 +2216,8 @@ body.theme-dark .modal-close:hover { background: rgba(90, 122, 149, 0.30); color
 body.theme-dark .ipam-modal-close { background: rgba(90, 122, 149, 0.18); color: #8ab4cc; }
 body.theme-dark .ipam-modal-close:hover { background: rgba(90, 122, 149, 0.30); color: #c8dff0; }
 
-body.theme-dark .mon-row { background: var(--nm-table-row-bg); border-color: var(--nm-border-strong); }
-body.theme-dark .mon-row--active { background: rgba(29,154,176,0.12); }
+body.theme-dark .mon-row { background: var(--nm-table-row-bg); }
+body.theme-dark .mon-row--active { background: var(--nm-accent-soft); }
 body.theme-dark .mon-device-name { color: #d8eaf5; }
 body.theme-dark .mon-device-ip { color: var(--nm-text-faint); }
 body.theme-dark .mon-cell-mono { color: #7a9bb0; }
@@ -4220,6 +4222,21 @@ button.dash-stat {
   border-color: var(--nm-border);
   border-radius: var(--nm-radius-sm);
 }
+/* Monitoring uses the same application panel hierarchy as Inventory and IPAM.
+   These route-scoped selectors intentionally outrank the legacy `.dash-panel`
+   light/dark rules without creating a parallel palette. */
+body.route-monitoring .mon-view-window.nm-app-panel {
+  border-color: var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
+}
+body.route-monitoring .mon-view-window .nm-app-panel-header {
+  min-height: 44px;
+  padding: 6px 14px;
+  border-bottom-color: var(--nm-border);
+  background: var(--nm-modal-header);
+}
 .mon-panel-tabs {
   display: flex;
   align-items: center;
@@ -4261,9 +4278,6 @@ button.dash-stat {
 .mon-device-window-header {
   justify-content: space-between;
   gap: 16px;
-  min-height: 48px;
-  padding: 8px 12px;
-  background: var(--nm-modal-section);
 }
 .mon-table-toolbar-meta {
   display: flex;
@@ -4293,32 +4307,12 @@ button.dash-stat {
 
 .mon-view-window--endpoints .monitors-table-wrap {
   border-radius: 0;
-  border-inline: 0;
-}
-
-.mon-view-window--endpoints .nm-table {
+  border: 0;
   background: var(--nm-modal-section);
-  font-size: 12.5px;
-}
-
-.mon-view-window--endpoints .nm-table th {
-  padding: 11px 12px;
-  background: var(--nm-modal-section);
-  color: var(--nm-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .mon-view-window--endpoints .nm-table td {
-  padding: 10px 12px;
-  background: var(--nm-modal-section);
-}
-
-body.theme-dark .mon-view-window--endpoints .nm-table th,
-body.theme-dark .mon-view-window--endpoints .nm-table td {
-  border-color: var(--nm-border-strong);
+  background: var(--nm-table-row-bg);
 }
 
 .mon-view-window--endpoints .nm-table tbody tr:hover > td {

@@ -988,8 +988,8 @@ export function MonitoringWorkspace({
 
       {/* Device / endpoint list */}
       <div className="mon-content">
-        <div key={viewTab} className={`dash-panel mon-view-window mon-view-window--${viewTab}`}>
-          {viewTab === "devices" && <div className="dash-panel-header mon-device-window-header">
+        <div key={viewTab} className={`dash-panel nm-app-panel mon-view-window mon-view-window--${viewTab}`}>
+          {viewTab === "devices" && <div className="dash-panel-header nm-app-panel-header mon-device-window-header">
               <div className="mon-table-toolbar-meta">
                 <strong>Devices</strong>
                 <span>
@@ -1074,7 +1074,7 @@ export function MonitoringWorkspace({
               </p>
             ) : (
               <table
-                className="mon-table mon-table--fleet"
+                className="nm-table mon-table mon-table--fleet"
                 ref={tableRef}
                 // Once the user has set widths the table must be exactly as wide
                 // as its columns add up to. Leaving it at the stylesheet's

@@ -172,9 +172,68 @@ test.describe("Monitoring workspace", () => {
     });
     await expect(header).toHaveCSS("background-color", resolved.header);
     await expect(page.locator(".mon-row").first()).toHaveCSS("background-color", resolved.section);
-    await expect(page.locator(".mon-view-window")).toHaveCSS("border-radius", "6px");
+    await expect(page.locator(".mon-view-window")).toHaveCSS("border-radius", "10px");
     await expect(page.locator(".mon-table--fleet th").nth(3)).toContainText("Type");
     await expect(page.locator(".mon-row", { hasText: "Core Router" }).locator("td").nth(3).locator(".nm-chip")).toContainText("Router");
+  });
+
+  test("uses the same canonical panel and table theme for devices and endpoints", async ({ page }) => {
+    await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: [{
+      id: 7,
+      name: "Public API",
+      url: "https://api.example.com/health",
+      enabled: true,
+      last_status: "online",
+      last_checked_at: "2026-08-02T11:00:00Z",
+      uptime_24h: 96.7,
+      uptime_7d: 99.1,
+      avg_response_time_24h: 42.3,
+      heartbeat: ["online", "online"],
+    }] }));
+    await expect(page.locator(".mon-table--fleet")).toBeVisible();
+
+    const theme = async (panel: string, header: string, table: string) => page.evaluate(({ panel, header, table }) => {
+      const styles = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (!element) throw new Error(`Missing theme sample: ${selector}`);
+        const computed = getComputedStyle(element);
+        return {
+          background: computed.backgroundColor,
+          borderBottom: computed.borderBottomColor,
+          color: computed.color,
+          fontSize: computed.fontSize,
+          fontWeight: computed.fontWeight,
+          letterSpacing: computed.letterSpacing,
+          paddingBlock: `${computed.paddingTop} ${computed.paddingBottom}`,
+          textTransform: computed.textTransform,
+        };
+      };
+      return {
+        panel: styles(panel),
+        panelHeader: styles(header),
+        tableHeader: styles(`${table} thead th:nth-child(3)`),
+        tableCell: styles(`${table} tbody td:nth-child(3)`),
+      };
+    }, { panel, header, table });
+
+    for (const dark of [false, true]) {
+      await page.evaluate((useDarkTheme) => document.body.classList.toggle("theme-dark", useDarkTheme), dark);
+      const devices = await theme(".mon-view-window", ".mon-device-window-header", ".mon-table--fleet");
+
+      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Endpoints", exact: true }).click();
+      await expect(page.locator(".monitors-table")).toBeVisible();
+      const endpoints = await theme(".mon-view-window", ".monitors-table-toolbar", ".monitors-table");
+
+      expect(endpoints).toEqual(devices);
+      expect(devices.tableHeader).toMatchObject({
+        fontSize: "11px",
+        fontWeight: "700",
+        textTransform: "uppercase",
+      });
+
+      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Devices", exact: true }).click();
+      await expect(page.locator(".mon-table--fleet")).toBeVisible();
+    }
   });
 
   test("fills every fleet-table cell on row hover", async ({ page }) => {

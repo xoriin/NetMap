@@ -336,7 +336,7 @@ export function MonitorsPanel({
     <div className={embedded ? "monitors-panel-content monitors-panel-content--embedded" : "monitors-panel-content"}>
       {error && <div className="form-error">{error}</div>}
 
-      <div className="dash-panel-header monitors-table-toolbar">
+      <div className="dash-panel-header nm-app-panel-header monitors-table-toolbar">
         <div className="monitors-table-toolbar-meta">
           <strong>HTTP/HTTPS endpoints</strong>
           <span className="dash-panel-meta">
