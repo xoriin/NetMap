@@ -106,11 +106,7 @@ No more SSHing into a jump box to run a quick check. NetMap includes:
 SNMP credential profiles are managed in Admin → SNMP Profiles, encrypted with `MASTER_KEY`, and can be reused from Tools, Discovery, and assigned devices.
 
 ### Alerts
-Configure rules that fire when a device goes down, comes back up, or trips a monitoring threshold. Each rule can fan out to multiple channels:
-- **ntfy** — push to any ntfy topic (self-hosted or ntfy.sh)
-- **Telegram** — bot message to a chat or channel
-- **Signal** — via a Signal API relay
-- **Email** — SMTP with TLS
+Configure rules that fire when a device goes down, comes back up, or trips a monitoring threshold. Each rule can fan out through reusable notification methods. Built-in choices cover **ntfy, Telegram, Signal, Email (SMTP), Discord, Slack, Gotify, Pushover, Google Chat, and generic JSON webhooks**; a **Custom Apprise URL** connects additional Apprise-supported services.
 
 Rules have a configurable cooldown period so you don't get paged every 30 seconds for a flappy device.
 
@@ -472,22 +468,34 @@ Leave it unset to accept from anywhere on your network.
 
 ## 🔔 Alert notifications
 
-Alerts fire when a monitored device changes state (online → offline, offline → online) or when a monitoring threshold is breached. Configure rules in Admin → Alerts.
+Notification methods are reusable delivery profiles. Create and test them in Admin → Notifications, then attach one or more to rules in Admin → Alerts. The same profiles can also be used by reservation reminders, scheduled discovery, and other notification-enabled workflows.
+
+Alerts fire when a monitored device changes state (online → offline, offline → online) or when a monitoring threshold is breached.
 
 Each rule specifies:
+
 - Which devices or groups it applies to
 - Which event types it triggers on
-- One or more notification channels
+- One or more notification methods
 - A cooldown period (minimum time between repeated alerts for the same device)
 
-**Supported channels:**
+**Supported methods:**
 
-| Channel | What you need |
+| Method | What it connects to |
 |---------|--------------|
 | **ntfy** | A topic URL on ntfy.sh or your self-hosted ntfy instance. Optional access token for private topics. |
 | **Telegram** | A bot token and a chat/channel ID. Create a bot via [@BotFather](https://t.me/BotFather). |
-| **Signal** | A Signal API relay URL (e.g. [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)). |
-| **Email** | SMTP hostname, port, sender address, and credentials. TLS is supported. |
+| **Signal** | A Signal REST API relay, sender number, and recipient (for example [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)). |
+| **Email (SMTP)** | An SMTP server, sender and recipient addresses, credentials, and the appropriate connection security. |
+| **Discord** | A Discord incoming webhook. |
+| **Slack** | A Slack incoming webhook, with an optional target channel. |
+| **Gotify** | A Gotify server and application token. |
+| **Pushover** | A Pushover user key and application token. |
+| **Google Chat** | A Google Chat incoming webhook. |
+| **Generic webhook** | Any HTTP(S) endpoint that accepts NetMap's JSON payload. An optional bearer token is supported. |
+| **Custom Apprise URL** | Any service supported by the installed Apprise integration, including options such as Matrix, Mattermost, Rocket.Chat, Webex Teams, Mailgun, Opsgenie, PagerDuty, and SMS gateways. |
+
+Saved secrets are encrypted, treated as write-only, and redacted from application output. Use each method's **Test** action before relying on it for an alert rule. Outbound webhook URLs remain subject to NetMap's configured private-target and SSRF controls.
 
 ---
 
