@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+## [1.6.0] - 2026-08-25
+
+### Added
+- **External IP address management** — **IPAM → External IPs** provides a searchable Provider → Service/area → Allocation → Address view with status filtering, utilisation, expandable hierarchy, allocation icons, and address-level actions. New installations include AWS, Azure, and Google Cloud as an editable starter catalogue, with provider names, aliases, and marks managed from Admin.
+- **Cloud assets inventory** — public addresses can be linked to Inventory devices and viewed at **Inventory → Cloud assets**, grouped by provider and device. The **Add to Inventory and Monitoring** workflow creates or links the corresponding device without duplicating addresses.
+- **Safe address and reservation workflows** — individual public addresses can be removed without deleting neighbouring addresses in the same range, and a reserved internal IP can be converted into a device through a confirmed, audited operation. NetworkAdmin receives the new **Claim reserved IPs** permission by default, and custom roles can be granted it independently.
+- **Administrative duties can be safely delegated** — custom roles can separately manage users and sessions, notifications, the device catalogue, SNMP profiles, audit access, diagnostics, backups, automation, and discovery. SuperAdmin is visible as an immutable full-access role, custom roles can be SSO defaults, and delegated administrators cannot bypass SuperAdmin safeguards.
+- **Port Monitoring is easier to organise** — service checks can be edited without recreating them, sorted alphabetically, or arranged manually using drag-and-drop. The selected order is reflected in both the Port Monitoring configuration list and device service badges.
+
+### Changed
+- **External IP setup is essentials-first** — adding an allocation starts with its name, address or range, and optional provider. Service, account, region, icon, and notes remain available under **More details**, while search and status controls sit in the External IPs panel header.
+- **Navigation and sign-in links work more naturally** — Inventory, Monitoring, IPAM, and Admin sections remember their expanded state during a signed-in session, reset that state on sign-out, and use separate navigation and disclosure controls. Destinations—including the single sign-on action—retain their established application styling while behaving as native browser links, so right-click, middle-click, and Ctrl/Cmd-click can open them in another tab.
+- **Data tables share the same application presentation** — Monitoring, Inventory, IPAM, and Administration use the common panel, header, row-density, hover, numeric, address, and right-edge action treatments in both themes. External IPs and Internal networks also distribute their columns across the available width so operational fields remain easy to scan without losing the External IP hierarchy.
+- **Monitoring information is easier to scan** — full device names and addresses use the available Device column width, heartbeat history remains beneath them, and low-level service-check errors are translated into concise messages such as `Connection refused`, `Timed out`, and `Host unreachable`.
+
+### Fixed
+- **Inventory and Topology interactions are console-clean** — Inventory rows use independent keyboard-accessible controls for opening details, selecting devices, and toggling favourites instead of nesting controls inside one another. Topology panel-hover feedback uses supported Cytoscape overlays rather than ignored shadow properties.
+- **Users administration actions stay aligned** — Reset password, Unlock, Logout, and Audit remain on one evenly spaced line at the table's right edge, including when every action is available.
+- **Dependency and code-scanning findings are resolved** — upgraded `cryptography` to 50.0.0, DOMPurify to 3.4.14, and transitive `nanoid` to 3.3.18; scheduled-backup operations now accept only regular files discovered through NetMap's fixed backup directory and ignore symlinks; API-key storage continues to use keyed HMAC-SHA256 through an implementation recognised correctly by static analysis.
+- **Fresh installations no longer lose user-account columns during startup** — the legacy custom-role migration rebuilt a newly created `users` table from an obsolete fixed column list, silently dropping What's New acknowledgement and entity-colour preference fields while later migrations were still marked complete. The rebuild now skips already-correct schemas, preserves every live column when an old role constraint genuinely needs removal, and migration `0072_user_schema_repair` repairs affected databases without deleting users.
+- **Custom roles are enforced consistently** — saving the role matrix now updates custom roles as well as built-in roles, effective permissions drive the SPA's workspace and action controls, and built-in roles cannot be deleted through the API.
+
 ## [1.5.1] - 2026-08-17
 
 ### Fixed
