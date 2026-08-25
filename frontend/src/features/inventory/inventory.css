@@ -134,6 +134,24 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   background: var(--nm-accent-soft);
 }
 
+.inventory-layout .inventory-row-device {
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inventory-layout .inventory-row-device:focus-visible {
+  outline: 1px solid var(--nm-focus-border);
+  outline-offset: 2px;
+}
+
 .inventory-layout .inventory-empty {
   display: grid;
   min-height: 100%;

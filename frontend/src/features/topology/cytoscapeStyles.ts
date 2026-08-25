@@ -1,11 +1,5 @@
 import type cytoscape from "cytoscape";
 
-// Cytoscape's Css typings do not include the non-standard shadow-* extension
-// properties; funnel them through one typed boundary instead of scattered casts.
-export function cyExtendedStyle(style: Record<string, string | number>): cytoscape.Css.Node {
-  return style as unknown as cytoscape.Css.Node;
-}
-
 /** Edge width in px for a manual link speed; unspecified links keep the
  *  historical default of 2 so existing maps look unchanged. */
 export function linkSpeedEdgeWidth(mbps: number | null): number {
@@ -199,25 +193,21 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
     },
     {
       selector: "node.device.panel-hover",
-      style: cyExtendedStyle({
-        "shadow-blur": 22,
-        "shadow-color": "#1d9ab0",
-        "shadow-opacity": 0.55,
-        "shadow-offset-x": 0,
-        "shadow-offset-y": 0,
+      style: {
+        "overlay-color": "#1d9ab0",
+        "overlay-opacity": 0.18,
+        "overlay-padding": 10,
         opacity: 1,
         "z-index": 80,
-      }),
+      },
     },
     {
       selector: "node.zone.panel-hover",
-      style: cyExtendedStyle({
-        "shadow-blur": 18,
-        "shadow-color": "#8040c0",
-        "shadow-opacity": 0.4,
-        "shadow-offset-x": 0,
-        "shadow-offset-y": 0,
-      }),
+      style: {
+        "overlay-color": "#8040c0",
+        "overlay-opacity": 0.14,
+        "overlay-padding": 8,
+      },
     },
     {
       selector: "edge.panel-hover",

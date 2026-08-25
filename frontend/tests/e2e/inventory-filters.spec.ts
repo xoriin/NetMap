@@ -245,6 +245,25 @@ test.describe("Inventory approved workspace hierarchy", () => {
     expect(Math.abs(widthAfterClose - widthBefore)).toBeLessThanOrEqual(2);
   });
 
+  test("keeps row selection, favourites, and bulk selection as independent valid controls", async ({ page }) => {
+    await openInventory(page);
+    const row = page.locator(".inventory-row").first();
+    await expect(row.locator("button button, button input")).toHaveCount(0);
+    await expect(row).not.toHaveAttribute("role", "button");
+
+    const openDetails = row.getByRole("button", { name: "Open Access Switch details" });
+    await openDetails.focus();
+    await page.keyboard.press("Enter");
+    const sidebar = page.getByRole("complementary", { name: "Device overview" });
+    await expect(sidebar).toBeVisible();
+    await sidebar.getByRole("button", { name: "Close device overview" }).click();
+
+    await row.getByRole("checkbox", { name: "Select Access Switch" }).click();
+    await expect(sidebar).toBeHidden();
+    await row.getByRole("button", { name: "Add to favourites" }).click();
+    await expect(sidebar).toBeHidden();
+  });
+
   test("keeps the row canvas full width while one column is resized", async ({ page }) => {
     await openInventory(page);
     const table = page.locator(".inventory-table");

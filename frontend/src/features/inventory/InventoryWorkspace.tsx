@@ -909,12 +909,15 @@ export function InventoryWorkspace({
                 const groupChip = groupChipFor(device, groups);
                 const siteChip = siteChipFor(device, sites);
                 const typeChip = deviceTypeChipFor(device.device_type, deviceTypeOptions);
+                const label = deviceLabel(device);
                 return (
-                  <button key={device.id} className={device.id === selectedDeviceId ? 'inventory-row active' : 'inventory-row'} type="button" onClick={() => setSelectedDeviceId(device.id)}>
+                  <div key={device.id} className={device.id === selectedDeviceId ? 'inventory-row active' : 'inventory-row'} onClick={() => setSelectedDeviceId(device.id)}>
                     <span className="inventory-row-check">
                       <input
+                        aria-label={`Select ${label}`}
                         checked={selectedDeviceIds.has(device.id)}
                         type="checkbox"
+                        onClick={(event) => event.stopPropagation()}
                         onChange={(event) => {
                           event.stopPropagation();
                           setSelectedDeviceIds((current) => {
@@ -933,10 +936,15 @@ export function InventoryWorkspace({
                         <Star size={13} fill={favouriteIds.has(device.id) ? "currentColor" : "none"} />
                       </button>
                     </span>
-                    <span className="inventory-row-device">
+                    <button
+                      type="button"
+                      className="inventory-row-device"
+                      aria-label={`Open ${label} details`}
+                      onClick={(event) => { event.stopPropagation(); setSelectedDeviceId(device.id); }}
+                    >
                       <span className={`status-dot status-dot--sm ${status}`} />
-                      <span>{deviceLabel(device)}</span>
-                    </span>
+                      <span>{label}</span>
+                    </button>
                     <span>{device.ip_address || '—'}</span>
                     <span>
                       <EntityChip
@@ -967,7 +975,7 @@ export function InventoryWorkspace({
                         <EntityChipEmpty />
                       )}
                     </span>
-                  </button>
+                  </div>
                 );
               })
             )}

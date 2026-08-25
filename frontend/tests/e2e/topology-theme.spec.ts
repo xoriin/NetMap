@@ -3,10 +3,17 @@ import { buildCytoscapeStylesheet } from "../../src/features/topology/cytoscapeS
 import { mockDevice, mockRelationship, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 test("Topology hover styling keeps the device pointer target stable", () => {
-  const hovered = buildCytoscapeStylesheet(15).find((rule) => rule.selector === "node.device.hovered");
+  const stylesheet = buildCytoscapeStylesheet(15);
+  const hovered = stylesheet.find((rule) => rule.selector === "node.device.hovered");
   expect(hovered).toBeDefined();
   expect(hovered?.style).not.toHaveProperty("height");
   expect(hovered?.style).not.toHaveProperty("width");
+  expect(JSON.stringify(stylesheet)).not.toContain("shadow-");
+  expect(stylesheet.find((rule) => rule.selector === "node.device.panel-hover")?.style).toMatchObject({
+    "overlay-color": "#1d9ab0",
+    "overlay-opacity": 0.18,
+    "overlay-padding": 10,
+  });
 });
 
 async function setupThemedTopology(page: Page, theme: "light" | "dark", width = 1920) {
@@ -86,6 +93,17 @@ for (const theme of ["light", "dark"] as const) {
     await expect(entityList).toHaveCSS("background-image", "none");
   });
 }
+
+test("Topology loads without invalid Cytoscape style warnings", async ({ page }) => {
+  const styleWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "warning" && message.text().includes("style property")) {
+      styleWarnings.push(message.text());
+    }
+  });
+  await setupThemedTopology(page, "dark");
+  expect(styleWarnings).toEqual([]);
+});
 
 test("Topology details and floating controls remain integrated with the canvas", async ({ page }) => {
   await setupThemedTopology(page, "dark");
