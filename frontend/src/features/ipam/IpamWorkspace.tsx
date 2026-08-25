@@ -776,6 +776,17 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
               <p className="dash-empty">No subnets defined yet. Add one to start tracking utilization.</p>
             ) : (
               <table className="mon-table ipam-data-table ipam-subnets-table">
+                <colgroup>
+                  <col className="ipam-subnet-col-name" />
+                  <col className="ipam-subnet-col-cidr" />
+                  <col className="ipam-subnet-col-util" />
+                  <col className="ipam-subnet-col-stat" />
+                  <col className="ipam-subnet-col-stat" />
+                  <col className="ipam-subnet-col-range" />
+                  <col className="ipam-subnet-col-stat" />
+                  <col className="ipam-subnet-col-gateway" />
+                  {canWrite && <col className="ipam-subnet-col-actions" />}
+                </colgroup>
                 <thead>
                   <tr>
                     <th><button type="button" className={`inventory-sort-btn${ipamSortKey === "name" ? " active" : ""}`} onClick={() => toggleIpamSort("name")}>Name{ipamSortKey === "name" && (ipamSortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}</button></th>
@@ -786,7 +797,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
 	                    <th>DHCP range</th>
 	                    <th><button type="button" className={`inventory-sort-btn${ipamSortKey === "free" ? " active" : ""}`} onClick={() => toggleIpamSort("free")}>Free{ipamSortKey === "free" && (ipamSortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}</button></th>
                     <th><button type="button" className={`inventory-sort-btn${ipamSortKey === "gateway" ? " active" : ""}`} onClick={() => toggleIpamSort("gateway")}>Gateway{ipamSortKey === "gateway" && (ipamSortDir === "asc" ? <ChevronUp size={10} /> : <ChevronDown size={10} />)}</button></th>
-                    {canWrite && <th />}
+                    {canWrite && <th className="ipam-subnet-actions" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -817,7 +828,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
 	                      <td className="mon-cell-mono">{s.free}</td>
                       <td className="mon-cell-mono">{s.gateway ?? "—"}</td>
                       {canWrite && (
-                        <td onClick={(e) => e.stopPropagation()}>
+                        <td className="ipam-subnet-actions" onClick={(e) => e.stopPropagation()}>
                           <span className="ipam-row-actions">
                             <button
                               type="button"

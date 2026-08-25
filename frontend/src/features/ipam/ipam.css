@@ -28,12 +28,19 @@
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
 .external-ip-table { min-width: 980px; table-layout: fixed; background: var(--nm-modal-section); }
 .external-ip-table tbody td { background: var(--nm-table-row-bg); }
-.external-ip-table .external-ip-col-provider { width: 31%; }
-.external-ip-table .external-ip-col-account { width: 17%; }
-.external-ip-table .external-ip-col-status { width: 10%; }
-.external-ip-table .external-ip-col-stat { width: 8%; }
+.external-ip-table .external-ip-col-provider { width: 27%; }
+.external-ip-table .external-ip-col-account { width: 14%; }
+.external-ip-table .external-ip-col-status { width: 12%; }
+.external-ip-table .external-ip-col-stat { width: 10%; }
 .external-ip-table .external-ip-col-util { width: 14%; }
-.external-ip-table .external-ip-col-actions { width: 12%; }
+.external-ip-table .external-ip-col-actions { width: 13%; }
+/* Operational values read as one evenly spaced band. Centring both the headings and
+   their values avoids the visual collision caused by a right-aligned `In use` value
+   sitting beside a left-aligned utilisation bar. Identity columns remain left aligned
+   and the canonical Actions treatment remains flush right. */
+.external-ip-table th:nth-child(n + 3):nth-child(-n + 6),
+.external-ip-table td:nth-child(n + 3):nth-child(-n + 6) { text-align: center; }
+.external-ip-table td:nth-child(6) .external-ip-utilization { justify-content: center; }
 .external-ip-table .external-ip-provider-row,
 .external-ip-table .external-ip-service-row,
 .external-ip-table .external-ip-pool-row { cursor: pointer; }
@@ -456,6 +463,31 @@
   background: var(--nm-modal-section);
   color: var(--nm-text);
 }
+
+/* Internal networks is a dense nine-column table. Explicit proportions keep short
+   numeric headings from bunching together while preserving room for names, ranges,
+   gateways, and the complete action group. Narrow layouts scroll the panel body. */
+.ipam-workspace .ipam-subnets-table {
+  min-width: 1360px;
+  table-layout: fixed;
+}
+
+.ipam-subnets-table .ipam-subnet-col-name { width: 14%; }
+.ipam-subnets-table .ipam-subnet-col-cidr { width: 11%; }
+.ipam-subnets-table .ipam-subnet-col-util { width: 11%; }
+.ipam-subnets-table .ipam-subnet-col-stat { width: 8%; }
+.ipam-subnets-table .ipam-subnet-col-range { width: 15%; }
+.ipam-subnets-table .ipam-subnet-col-gateway { width: 10%; }
+.ipam-subnets-table .ipam-subnet-col-actions { width: 15%; }
+
+/* Match External IPs: descriptive fields lead from the left, operational fields sit
+   centrally in their tracks, and the action group stays anchored to the right edge. */
+.ipam-subnets-table th:nth-child(n + 3):nth-child(-n + 8),
+.ipam-subnets-table td:nth-child(n + 3):nth-child(-n + 8) { text-align: center; }
+.ipam-subnets-table .ipam-util-wrap { justify-content: center; }
+.ipam-workspace .ipam-subnets-table th.ipam-subnet-actions,
+.ipam-workspace .ipam-subnets-table td.ipam-subnet-actions { text-align: right; }
+.ipam-subnets-table td.ipam-subnet-actions > .ipam-row-actions { display: inline-flex; }
 
 .ipam-workspace .ipam-data-table th {
   border-right: 0;

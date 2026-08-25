@@ -135,6 +135,70 @@ test("Internal IPAM tables own canonical typography independently of Monitoring"
 });
 
 for (const theme of ["light", "dark"] as const) {
+test(`Internal networks distributes its columns across the available width in ${theme} mode`, async ({ page }) => {
+  await page.setViewportSize({ width: 2338, height: 988 });
+  await setupIpam(page, theme);
+
+  const layout = await page.locator(".ipam-subnets-table").evaluate((table) => {
+    const tableWidth = table.getBoundingClientRect().width;
+    const widths = [...table.querySelectorAll("col")].map((col) => col.getBoundingClientRect().width);
+    return {
+      tableWidth,
+      widths,
+      tableLayout: getComputedStyle(table).tableLayout,
+      wrapperWidth: table.parentElement!.getBoundingClientRect().width,
+    };
+  });
+
+  expect(layout.tableLayout).toBe("fixed");
+  expect(layout.widths).toHaveLength(9);
+  expect(layout.widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(layout.tableWidth, 0);
+  const ratios = layout.widths.map((width) => width / layout.tableWidth);
+  expect(ratios[0]).toBeCloseTo(0.14, 2);
+  expect(ratios[1]).toBeCloseTo(0.11, 2);
+  expect(ratios[2]).toBeCloseTo(0.11, 2);
+  expect(ratios[3]).toBeCloseTo(0.08, 2);
+  expect(ratios[4]).toBeCloseTo(0.08, 2);
+  expect(ratios[5]).toBeCloseTo(0.15, 2);
+  expect(ratios[6]).toBeCloseTo(0.08, 2);
+  expect(ratios[7]).toBeCloseTo(0.10, 2);
+  expect(ratios[8]).toBeCloseTo(0.15, 2);
+  expect(layout.tableWidth).toBeGreaterThanOrEqual(layout.wrapperWidth);
+
+  const headers = page.locator(".ipam-subnets-table thead th");
+  const firstRowCells = page.locator(".ipam-subnets-table tbody tr").first().locator("td");
+  for (let column = 2; column <= 7; column += 1) {
+    await expect(headers.nth(column)).toHaveCSS("text-align", "center");
+    await expect(firstRowCells.nth(column)).toHaveCSS("text-align", "center");
+  }
+  await expect(firstRowCells.nth(2).locator(".ipam-util-wrap")).toHaveCSS("justify-content", "center");
+  await expect(firstRowCells.nth(8)).toHaveCSS("text-align", "right");
+});
+}
+
+test("IPAM column layouts use contained horizontal scrolling on narrow screens", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+
+  const internal = await page.locator(".ipam-subnets-panel .dash-panel-body").evaluate((wrapper) => ({
+    clientWidth: wrapper.clientWidth,
+    scrollWidth: wrapper.scrollWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+  }));
+  expect(internal.scrollWidth).toBeGreaterThan(internal.clientWidth);
+  expect(internal.pageOverflow).toBeLessThanOrEqual(1);
+
+  await openExternalIps(page);
+  const external = await page.locator(".external-ip-table-wrap").evaluate((wrapper) => ({
+    clientWidth: wrapper.clientWidth,
+    scrollWidth: wrapper.scrollWidth,
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+  }));
+  expect(external.scrollWidth).toBeGreaterThan(external.clientWidth);
+  expect(external.pageOverflow).toBeLessThanOrEqual(1);
+});
+
+for (const theme of ["light", "dark"] as const) {
 test(`a reservation can be explicitly converted into a device from IPAM in ${theme} mode`, async ({ page }) => {
   const reservation = {
     id: 7,
@@ -406,6 +470,7 @@ test("Add allocation starts with essentials and reveals optional details on dema
 });
 
 test("External IPs uses the approved service tree, filters, and allocation menu", async ({ page }) => {
+  await page.setViewportSize({ width: 2338, height: 988 });
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
   await openExternalIps(page);
 
@@ -435,11 +500,23 @@ test("External IPs uses the approved service tree, filters, and allocation menu"
     return { tableWidth, widths, wrapperClient: wrapper.clientWidth, wrapperScroll: wrapper.scrollWidth };
   });
   expect(columnLayout.widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(columnLayout.tableWidth, 0);
-  expect(columnLayout.widths[0] / columnLayout.tableWidth).toBeLessThan(0.33);
-  expect(columnLayout.widths[1] / columnLayout.tableWidth).toBeGreaterThan(0.16);
-  expect(columnLayout.widths[5] / columnLayout.tableWidth).toBeGreaterThan(0.13);
-  expect(columnLayout.widths[6] / columnLayout.tableWidth).toBeGreaterThan(0.11);
+  expect(columnLayout.widths[0] / columnLayout.tableWidth).toBeCloseTo(0.27, 2);
+  expect(columnLayout.widths[1] / columnLayout.tableWidth).toBeCloseTo(0.14, 2);
+  expect(columnLayout.widths[2] / columnLayout.tableWidth).toBeCloseTo(0.12, 2);
+  expect(columnLayout.widths[3] / columnLayout.tableWidth).toBeCloseTo(0.10, 2);
+  expect(columnLayout.widths[4] / columnLayout.tableWidth).toBeCloseTo(0.10, 2);
+  expect(columnLayout.widths[5] / columnLayout.tableWidth).toBeCloseTo(0.14, 2);
+  expect(columnLayout.widths[6] / columnLayout.tableWidth).toBeCloseTo(0.13, 2);
   expect(columnLayout.wrapperScroll).toBeLessThanOrEqual(columnLayout.wrapperClient);
+
+  const headers = page.locator(".external-ip-table thead th");
+  const providerCells = provider.locator("td");
+  for (let column = 2; column <= 5; column += 1) {
+    await expect(headers.nth(column)).toHaveCSS("text-align", "center");
+    await expect(providerCells.nth(column)).toHaveCSS("text-align", "center");
+  }
+  await expect(providerCells.nth(5).locator(".external-ip-utilization")).toHaveCSS("justify-content", "center");
+  await expect(headers.nth(6)).toHaveCSS("text-align", "right");
 
   // Each connector starts immediately below its parent icon and stops just before
   // the child icon box. Deeper rows do not keep decorative ancestor rails behind them.
