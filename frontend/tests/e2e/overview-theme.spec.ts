@@ -27,6 +27,33 @@ async function setupOverview(page: Page, theme: "light" | "dark", announcement: 
   await page.locator(".overview-workspace").waitFor({ state: "visible", timeout: 8000 });
 }
 
+test("route controls preserve native link and new-tab semantics", async ({ page }) => {
+  await setupOverview(page, "dark");
+
+  const inventory = page.getByRole("link", { name: "Inventory", exact: true });
+  await expect(inventory).toHaveAttribute("href", "/inventory");
+  await expect(inventory).toHaveCSS("display", "flex");
+
+  const modifiedClick = await inventory.evaluate((element) => {
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    });
+    return {
+      dispatched: element.dispatchEvent(event),
+      defaultPrevented: event.defaultPrevented,
+      tagName: element.tagName,
+    };
+  });
+  expect(modifiedClick).toEqual({ dispatched: true, defaultPrevented: false, tagName: "A" });
+  await expect(page).toHaveURL(/\/overview$/);
+
+  await inventory.click();
+  await expect(page).toHaveURL(/\/inventory$/);
+  await expect(page.getByRole("link", { name: "Cloud assets", exact: true })).toHaveAttribute("href", "/inventory#cloud");
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`Overview uses the approved solid panel hierarchy in ${theme} mode`, async ({ page }) => {
     await setupOverview(page, theme);

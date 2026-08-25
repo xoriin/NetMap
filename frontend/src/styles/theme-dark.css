@@ -410,13 +410,13 @@ body.theme-dark .auth-card input:focus {
   box-shadow: 0 0 0 3px rgba(29, 154, 176, 0.14);
 }
 
-body.theme-dark .auth-card button.auth-sso-btn {
+body.theme-dark .auth-card .auth-sso-btn {
   color: #c8dae8;
   background: #1e3047;
   border-color: #3a5068;
 }
 
-body.theme-dark .auth-card button.auth-sso-btn:hover {
+body.theme-dark .auth-card .auth-sso-btn:hover {
   background: #243d54;
   border-color: rgba(34, 192, 207, 0.4);
   color: var(--nm-accent-strong);

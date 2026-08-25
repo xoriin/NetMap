@@ -43,7 +43,7 @@ test.describe("Monitoring workspace", () => {
       }),
     ]);
     await page.goto("/");
-    await page.getByRole("button", { name: "Monitoring", exact: true }).click();
+    await page.getByRole("link", { name: "Monitoring", exact: true }).click();
   });
 
   test("allocates most row width to heartbeat and RTT displays", async ({ page }) => {
@@ -220,7 +220,7 @@ test.describe("Monitoring workspace", () => {
       await page.evaluate((useDarkTheme) => document.body.classList.toggle("theme-dark", useDarkTheme), dark);
       const devices = await theme(".mon-view-window", ".mon-device-window-header", ".mon-table--fleet");
 
-      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Endpoints", exact: true }).click();
+      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("link", { name: "Endpoints", exact: true }).click();
       await expect(page.locator(".monitors-table")).toBeVisible();
       const endpoints = await theme(".mon-view-window", ".monitors-table-toolbar", ".monitors-table");
 
@@ -231,7 +231,7 @@ test.describe("Monitoring workspace", () => {
         textTransform: "uppercase",
       });
 
-      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Devices", exact: true }).click();
+      await page.getByLabel("Monitoring sections", { exact: true }).getByRole("link", { name: "Devices", exact: true }).click();
       await expect(page.locator(".mon-table--fleet")).toBeVisible();
     }
   });
@@ -308,7 +308,7 @@ test.describe("Monitoring workspace", () => {
   });
 
   test("uses collapsible sidebar navigation for devices and endpoints", async ({ page }) => {
-    const monitoringParent = page.getByRole("button", { name: "Monitoring", exact: true });
+    const monitoringParent = page.getByRole("link", { name: "Monitoring", exact: true });
     const monitoringNav = page.getByLabel("Monitoring sections", { exact: true });
     // The chevron is its own control now: the parent link navigates, the chevron opens and
     // closes the menu, so neither click has to mean both.
@@ -316,8 +316,8 @@ test.describe("Monitoring workspace", () => {
     await expect(monitoringToggle.locator(".sidebar-parent-chevron")).toBeVisible();
     await expect(page.getByRole("button", { name: /(Collapse|Expand) Admin sections/ })).toBeVisible();
     await expect(monitoringToggle).toHaveAttribute("aria-expanded", "true");
-    await expect(monitoringNav.getByRole("button")).toHaveCount(2);
-    await expect(monitoringNav.getByRole("button", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(monitoringNav.getByRole("link")).toHaveCount(2);
+    await expect(monitoringNav.getByRole("link", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("tablist", { name: "Monitoring view" })).toHaveCount(0);
 
     await monitoringToggle.click();
@@ -330,13 +330,13 @@ test.describe("Monitoring workspace", () => {
     await monitoringParent.click();
     await expect(monitoringNav).toBeVisible();
 
-    await monitoringNav.getByRole("button", { name: "Endpoints", exact: true }).click();
+    await monitoringNav.getByRole("link", { name: "Endpoints", exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("#endpoints");
     await expect(page.getByText("HTTP/HTTPS endpoints", { exact: true })).toBeVisible();
     await expect(page.getByText("No HTTP/HTTPS endpoints yet.", { exact: false })).toBeVisible();
 
     await page.goBack();
-    await expect(monitoringNav.getByRole("button", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(monitoringNav.getByRole("link", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".mon-row").first()).toBeVisible();
   });
 
@@ -354,7 +354,7 @@ test.describe("Monitoring workspace", () => {
       heartbeat: ["online", "online", "offline", "online"],
     }] }));
 
-    await page.getByLabel("Monitoring sections", { exact: true }).getByRole("button", { name: "Endpoints", exact: true }).click();
+    await page.getByLabel("Monitoring sections", { exact: true }).getByRole("link", { name: "Endpoints", exact: true }).click();
     const row = page.locator(".monitors-table tbody tr", { hasText: "Public API" });
     await expect(row).toBeVisible();
     await expect(row.locator(".monitors-heartbeat-cell .heartbeat-bar--sm")).toBeVisible();
@@ -396,7 +396,7 @@ test.describe("Monitoring layout and column sizing", () => {
       )
     );
     await page.goto("/");
-    await page.getByRole("button", { name: "Monitoring", exact: true }).click();
+    await page.getByRole("link", { name: "Monitoring", exact: true }).click();
     await expect(page.locator(".mon-row").first()).toBeVisible();
   });
 

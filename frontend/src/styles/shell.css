@@ -957,12 +957,14 @@ body.route-locations .topology-content {
 }
 
 .auth-card button,
+.auth-card .auth-sso-btn,
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: 46px;
+  box-sizing: border-box;
   border: 0;
   border-radius: 10px;
   padding: 11px 18px;
@@ -970,19 +972,22 @@ body.route-locations .topology-content {
   background: linear-gradient(135deg, #0d454b 0%, var(--nm-accent) 50%, #125b63 100%);
   font-size: 15px;
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
   box-shadow: 0 3px 12px rgba(29, 100, 114, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   transition: opacity 0.15s, box-shadow 0.15s, transform 0.12s;
 }
 
 .auth-card button:hover,
+.auth-card .auth-sso-btn:hover,
 .icon-button:hover {
   opacity: 0.92;
   box-shadow: 0 5px 18px rgba(29, 100, 114, 0.42);
   transform: translateY(-1px);
 }
 
-.auth-card button {
+.auth-card button,
+.auth-card .auth-sso-btn {
   width: 100%;
   margin-top: 24px;
   letter-spacing: 0.01em;
@@ -993,7 +998,7 @@ body.route-locations .topology-content {
   opacity: 0.72;
 }
 
-.auth-card button.auth-sso-btn {
+.auth-card .auth-sso-btn {
   margin-top: 14px;
   color: #274355;
   background: #eef4f8;
@@ -1002,7 +1007,7 @@ body.route-locations .topology-content {
   font-weight: 600;
 }
 
-.auth-card button.auth-sso-btn:hover {
+.auth-card .auth-sso-btn:hover {
   opacity: 1;
   background: var(--nm-accent-soft);
   border-color: rgba(29, 154, 176, 0.4);

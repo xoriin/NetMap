@@ -6,6 +6,7 @@ import { api, type CloudProviderOption, type Device, type ExternalIpAssignment, 
 import { CloudProviderIcon } from "../../components/CloudProviderIcon";
 import { DashStat } from "../../components/DashStat";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
+import { SpaLink } from "../../components/SpaLink";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { navigateToIpamView } from "../ipam/ipamNavigation";
 
@@ -178,10 +179,10 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate }: {
               </span>
             </span>
             {onNavigate && (
-              <button
+              <SpaLink
                 className="nm-btn nm-btn--sm nm-btn--secondary cloud-header-action"
-                type="button"
-                onClick={() => {
+                href="/ipam#external"
+                onNavigate={() => {
                   // Route first, then stamp the hash: `navigateToRoute` pushes the bare
                   // path, so setting the view beforehand would land on the old pathname.
                   onNavigate("/ipam");
@@ -189,7 +190,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate }: {
                 }}
               >
                 Manage in IPAM
-              </button>
+              </SpaLink>
             )}
           </div>
 

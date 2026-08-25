@@ -68,9 +68,9 @@ async function setupIpam(page: Page, theme: "light" | "dark" = "dark", beforeGot
 async function openExternalIps(page: Page) {
   // On /ipam the sub-nav is already expanded, and clicking the parent there collapses it
   // (the same "already on the first sub-view" rule as Inventory and Monitoring).
-  const link = page.getByRole("button", { name: "External IPs" });
+  const link = page.getByRole("link", { name: "External IPs" });
   if (!await link.isVisible().catch(() => false)) {
-    await page.getByRole("button", { name: "IPAM", exact: true }).click();
+    await page.getByRole("link", { name: "IPAM", exact: true }).click();
   }
   await link.click();
   await page.locator(".external-ip-panel").waitFor({ state: "visible", timeout: 8000 });
@@ -531,8 +531,8 @@ test("Cloud assets is a device-centric page fed by IPAM", async ({ page }) => {
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
   // Cloud assets is an Inventory sub-view, the same shape as Monitoring's
   // Devices / Endpoints split — reached through the sidebar, not a top-level page.
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  await page.getByRole("button", { name: "Cloud assets" }).click();
+  await page.getByRole("link", { name: "Inventory", exact: true }).click();
+  await page.getByRole("link", { name: "Cloud assets" }).click();
 
   // Grouped provider → device → address, the same order as IPAM's External IPs table.
   const providerRow = page.locator(".cloud-group-row");
@@ -547,7 +547,7 @@ test("Cloud assets is a device-centric page fed by IPAM", async ({ page }) => {
 
   // Devices arrive here through the IPAM toggle, so the page offers no create action.
   await expect(page.getByRole("button", { name: /^Add asset/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Manage in IPAM/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Manage in IPAM/ })).toBeVisible();
 
   // Groups start open: collapsing by default would hide the only content the page has.
   const addressRow = page.locator(".cloud-address-row").first();
@@ -568,9 +568,9 @@ test("the Inventory parent navigates and drops the menu down, never collapsing i
   // made the parent collapse the menu as a side effect, which hid the sub-items you were
   // about to click.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
+  const inventoryParent = page.getByRole("link", { name: "Inventory", exact: true });
   const inventoryToggle = page.getByRole("button", { name: /(Collapse|Expand) Inventory sections/ });
-  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+  const cloudLink = page.getByRole("link", { name: "Cloud assets", exact: true });
 
   await inventoryParent.click();
   await cloudLink.click();
@@ -602,17 +602,17 @@ test("the Inventory parent navigates and drops the menu down, never collapsing i
 
 test("Manage in IPAM opens the External IPs tab directly", async ({ page }) => {
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  await page.getByRole("button", { name: "Cloud assets" }).click();
+  await page.getByRole("link", { name: "Inventory", exact: true }).click();
+  await page.getByRole("link", { name: "Cloud assets" }).click();
 
-  const manage = page.getByRole("button", { name: "Manage in IPAM" });
+  const manage = page.getByRole("link", { name: "Manage in IPAM" });
   // Text only — the icon was noise on a button that already reads as a link.
   await expect(manage.locator("svg")).toHaveCount(0);
   await manage.click();
 
   // Lands on External IPs, not on Internal networks with the user hunting for it.
   await expect(page.locator(".external-ip-provider-row")).toBeVisible();
-  await expect(page.getByRole("button", { name: "External IPs" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "External IPs" })).toHaveAttribute("aria-current", "page");
   // ...and it is a page of its own: none of Internal networks' panels come with it.
   await expect(page.locator(".ipam-subnets-panel")).toHaveCount(0);
   await expect(page.locator(".ipam-reservations-panel")).toHaveCount(0);
@@ -632,11 +632,11 @@ for (const theme of ["light", "dark"] as const) {
       };
     });
 
-    await page.getByRole("button", { name: "Inventory", exact: true }).click();
+    await page.getByRole("link", { name: "Inventory", exact: true }).click();
     await expect(page.locator(".inventory-table-header").first()).toBeVisible();
     const inventory = await read(".inventory-table-header");
 
-    await page.getByRole("button", { name: "IPAM", exact: true }).click();
+    await page.getByRole("link", { name: "IPAM", exact: true }).click();
     await openExternalIps(page);
     const ipam = await read(".external-ip-table thead th");
 
@@ -705,11 +705,11 @@ test("Cloud assets survives the Admin stylesheet being loaded", async ({ page })
   // stopped being table rows — but only for users who had opened Admin, which is why a
   // single-page test saw nothing wrong.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  await page.getByRole("button", { name: "Admin", exact: true }).click();
+  await page.getByRole("link", { name: "Admin", exact: true }).click();
   await page.locator(".admin-layout, .admin-workspace").first().waitFor({ state: "visible", timeout: 8000 });
 
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  await page.getByRole("button", { name: "Cloud assets" }).click();
+  await page.getByRole("link", { name: "Inventory", exact: true }).click();
+  await page.getByRole("link", { name: "Cloud assets" }).click();
 
   const groupRow = page.locator(".cloud-group-row").first();
   await expect(groupRow).toBeVisible();
@@ -728,10 +728,10 @@ test("sidebar section menus stay open when you leave the section", async ({ page
   // They used to be seeded from the current route and force-expanded on arrival, so leaving
   // a section collapsed its menu and returning discarded a deliberate collapse.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
-  const monitoringParent = page.getByRole("button", { name: "Monitoring", exact: true });
-  const topology = page.getByRole("button", { name: "Topology", exact: true });
-  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+  const inventoryParent = page.getByRole("link", { name: "Inventory", exact: true });
+  const monitoringParent = page.getByRole("link", { name: "Monitoring", exact: true });
+  const topology = page.getByRole("link", { name: "Topology", exact: true });
+  const cloudLink = page.getByRole("link", { name: "Cloud assets", exact: true });
 
   await inventoryParent.click();
   await expect(cloudLink).toBeVisible();
@@ -742,7 +742,7 @@ test("sidebar section menus stay open when you leave the section", async ({ page
   const inventoryToggle = page.getByRole("button", { name: /^(Collapse|Expand) Inventory sections$/ });
   await expect(inventoryToggle).toHaveAttribute("aria-expanded", "true");
   // ...and nothing in it claims to be the current page while we are elsewhere.
-  await expect(page.getByRole("button", { name: "Devices", exact: true })).not.toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Devices", exact: true })).not.toHaveAttribute("aria-current", "page");
 
   // A sub-item still works from off-route: it takes you back to its section.
   await cloudLink.click();
@@ -779,9 +779,9 @@ test("a collapsed sidebar menu stays collapsed across navigation and reload", as
   // section's own name is not "moving around" — that deliberately drops the menu back down,
   // which is covered by the parent-click test above.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  const inventoryParent = page.getByRole("button", { name: "Inventory", exact: true });
+  const inventoryParent = page.getByRole("link", { name: "Inventory", exact: true });
   const inventoryToggle = page.getByRole("button", { name: /(Collapse|Expand) Inventory sections/ });
-  const cloudLink = page.getByRole("button", { name: "Cloud assets", exact: true });
+  const cloudLink = page.getByRole("link", { name: "Cloud assets", exact: true });
 
   await inventoryParent.click();
   await expect(cloudLink).toBeVisible();
@@ -789,7 +789,7 @@ test("a collapsed sidebar menu stays collapsed across navigation and reload", as
   await expect(cloudLink).toHaveCount(0);
 
   // Move elsewhere: still collapsed.
-  await page.getByRole("button", { name: "Topology", exact: true }).click();
+  await page.getByRole("link", { name: "Topology", exact: true }).click();
   await expect(cloudLink).toHaveCount(0);
 
   // Persisted, not just held in memory.
@@ -803,8 +803,8 @@ test("Cloud assets loads its own stylesheet", async ({ page }) => {
   // `IpamWorkspace` alone, so the page rendered with no styling whatsoever. Text-only
   // assertions passed the whole time, which is why these are computed-style checks.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  await page.getByRole("button", { name: "Cloud assets" }).click();
+  await page.getByRole("link", { name: "Inventory", exact: true }).click();
+  await page.getByRole("link", { name: "Cloud assets" }).click();
 
   const table = page.locator(".cloud-table");
   await expect(table).toHaveClass(/\bnm-table\b/);
@@ -839,8 +839,8 @@ test("Cloud assets keeps provider marks icon-sized", async ({ page }) => {
   // used to ignore `size` for those, so outside a caller that happened to constrain
   // `img` the logo rendered full-page and blew the table out sideways.
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
-  await page.getByRole("button", { name: "Inventory", exact: true }).click();
-  await page.getByRole("button", { name: "Cloud assets" }).click();
+  await page.getByRole("link", { name: "Inventory", exact: true }).click();
+  await page.getByRole("link", { name: "Cloud assets" }).click();
 
   const mark = page.locator(".cloud-group-icon > *").first();
   const box = await mark.boundingBox();

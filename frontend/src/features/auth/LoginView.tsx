@@ -31,14 +31,13 @@ function consumeSsoErrorParam(): string | null {
 
 function SsoButton({ providerName }: { providerName: string }) {
   return (
-    <button
-      type="button"
+    <a
+      href="/api/v1/auth/oidc/login"
       className="auth-sso-btn"
-      onClick={() => { window.location.href = "/api/v1/auth/oidc/login"; }}
     >
       <LogIn size={16} aria-hidden="true" />
       Continue with {providerName}
-    </button>
+    </a>
   );
 }
 

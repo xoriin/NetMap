@@ -25,6 +25,7 @@ import { type AppRoute } from "../../routes";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
+import { SpaLink } from "../../components/SpaLink";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
@@ -381,8 +382,8 @@ export function OverviewWorkspace({
     <section className="dash-layout overview-workspace">
       {/* Stat row */}
       <div className="dash-stats nm-summary-band">
-        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${healthyPct}% healthy`} icon={<IconServer size={20} />} accent="teal" onClick={() => onNavigate("/inventory")} />
-        <DashStat label="Online" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" onClick={() => onNavigate("/monitoring")} />
+        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${healthyPct}% healthy`} icon={<IconServer size={20} />} accent="teal" href="/inventory" onClick={() => onNavigate("/inventory")} />
+        <DashStat label="Online" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
         <DashStat
           label="Offline"
           value={statusCounts.offline}
@@ -392,14 +393,15 @@ export function OverviewWorkspace({
           onClick={statusCounts.offline > 0 ? () => { setAlertDismissed(false); setShowOfflineList((v) => !v); } : undefined}
           active={showOfflineList}
         />
-        <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" onClick={() => onNavigate("/vlans")} />
-        <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" onClick={() => onNavigate("/topology")} />
+        <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" href="/vlans" onClick={() => onNavigate("/vlans")} />
+        <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" href="/topology" onClick={() => onNavigate("/topology")} />
         <DashStat
           label="Avg RTT"
           value={fmtRtt(monFleet?.avg_rtt_ms ?? null)}
           sub="fleet average"
           icon={<IconGauge size={20} />}
           accent="indigo"
+          href="/monitoring"
           onClick={() => onNavigate("/monitoring")}
         />
       </div>
@@ -427,9 +429,9 @@ export function OverviewWorkspace({
         <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
             <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Offline devices" meta={`${offlineDevices.length} total`} />
-            <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
+            <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/inventory")}>
               View inventory <IconArrowRight size={13} />
-            </button>
+            </SpaLink>
           </div>
           <div className="dash-panel-body">
             <div className="dash-device-list">
@@ -481,7 +483,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconServer size={22} /></div>
                 <div className="dash-empty-title">No devices yet</div>
                 <div className="dash-empty-desc">Add devices from the Inventory tab to see health here.</div>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/inventory")}>Go to Inventory</button>
+                <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>Go to Inventory</SpaLink>
               </div>
             ) : (
               <div className="dash-health-with-donut">
@@ -563,9 +565,9 @@ export function OverviewWorkspace({
         <div className="dash-panel nm-app-panel overview-panel">
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
             <OverviewPanelIdentity icon={<IconMap size={18} />} title="Top groups" />
-            <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/vlans")}>
+            <SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>
               Manage <IconArrowRight size={12} />
-            </button>
+            </SpaLink>
           </div>
           <div className="dash-panel-body">
             {groupBreakdown.length === 0 ? (
@@ -573,7 +575,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconMap size={22} /></div>
                 <div className="dash-empty-title">No groups yet</div>
                 <div className="dash-empty-desc">Assign topology groups to devices to segment your network.</div>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/vlans")}>Manage groups</button>
+                <SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/vlans")}>Manage groups</SpaLink>
               </div>
             ) : (
               <div className="dash-breakdown">
@@ -617,9 +619,9 @@ export function OverviewWorkspace({
                   </button>}
                 </>
               )}
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/inventory")}>
+              <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/inventory")}>
                 View all <IconArrowRight size={12} />
-              </button>
+              </SpaLink>
             </div>
           </div>
           <div className="dash-panel-body">
@@ -635,7 +637,7 @@ export function OverviewWorkspace({
                     {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>}
                   </div>
                 ) : (
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/inventory")}>View inventory</button>
+                  <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>View inventory</SpaLink>
                 )}
               </div>
             ) : (
@@ -679,9 +681,9 @@ export function OverviewWorkspace({
                   placeholder="Search favourites"
                 />
               </div>
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onClick={() => onNavigate("/monitoring")}>
+              <SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>
                 View all <IconArrowRight size={12} />
-              </button>
+              </SpaLink>
             </div>
           </div>
           <div className="dash-panel-body">
@@ -709,7 +711,7 @@ export function OverviewWorkspace({
                 <div className="dash-empty-icon"><IconShieldCheck size={22} /></div>
                 <div className="dash-empty-title">No favourites yet</div>
                 <div className="dash-empty-desc">Star devices or endpoints in monitoring to pin them here.</div>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onNavigate("/monitoring")}>Go to Monitoring</button>
+                <SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/monitoring")}>Go to Monitoring</SpaLink>
               </div>
             ) : visibleFavouriteDevices.length === 0 && visibleFavouriteMonitors.length === 0 ? (
               <div className="dash-empty-state">

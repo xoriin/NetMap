@@ -45,6 +45,7 @@ function useStickyMenu(key: string, fallback: boolean) {
 import { ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { type AppRoute, appRoutes, appRouteByHref, appRouteCopy } from "./routes";
 import { type User, type VersionInfo } from "./api/client";
+import { SpaLink } from "./components/SpaLink";
 import { useTheme } from "./providers/ThemeProvider";
 import {
   ADMIN_TAB_CHANGE_EVENT,
@@ -164,15 +165,15 @@ export function Sidebar({
   return (
     <aside className={collapsed ? "sidebar sidebar--collapsed" : "sidebar"} aria-label="Primary navigation">
       <div className="sidebar-brand-row">
-        <button
-          type="button"
+        <SpaLink
+          href="/overview"
           className="brand"
-          onClick={() => onNavigate("/overview")}
+          onNavigate={() => onNavigate("/overview")}
           title="Home (Overview)"
         >
           <img src="/favicon.svg" width="28" height="28" alt="" />
           {!collapsed && <span>NetMap</span>}
-        </button>
+        </SpaLink>
       </div>
       <nav>
         {appRoutes
@@ -201,11 +202,11 @@ export function Sidebar({
 	                  </>
 	                )}
                 <div className={isContextRoute && !collapsed ? "sidebar-link-row" : undefined}>
-                <button
+                <SpaLink
+                  href={route.href}
                   className={`${route.href === currentRoute ? "sidebar-link active" : "sidebar-link"}${isContextParent ? " sidebar-link--parent" : ""}`}
-                  type="button"
                   title={collapsed ? route.label : undefined}
-                  onClick={() => {
+                  onNavigate={() => {
                     // The parent navigates and opens its menu — it never collapses it.
                     // Collapsing is the chevron's job, so the two never fight over a click.
                     if (isContextParent && !collapsed) {
@@ -242,7 +243,7 @@ export function Sidebar({
                       {openObservationCount > 99 ? "99+" : openObservationCount}
                     </span>
                   ) : null}
-                </button>
+                </SpaLink>
                 {isContextRoute && !collapsed && (
                   <button
                     type="button"
@@ -263,12 +264,12 @@ export function Sidebar({
                 {route.href === "/admin" && !collapsed && adminMenuExpanded && (
                   <div className="sidebar-admin-subnav" aria-label="Administration sections">
                     {availableAdminTabs(user).map(({ id, label, Icon: AdminIcon }) => (
-                      <button
+                      <SpaLink
                         key={id}
-                        type="button"
+                        href={`/admin#${id}`}
                         className={currentRoute === "/admin" && activeAdminTab === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
                         aria-current={currentRoute === "/admin" && activeAdminTab === id ? "page" : undefined}
-                        onClick={() => {
+                        onNavigate={() => {
                           // The menu stays open off-route, so a sub-item may need to take
                           // you back to its section before selecting the view.
                           if (currentRoute !== "/admin") onNavigate("/admin");
@@ -279,19 +280,19 @@ export function Sidebar({
                       >
                         <AdminIcon size={14} aria-hidden="true" />
                         <span>{label}</span>
-                      </button>
+                      </SpaLink>
                     ))}
                   </div>
                 )}
                 {route.href === "/inventory" && !collapsed && inventoryMenuExpanded && (
                   <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Inventory sections">
                     {inventoryViews.map(({ id, label, Icon: InventoryIcon }) => (
-                      <button
+                      <SpaLink
                         key={id}
-                        type="button"
+                        href={`/inventory#${id}`}
                         className={currentRoute === "/inventory" && activeInventoryView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
                         aria-current={currentRoute === "/inventory" && activeInventoryView === id ? "page" : undefined}
-                        onClick={() => {
+                        onNavigate={() => {
                           // The menu stays open off-route, so a sub-item may need to take
                           // you back to its section before selecting the view.
                           if (currentRoute !== "/inventory") onNavigate("/inventory");
@@ -302,19 +303,19 @@ export function Sidebar({
                       >
                         <InventoryIcon size={14} aria-hidden="true" />
                         <span>{label}</span>
-                      </button>
+                      </SpaLink>
                     ))}
                   </div>
                 )}
                 {route.href === "/ipam" && !collapsed && ipamMenuExpanded && (
                   <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="IP address management sections">
                     {ipamViews.map(({ id, label, Icon: IpamIcon }) => (
-                      <button
+                      <SpaLink
                         key={id}
-                        type="button"
+                        href={`/ipam#${id}`}
                         className={currentRoute === "/ipam" && activeIpamView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
                         aria-current={currentRoute === "/ipam" && activeIpamView === id ? "page" : undefined}
-                        onClick={() => {
+                        onNavigate={() => {
                           // The menu stays open off-route, so a sub-item may need to take
                           // you back to its section before selecting the view.
                           if (currentRoute !== "/ipam") onNavigate("/ipam");
@@ -325,19 +326,19 @@ export function Sidebar({
                       >
                         <IpamIcon size={14} aria-hidden="true" />
                         <span>{label}</span>
-                      </button>
+                      </SpaLink>
                     ))}
                   </div>
                 )}
                 {route.href === "/monitoring" && !collapsed && monitoringMenuExpanded && (
                   <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Monitoring sections">
                     {monitoringViews.map(({ id, label, Icon: MonitoringIcon }) => (
-                      <button
+                      <SpaLink
                         key={id}
-                        type="button"
+                        href={`/monitoring#${id}`}
                         className={currentRoute === "/monitoring" && activeMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
                         aria-current={currentRoute === "/monitoring" && activeMonitoringView === id ? "page" : undefined}
-                        onClick={() => {
+                        onNavigate={() => {
                           // The menu stays open off-route, so a sub-item may need to take
                           // you back to its section before selecting the view.
                           if (currentRoute !== "/monitoring") onNavigate("/monitoring");
@@ -348,7 +349,7 @@ export function Sidebar({
                       >
                         <MonitoringIcon size={14} aria-hidden="true" />
                         <span>{label}</span>
-                      </button>
+                      </SpaLink>
                     ))}
                   </div>
                 )}
