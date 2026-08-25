@@ -17,7 +17,7 @@ import { LoadingView } from "./views/LoadingView";
 import { SetupView } from "./features/auth/SetupView";
 import { LoginView } from "./features/auth/LoginView";
 import { ResetPasswordView } from "./features/auth/ResetPasswordView";
-import { Sidebar, AppTopbar } from "./Sidebar";
+import { Sidebar, AppTopbar, clearStickySidebarMenus } from "./Sidebar";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 import { userHasPermission } from "./utils/permissions";
@@ -238,6 +238,7 @@ export function App() {
       // Session cleanup must proceed even when server-side revoke fails.
     }
     bootstrapDoneRef.current = false;
+    clearStickySidebarMenus();
     storeTokens(null);
     setTokens(null);
     setUser(null);

@@ -1,6 +1,17 @@
 import { useState, useEffect, type ReactNode } from "react";
 
 const STICKY_MENU_PREFIX = "netmap.sidebar.menu.";
+const STICKY_MENU_KEYS = ["admin", "inventory", "ipam", "monitoring"] as const;
+
+export function clearStickySidebarMenus() {
+  try {
+    for (const key of STICKY_MENU_KEYS) {
+      window.localStorage.removeItem(`${STICKY_MENU_PREFIX}${key}`);
+    }
+  } catch {
+    // Logout still completes when storage is unavailable.
+  }
+}
 
 /**
  * Sidebar section menus remember whether they are open.

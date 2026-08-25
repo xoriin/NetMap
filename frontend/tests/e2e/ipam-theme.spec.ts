@@ -797,6 +797,22 @@ test("a collapsed sidebar menu stays collapsed across navigation and reload", as
   await expect(cloudLink).toHaveCount(0);
 });
 
+test("signing out resets remembered sidebar menu states", async ({ page }) => {
+  const menuKeys = ["admin", "inventory", "ipam", "monitoring"]
+    .map((section) => `netmap.sidebar.menu.${section}`);
+
+  await setupIpam(page, "dark", async () => {
+    await page.route("**/api/v1/auth/logout", (route) => route.fulfill({ status: 204, body: "" }));
+    await page.addInitScript((keys) => {
+      keys.forEach((key, index) => window.localStorage.setItem(key, index % 2 === 0 ? "open" : "closed"));
+    }, menuKeys);
+  });
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect.poll(() => page.evaluate((keys) => keys.map((key) => window.localStorage.getItem(key)), menuKeys))
+    .toEqual([null, null, null, null]);
+});
+
 test("Cloud assets loads its own stylesheet", async ({ page }) => {
   // Regression guard. This page began life inside IPAM and kept IPAM's `.external-ip-*`
   // class names when it moved under Inventory — but `ipam.css` is imported by
