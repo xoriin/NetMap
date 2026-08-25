@@ -433,6 +433,27 @@
   gap: 6px;
 }
 
+/* User rows carry four actions, so keep their column wide enough to retain the
+   canonical one-line, right-edge action treatment at desktop widths. */
+.admin-layout .admin-users-table--accounts {
+  min-width: 900px;
+}
+
+.admin-layout .admin-users-table--accounts .admin-users-header,
+.admin-layout .admin-users-table--accounts .admin-users-row {
+  grid-template-columns: minmax(220px, 1fr) 152px 100px 268px;
+}
+
+.admin-layout .admin-users-actions-heading {
+  padding-right: 0;
+  text-align: right;
+}
+
+.admin-layout .admin-user-row-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
 .admin-layout .admin-panel-spaced,
 .admin-layout .admin-alert-delivery-panel,
 .admin-layout .admin-security-audit-panel {

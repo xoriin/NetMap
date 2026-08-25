@@ -134,12 +134,12 @@ export function UsersTab({
         </div>
         <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
         {usersLoading ? <p>Loading…</p> : (
-          <div className="admin-users-table">
+          <div className="admin-users-table admin-users-table--accounts">
             <div className="admin-users-header">
               <span>User</span>
               <span className="admin-col-center">Role</span>
               <span className="admin-col-center">Status</span>
-              <span className="admin-col-center">Actions</span>
+              <span className="admin-users-actions-heading">Actions</span>
             </div>
             {filteredUsers.map((row) => (
               <div className="admin-users-row" key={row.id}>
@@ -229,7 +229,7 @@ export function UsersTab({
                     </span>
                   </label>
                 </div>
-                <div className="admin-row-actions">
+                <div className="admin-row-actions admin-user-row-actions">
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => setResetPasswordForm({ userId: row.id, password: "" })}>Reset PW</button>
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void unlockLogin(row.id)}>Unlock</button>
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void forceLogout(row.id)}>Logout</button>

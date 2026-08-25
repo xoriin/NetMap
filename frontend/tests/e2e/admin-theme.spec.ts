@@ -194,7 +194,7 @@ test("every cloud provider can be removed, built-in or not", async ({ page }) =>
   });
 
   await page.goto("/admin");
-  await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Cloud providers", exact: true }).click();
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Cloud providers", exact: true }).click();
 
   const rows = page.locator(".cloud-provider-row");
   await expect(rows).toHaveCount(2);
@@ -206,6 +206,40 @@ test("every cloud provider can be removed, built-in or not", async ({ page }) =>
   await expect.poll(() => deleted).toEqual(["aws"]);
 });
 
+test("keeps Users actions evenly spaced on one right-aligned row", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Users", exact: true }).click();
+
+  const row = page.locator(".admin-users-table--accounts .admin-users-row").first();
+  const buttons = row.locator(".admin-user-row-actions").getByRole("button");
+  await expect(buttons).toHaveCount(4);
+
+  const geometry = await row.evaluate((rowNode) => {
+    const headingNode = rowNode.parentElement?.querySelector(".admin-users-actions-heading");
+    const actionNode = rowNode.querySelector(".admin-user-row-actions");
+    const buttonNodes = Array.from(actionNode?.querySelectorAll("button") ?? []);
+    const rowRect = rowNode.getBoundingClientRect();
+    const headingRect = headingNode?.getBoundingClientRect();
+    const actionRect = actionNode?.getBoundingClientRect();
+    const buttonRects = buttonNodes.map((button) => button.getBoundingClientRect());
+    return {
+      rowRight: rowRect.right,
+      headingRight: headingRect?.right ?? 0,
+      actionRight: actionRect?.right ?? 0,
+      buttonTops: buttonRects.map((rect) => rect.top),
+      buttonHeights: buttonRects.map((rect) => rect.height),
+      gaps: buttonRects.slice(1).map((rect, index) => rect.left - buttonRects[index].right),
+    };
+  });
+
+  expect(Math.abs(geometry.rowRight - geometry.actionRight - 12)).toBeLessThanOrEqual(1);
+  expect(Math.abs(geometry.headingRight - geometry.actionRight)).toBeLessThanOrEqual(1);
+  expect(Math.max(...geometry.buttonTops) - Math.min(...geometry.buttonTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...geometry.buttonHeights) - Math.min(...geometry.buttonHeights)).toBeLessThanOrEqual(1);
+  for (const gap of geometry.gaps) expect(Math.abs(gap - 6)).toBeLessThanOrEqual(1);
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`focused text fields show a muted indicator, not a coloured glow (${theme})`, async ({ page }) => {
     // Inputs used to take the full accent border plus a 3px --nm-accent-soft halo, which
@@ -214,7 +248,7 @@ for (const theme of ["light", "dark"] as const) {
     await setupAdminMocks(page);
     await page.addInitScript((t) => window.localStorage.setItem("netmap.theme", t), theme);
     await page.goto("/admin");
-    await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Cloud providers", exact: true }).click();
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Cloud providers", exact: true }).click();
 
     const field = page.locator(".cloud-provider-create .nm-input").first();
     const other = page.locator(".cloud-provider-create .nm-input").nth(1);
@@ -249,7 +283,7 @@ for (const theme of ["light", "dark"] as const) {
 test("shows every built-in role and the complete permission matrix", async ({ page }) => {
   await setupAdminMocks(page);
   await page.goto("/admin");
-  await page.getByLabel("Administration sections", { exact: true }).getByRole("button", { name: "Groups", exact: true }).click();
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Groups", exact: true }).click();
   const cards = page.locator(".rbac-role-card");
   await expect(cards).toHaveCount(4);
   await expect(cards.locator(".rbac-role-name")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
@@ -270,7 +304,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/admin");
 
     const adminNav = page.getByLabel("Administration sections", { exact: true });
-    const adminParent = page.getByRole("button", { name: "Admin", exact: true });
+    const adminParent = page.getByRole("link", { name: "Admin", exact: true });
     // The chevron is its own control beside the link, not part of it: the link navigates,
     // the chevron opens and closes the menu.
     const adminToggle = page.getByRole("button", { name: /(Collapse|Expand) Admin sections/ });
@@ -278,7 +312,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("button", { name: /(Collapse|Expand) Monitoring sections/ })).toBeVisible();
     await expect(adminToggle).toHaveAttribute("aria-expanded", "true");
     await expect(adminNav).toBeVisible();
-    await expect(adminNav.getByRole("button")).toHaveCount(tabs.length);
+    await expect(adminNav.getByRole("link")).toHaveCount(tabs.length);
     await expect(page.locator(".admin-live-console")).toHaveCount(0);
     await expect(page.locator(".admin-system-stats")).toHaveCount(0);
     await expect(page.locator(".admin-purpose-content")).toBeVisible();
@@ -296,7 +330,7 @@ for (const theme of ["light", "dark"] as const) {
 
     const headingStyles: Record<string, string> = {};
     for (const [tabName, heading, hash] of tabs) {
-      const sectionLink = adminNav.getByRole("button", { name: tabName, exact: true });
+      const sectionLink = adminNav.getByRole("link", { name: tabName, exact: true });
       await sectionLink.click();
       await expect(sectionLink).toHaveAttribute("aria-current", "page");
       await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(`#${hash}`);
@@ -374,7 +408,7 @@ for (const theme of ["light", "dark"] as const) {
     }
 
     await page.goBack();
-    await expect(adminNav.getByRole("button", { name: "Automation", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(adminNav.getByRole("link", { name: "Automation", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".admin-section-title", { hasText: "Scheduled scans" }).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Collapse sidebar" }).click();
