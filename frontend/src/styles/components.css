@@ -976,6 +976,76 @@ body.theme-dark .nm-swatch-option--hl {
   font-size: var(--nm-text-md);
 }
 
+/* PickOrCreate inside a modal adopts the modal input well, exactly like the
+   .nm-select it sits beside; its default --nm-surface reads as a darker hole
+   next to a real select in dark mode. */
+/* The trigger already takes the reference combobox's border and well; the only
+   modal-specific part is the height. Modal form controls are taller than the
+   base 32px control — `.modal-form input/select/textarea` take a 40px
+   min-height — so match that from tokens and the trigger lines up with the
+   input it shares a `.nm-form-row` with. */
+.modal .nm-pick-trigger {
+  height: auto;
+  min-height: calc(var(--nm-control-md) + var(--nm-space-2));
+}
+
+/* The picker's menu lives inside the modal form, so `.modal .modal-form label`
+   (a 6px grid, 750 weight) and the 40px `.modal .modal-form input` min-height
+   both land on the menu's own filter row and tear it apart — the input outgrows
+   its 28px row and collides with the first option. The menu is the component's
+   private surface, not a modal form field, so restore what PickOrCreate defines
+   for it. Same shape as the SwatchSelect exception below. */
+.modal .modal-form .nm-pick-filter {
+  display: flex;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--nm-text-faint);
+  font-size: var(--nm-text-xs);
+  font-weight: 400;
+}
+
+/* Both twins are required. `body.theme-dark .modal .modal-form input:not(…)
+   :not(…)` scores (0,5,2); the undarkened selector below scores (0,5,1) and
+   loses on element count, which left the dark theme repainting this input with
+   its own border and well — a second box drawn inside the filter row. */
+.modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]),
+body.theme-dark .modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]) {
+  height: auto;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-size: var(--nm-text-xs);
+}
+
+.modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):hover,
+.modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):focus,
+.modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+body.theme-dark .modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):hover,
+body.theme-dark .modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):focus,
+body.theme-dark .modal .modal-form .nm-pick-filter input:not([type="checkbox"]):not([type="radio"]):focus-visible {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+
+/* The picker sits inside a `.modal-form` <label>, whose 750 weight and 14px
+   size inherit into the menu. Option rows are the component's own control, not
+   modal form fields, so they keep the reference's own type. */
+.modal .modal-form .nm-pick-row {
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+}
+
+.modal .modal-form .nm-pick-row--create {
+  font-weight: 600;
+}
+
+.modal .modal-form .nm-pick-group-heading {
+  font-size: var(--nm-text-xs);
+}
+
 /* SwatchSelect inside a modal adopts the modal's input treatment rather than
    the compact inventory-toolbar one it defaults to. */
 .modal .modal-form .nm-swatch-select {
@@ -1123,5 +1193,209 @@ body.theme-dark .modal .nm-textarea {
 .nm-section-tab:focus-visible {
   outline: 2px solid var(--nm-accent);
   outline-offset: -2px;
+}
+
+/* ── PickOrCreate (components/PickOrCreate.tsx) ──────────────────────────
+   Shared "pick an existing one or create a new one" combobox. Modelled on
+   the reviewed .theme-lab-combobox example; reimplemented with its own
+   .nm-pick-* classes and --nm-* tokens only. No body.theme-dark overrides —
+   dark mode comes from the token flip, same as the Toast/ConfirmDialog
+   feedback components. See docs/UI_THEME_RULES.md § Forms. */
+.nm-pick {
+  position: relative;
+}
+
+.nm-pick-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: var(--nm-control-md);
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  padding: 0 9px;
+  background: var(--nm-modal-input);
+  color: var(--nm-text);
+  font-size: var(--nm-text-md);
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.nm-pick-trigger-text {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nm-pick-trigger svg {
+  flex: 0 0 auto;
+  color: var(--nm-text-muted);
+}
+
+.nm-pick-trigger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--nm-accent) 34%, var(--nm-border-strong));
+}
+
+.nm-pick-trigger:focus-visible {
+  outline: none;
+  border-color: var(--nm-accent);
+  box-shadow: 0 0 0 3px var(--nm-accent-soft);
+}
+
+.nm-pick-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Fixed, not absolute: every use of this component is inside a `.modal`, and
+   `.modal` is an `overflow: auto` scroll box, which clips an absolutely
+   positioned menu the moment the trigger sits in the lower half of the dialog.
+   A fixed element's containing block is the viewport, so it escapes that clip
+   without a portal — the menu stays a DOM child of `.nm-pick`, which keeps the
+   outside-click check and the focus/ARIA wiring intact. Coordinates and the
+   available height come from the trigger rect in PickOrCreate.tsx. */
+.nm-pick-menu {
+  position: fixed;
+  z-index: 240;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 220px;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  padding: 5px 5px 7px;
+  background: var(--nm-modal-header);
+  box-shadow: 0 12px 28px rgba(3, 10, 18, 0.24);
+}
+
+.nm-pick-filter {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  margin-bottom: 4px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-sm);
+  padding: 0 8px;
+  background: var(--nm-modal-input);
+  color: var(--nm-text-faint);
+}
+
+.nm-pick-filter svg {
+  flex: 0 0 auto;
+}
+
+/* The `body.theme-dark` twin is not redundant: `body.theme-dark .modal
+   .modal-form input:not(…):not(…)` carries one more element in its selector, so
+   without a matching-specificity rule here the dark theme repaints this input
+   with `--nm-modal-input` and it reads as a second box inside the filter row.
+   The reference example carries the same twin for the same reason. */
+.nm-pick-filter input,
+body.theme-dark .nm-pick-filter input {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nm-text);
+  font-size: var(--nm-text-xs);
+}
+
+.nm-pick-filter input:focus,
+.nm-pick-filter input:focus-visible {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+
+/* The row is the field, so the focus cue belongs on the row — but restrained:
+   the menu only ever opens with this input focused, so a 3px accent glow here
+   competes with the trigger and reads as an error state. */
+.nm-pick-filter:focus-within {
+  border-color: var(--nm-border-strong);
+}
+
+.nm-pick-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.nm-pick-group-heading {
+  padding: var(--nm-space-2) var(--nm-space-2) 2px;
+  color: var(--nm-text-faint);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nm-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 31px;
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  padding: 0 8px;
+  background: transparent;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 500;
+  text-align: left;
+}
+
+.nm-pick-row--hl,
+.nm-pick-row--selected,
+.nm-pick-row:hover {
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-text);
+}
+
+/* Selection is marked by the trailing check, as in the reference — recolouring
+   the label as well made the chosen row read as the highlighted one. */
+.nm-pick-check {
+  margin-left: auto;
+  color: var(--nm-accent-strong);
+}
+
+/* The create action is the menu's one command rather than an option, so it
+   takes the separator-and-colour treatment the reference gives its distinct
+   items, not a filled accent surface. */
+.nm-pick-row--create {
+  flex: 0 0 auto;
+  margin-top: 5px;
+  border-top: 1px solid var(--nm-border);
+  /* Same rounding as every other row, so the hover surface is one shape
+     throughout the menu; the separator is the row's own top border, which
+     follows the radius rather than cutting a square corner across it. */
+  border-radius: var(--nm-radius-sm);
+  /* The separator sits on this row's top edge, so the gap above the label is
+     padding and the gap below it has to be stated too — without it the label
+     rides the row's bottom edge and the menu closes tight under it. */
+  padding-top: 7px;
+  padding-bottom: 7px;
+  color: var(--nm-accent);
+  font-weight: 600;
+}
+
+.nm-pick-row--create.nm-pick-row--hl,
+.nm-pick-row--create:hover {
+  background: var(--nm-tab-hover-bg);
+  color: var(--nm-accent-strong);
+}
+
+.nm-pick-empty-state {
+  padding: var(--nm-space-2);
+  color: var(--nm-text-faint);
+  font-size: var(--nm-text-xs);
+  text-align: center;
 }
 
