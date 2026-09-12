@@ -507,7 +507,7 @@ body.theme-dark .tools-workspace .tools-main .tool-card.nm-app-panel {
 .tools-workspace .tool-card-header.nm-app-panel-header {
   min-height: 44px;
   gap: 16px;
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-header);
 }
@@ -1002,4 +1002,3 @@ body.theme-dark .tools-workspace .tool-output {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
-

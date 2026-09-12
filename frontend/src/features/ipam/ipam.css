@@ -283,7 +283,7 @@
 
 .ipam-workspace .ipam-panel-header.nm-app-panel-header {
   min-height: 44px;
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-header);
 }

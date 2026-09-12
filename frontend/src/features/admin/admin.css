@@ -973,7 +973,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--nm-space-3);
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-bottom: 1px solid var(--nm-border);
   background: var(--nm-modal-header);
 }

@@ -39,7 +39,7 @@ body.route-locations .workspace {
   min-height: 44px;
   flex: 0 0 auto;
   gap: 16px;
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-header);
 }
@@ -361,4 +361,3 @@ body.theme-dark .locations-workspace .loc-item-badge--zero {
     grid-column: auto;
   }
 }
-

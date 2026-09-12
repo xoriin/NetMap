@@ -114,7 +114,7 @@ body.route-security .security-filters {
 
 .security-panel-header.nm-app-panel-header {
   margin: -16px -16px 2px;
-  padding: 6px 16px;
+  padding: 6px 18px;
 }
 
 .security-panel-identity {
@@ -369,4 +369,3 @@ body.route-security .security-pagination > div {
   .security-summary-grid { grid-template-columns: 1fr; }
   .security-results-range { display: none; }
 }
-

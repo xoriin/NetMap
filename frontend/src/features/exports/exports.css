@@ -96,7 +96,7 @@ body.theme-dark .exports-panel.nm-app-panel {
 .exports-panel-header.nm-app-panel-header {
   min-height: 44px;
   gap: 16px;
-  padding: 6px 16px;
+  padding: 6px 18px;
   border-bottom: 1px solid var(--nm-border);
   background: var(--nm-modal-header);
 }
@@ -274,4 +274,3 @@ body.theme-dark .exports-panel .nm-select:focus {
   .exports-summary-grid,
   .exports-report-contents { grid-template-columns: 1fr; }
 }
-

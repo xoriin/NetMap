@@ -2599,7 +2599,6 @@ body.theme-dark .alert-status-pill--active { background: rgba(45,157,120,0.15); 
   background: rgba(124, 92, 191, 0.08);
   border-color: rgba(124, 92, 191, 0.28);
   color: #4a3278;
-  margin: 0 0 16px;
   text-align: left;
   font-weight: 500;
 }
@@ -2608,19 +2607,4 @@ body.theme-dark .dash-alert--announcement {
   background: rgba(124, 92, 191, 0.14);
   border-color: rgba(167, 139, 250, 0.28);
   color: #c4b0f0;
-}
-
-body.route-topology .dash-alert--announcement,
-body.route-security .dash-alert--announcement {
-  width: auto;
-  margin: 0 0 var(--nm-workspace-section-gap);
-}
-
-body.route-inventory .dash-alert--announcement {
-  width: auto;
-  margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0;
-}
-
-body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-stats {
-  margin-top: var(--nm-workspace-section-gap);
 }

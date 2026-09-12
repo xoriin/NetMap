@@ -1118,11 +1118,6 @@ body.route-monitoring .dash-alert {
   line-height: 1.35;
 }
 
-body.route-monitoring .workspace > .dash-alert--announcement,
-body.route-ipam .workspace > .dash-alert--announcement {
-  margin: 0 0 var(--nm-workspace-section-gap);
-}
-
 .mon-ports-sidebar {
   position: sticky;
   top: 48px;
@@ -4233,7 +4228,7 @@ body.route-monitoring .mon-view-window.nm-app-panel {
 }
 body.route-monitoring .mon-view-window .nm-app-panel-header {
   min-height: 44px;
-  padding: 6px 14px;
+  padding: 6px 18px;
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-header);
 }

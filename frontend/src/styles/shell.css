@@ -370,6 +370,25 @@
   background: var(--nm-bg);
 }
 
+/* Global workspace geometry belongs to the shell, because the announcement is
+   rendered by App above every lazy-loaded route. Standard workspaces share the
+   shell's content box; the two documented full-bleed routes provide their own
+   inner gutter below. Keeping this here prevents a feature chunk from changing
+   MOTD placement only after that route has been visited. */
+.workspace > .dash-alert--announcement {
+  width: 100%;
+  margin: 0 0 var(--nm-workspace-section-gap);
+}
+
+body.route-inventory .workspace > .dash-alert--announcement {
+  width: auto;
+  margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0;
+}
+
+body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-stats {
+  margin-top: var(--nm-workspace-section-gap);
+}
+
 body.route-topology .workspace > :last-child,
 body.route-inventory .workspace > :last-child,
 body.route-security .workspace > :last-child,

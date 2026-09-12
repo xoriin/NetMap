@@ -16,16 +16,9 @@ body.route-topology .workspace:has(.dash-alert--announcement) #topology.topology
 }
 
 body.route-topology .dash-alert--announcement {
+  width: auto;
   margin: 20px var(--nm-topology-canvas-gutter, 12px) 8px;
   box-shadow: var(--nm-shadow-sm);
-}
-
-/* Workspace geometry contract: the global MOTD and the first content band
-   share one anchor on every standard page. Full-bleed Topology and Inventory
-   keep their own deliberate inner gutters. */
-body:not(.route-topology):not(.route-inventory) .workspace > .dash-alert--announcement {
-  width: 100%;
-  margin: 0 0 var(--nm-workspace-section-gap);
 }
 
 .topology-workspace-frame.nm-app-panel {
