@@ -4,7 +4,7 @@ from datetime import datetime
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SubnetCreate(BaseModel):
@@ -177,193 +177,85 @@ class CloudProviderOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class CloudAssetCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=120)
-    kind: str | None = Field(default=None, max_length=40)
+class ExternalAccountCreate(BaseModel):
     provider_id: int | None = None
-    account: str | None = Field(default=None, max_length=120)
-    region: str | None = Field(default=None, max_length=120)
-    device_id: int | None = None
-    description: str | None = None
+    name: str = Field(default="", max_length=120)
 
 
-class CloudAssetUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    kind: str | None = Field(default=None, max_length=40)
-    provider_id: int | None = None
-    account: str | None = Field(default=None, max_length=120)
-    region: str | None = Field(default=None, max_length=120)
-    device_id: int | None = None
-    description: str | None = None
-
-
-class CloudAssetOut(BaseModel):
+class ExternalAccountOut(ExternalAccountCreate):
     id: int
-    name: str
-    kind: str | None
-    provider_id: int | None
-    provider: CloudProviderOut | None = None
-    account: str | None
-    region: str | None
-    device_id: int | None
-    description: str | None
-    created_at: datetime
-    updated_at: datetime
-    address_count: int = 0
-    in_use: int = 0
-    reserved: int = 0
-
     model_config = {"from_attributes": True}
 
 
-class CloudAssetAddressCreate(BaseModel):
-    """Attach a public address directly to a cloud asset.
-
-    `pool_id` is optional on purpose. A cloud elastic IP is a single address, not a
-    delegated block, so requiring the user to define an allocation first is friction
-    that does not match how cloud addressing works. When omitted, the address is
-    matched to an existing allocation or filed under the provider's individual-address
-    allocation, which is created on demand.
-    """
-
-    ip_address: str = Field(..., min_length=1, max_length=64)
-    label: str | None = Field(default=None, max_length=120)
-    status: Literal["available", "reserved", "in_use"] = "in_use"
-    pool_id: int | None = None
-    owner: str | None = Field(default=None, max_length=120)
-    tags: str | None = Field(default=None, max_length=500)
-    notes: str | None = None
-
-
-class ExternalIpPoolCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=120)
-    cidr: str = Field(..., min_length=1, max_length=128)
-    provider_id: int | None = None
-    service: str | None = Field(default=None, max_length=120)
-    icon: str = Field(default="cloud", min_length=1, max_length=80)
-    account: str | None = Field(default=None, max_length=120)
+class ExternalLocationCreate(BaseModel):
+    account_id: int | None = Field(default=None, ge=1)
+    name: str = Field(min_length=1, max_length=120)
     region: str | None = Field(default=None, max_length=120)
-    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value):
+        if not value.strip():
+            raise ValueError("Location name is required")
+        return value.strip()
 
 
-class ExternalIpPoolUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    provider_id: int | None = None
-    service: str | None = Field(default=None, max_length=120)
-    icon: str | None = Field(default=None, min_length=1, max_length=80)
-    account: str | None = Field(default=None, max_length=120)
-    region: str | None = Field(default=None, max_length=120)
-    description: str | None = None
-
-
-class ExternalIpPoolOut(BaseModel):
+class ExternalLocationOut(ExternalLocationCreate):
     id: int
-    name: str
-    provider_id: int | None = None
-    provider: CloudProviderOut | None = None
-    service: str | None
-    icon: str
-    account: str | None
-    region: str | None
-    description: str | None
-    created_at: datetime
-    updated_at: datetime
-    total: int = 0
-    in_use: int = 0
-    reserved: int = 0
-    free: int = 0
-    utilization: float = 0.0
-    allocations: list["ExternalIpRangeOut"] = Field(default_factory=list)
-
     model_config = {"from_attributes": True}
-
-
-class ExternalIpRangeCreate(BaseModel):
-    cidr: str = Field(..., min_length=1, max_length=128)
-
-
-class ExternalIpRangeOut(BaseModel):
-    id: int
-    pool_id: int
-    cidr: str
-    total: int = 0
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class ExternalIpAssignmentCreate(BaseModel):
-    pool_id: int = Field(..., ge=1)
-    device_id: int | None = None
-    asset_id: int | None = None
-    ip_address: str = Field(..., min_length=1, max_length=64)
-    label: str = Field(..., min_length=1, max_length=120)
-    status: Literal["available", "reserved", "in_use"] = "in_use"
-    # DEPRECATED: superseded by `asset_id`. Still accepted so existing clients keep
-    # working; when `asset_id` is absent these seed or match an asset instead.
-    provider: str | None = Field(default=None, max_length=80)
-    account: str | None = Field(default=None, max_length=120)
-    owner: str | None = Field(default=None, max_length=120)
-    service: str | None = Field(default=None, max_length=120)
-    tags: str | None = Field(default=None, max_length=500)
-    notes: str | None = None
-
-
-class ExternalIpAssignmentUpdate(BaseModel):
-    pool_id: int | None = None
-    device_id: int | None = None
-    asset_id: int | None = None
-    ip_address: str | None = Field(default=None, min_length=1, max_length=64)
-    label: str | None = Field(default=None, min_length=1, max_length=120)
-    status: Literal["available", "reserved", "in_use"] | None = None
-    provider: str | None = Field(default=None, max_length=80)
-    account: str | None = Field(default=None, max_length=120)
-    owner: str | None = Field(default=None, max_length=120)
-    service: str | None = Field(default=None, max_length=120)
-    tags: str | None = Field(default=None, max_length=500)
-    notes: str | None = None
-
-
-class ExternalIpAssignmentOut(BaseModel):
-    id: int
-    pool_id: int
-    device_id: int | None = None
-    device: ExternalIpDeviceOut | None = None
-    asset_id: int | None = None
-    asset: CloudAssetOut | None = None
-    ip_address: str
-    label: str
-    status: str
-    owner: str | None
-    tags: str | None
-    notes: str | None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class ExternalIpAddressEntry(BaseModel):
-    ip_address: str
-    status: str
-    assignment: ExternalIpAssignmentOut | None = None
-
-
-class ExternalIpAddressPage(BaseModel):
-    total: int
-    offset: int
-    limit: int
-    addresses: list[ExternalIpAddressEntry]
 
 
 class ExternalIpSummary(BaseModel):
-    pool_count: int
     total: int
     in_use: int
     reserved: int
     free: int
-    asset_count: int = 0
-    unassigned_address_count: int = 0
 
 
-ExternalIpPoolOut.model_rebuild()
+class ExternalIpAddressBase(BaseModel):
+    location_id: int | None = None
+    device_id: int | None = None
+    status: Literal["in_use", "reserved", "available"] = "in_use"
+    label: str | None = Field(default=None, max_length=120)
+    url: str | None = Field(default=None, max_length=2048)
+    owner: str | None = Field(default=None, max_length=120)
+    tags: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
+class ExternalIpAddressCreate(ExternalIpAddressBase):
+    ip_address: str = Field(min_length=1, max_length=128)
+
+
+class ExternalIpAddressUpdate(ExternalIpAddressBase):
+    ip_address: str | None = Field(default=None, max_length=64)
+
+
+class ExternalIpAddressOut(ExternalIpAddressBase):
+    id: int
+    ip_address: str
+    device: ExternalIpDeviceOut | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExternalMigrationDecline(BaseModel):
+    cidr: str
+    location: str
+    kept: int
+
+
+class ExternalMigrationSkip(BaseModel):
+    """A range the migration could not read at all — recorded so odd real-world data
+    never disappears without a trace."""
+    cidr: str
+    location: str
+    reason: str
+
+
+class ExternalMigrationReport(BaseModel):
+    migrated: int
+    declined: list[ExternalMigrationDecline]
+    skipped: list[ExternalMigrationSkip] = []

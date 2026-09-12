@@ -11,6 +11,7 @@ class ExternalIpPool(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    location_id: Mapped[int | None] = mapped_column(ForeignKey("external_locations.id"), nullable=True)
     # Ranges live in `external_ip_ranges`. The pool no longer carries a privileged
     # "primary" CIDR of its own — it is purely an allocation source (migration 0071).
     provider_id: Mapped[int | None] = mapped_column(
@@ -61,6 +62,7 @@ class ExternalIpAssignment(Base):
     asset_id: Mapped[int | None] = mapped_column(
         ForeignKey("cloud_assets.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="in_use", index=True)
     # DEPRECATED (migration 0070): provider/account/service moved to `cloud_assets`.
@@ -74,4 +76,54 @@ class ExternalIpAssignment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class ExternalProviderAccount(Base):
+    __tablename__ = "external_provider_accounts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("cloud_providers.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+
+class ExternalLocation(Base):
+    __tablename__ = "external_locations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("external_provider_accounts.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class ExternalIpAddress(Base):
+    """One recorded public IP address.
+
+    Replaces ExternalIpAssignment. An address exists because someone recorded it,
+    so `available` is a lifecycle status rather than unused block capacity, and
+    `location_id` is nullable so recording an address requires only the address.
+    """
+
+    __tablename__ = "external_ip_addresses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ip_address: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("external_locations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    device_id: Mapped[int | None] = mapped_column(
+        ForeignKey("devices.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="in_use", index=True)
+    label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )

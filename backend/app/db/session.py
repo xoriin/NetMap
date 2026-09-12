@@ -178,6 +178,8 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0074_external_ip_cloud_services", _migrate_external_ip_cloud_services)
         _run_migration(conn, inspector, "0075_external_ip_allocation_icons", _migrate_external_ip_allocation_icons)
         _run_migration(conn, inspector, "0076_core_cloud_providers", _migrate_core_cloud_providers)
+        _run_migration(conn, inspector, "0077_external_locations", _migrate_external_locations)
+        _run_migration(conn, inspector, "0078_external_ip_addresses", _migrate_external_ip_addresses)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -1851,4 +1853,260 @@ def _migrate_core_cloud_providers(conn, inspector) -> None:
     conn.execute(
         text("UPDATE cloud_providers SET builtin = 0, updated_at = :now WHERE id = :provider_id"),
         {"provider_id": provider_id, "now": datetime.now(timezone.utc)},
+    )
+
+
+def _migrate_external_locations(conn, inspector) -> None:
+    """Add explicit account/location identity without reinterpreting legacy names."""
+    from app.models.external_ip import ExternalProviderAccount, ExternalLocation
+    ExternalProviderAccount.__table__.create(conn, checkfirst=True)
+    ExternalLocation.__table__.create(conn, checkfirst=True)
+    if "external_ip_pools" in _live_tables(conn) and "location_id" not in _live_columns(conn, "external_ip_pools"):
+        conn.execute(text("ALTER TABLE external_ip_pools ADD COLUMN location_id INTEGER REFERENCES external_locations(id)"))
+    if "external_ip_assignments" in _live_tables(conn) and "url" not in _live_columns(conn, "external_ip_assignments"):
+        conn.execute(text("ALTER TABLE external_ip_assignments ADD COLUMN url VARCHAR(2048)"))
+    # Provider/account references are unambiguous; names/service/region are not locations.
+    if "external_ip_pools" in _live_tables(conn):
+        for provider_id, account in conn.execute(text("SELECT DISTINCT provider_id, COALESCE(account, '') FROM external_ip_pools")):
+            exists = conn.execute(text("SELECT id FROM external_provider_accounts WHERE provider_id IS :provider_id AND name = :name"), {"provider_id": provider_id, "name": account}).first()
+            if not exists:
+                conn.execute(text("INSERT INTO external_provider_accounts (provider_id, name) VALUES (:provider_id, :name)"), {"provider_id": provider_id, "name": account})
+
+
+def _fix_external_locations_account_id_nullable(conn) -> None:
+    """A location must be creatable without a provider account (spec requirement).
+
+    0077 created `external_locations.account_id` as NOT NULL; SQLite cannot drop a
+    NOT NULL constraint in place, so rebuild the table when it is still set. Read
+    the live schema via PRAGMA rather than the inspector passed into migrations —
+    that inspector is built once before any migration in this run executes, so it
+    cannot see DDL 0077 just applied in this same transaction.
+
+    0077 has never shipped to `test/` or `prod/` (both are at 0076), so a real
+    upgrade runs an already-nullable 0077 followed by this fix-up, which finds
+    nothing to do and is a no-op. This exists only for databases that already ran
+    the old dev build with the NOT NULL column.
+    """
+    if "external_locations" not in _live_tables(conn):
+        return
+    columns = conn.execute(text("PRAGMA table_info(external_locations)")).fetchall()
+    account_id_column = next((row for row in columns if row[1] == "account_id"), None)
+    if account_id_column is None or not account_id_column[3]:
+        # Column missing (unexpected) or already nullable — nothing to fix.
+        return
+    conn.execute(text("""
+        CREATE TABLE external_locations_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER REFERENCES external_provider_accounts (id),
+            name VARCHAR(120) NOT NULL,
+            region VARCHAR(120)
+        )
+    """))
+    conn.execute(text("""
+        INSERT INTO external_locations_new (id, account_id, name, region)
+        SELECT id, account_id, name, region FROM external_locations
+    """))
+    conn.execute(text("DROP TABLE external_locations"))
+    conn.execute(text("ALTER TABLE external_locations_new RENAME TO external_locations"))
+
+
+def _migrate_external_ip_addresses(conn, inspector) -> None:
+    """Flatten pools/ranges/assignments into one address register (GitHub #42).
+
+    Real records migrate unconditionally. The unassigned remainder of a block is
+    derived data and only expands within the cap, so a stray /16 cannot produce
+    65k rows. Old tables are deliberately left intact as patch 1's rollback path.
+    """
+    import ipaddress
+    import json
+
+    from app.models.external_ip import ExternalIpAddress
+
+    _fix_external_locations_account_id_nullable(conn)
+
+    ExternalIpAddress.__table__.create(conn, checkfirst=True)
+
+    tables = _live_tables(conn)
+    if "external_ip_assignments" not in tables:
+        return
+
+    existing = {
+        row[0] for row in conn.execute(text("SELECT ip_address FROM external_ip_addresses"))
+    }
+
+    # Reconciliation, part 1: what the source holds and what the destination holds
+    # before a single row is written. A mismatch at the end raises, and because every
+    # migration shares one transaction the whole upgrade rolls back.
+    source_assignments = conn.execute(
+        text("SELECT COUNT(*) FROM external_ip_assignments")
+    ).scalar() or 0
+    destination_before = conn.execute(
+        text("SELECT COUNT(*) FROM external_ip_addresses")
+    ).scalar() or 0
+
+    def _canonical(value):
+        """Match what the live API stores. `parse_address_input` round-trips every
+        address through `ipaddress`, so migrating `2001:0DB8::0001` verbatim would sit
+        alongside a later `2001:db8::1` as two rows for one address. Text that will not
+        parse is migrated unchanged rather than dropped."""
+        if value is None:
+            return None
+        try:
+            return str(ipaddress.ip_address(str(value).strip()))
+        except ValueError:
+            return value
+
+    location_names: dict[int, str] = {}
+    if "external_locations" in tables:
+        location_names = {
+            row[0]: row[1]
+            for row in conn.execute(text("SELECT id, name FROM external_locations"))
+        }
+
+    pools: dict[int, tuple[int | None, str]] = {}
+    if "external_ip_pools" in tables:
+        pool_columns = _live_columns(conn, "external_ip_pools")
+        service = "service" if "service" in pool_columns else "NULL"
+        location = "location_id" if "location_id" in pool_columns else "NULL"
+        for pool_id, name, pool_service, location_id in conn.execute(text(
+            f"SELECT id, name, {service}, {location} FROM external_ip_pools"
+        )):
+            provenance = " · ".join(part for part in (name, pool_service) if part)
+            pools[pool_id] = (location_id, provenance)
+
+    duplicates = 0
+
+    def _insert(ip_address: str, location_id, status, label, url, owner, tags, notes) -> bool:
+        nonlocal duplicates
+        if ip_address in existing:
+            duplicates += 1
+            return False
+        existing.add(ip_address)
+        conn.execute(
+            text(
+                "INSERT INTO external_ip_addresses "
+                "(ip_address, location_id, device_id, status, label, url, owner, tags, notes, "
+                " created_at, updated_at) "
+                "VALUES (:ip, :location_id, :device_id, :status, :label, :url, :owner, :tags, "
+                ":notes, :now, :now)"
+            ),
+            {
+                "ip": ip_address, "location_id": location_id, "device_id": None,
+                "status": status, "label": label, "url": url, "owner": owner,
+                "tags": tags, "notes": notes,
+                # SQLite returns naive datetimes: the ORM stores plain
+                # "YYYY-MM-DD HH:MM:SS.ffffff" strings for DateTime columns, so a raw
+                # aware `datetime` bound here (via the deprecated sqlite3 adapter)
+                # would come back tz-aware and break comparisons against ORM-written
+                # rows. Format to match what the ORM actually persists.
+                "now": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f"),
+            },
+        )
+        return True
+
+    migrated = 0
+    assignment_columns = _live_columns(conn, "external_ip_assignments")
+    url_column = "url" if "url" in assignment_columns else "NULL"
+    device_column = "device_id" if "device_id" in assignment_columns else "NULL"
+
+    tracked_by_pool: dict[int, set[str]] = {}
+    for (
+        pool_id, ip_address, label, status, owner, tags, notes, url, device_id
+    ) in conn.execute(text(
+        f"SELECT pool_id, ip_address, label, status, owner, tags, notes, {url_column}, "
+        f"{device_column} FROM external_ip_assignments"
+    )):
+        location_id, provenance = pools.get(pool_id, (None, ""))
+        ip_address = _canonical(ip_address)
+        tracked_by_pool.setdefault(pool_id, set()).add(ip_address)
+        combined = "\n".join(
+            part for part in (notes, f"From allocation: {provenance}" if provenance else "") if part
+        ) or None
+        if _insert(ip_address, location_id, status or "in_use", label or None, url,
+                   owner, tags, combined):
+            migrated += 1
+            if device_id is not None:
+                conn.execute(
+                    text("UPDATE external_ip_addresses SET device_id = :device_id "
+                         "WHERE ip_address = :ip"),
+                    {"device_id": device_id, "ip": ip_address},
+                )
+
+    declined: list[dict] = []
+    skipped: list[dict] = []
+    expected_from_ranges = 0
+    if "external_ip_ranges" in tables:
+        for pool_id, cidr in conn.execute(text("SELECT pool_id, cidr FROM external_ip_ranges")):
+            location_id, provenance = pools.get(pool_id, (None, ""))
+            location_name = location_names.get(location_id) or "Unassigned"
+            try:
+                network = ipaddress.ip_network(cidr, strict=False)
+            except ValueError:
+                # Never let a real database's odd data vanish wordlessly: record it in
+                # the migration report as well as the log.
+                logger.warning(
+                    "External IP migration: skipping unparseable range CIDR %r "
+                    "from allocation %r (location %s)",
+                    cidr, provenance or "unknown", location_name,
+                )
+                skipped.append({
+                    "cidr": "" if cidr is None else str(cidr),
+                    "location": location_name,
+                    "reason": "Not a valid CIDR",
+                })
+                continue
+            hosts_count = network.num_addresses
+            if network.version == 4 and network.prefixlen <= 30:
+                hosts_count -= 2
+            if hosts_count > 256:
+                kept = 0
+                for tracked_ip in tracked_by_pool.get(pool_id, set()):
+                    try:
+                        in_range = ipaddress.ip_address(tracked_ip) in network
+                    except ValueError:
+                        in_range = False
+                    if in_range:
+                        kept += 1
+                declined.append({
+                    # The UI renders "${cidr} at ${location}", so this must be a
+                    # location name, not the pool's "name · service" provenance.
+                    "cidr": cidr,
+                    "location": location_name,
+                    "kept": kept,
+                })
+                continue
+            hosts = list(network.hosts())
+            expected_from_ranges += len(hosts)
+            for host in hosts:
+                note = f"From allocation: {provenance}" if provenance else None
+                if _insert(str(host), location_id, "available", None, None, None, None, note):
+                    migrated += 1
+
+    # Reconciliation, part 2. Every source row is either written, already present
+    # (counted in `duplicates`), part of an oversize range (`declined`, never counted
+    # towards the expectation) or an unparseable CIDR (`skipped`, likewise). Anything
+    # else is a silent loss, and raising here rolls the whole upgrade back.
+    expected = source_assignments + expected_from_ranges - duplicates
+    destination_after = conn.execute(
+        text("SELECT COUNT(*) FROM external_ip_addresses")
+    ).scalar() or 0
+    produced = destination_after - destination_before
+    if produced != expected or migrated != expected:
+        raise RuntimeError(
+            "External IP migration reconciliation failed: expected "
+            f"{expected} new address rows "
+            f"({source_assignments} assignments + {expected_from_ranges} range hosts "
+            f"- {duplicates} duplicates), but produced {produced} "
+            f"({destination_before} rows before, {destination_after} after; "
+            f"{migrated} reported migrated)"
+        )
+
+    report = json.dumps({"migrated": migrated, "declined": declined, "skipped": skipped})
+    conn.execute(
+        text(
+            "INSERT INTO system_settings (key, value, updated_at) VALUES "
+            "('external_ip_migration_report', :value, :now) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+        ),
+        {"value": report, "now": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")},
     )
