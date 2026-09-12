@@ -51,7 +51,11 @@ test("route controls preserve native link and new-tab semantics", async ({ page 
 
   await inventory.click();
   await expect(page).toHaveURL(/\/inventory$/);
-  await expect(page.getByRole("link", { name: "Cloud assets", exact: true })).toHaveAttribute("href", "/inventory#cloud");
+  // Arriving at a section drops its sub-nav down, and those sub-items are real links
+  // too. ("Cloud assets" used to be the probe here; that page no longer exists.)
+  await expect(
+    page.locator('[aria-label="Inventory sections"]').getByRole("link", { name: "Devices", exact: true }),
+  ).toHaveAttribute("href", "/inventory#devices");
 });
 
 for (const theme of ["light", "dark"] as const) {
