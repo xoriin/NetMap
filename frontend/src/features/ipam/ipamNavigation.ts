@@ -11,7 +11,7 @@ export const IPAM_VIEW_CHANGE_EVENT = "netmap:ipam-view-change";
 
 /**
  * IPAM's tab lives in the URL for the same reason Monitoring's and Inventory's do:
- * other pages need to deep-link into it. Cloud assets' "Manage in IPAM" lands on
+ * other pages need to deep-link into it. A device's "Manage in IPAM" link lands on
  * External IPs rather than dropping the user on Internal networks to find it.
  */
 export function readIpamViewFromLocation(): IpamViewId {

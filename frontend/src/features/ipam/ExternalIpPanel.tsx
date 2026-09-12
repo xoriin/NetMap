@@ -1,271 +1,281 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { Boxes, ChevronDown, ChevronRight, Cloud, Globe2, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { ChevronDown, ChevronRight, Globe2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   api,
   type CloudProviderOption,
-  type ExternalIpAssignment,
-  type ExternalIpAssignmentPayload,
-  type ExternalIpPool,
-  type ExternalIpPoolPayload,
+  type Device,
+  type DevicePayload,
+  type ExternalIpAddress,
+  type ExternalIpAddressPayload,
+  type ExternalLocation,
+  type ExternalProviderAccount,
 } from "../../api/client";
-import { CloudProviderIcon } from "../../components/CloudProviderIcon";
-import { IconPickerTrigger } from "../../components/IconPicker";
 import { DashStat } from "../../components/DashStat";
 import { Modal, ModalFooterActions } from "../../components/Modal";
+import { PickOrCreate, type PickOrCreateOption } from "../../components/PickOrCreate";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
-import { UtilizationBar } from "../../components/UtilizationBar";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
-import type { Device, DevicePayload } from "../../api/client";
-import { deviceIconUrl } from "../../icons";
 
-const EMPTY_POOL: ExternalIpPoolPayload = { name: "", cidr: "", provider_id: null, service: null, icon: "cloud", account: null, region: null, description: null };
-const EMPTY_ASSIGNMENT: ExternalIpAssignmentPayload = {
-  pool_id: 0, device_id: null, asset_id: null, ip_address: "", label: "", status: "in_use",
-  owner: null, tags: null, notes: null,
+/** Hierarchy is a lens on the register, never a prerequisite for entering an address. */
+type GroupBy = "location" | "provider" | "status" | "none";
+type StatusFilter = "all" | ExternalIpAddress["status"];
+
+/** Only existing `nm-status--*` variants — an invented name renders an unstyled pill in silence. */
+const STATUS_PILL: Record<ExternalIpAddress["status"], string> = {
+  in_use: "online",
+  reserved: "paused",
+  available: "unknown",
 };
 
-/** Sentinel key for allocations that have no provider. */
-const UNASSIGNED = "__unassigned__";
-
-type ExternalStatusFilter = "all" | ExternalIpAssignment["status"];
-
-const CLOUD_SERVICE_SUGGESTIONS: Record<string, string[]> = {
-  aws: ["Amazon EC2", "AWS Lambda", "Amazon ECS", "Amazon EKS", "AWS Elastic Beanstalk", "Amazon RDS", "Amazon S3", "Elastic Load Balancing", "Amazon CloudFront"],
-  azure: ["Virtual Machines", "Azure Kubernetes Service (AKS)", "App Service", "Azure Functions", "Virtual Machine Scale Sets", "Storage", "Azure SQL", "Azure Load Balancer"],
-  "google-cloud": ["Compute Engine", "Google Kubernetes Engine (GKE)", "Cloud Run", "Cloud Functions", "App Engine", "Cloud Storage", "Cloud SQL", "Cloud CDN"],
-  cloudflare: ["DNS", "CDN", "Load Balancing", "Workers", "R2 Storage", "Zero Trust"],
+const STATUS_LABEL: Record<ExternalIpAddress["status"], string> = {
+  in_use: "In use",
+  reserved: "Reserved",
+  available: "Available",
 };
 
-function statusLabel(status: ExternalIpAssignment["status"]) {
-  return status === "in_use" ? "In use" : status === "reserved" ? "Reserved" : "Available";
-}
+const UNASSIGNED = "Unassigned";
+const NO_ACCOUNT = "No account";
 
-function nullable(value: string) {
-  const trimmed = value.trim();
+/** Mirrors `EXTERNAL_MAX_ADDRESSES_PER_ADD` in `services/external_addresses.py`. */
+const MAX_ADDRESSES_PER_ADD = 256;
+
+const EMPTY_FORM: ExternalIpAddressPayload = {
+  ip_address: "",
+  location_id: null,
+  device_id: null,
+  status: "in_use",
+  label: null,
+  url: null,
+  owner: null,
+  tags: null,
+  notes: null,
+};
+
+type LocationDraft = {
+  provider_id: number | null;
+  /** `"new"` means "create an account from `account_name`" — a fresh install has none. */
+  account_id: number | "new" | null;
+  account_name: string;
+  name: string;
+  region: string;
+};
+
+const EMPTY_LOCATION_DRAFT: LocationDraft = {
+  provider_id: null, account_id: null, account_name: "", name: "", region: "",
+};
+
+function nullable(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
   return trimmed || null;
 }
 
-function AllocationActionsMenu({ onAddRange, onEdit, onDelete }: { onAddRange: () => void; onEdit: () => void; onDelete: () => void }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLSpanElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLSpanElement>(null);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+// ── Client-side address counting ──────────────────────────────────────────────
+// A deliberate mirror of `count_address_input` in
+// `backend/app/services/external_addresses.py`: same three input shapes, same
+// usable-address rule (IPv4 /30 and shorter drop network + broadcast, IPv6
+// /126 and shorter drop the subnet-router anycast), same cap. It exists only to
+// drive the live hint and the disabled state — the server stays the authority,
+// so anything this cannot confidently parse reports `unknown` and lets the
+// request through rather than blocking a half-typed address.
 
-  const updatePopoverPosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const triggerRect = trigger.getBoundingClientRect();
-    const menuRect = popoverRef.current?.getBoundingClientRect();
-    const menuWidth = menuRect?.width ?? 178;
-    const menuHeight = menuRect?.height ?? 112;
-    const viewportGap = 8;
-    const controlGap = 5;
-    const belowTop = triggerRect.bottom + controlGap;
-    const aboveTop = triggerRect.top - menuHeight - controlGap;
-    const openAbove = belowTop + menuHeight > window.innerHeight - viewportGap && aboveTop >= viewportGap;
-    setPopoverPosition({
-      top: Math.max(viewportGap, Math.min(openAbove ? aboveTop : belowTop, window.innerHeight - menuHeight - viewportGap)),
-      left: Math.max(viewportGap, Math.min(triggerRect.right - menuWidth, window.innerWidth - menuWidth - viewportGap)),
-    });
-  }, []);
+export type AddressInputCount =
+  | { kind: "ok"; count: number }
+  | { kind: "error"; message: string }
+  | { kind: "unknown" };
 
-  useLayoutEffect(() => {
-    if (open) updatePopoverPosition();
-  }, [open, updatePopoverPosition]);
-
-  useEffect(() => {
-    if (!open) return;
-    window.addEventListener("resize", updatePopoverPosition);
-    window.addEventListener("scroll", updatePopoverPosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePopoverPosition);
-      window.removeEventListener("scroll", updatePopoverPosition, true);
-    };
-  }, [open, updatePopoverPosition]);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  const run = (action: () => void) => {
-    setOpen(false);
-    action();
-  };
-
-  return <span className="external-ip-actions-menu" ref={rootRef} onClick={(event) => event.stopPropagation()}>
-    <button ref={triggerRef} type="button" className="nm-btn nm-btn--sm nm-btn--secondary external-ip-actions-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-      Actions <ChevronDown size={13} />
-    </button>
-    {open && createPortal(<span ref={popoverRef} className="external-ip-actions-popover" role="menu" style={{ top: popoverPosition.top, left: popoverPosition.left }} onClick={(event) => event.stopPropagation()}>
-      <button type="button" role="menuitem" onClick={() => run(onAddRange)}><Plus size={13} /> Add range</button>
-      <button type="button" role="menuitem" onClick={() => run(onEdit)}><Pencil size={13} /> Edit allocation</button>
-      <span className="external-ip-actions-separator" />
-      <button type="button" role="menuitem" className="is-danger" onClick={() => run(onDelete)}><Trash2 size={13} /> Delete allocation</button>
-    </span>, document.body)}
-  </span>;
+function parseIpv4(text: string): bigint | null {
+  const parts = text.split(".");
+  if (parts.length !== 4) return null;
+  let value = 0n;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null;
+    const octet = Number(part);
+    if (octet > 255) return null;
+    value = (value << 8n) | BigInt(octet);
+  }
+  return value;
 }
 
-export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false, onDeviceChange, showSummary = true, allowCreatePool = true, headerContent }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; onDeviceChange?: (device: Device) => void; showSummary?: boolean; allowCreatePool?: boolean; headerContent?: ReactNode }) {
+/** Expands `::` compression and a trailing dotted-quad into exactly eight groups. */
+function ipv6Groups(text: string): string[] | null {
+  if (text.includes("%")) return null;
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const flatten = (chunk: string): string[] | null => {
+    if (chunk === "") return [];
+    const pieces = chunk.split(":");
+    const out: string[] = [];
+    for (let index = 0; index < pieces.length; index += 1) {
+      const piece = pieces[index];
+      if (piece.includes(".")) {
+        if (index !== pieces.length - 1) return null;
+        const embedded = parseIpv4(piece);
+        if (embedded === null) return null;
+        out.push(((embedded >> 16n) & 0xffffn).toString(16), (embedded & 0xffffn).toString(16));
+      } else {
+        if (!/^[0-9a-fA-F]{1,4}$/.test(piece)) return null;
+        out.push(piece);
+      }
+    }
+    return out;
+  };
+  const head = flatten(halves[0]);
+  const tail = halves.length === 2 ? flatten(halves[1]) : [];
+  if (head === null || tail === null) return null;
+  if (halves.length === 2) {
+    const missing = 8 - head.length - tail.length;
+    if (missing < 1) return null;
+    return [...head, ...Array<string>(missing).fill("0"), ...tail];
+  }
+  return head.length === 8 ? head : null;
+}
+
+function parseIp(text: string): { value: bigint; version: 4 | 6 } | null {
+  if (text.includes(":")) {
+    const groups = ipv6Groups(text);
+    if (groups === null) return null;
+    let value = 0n;
+    for (const group of groups) value = (value << 16n) | BigInt(parseInt(group, 16));
+    return { value, version: 6 };
+  }
+  const value = parseIpv4(text);
+  return value === null ? null : { value, version: 4 };
+}
+
+function capped(count: bigint): AddressInputCount {
+  if (count > BigInt(MAX_ADDRESSES_PER_ADD)) {
+    return {
+      kind: "error",
+      message: `too large — ${count.toLocaleString("en-US")} addresses, limit is ${MAX_ADDRESSES_PER_ADD}`,
+    };
+  }
+  return { kind: "ok", count: Number(count) };
+}
+
+/** Counts a bare address, a CIDR, or a `start-end` range without materialising them. */
+export function countAddressInput(raw: string): AddressInputCount {
+  const text = raw.trim();
+  if (!text) return { kind: "unknown" };
+
+  const dash = text.indexOf("-");
+  if (dash !== -1) {
+    const start = parseIp(text.slice(0, dash).trim());
+    const end = parseIp(text.slice(dash + 1).trim());
+    if (!start || !end) return { kind: "unknown" };
+    if (start.version !== end.version) return { kind: "error", message: "Start and end must be the same IP version" };
+    if (end.value < start.value) return { kind: "error", message: "End address must not be before the start address" };
+    return capped(end.value - start.value + 1n);
+  }
+
+  const slash = text.indexOf("/");
+  const parsed = parseIp((slash === -1 ? text : text.slice(0, slash)).trim());
+  if (!parsed) return { kind: "unknown" };
+  const bits = parsed.version === 4 ? 32 : 128;
+  let prefix = bits;
+  if (slash !== -1) {
+    const suffix = text.slice(slash + 1).trim();
+    if (!/^\d{1,3}$/.test(suffix)) return { kind: "unknown" };
+    prefix = Number(suffix);
+    if (prefix > bits) return { kind: "unknown" };
+  }
+  const total = 1n << BigInt(bits - prefix);
+  if (parsed.version === 4 && prefix <= 30) return capped(total - 2n);
+  if (parsed.version === 6 && prefix < 127) return capped(total - 1n);
+  return capped(total);
+}
+
+/** Sorts 1.2.3.4 before 1.2.3.40 and keeps IPv6 stable-but-lexical. */
+function addressSortKey(ip: string) {
+  const parts = ip.split(".");
+  if (parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part))) {
+    return parts.map((part) => part.padStart(3, "0")).join(".");
+  }
+  return ip;
+}
+
+function deviceLabel(address: ExternalIpAddress) {
+  const device = address.device;
+  if (!device) return null;
+  return device.display_name || device.hostname || device.ip_address;
+}
+
+function splitTags(tags: string | null) {
+  return (tags ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
+}
+
+/** One flat, scannable register of public addresses with a Group-by lens over it. */
+export function ExternalIpPanel({
+  accessToken,
+  canWrite,
+  canManageProviders: _canManageProviders = false,
+  canCreateDevice = false,
+  onDeviceChange,
+}: {
+  accessToken: string;
+  canWrite: boolean;
+  canManageProviders?: boolean;
+  canCreateDevice?: boolean;
+  onDeviceChange?: (device: Device) => void;
+}) {
   const toast = useToast();
   const confirmAction = useConfirm();
+
   const query = useApiQuery(async () => {
-    const [summary, pools, assignments, cloudProviders, graph] = await Promise.all([
-      api.getExternalIpSummary(accessToken),
-      api.listExternalIpPools(accessToken),
-      api.listExternalIpAssignments(accessToken),
+    const [addresses, locations, accounts, cloudProviders, graph, migration] = await Promise.all([
+      api.listExternalAddresses(accessToken),
+      api.listExternalLocations(accessToken),
+      api.listExternalAccounts(accessToken),
       api.listCloudProviders(accessToken),
       api.topologyGraph(accessToken).catch(() => ({ devices: [], relationships: [] })),
+      api.getExternalMigrationReport(accessToken).catch(() => null),
     ]);
-    return { summary, pools, assignments, cloudProviders, devices: graph.devices };
+    return { addresses, locations, accounts, cloudProviders, devices: graph.devices, migration };
   }, [accessToken]);
 
-  const pools = useMemo(() => query.data?.pools ?? [], [query.data]);
-  const assignments = useMemo(() => query.data?.assignments ?? [], [query.data]);
-  const cloudProviders = useMemo(() => query.data?.cloudProviders ?? [], [query.data]);
+  const addresses = useMemo(() => query.data?.addresses ?? [], [query.data]);
+  const locations = useMemo<ExternalLocation[]>(() => query.data?.locations ?? [], [query.data]);
+  const accounts = useMemo<ExternalProviderAccount[]>(() => query.data?.accounts ?? [], [query.data]);
+  const cloudProviders = useMemo<CloudProviderOption[]>(() => query.data?.cloudProviders ?? [], [query.data]);
   const inventoryDevices = useMemo(() => query.data?.devices ?? [], [query.data]);
 
-  /** Provider → cloud service → allocation. Provider IDs remain the stable root key. */
-  const providerGroups = useMemo(() => {
-    const grouped = new Map<string, {
-      key: string;
-      name: string;
-      provider: CloudProviderOption | null;
-      pools: ExternalIpPool[];
-    }>();
-    const ensure = (provider: CloudProviderOption | null) => {
-      const key = provider ? String(provider.id ?? provider.key) : UNASSIGNED;
-      let entry = grouped.get(key);
-      if (!entry) {
-        entry = { key, name: provider?.name ?? "No provider", provider, pools: [] };
-        grouped.set(key, entry);
-      }
-      return entry;
-    };
-    for (const pool of pools) ensure(pool.provider ?? null).pools.push(pool);
-
-    return [...grouped.values()]
-      .map((group) => {
-        const services = new Map<string, { key: string; name: string; pools: ExternalIpPool[] }>();
-        for (const pool of group.pools) {
-          const name = pool.service?.trim() || "Other services";
-          const key = `${group.key}:${name.toLocaleLowerCase()}`;
-          const service = services.get(key) ?? { key, name, pools: [] };
-          service.pools.push(pool);
-          services.set(key, service);
-        }
-        const serviceGroups = [...services.values()].map((service) => {
-          const servicePools = [...service.pools].sort((a, b) => a.name.localeCompare(b.name));
-          const capacity = servicePools.reduce((sum, pool) => sum + pool.total, 0);
-          const inUse = servicePools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
-          return { ...service, pools: servicePools, capacity, inUse, free: servicePools.reduce((sum, pool) => sum + pool.free, 0), utilization: capacity ? inUse / capacity : 0 };
-        }).sort((a, b) => (a.name === "Other services" ? 1 : b.name === "Other services" ? -1 : a.name.localeCompare(b.name)));
-        const capacity = group.pools.reduce((sum, pool) => sum + pool.total, 0);
-        const inUse = group.pools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
-        return {
-          ...group,
-          services: serviceGroups,
-          capacity,
-          free: group.pools.reduce((sum, pool) => sum + pool.free, 0),
-          addressCount: capacity,
-          inUse,
-          utilization: capacity ? inUse / capacity : 0,
-        };
-      })
-      .filter((group) => group.services.length > 0 || group.provider !== null)
-      .sort((a, b) => (a.key === UNASSIGNED ? 1 : b.key === UNASSIGNED ? -1 : a.name.localeCompare(b.name)));
-  }, [pools]);
-
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ExternalStatusFilter>("all");
-  const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
-  const assignmentsByPool = useMemo(() => {
-    const grouped = new Map<number, ExternalIpAssignment[]>();
-    for (const assignment of assignments) grouped.set(assignment.pool_id, [...(grouped.get(assignment.pool_id) ?? []), assignment]);
-    return grouped;
-  }, [assignments]);
-  const filteredProviderGroups = useMemo(() => providerGroups.map((group) => {
-    const providerMatch = !normalizedSearch || `${group.name} ${group.provider?.key ?? ""}`.toLocaleLowerCase().includes(normalizedSearch);
-    const services = group.services.map((service) => {
-      const serviceMatch = providerMatch || service.name.toLocaleLowerCase().includes(normalizedSearch);
-      const visiblePools = service.pools.filter((pool) => {
-        const statusMatch = statusFilter === "all" || (statusFilter === "available" ? pool.free > 0 : statusFilter === "in_use" ? pool.in_use > 0 : pool.reserved > 0);
-        if (!statusMatch) return false;
-        if (serviceMatch) return true;
-        const tracked = assignmentsByPool.get(pool.id) ?? [];
-        return [pool.name, pool.account, pool.region, pool.description, ...(pool.allocations ?? []).map((item) => item.cidr), ...tracked.flatMap((row) => [row.ip_address, row.label, row.owner, row.device?.display_name, row.device?.hostname])]
-          .filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
-      });
-      if (visiblePools.length === 0) return null;
-      const capacity = visiblePools.reduce((sum, pool) => sum + pool.total, 0);
-      const inUse = visiblePools.reduce((sum, pool) => sum + pool.in_use + pool.reserved, 0);
-      return { ...service, pools: visiblePools, capacity, inUse, free: visiblePools.reduce((sum, pool) => sum + pool.free, 0), utilization: capacity ? inUse / capacity : 0 };
-    }).filter((service): service is NonNullable<typeof service> => service !== null);
-    if (services.length === 0) return null;
-    const capacity = services.reduce((sum, service) => sum + service.capacity, 0);
-    const inUse = services.reduce((sum, service) => sum + service.inUse, 0);
-    return { ...group, services, capacity, addressCount: capacity, inUse, free: services.reduce((sum, service) => sum + service.free, 0), utilization: capacity ? inUse / capacity : 0 };
-  }).filter((group): group is NonNullable<typeof group> => group !== null), [assignmentsByPool, normalizedSearch, providerGroups, statusFilter]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [groupBy, setGroupBy] = useState<GroupBy>("location");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [migrationDismissed, setMigrationDismissed] = useState(false);
 
-  /** Providers and service groups start open. Allocations start collapsed, except a
-   * single-address /32 or /128 where another click would only reveal one row. */
-  const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
-  const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set());
-  const [poolOverrides, setPoolOverrides] = useState<Record<number, boolean>>({});
-  const isPoolOpen = useCallback(
-    (pool: ExternalIpPool) => poolOverrides[pool.id] ?? pool.total === 1,
-    [poolOverrides],
-  );
-  const filteredPools = useMemo(() => filteredProviderGroups.flatMap((group) => group.services.flatMap((service) => service.pools)), [filteredProviderGroups]);
-  const openPools = useMemo(() => filteredPools.filter(isPoolOpen), [filteredPools, isPoolOpen]);
-  const openPoolKey = openPools.map((pool) => pool.id).join(",");
-
-  /** `selectedPoolId` is now only "which allocation is the Range modal acting on". */
-  const [selectedPoolId, setSelectedPoolId] = useState<number | null>(null);
-  const selectedPool = pools.find((pool) => pool.id === selectedPoolId) ?? null;
-  const [pageOffsets, setPageOffsets] = useState<Record<number, number>>({});
-  const addressQuery = useApiQuery(
-    openPools.length === 0 ? null : async () => {
-      const pages = await Promise.all(openPools.map(
-        (pool) => api.getExternalPoolAddresses(accessToken, pool.id, pageOffsets[pool.id] ?? 0, 256),
-      ));
-      return new Map(openPools.map((pool, index) => [pool.id, pages[index]]));
-    },
-    [accessToken, openPoolKey, JSON.stringify(pageOffsets)],
-  );
-
-  const [poolModal, setPoolModal] = useState<ExternalIpPool | "new" | null>(null);
-  const [poolForm, setPoolForm] = useState<ExternalIpPoolPayload>(EMPTY_POOL);
-  const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
-  const selectedPoolProvider = cloudProviders.find((provider) => provider.id === poolForm.provider_id) ?? null;
-  const serviceSuggestions = CLOUD_SERVICE_SUGGESTIONS[selectedPoolProvider?.key ?? ""] ?? [];
-  const [assignmentModal, setAssignmentModal] = useState<ExternalIpAssignment | "new" | null>(null);
-  const [assignmentForm, setAssignmentForm] = useState<ExternalIpAssignmentPayload>(EMPTY_ASSIGNMENT);
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [rangeModal, setRangeModal] = useState(false);
-  const [rangeValue, setRangeValue] = useState("");
+  // Address modal. Its busy/error state is its own: the inline location block and
+  // the standalone location editor each carry theirs, so no two surfaces can
+  // disable or blame one another.
+  const [editing, setEditing] = useState<ExternalIpAddress | "new" | null>(null);
+  const [form, setForm] = useState<ExternalIpAddressPayload>(EMPTY_FORM);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [statusTouched, setStatusTouched] = useState(false);
   const [addToInventory, setAddToInventory] = useState(false);
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+
+  // Inline "+ Create location…" block, rendered inside the address modal.
+  const [locationDraftOpen, setLocationDraftOpen] = useState(false);
+  const [locationDraft, setLocationDraft] = useState<LocationDraft>(EMPTY_LOCATION_DRAFT);
+  const [locationDraftBusy, setLocationDraftBusy] = useState(false);
+  const [locationDraftError, setLocationDraftError] = useState<string | null>(null);
+
+  // Standalone editor for an existing location, reached from a group header.
+  const [locationEditor, setLocationEditor] = useState<ExternalLocation | null>(null);
+  const [locationEditorForm, setLocationEditorForm] = useState<Omit<ExternalLocation, "id">>({ account_id: null, name: "", region: "" });
+  const [locationEditorBusy, setLocationEditorBusy] = useState(false);
+  const [locationEditorError, setLocationEditorError] = useState<string | null>(null);
+
+  // "Also add to Inventory and Monitoring" hands the saved address to the normal
+  // device form, then links the device back onto the address.
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
-  const [seededAssignmentId, setSeededAssignmentId] = useState<number | null>(null);
+  const [seededAddressId, setSeededAddressId] = useState<number | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
   const deviceMetadataQuery = useApiQuery(
     deviceSeed === null ? null : async () => {
       const [groups, sites, snmpProfiles, deviceTypes] = await Promise.all([
@@ -279,401 +289,857 @@ export function ExternalIpPanel({ accessToken, canWrite, canCreateDevice = false
     [accessToken, deviceSeed !== null],
   );
 
-  useEffect(() => {
-    if (selectedPoolId !== null && !pools.some((pool) => pool.id === selectedPoolId)) setSelectedPoolId(null);
-  }, [pools, selectedPoolId]);
+  const locationById = useMemo(() => new Map(locations.map((location) => [location.id, location])), [locations]);
+  const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
+  const providerById = useMemo(() => new Map(cloudProviders.map((provider) => [provider.id, provider])), [cloudProviders]);
 
-  function toggleProvider(key: string) {
-    setCollapsedProviders((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  }
+  const providerNameFor = (locationId: number | null) => {
+    if (locationId === null) return UNASSIGNED;
+    const accountId = locationById.get(locationId)?.account_id ?? null;
+    const account = accountId === null ? null : accountById.get(accountId);
+    if (!account) return UNASSIGNED;
+    const provider = account.provider_id === null ? null : providerById.get(account.provider_id);
+    return provider?.name ?? UNASSIGNED;
+  };
 
-  function toggleService(key: string) {
-    setCollapsedServices((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  }
+  const accountLabel = (account: ExternalProviderAccount) => {
+    const provider = account.provider_id === null ? null : providerById.get(account.provider_id);
+    const providerName = provider?.name ?? "No provider";
+    return account.name ? `${providerName} / ${account.name}` : providerName;
+  };
 
-  function openPool(pool?: ExternalIpPool, providerId: number | null = null) {
-    setPoolModal(pool ?? "new");
-    setPoolForm(pool ? {
-      name: pool.name, provider_id: pool.provider_id,
-      service: pool.service, icon: pool.icon, account: pool.account, region: pool.region, description: pool.description,
-    } : { ...EMPTY_POOL, provider_id: providerId });
-    setPoolDetailsOpen(Boolean(pool && (
-      pool.service?.trim()
-      || pool.account?.trim()
-      || pool.region?.trim()
-      || pool.description?.trim()
-      || pool.icon !== "cloud"
-    )));
-    setFormError(null);
-  }
-
-  function openAssignment(assignment?: ExternalIpAssignment, ipAddress = "", poolId = 0, deviceId: number | null = null) {
-    setAssignmentModal(assignment ?? "new");
-    setAssignmentForm(assignment ? {
-      pool_id: assignment.pool_id, device_id: assignment.device_id, asset_id: assignment.asset_id, ip_address: assignment.ip_address,
-      label: assignment.label, status: assignment.status,
-      owner: assignment.owner, tags: assignment.tags, notes: assignment.notes,
-    } : { ...EMPTY_ASSIGNMENT, pool_id: poolId, ip_address: ipAddress, device_id: deviceId });
-    setFormError(null);
-    setAddToInventory(false);
-  }
-
-  async function savePool(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true); setFormError(null);
-    const payload = {
-      ...poolForm,
-      service: nullable(poolForm.service ?? ""),
-      account: nullable(poolForm.account ?? ""),
-      region: nullable(poolForm.region ?? ""),
-      description: nullable(poolForm.description ?? ""),
+  /** Locations are grouped under their provider/account in the picker. */
+  const locationOptions = useMemo<PickOrCreateOption[]>(() => {
+    const groupFor = (location: ExternalLocation) => {
+      const account = location.account_id === null ? null : accountById.get(location.account_id);
+      return account ? accountLabel(account) : NO_ACCOUNT;
     };
-    try {
-      if (poolModal === "new") await api.createExternalIpPool(accessToken, payload);
-      else if (poolModal) {
-        const { cidr: _cidr, ...rest } = payload;
-        await api.updateExternalIpPool(accessToken, poolModal.id, rest);
+    return locations
+      .map((location) => ({ location, group: groupFor(location) }))
+      // `PickOrCreate` clusters by group in first-appearance order, so the input
+      // order decides the rendered group order — sort here or the menu comes out
+      // in whatever order the API happened to return. Ungrouped sinks last.
+      .sort((a, b) => {
+        if (a.group !== b.group) {
+          if (a.group === NO_ACCOUNT) return 1;
+          if (b.group === NO_ACCOUNT) return -1;
+          return a.group.localeCompare(b.group);
+        }
+        return a.location.name.localeCompare(b.location.name);
+      })
+      .map(({ location, group }) => ({
+        id: location.id,
+        label: location.region ? `${location.name} · ${location.region}` : location.name,
+        group,
+      }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locations, accountById, providerById]);
+
+  /**
+   * Every account, labelled with its provider. The draft's Provider select does
+   * not filter this list: provider is a property of an *account*, so a provider
+   * chosen here can only be honoured while an account is being created. Filtering
+   * by it instead made the select look like it also applied to the location, and
+   * a provider picked against "No account" was then silently dropped.
+   */
+  /**
+   * "Name · region", the same shape the Location picker uses, so the column and
+   * the picker read as one vocabulary. `null` means the address has no location.
+   */
+  const locationCellLabel = (address: ExternalIpAddress) => {
+    const location = address.location_id === null ? null : locationById.get(address.location_id);
+    if (!location) return null;
+    return location.region ? `${location.name} · ${location.region}` : location.name;
+  };
+
+  const draftAccounts = useMemo(
+    () => [...accounts].sort((a, b) => accountLabel(a).localeCompare(accountLabel(b))),
+    [accounts, providerById],
+  );
+
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
+  const filtered = useMemo(() => addresses.filter((address) => {
+    if (statusFilter !== "all" && address.status !== statusFilter) return false;
+    if (!normalizedSearch) return true;
+    const location = address.location_id === null ? null : locationById.get(address.location_id);
+    return [
+      address.ip_address, address.label, address.owner, address.tags, address.notes,
+      deviceLabel(address), location?.name, location?.region,
+      providerNameFor(address.location_id),
+    ].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [addresses, statusFilter, normalizedSearch, locationById, accountById, providerById]);
+
+  /** The lens: one bucketing pass over the flat register. */
+  const groups = useMemo(() => {
+    const sorted = [...filtered].sort((a, b) => addressSortKey(a.ip_address).localeCompare(addressSortKey(b.ip_address)));
+    if (groupBy === "none") {
+      return sorted.length ? [{ key: "all", name: "", location: null as ExternalLocation | null, addresses: sorted }] : [];
+    }
+    const buckets = new Map<string, { key: string; name: string; location: ExternalLocation | null; addresses: ExternalIpAddress[] }>();
+    for (const address of sorted) {
+      let key: string;
+      let name: string;
+      let location: ExternalLocation | null = null;
+      if (groupBy === "location") {
+        location = address.location_id === null ? null : locationById.get(address.location_id) ?? null;
+        key = `location:${address.location_id ?? "none"}`;
+        name = location?.name ?? UNASSIGNED;
+      } else if (groupBy === "provider") {
+        name = providerNameFor(address.location_id);
+        key = `provider:${name}`;
+      } else {
+        name = STATUS_LABEL[address.status];
+        key = `status:${address.status}`;
       }
-      setPoolModal(null);
-      await query.reload();
-      toast.success(poolModal === "new" ? "Allocation added" : "Allocation updated");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Failed to save allocation");
-    } finally { setBusy(false); }
+      const bucket = buckets.get(key) ?? { key, name, location, addresses: [] };
+      bucket.addresses.push(address);
+      buckets.set(key, bucket);
+    }
+
+    // A location with no addresses still has to be reachable. Creation happens
+    // inline in the address modal and commits immediately, so an abandoned draft
+    // is a real row — without an empty group to carry Edit/Delete it would be an
+    // invisible record the user cannot manage. Only under the location lens: the
+    // other lenses bucket by a property of the addresses themselves, which an
+    // address-less location does not have. A status filter is an address filter,
+    // so it hides them; a search still finds them by name or region.
+    if (groupBy === "location" && statusFilter === "all") {
+      for (const location of locations) {
+        const key = `location:${location.id}`;
+        if (buckets.has(key)) continue;
+        if (normalizedSearch && ![location.name, location.region].filter(Boolean).join(" ")
+          .toLocaleLowerCase().includes(normalizedSearch)) continue;
+        buckets.set(key, { key, name: location.name, location, addresses: [] });
+      }
+    }
+
+    return [...buckets.values()].sort((a, b) => {
+      // Unassigned always sinks to the bottom; it is a bucket, not a place.
+      if (a.name === UNASSIGNED) return 1;
+      if (b.name === UNASSIGNED) return -1;
+      return a.name.localeCompare(b.name);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, groupBy, statusFilter, normalizedSearch, locations, locationById, accountById, providerById]);
+
+  const inUseCount = addresses.filter((address) => address.status === "in_use").length;
+  const availableCount = addresses.filter((address) => address.status === "available").length;
+  const migration = migrationDismissed ? null : query.data?.migration ?? null;
+  const filtersActive = Boolean(searchTerm) || statusFilter !== "all";
+
+  const isNew = editing === "new";
+  // Only the add path accepts a range; editing addresses exactly one row.
+  const parsedInput = useMemo(
+    () => (isNew ? countAddressInput(form.ip_address) : ({ kind: "unknown" } as AddressInputCount)),
+    [isNew, form.ip_address],
+  );
+  const plannedCount = parsedInput.kind === "ok" ? parsedInput.count : 1;
+  /** Purpose, device, URL and owner are meaningless spread across 254 rows. */
+  const isRange = plannedCount > 1;
+
+  // The range default: a block you have just claimed is free until you say otherwise.
+  useEffect(() => {
+    if (!isNew || statusTouched) return;
+    const next: ExternalIpAddress["status"] = isRange ? "available" : "in_use";
+    setForm((current) => (current.status === next ? current : { ...current, status: next }));
+  }, [isNew, isRange, statusTouched]);
+
+  function toggleGroup(key: string) {
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   }
 
-  async function saveAssignment(event: FormEvent) {
+  function resetAddressModal() {
+    setDetailsOpen(false);
+    setStatusTouched(false);
+    setAddToInventory(false);
+    setAddressError(null);
+    setLocationDraftOpen(false);
+    setLocationDraft(EMPTY_LOCATION_DRAFT);
+    setLocationDraftError(null);
+  }
+
+  function openAdd() {
+    setForm({ ...EMPTY_FORM });
+    resetAddressModal();
+    setEditing("new");
+  }
+
+  function openEdit(address: ExternalIpAddress) {
+    setForm({
+      ip_address: address.ip_address, location_id: address.location_id, device_id: address.device_id,
+      status: address.status, label: address.label, url: address.url,
+      owner: address.owner, tags: address.tags, notes: address.notes,
+    });
+    resetAddressModal();
+    setDetailsOpen(Boolean(address.owner || address.url || address.tags || address.notes));
+    setEditing(address);
+  }
+
+  function closeAddressModal() {
+    setEditing(null);
+    resetAddressModal();
+  }
+
+  /**
+   * Only what actually changed. `ExternalIpAddressPayload` types every field as
+   * mandatory-but-nullable while the backend treats them as optional, so a full
+   * payload would null out fields the user never touched.
+   */
+  function diffPatch(next: ExternalIpAddressPayload, previous: ExternalIpAddress) {
+    const patch: Partial<ExternalIpAddressPayload> = {};
+    for (const field of Object.keys(next) as (keyof ExternalIpAddressPayload)[]) {
+      if (next[field] !== previous[field]) (patch[field] as unknown) = next[field];
+    }
+    return patch;
+  }
+
+  async function save(event: FormEvent) {
     event.preventDefault();
-    setBusy(true); setFormError(null);
-    const payload = {
-      ...assignmentForm,
-      status: addToInventory ? "in_use" as const : assignmentForm.status,
-      owner: nullable(assignmentForm.owner ?? ""),
-      tags: nullable(assignmentForm.tags ?? ""), notes: nullable(assignmentForm.notes ?? ""),
+    if (parsedInput.kind === "error") return;
+    setAddressBusy(true); setAddressError(null);
+    const cleaned: ExternalIpAddressPayload = {
+      ...form,
+      ip_address: form.ip_address.trim(),
+      label: nullable(form.label), url: nullable(form.url),
+      owner: nullable(form.owner), tags: nullable(form.tags), notes: nullable(form.notes),
+      // The per-address fields were hidden once this became a range; do not
+      // silently stamp a leftover value onto every row.
+      ...(isRange ? { label: null, url: null, owner: null, device_id: null } : {}),
     };
     try {
-      const saved = assignmentModal === "new"
-        ? await api.createExternalIpAssignment(accessToken, payload)
-        : assignmentModal ? await api.updateExternalIpAssignment(accessToken, assignmentModal.id, payload) : null;
-      setAssignmentModal(null);
+      if (editing === "new") {
+        const created = await api.createExternalAddresses(accessToken, cleaned);
+        toast.success(created.length === 1 ? "External IP tracked" : `${created.length} external IPs tracked`);
+        if (addToInventory && created.length === 1) {
+          const address = created[0];
+          setSeededAddressId(address.id);
+          setDeviceSeed({
+            display_name: address.label,
+            hostname: null,
+            ip_address: address.ip_address,
+            tags: splitTags(address.tags),
+            notes: address.notes,
+            monitoring_paused: false,
+          });
+        }
+      } else if (editing) {
+        const patch = diffPatch(cleaned, editing);
+        if (Object.keys(patch).length > 0) await api.updateExternalAddress(accessToken, editing.id, patch);
+        toast.success("External IP updated");
+      }
+      closeAddressModal();
       await query.reload();
-      if (openPools.length > 0) await addressQuery.reload();
-      toast.success(assignmentModal === "new" ? "External IP tracked" : "External IP updated");
-      if (saved && addToInventory) setSeededAssignmentId(saved.id);
-      if (saved && addToInventory) setDeviceSeed({
-        display_name: saved.asset?.name ?? saved.label,
-        hostname: null,
-        ip_address: saved.ip_address,
-        tags: saved.tags ? saved.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
-        notes: saved.notes,
-        monitoring_paused: false,
-      });
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Failed to save external IP");
-    } finally { setBusy(false); }
+      setAddressError(error instanceof Error ? error.message : "Failed to save external IP");
+    } finally { setAddressBusy(false); }
   }
 
-  async function removePool(pool: ExternalIpPool) {
-    if (!await confirmAction({ title: "Delete allocation", message: `Delete ${pool.name} and all of its tracked addresses?`, confirmLabel: "Delete allocation" })) return;
-    try { await api.deleteExternalIpPool(accessToken, pool.id); await query.reload(); toast.success("Allocation deleted"); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete allocation"); }
-  }
-
-  async function addRange(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedPool) return;
-    setBusy(true); setFormError(null);
+  /**
+   * Releasing a decommissioned address in one click. `label` is optional now, so
+   * this can clear it — the shipped form made it mandatory, which is what stopped
+   * users freeing an address at all.
+   */
+  async function markAvailable() {
+    if (!editing || editing === "new") return;
+    setAddressBusy(true); setAddressError(null);
     try {
-      await api.createExternalIpRange(accessToken, selectedPool.id, rangeValue.trim());
-      setRangeModal(false); setRangeValue("");
-      await query.reload(); await addressQuery.reload();
-      toast.success("Address allocation added");
-    } catch (error) { setFormError(error instanceof Error ? error.message : "Failed to add address allocation"); }
-    finally { setBusy(false); }
-  }
-
-  async function removeRange(rangeId: number, cidr: string) {
-    if (!selectedPool || !await confirmAction({ title: "Remove address allocation", message: `Remove ${cidr} from ${selectedPool.name}?`, confirmLabel: "Remove allocation" })) return;
-    try {
-      await api.deleteExternalIpRange(accessToken, selectedPool.id, rangeId);
-      await query.reload(); await addressQuery.reload();
-      toast.success("Address allocation removed");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to remove address allocation"); }
-  }
-
-  async function removeAssignment(assignment: ExternalIpAssignment) {
-    if (!await confirmAction({ title: "Stop tracking external IP", message: `Remove ${assignment.ip_address} from external IP tracking?`, confirmLabel: "Remove" })) return;
-    try {
-      await api.deleteExternalIpAssignment(accessToken, assignment.id);
-      setAssignmentModal(null);
+      await api.updateExternalAddress(accessToken, editing.id, { status: "available", device_id: null, label: null });
+      closeAddressModal();
       await query.reload();
-      if (openPools.length > 0) await addressQuery.reload();
-      toast.success("External IP removed");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to remove external IP"); }
+      toast.success("Address marked available");
+    } catch (error) {
+      setAddressError(error instanceof Error ? error.message : "Failed to mark this address available");
+    } finally { setAddressBusy(false); }
   }
 
-  async function removeAddress(pool: ExternalIpPool, ipAddress: string, assignment: ExternalIpAssignment | null) {
-    const removesAllocation = pool.total === 1;
-    const details = [
-      assignment ? "Its tracking record will also be removed; any linked Inventory device will remain." : null,
-      removesAllocation ? "This is the allocation's final address, so the empty allocation will also be removed." : null,
-    ].filter(Boolean).join(" ");
+  function openLocationDraft() {
+    // No provider is pre-selected: guessing one is how the shipped version made
+    // the hierarchy feel mandatory.
+    setLocationDraft({ ...EMPTY_LOCATION_DRAFT });
+    setLocationDraftError(null);
+    setLocationDraftOpen(true);
+  }
+
+  /**
+   * Creates the account (when asked for) and the location without leaving the
+   * address modal, then selects the result. This is the only caller of
+   * `saveExternalAccount` in the app — a fresh install has no accounts, so this
+   * path is what makes provider/account reachable at all.
+   */
+  async function saveLocationDraft() {
+    const name = locationDraft.name.trim();
+    if (!name) { setLocationDraftError("Give the location a name"); return; }
+    const wantsAccount = locationDraft.account_id === "new";
+    const accountName = locationDraft.account_name.trim();
+    if (wantsAccount && !accountName) { setLocationDraftError("Give the account a name"); return; }
+    setLocationDraftBusy(true); setLocationDraftError(null);
+    try {
+      const accountId = wantsAccount
+        ? (await api.saveExternalAccount(accessToken, { provider_id: locationDraft.provider_id, name: accountName })).id
+        : locationDraft.account_id;
+      const created = await api.saveExternalLocation(accessToken, {
+        account_id: typeof accountId === "number" ? accountId : null,
+        name,
+        region: nullable(locationDraft.region),
+      });
+      await query.reload();
+      setForm((current) => ({ ...current, location_id: created.id }));
+      setLocationDraftOpen(false);
+      setLocationDraft(EMPTY_LOCATION_DRAFT);
+      toast.success("Location added");
+    } catch (error) {
+      setLocationDraftError(error instanceof Error ? error.message : "Failed to create location");
+    } finally { setLocationDraftBusy(false); }
+  }
+
+  function openLocationEditor(location: ExternalLocation) {
+    setLocationEditorForm({ account_id: location.account_id, name: location.name, region: location.region });
+    setLocationEditorError(null);
+    setLocationEditor(location);
+  }
+
+  async function saveLocationEditor(event: FormEvent) {
+    event.preventDefault();
+    if (!locationEditor) return;
+    setLocationEditorBusy(true); setLocationEditorError(null);
+    try {
+      await api.saveExternalLocation(
+        accessToken,
+        { ...locationEditorForm, name: locationEditorForm.name.trim(), region: nullable(locationEditorForm.region) },
+        locationEditor.id,
+      );
+      setLocationEditor(null);
+      await query.reload();
+      toast.success("Location updated");
+    } catch (error) {
+      setLocationEditorError(error instanceof Error ? error.message : "Failed to save location");
+    } finally { setLocationEditorBusy(false); }
+  }
+
+  /**
+   * The only way to remove a location. The backend refuses one that still holds
+   * addresses (409, "Move or remove this location's addresses first"), so that
+   * message is surfaced rather than swallowed — the guard lives there, not here.
+   */
+  async function removeLocation(location: ExternalLocation) {
     if (!await confirmAction({
-      title: "Delete external IP address",
-      message: `Delete ${ipAddress} from ${pool.name}?${details ? ` ${details}` : ""}`,
-      confirmLabel: "Delete address",
+      title: "Delete location",
+      message: `Delete ${location.name}?`,
+      confirmLabel: "Delete",
     })) return;
     try {
-      await api.deleteExternalPoolAddress(accessToken, pool.id, ipAddress);
-      if (removesAllocation) {
-        setPoolOverrides((current) => {
-          const next = { ...current };
-          delete next[pool.id];
-          return next;
-        });
-      }
+      await api.deleteExternalLocation(accessToken, location.id);
       await query.reload();
-      if (!removesAllocation) await addressQuery.reload();
-      toast.success("External IP address deleted");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete external IP address"); }
+      toast.success("Location deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete location"); }
   }
 
   async function createInventoryDevice(payload: DevicePayload) {
-    setBusy(true); setFormError(null);
+    setDeviceBusy(true);
     try {
       const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
       if (!created) return;
-      // Link the address to the device it just produced, which is what puts it on the
-      // Cloud assets page — the toggle is the only way a device gets there.
-      if (seededAssignmentId !== null) {
-        await api.updateExternalIpAssignment(accessToken, seededAssignmentId, { device_id: created.id });
-        setSeededAssignmentId(null);
-        await query.reload();
+      // Link the address to the device it just produced — that link is what shows
+      // the device alongside the address in this register.
+      if (seededAddressId !== null) {
+        await api.updateExternalAddress(accessToken, seededAddressId, { device_id: created.id });
+        setSeededAddressId(null);
       }
       onDeviceChange?.(created);
       setDeviceSeed(null);
+      await query.reload();
       toast.success("Device added to Inventory and linked to this address");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create device";
-      setFormError(message);
-      toast.error(message);
-    } finally { setBusy(false); }
+      toast.error(error instanceof Error ? error.message : "Failed to create device");
+    } finally { setDeviceBusy(false); }
   }
 
-  if (query.isLoading) return showSummary ? <WorkspaceSkeleton /> : <section className="nm-app-panel external-ip-panel"><div className="external-ip-empty">Loading external addresses…</div></section>;
+  async function remove(address: ExternalIpAddress) {
+    if (!await confirmAction({
+      title: "Delete external IP",
+      message: `Stop tracking ${address.ip_address}?`,
+      confirmLabel: "Delete",
+    })) return;
+    try {
+      await api.deleteExternalAddress(accessToken, address.id);
+      await query.reload();
+      toast.success("External IP deleted");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete external IP"); }
+  }
+
+  async function dismissMigration() {
+    setMigrationDismissed(true);
+    try { await api.dismissExternalMigrationReport(accessToken); }
+    catch { /* The notice is advisory; a failed dismiss must not interrupt the page. */ }
+  }
+
+  if (query.isLoading) return <WorkspaceSkeleton />;
   if (query.error) return <section className="nm-app-panel external-ip-panel"><div className="external-ip-empty external-ip-error">{query.error}</div></section>;
-  const summary = query.data?.summary;
+
+  // Location is the one grouping key that is not also a column. Under the other
+  // lenses the rows would carry no location at all, so it is promoted to a real
+  // column there rather than left implied by a group header that is not shown.
+  const showLocationColumn = groupBy !== "location";
+  const columnCount = showLocationColumn ? 8 : 7;
+
+  const countHint = parsedInput.kind === "ok"
+    ? `${parsedInput.count.toLocaleString("en-US")} address${parsedInput.count === 1 ? "" : "es"}`
+    : parsedInput.kind === "error" ? parsedInput.message : null;
+
+  const primaryLabel = editing !== "new"
+    ? (addressBusy ? "Saving…" : "Save")
+    : addressBusy ? "Adding…"
+      : isRange ? `Add ${plannedCount.toLocaleString("en-US")} addresses` : "Add address";
 
   return (
     <div className="external-ip-workspace">
-      {showSummary && <div className="dash-stats dash-stats--fill ipam-stats nm-summary-band">
-        <DashStat label="Allocations" value={pools.length} sub="across all providers" icon={<Boxes size={20} />} accent="teal" />
-        <DashStat label="Tracked" value={(summary?.in_use ?? 0) + (summary?.reserved ?? 0)} sub="assigned or reserved" icon={<Cloud size={20} />} accent="blue" />
-        <DashStat label="Available" value={summary?.free ?? 0} sub="allocation addresses" icon={<Globe2 size={20} />} accent="green" />
-        <DashStat label="Unassigned" value={summary?.unassigned_address_count ?? 0} sub="not yet allocated" icon={<Server size={20} />} accent="purple" />
-      </div>}
+      <div className="dash-stats dash-stats--fill ipam-stats nm-summary-band">
+        <DashStat label="Addresses" value={addresses.length} sub="public IPs tracked" icon={<Globe2 size={20} />} accent="teal" />
+        <DashStat label="In use" value={inUseCount} sub="assigned to something" icon={<Globe2 size={20} />} accent="blue" />
+        <DashStat label="Available" value={availableCount} sub="free to hand out" icon={<Globe2 size={20} />} accent="green" />
+        <DashStat label="Locations" value={locations.length} sub="places addresses live" icon={<Globe2 size={20} />} accent="purple" />
+      </div>
+
+      {migration && (migration.declined.length > 0 || (migration.skipped?.length ?? 0) > 0) && (
+        <div className="dash-alert dash-alert--overview-bar dash-alert--changes external-ip-migration-notice" role="status">
+          <span className="dash-alert-dot dash-alert-dot--amber" aria-hidden="true" />
+          {migration.declined.length > 0 && (
+            <>
+              <strong>
+                {migration.declined.map((decline) => `${decline.cidr} at ${decline.location}`).join(", ")}
+                {migration.declined.length === 1 ? " wasn't" : " weren't"} expanded
+              </strong>
+              <span className="dash-alert-tag">
+                {migration.declined.reduce((sum, decline) => sum + decline.kept, 0)} tracked addresses kept
+              </span>
+            </>
+          )}
+          {(migration.skipped?.length ?? 0) > 0 && (
+            <strong>
+              {migration.skipped!.map((skip) => `${skip.cidr || "(blank)"} at ${skip.location} (${skip.reason})`).join(", ")}
+              {" couldn't be read"}
+            </strong>
+          )}
+          {migration.declined.length > 0 && (
+            <span className="external-ip-migration-hint">Re-add a smaller range if you want to track free addresses here.</span>
+          )}
+          <button type="button" className="dash-alert-dismiss" aria-label="Dismiss migration notice" onClick={() => void dismissMigration()}>&times;</button>
+        </div>
+      )}
 
       <section className="nm-app-panel external-ip-panel">
         <header className="nm-app-panel-header ipam-panel-header external-ip-panel-header">
-          {headerContent ?? <span className="ipam-panel-identity">
+          <span className="ipam-panel-identity">
             <span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>
-            <span className="ipam-panel-title-wrap"><span className="ipam-panel-title">External IPs</span><span className="ipam-panel-meta">{pools.length} allocation{pools.length === 1 ? "" : "s"} across {providerGroups.length} provider{providerGroups.length === 1 ? "" : "s"}</span></span>
-          </span>}
+            <span className="ipam-panel-title-wrap">
+              <span className="ipam-panel-title">External IPs</span>
+              <span className="ipam-panel-meta">{filtered.length} of {addresses.length} address{addresses.length === 1 ? "" : "es"}</span>
+            </span>
+          </span>
           <div className="external-ip-panel-actions">
-            {providerGroups.length > 0 && <div className="external-ip-header-controls">
+            <div className="external-ip-header-controls">
               <div className="nm-search nm-search--toolbar external-ip-search">
                 <Search size={14} className="nm-search-icon" aria-hidden="true" />
-                <input className="nm-input" type="search" aria-label="Search external IPs" placeholder="Search providers, services, allocations, IPs or owners…" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+                <input className="nm-input" type="search" aria-label="Search external IPs" placeholder="Search addresses, purpose, device, owner or tags…" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
               </div>
-              <label className="external-ip-status-filter"><span>Status</span><select className="nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ExternalStatusFilter)}><option value="all">All</option><option value="in_use">In use</option><option value="reserved">Reserved</option><option value="available">Available</option></select></label>
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!searchTerm && statusFilter === "all"} onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>Clear filters</button>
-            </div>}
-            {canWrite && allowCreatePool && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={() => openPool()}><Plus size={14} /> Add allocation</button>}
+              <label className="external-ip-status-filter"><span>Status</span>
+                <select className="nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+                  <option value="all">All</option>
+                  <option value="in_use">In use</option>
+                  <option value="reserved">Reserved</option>
+                  <option value="available">Available</option>
+                </select>
+              </label>
+              <label className="external-ip-status-filter"><span>Group by</span>
+                <select className="nm-select" value={groupBy} onChange={(event) => setGroupBy(event.target.value as GroupBy)}>
+                  <option value="location">Location</option>
+                  <option value="provider">Provider</option>
+                  <option value="status">Status</option>
+                  <option value="none">Nothing</option>
+                </select>
+              </label>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!filtersActive} onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>Clear filters</button>
+            </div>
+            {canWrite && <button className="nm-btn nm-btn--sm nm-btn--primary" type="button" onClick={openAdd}><Plus size={14} /> Add external IP</button>}
           </div>
         </header>
 
-        {providerGroups.length === 0 ? <div className="external-ip-empty">Add an allocation for an ISP or cloud provider, then organise it under the service or area that uses its addresses.</div> : <>
-          {filteredProviderGroups.length === 0 ? <div className="external-ip-empty">No external IP records match these filters.</div> : <div className="nm-table-wrap external-ip-table-wrap"><table className="nm-table nm-table--selectable external-ip-table">
-            <colgroup><col className="external-ip-col-provider" /><col className="external-ip-col-account" /><col className="external-ip-col-status" /><col className="external-ip-col-stat" /><col className="external-ip-col-stat" /><col className="external-ip-col-util" /><col className="external-ip-col-actions" /></colgroup>
-            <thead><tr><th>Provider / service / allocation / address</th><th>Account / owner</th><th>Status</th><th className="nm-table-num">Addresses</th><th className="nm-table-num">In use</th><th>Utilisation</th><th className="external-ip-actions">Actions</th></tr></thead>
-            <tbody>{filteredProviderGroups.map((group) => {
-              const collapsed = collapsedProviders.has(group.key);
-              const accounts = [...new Set(group.services.flatMap((service) => service.pools.map((pool) => pool.account?.trim())).filter((value): value is string => Boolean(value)))];
-              return <Fragment key={group.key}>
-                <tr className="external-ip-provider-row" aria-expanded={!collapsed} onClick={() => toggleProvider(group.key)}>
-                  <td><span className="external-ip-tree-cell external-ip-tree-level-0">
-                    <button type="button" className="external-ip-tree-toggle" aria-label={`${collapsed ? "Expand" : "Collapse"} ${group.name}`} onClick={(event) => { event.stopPropagation(); toggleProvider(group.key); }}>{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
-                    <span className={`external-ip-provider-icon external-ip-provider-icon--${group.provider?.icon ?? "cloud"}`} aria-hidden="true"><CloudProviderIcon icon={group.provider?.icon} iconData={group.provider?.icon_data} size={20} /></span>
-                    <span className="external-ip-tree-identity"><strong>{group.name}</strong><small>{group.services.length} service{group.services.length === 1 ? "" : "s"} · {group.free} free of {group.capacity}</small></span>
-                    <span className="external-ip-count-badge">{group.services.length} service{group.services.length === 1 ? "" : "s"}</span>
-                  </span></td>
-                  <td><span className="external-ip-provider-accounts">{accounts.length > 0 ? accounts.join(" · ") : "No account references"}</span></td>
-                  <td />
-                  <td className="nm-table-num external-ip-provider-stat">{group.addressCount}</td>
-                  <td className="nm-table-num external-ip-provider-stat">{group.inUse}</td>
-                  <td><span className="external-ip-utilization"><UtilizationBar value={group.utilization} size="thin" /><small>{Math.round(group.utilization * 100)}%</small></span></td>
-                  <td className="external-ip-actions" />
+        {/* `groups`, not `filtered`: an install with no addresses can still have
+            empty locations to manage, and they render as their own group rows. */}
+        {groups.length === 0 && addresses.length === 0 ? (
+          <div className="external-ip-empty">
+            <p>No external IPs tracked yet.</p>
+            {canWrite && <button className="nm-btn nm-btn--primary" type="button" onClick={openAdd}><Plus size={14} /> Add external IP</button>}
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="external-ip-empty">No external IPs match these filters.</div>
+        ) : (
+          <div className="nm-table-wrap external-ip-table-wrap">
+            <table className="nm-table nm-table--selectable external-ip-table">
+              <colgroup>
+                <col className="external-ip-col-address" />
+                {showLocationColumn && <col className="external-ip-col-location" />}
+                <col className="external-ip-col-purpose" />
+                <col className="external-ip-col-device" />
+                <col className="external-ip-col-status" />
+                <col className="external-ip-col-owner" />
+                <col className="external-ip-col-tags" />
+                <col className="external-ip-col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Address</th>{showLocationColumn && <th>Location</th>}<th>Purpose</th><th>Device</th><th>Status</th><th>Owner</th><th>Tags</th>
+                  <th className="external-ip-actions">Actions</th>
                 </tr>
-
-                {!collapsed && group.services.map((service) => {
-                  const serviceCollapsed = collapsedServices.has(service.key);
-                  return <Fragment key={service.key}>
-                    <tr className="external-ip-service-row" aria-expanded={!serviceCollapsed} onClick={() => toggleService(service.key)}>
-                      <td><span className="external-ip-tree-cell external-ip-tree-level-1">
-                        <button type="button" className="external-ip-tree-toggle" aria-label={`${serviceCollapsed ? "Expand" : "Collapse"} ${service.name}`} onClick={(event) => { event.stopPropagation(); toggleService(service.key); }}>{serviceCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
-                        <span className="external-ip-tree-icon" aria-hidden="true"><Boxes size={14} /></span>
-                        <span className="external-ip-tree-identity"><strong>{service.name}</strong><small>{service.pools.length} allocation{service.pools.length === 1 ? "" : "s"}</small></span>
-                        <span className="external-ip-count-badge">{service.pools.length} allocation{service.pools.length === 1 ? "" : "s"}</span>
-                      </span></td>
-                      <td><span className="external-ip-provider-accounts">{[...new Set(service.pools.map((pool) => pool.account).filter(Boolean))].join(" · ") || "—"}</span></td>
-                      <td />
-                      <td className="nm-table-num external-ip-provider-stat">{service.capacity}</td>
-                      <td className="nm-table-num external-ip-provider-stat">{service.inUse}</td>
-                      <td><span className="external-ip-utilization"><UtilizationBar value={service.utilization} size="thin" /><small>{Math.round(service.utilization * 100)}%</small></span></td>
-                      <td className="external-ip-actions" />
-                    </tr>
-
-                    {!serviceCollapsed && service.pools.map((pool, poolIndex) => {
-                      const poolOpen = isPoolOpen(pool);
-                      const poolPage = addressQuery.data?.get(pool.id);
-                      const poolOffset = pageOffsets[pool.id] ?? 0;
-                      const poolMetaMatches = !normalizedSearch || [group.name, service.name, pool.name, pool.account, pool.region, pool.description, ...(pool.allocations ?? []).map((item) => item.cidr)].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
-                      const visibleAddresses = (poolPage?.addresses ?? []).filter((entry) => {
-                        if (statusFilter !== "all" && entry.status !== statusFilter) return false;
-                        if (poolMetaMatches) return true;
-                        const assignment = entry.assignment;
-                        return [entry.ip_address, assignment?.label, assignment?.owner, assignment?.device?.display_name, assignment?.device?.hostname].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalizedSearch);
-                      });
-                      return <Fragment key={`pool-${pool.id}`}>
-                        <tr className={`external-ip-pool-row${poolIndex % 2 === 1 ? " is-alt" : ""}`} aria-expanded={poolOpen} onClick={() => setPoolOverrides((current) => ({ ...current, [pool.id]: !poolOpen }))}>
-                          <td><span className="external-ip-tree-cell external-ip-tree-level-2">
-                            <button type="button" className="external-ip-tree-toggle" aria-label={`${poolOpen ? "Collapse" : "Expand"} ${pool.name}`} onClick={(event) => { event.stopPropagation(); setPoolOverrides((current) => ({ ...current, [pool.id]: !poolOpen })); }}>{poolOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
-                            <span className="external-ip-tree-icon" aria-hidden="true"><img src={deviceIconUrl(pool.icon)} width={15} height={15} alt="" /></span>
-                            <span className="external-ip-tree-identity"><strong>{pool.name}</strong><small className="nm-table-mono">{(pool.allocations ?? []).map((item) => item.cidr).join(", ") || "No ranges"}</small></span>
-                            <span className="external-ip-count-badge">{pool.total} address{pool.total === 1 ? "" : "es"}</span>
-                          </span></td>
-                          <td><small>{pool.account ?? "—"}{pool.region ? ` · ${pool.region}` : ""}</small></td>
-                          <td><span className={`nm-status nm-status--${pool.free === 0 ? "offline" : pool.utilization > 0 ? "online" : "unknown"}`}>{pool.free} free</span></td>
-                          <td className="nm-table-num">{pool.total}</td>
-                          <td className="nm-table-num">{pool.in_use + pool.reserved}</td>
-                          <td><span className="external-ip-utilization"><UtilizationBar value={pool.utilization} size="thin" /><small>{Math.round(pool.utilization * 100)}%</small></span></td>
-                          <td className="external-ip-actions">{canWrite && <AllocationActionsMenu
-                            onAddRange={() => { setSelectedPoolId(pool.id); setRangeValue(""); setFormError(null); setRangeModal(true); }}
-                            onEdit={() => openPool(pool)}
-                            onDelete={() => void removePool(pool)}
-                          />}</td>
+              </thead>
+              <tbody>
+                {groups.map((group) => {
+                  const isCollapsed = collapsed.has(group.key);
+                  const free = group.addresses.filter((address) => address.status === "available").length;
+                  const showHeader = groupBy !== "none";
+                  return (
+                    <Fragment key={group.key}>
+                      {showHeader && (
+                        <tr className="external-ip-group-row" aria-expanded={!isCollapsed} onClick={() => toggleGroup(group.key)}>
+                          <td colSpan={columnCount - 1}>
+                            <span className="external-ip-group-cell">
+                              <button type="button" className="external-ip-tree-toggle" aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${group.name}`} onClick={(event) => { event.stopPropagation(); toggleGroup(group.key); }}>
+                                {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                              </button>
+                              <span className="external-ip-group-name">{group.name}</span>
+                              <span className="external-ip-count-badge">{group.addresses.length} address{group.addresses.length === 1 ? "" : "es"}</span>
+                              <span className="external-ip-count-badge">{free} free</span>
+                            </span>
+                          </td>
+                          <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>
+                            {/* New locations are created where you need one — inside the
+                                address modal. These manage the ones that already exist,
+                                including the empty ones that have no addresses to show. */}
+                            {canWrite && groupBy === "location" && group.location && (
+                              <span className="nm-table-actions">
+                                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openLocationEditor(group.location!)}>Edit location</button>
+                                <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void removeLocation(group.location!)}>Delete location</button>
+                              </span>
+                            )}
+                          </td>
                         </tr>
-                        {poolOpen && <>
-                          {addressQuery.isLoading && !poolPage && <tr className="external-ip-address-row"><td colSpan={7}><small>Loading addresses…</small></td></tr>}
-                          {visibleAddresses.map((entry, addressIndex) => {
-                            const assignment = entry.assignment;
-                            return <tr key={entry.ip_address} className={`external-ip-address-row external-ip-address-row--${entry.status}${addressIndex % 2 === 1 ? " is-alt" : ""}${assignment ? "" : " external-ip-address-row--unassigned"}`} onClick={() => assignment ? openAssignment(assignment) : canWrite && openAssignment(undefined, entry.ip_address, pool.id)}>
-                              <td><span className="external-ip-tree-cell external-ip-tree-level-3"><span className="external-ip-leaf-mark" aria-hidden="true"><i /></span><span className="external-ip-tree-identity"><code className="nm-table-mono">{entry.ip_address}</code><small>{assignment?.device?.display_name ?? assignment?.device?.hostname ?? assignment?.asset?.name ?? assignment?.label ?? "Unassigned"}</small></span></span></td>
-                              <td><small>{assignment?.owner ?? assignment?.device?.display_name ?? assignment?.device?.hostname ?? "—"}</small></td>
-                              <td><span className={`nm-status nm-status--${entry.status === "in_use" ? "online" : entry.status === "reserved" ? "paused" : "unknown"}`}>{statusLabel(entry.status)}</span></td>
-                              <td className="nm-table-num" /><td className="nm-table-num" /><td />
-                              <td className="external-ip-actions" onClick={(event) => event.stopPropagation()}>{canWrite && <span className="nm-table-actions">
-                                <button className="nm-btn nm-btn--sm nm-btn--secondary" type="button" onClick={() => assignment ? openAssignment(assignment) : openAssignment(undefined, entry.ip_address, pool.id)}>{assignment ? "Edit" : "Assign"}</button>
-                                <button className="nm-btn nm-btn--sm nm-btn--danger external-ip-address-delete" type="button" aria-label={`Delete ${entry.ip_address}`} title="Delete address" onClick={() => void removeAddress(pool, entry.ip_address, assignment)}><Trash2 size={13} /></button>
-                              </span>}</td>
-                            </tr>;
-                          })}
-                          {(poolPage?.total ?? 0) > 256 && <tr className="external-ip-pager-row"><td colSpan={7}><footer className="external-ip-pager"><span>{poolOffset + 1}–{Math.min(poolOffset + 256, poolPage?.total ?? 0)} of {poolPage?.total}</span><button className="nm-btn nm-btn--sm" disabled={poolOffset === 0} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: Math.max(0, poolOffset - 256) }))}>Previous</button><button className="nm-btn nm-btn--sm" disabled={poolOffset + 256 >= (poolPage?.total ?? 0)} onClick={() => setPageOffsets((current) => ({ ...current, [pool.id]: poolOffset + 256 }))}>Next</button></footer></td></tr>}
-                        </>}
-                      </Fragment>;
-                    })}
-                  </Fragment>;
+                      )}
+
+                      {!isCollapsed && group.addresses.map((address, index) => {
+                        // Parity is emitted per group: the rows are a flattened hierarchy, so
+                        // :nth-child would band across group boundaries.
+                        const alt = index % 2 === 1 ? " is-alt" : "";
+                        const tags = splitTags(address.tags);
+                        const device = deviceLabel(address);
+                        return (
+                          <tr key={address.id} className={`external-ip-address-row external-ip-address-row--${address.status}`} onClick={() => canWrite && openEdit(address)}>
+                            <td className={`nm-table-mono external-ip-address-cell${alt}`}>{address.ip_address}</td>
+                            {showLocationColumn && (
+                              <td className={alt.trim()}>
+                                {locationCellLabel(address) ?? <span className="external-ip-muted">{UNASSIGNED}</span>}
+                              </td>
+                            )}
+                            <td className={`external-ip-purpose-cell${alt}`}>
+                              {address.label || <span className="external-ip-muted">—</span>}
+                              {address.url && <a className="external-ip-url" href={address.url} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Open</a>}
+                            </td>
+                            <td className={alt.trim()}>{device ?? <span className="external-ip-muted">—</span>}</td>
+                            <td className={alt.trim()}>
+                              <span className={`nm-status nm-status--${STATUS_PILL[address.status]}`}>{STATUS_LABEL[address.status]}</span>
+                            </td>
+                            <td className={alt.trim()}>{address.owner || <span className="external-ip-muted">—</span>}</td>
+                            <td className={alt.trim()}>
+                              {tags.length === 0 ? <span className="external-ip-muted">—</span> : <span className="external-ip-tag-list">{tags.map((tag) => <span className="external-ip-tag" key={tag}>{tag}</span>)}</span>}
+                            </td>
+                            <td className={`external-ip-actions${alt}`} onClick={(event) => event.stopPropagation()}>
+                              {canWrite && (
+                                <span className="nm-table-actions">
+                                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openEdit(address)}><Pencil size={13} /> Edit</button>
+                                  <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void remove(address)}><Trash2 size={13} /> Delete</button>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
                 })}
-              </Fragment>;
-            })}</tbody>
-          </table></div>}
-        </>}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      {poolModal && <Modal title={poolModal === "new" ? "Add allocation" : "Edit allocation"} titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>} onCancel={() => setPoolModal(null)} footer={<ModalFooterActions onCancel={() => setPoolModal(null)} primaryLabel={busy ? (poolModal === "new" ? "Adding…" : "Saving…") : (poolModal === "new" ? "Add allocation" : "Save changes")} primaryDisabled={busy} formId="external-pool-form" />}>
-        <form id="external-pool-form" className="modal-form external-ip-form" onSubmit={(event) => void savePool(event)}>
-          <p className="external-ip-form-intro">Add the public address space assigned by your provider. Ownership and cloud details can be added later.</p>
-          <div className="nm-form-row external-ip-core-fields">
-            <label>Allocation name<input autoFocus required value={poolForm.name} onChange={(e) => setPoolForm({ ...poolForm, name: e.target.value })} placeholder="Primary WAN allocation" /></label>
-            {poolModal === "new" && <label>Public IP address or range<input required value={poolForm.cidr ?? ""} onChange={(e) => setPoolForm({ ...poolForm, cidr: e.target.value })} placeholder="1.1.1.8, 1.1.1.8/32, or 1.1.1.8-1.1.1.14" /><small>Enter one address, a CIDR block, or a start–end range.</small></label>}
-          </div>
-          <label><span>Provider <span className="external-ip-optional-label">(optional)</span></span><select value={poolForm.provider_id ?? ""} onChange={(e) => setPoolForm({ ...poolForm, provider_id: e.target.value ? Number(e.target.value) : null })}><option value="">No provider</option>{cloudProviders.map((provider) => <option key={provider.key} value={provider.id ?? ""}>{provider.name}</option>)}</select><small>Used to group allocations by ISP or cloud provider.</small></label>
-          <button type="button" className="external-ip-details-toggle" aria-expanded={poolDetailsOpen} aria-controls="external-ip-allocation-details" onClick={() => setPoolDetailsOpen((open) => !open)}>
-            <span><strong>More details</strong><small>Service, account, region, icon and notes</small></span>
-            <ChevronDown size={16} aria-hidden="true" />
-          </button>
-          {poolDetailsOpen && <div id="external-ip-allocation-details" className="external-ip-details-section">
-            <label><span>Service / area <span className="external-ip-optional-label">(optional)</span></span><input list="external-ip-service-options" value={poolForm.service ?? ""} onChange={(e) => setPoolForm({ ...poolForm, service: e.target.value })} placeholder={selectedPoolProvider ? `Service within ${selectedPoolProvider.name}` : "Service or organisational area"} /><datalist id="external-ip-service-options">{serviceSuggestions.map((service) => <option key={service} value={service} />)}</datalist><small>Groups this allocation within the selected provider.</small></label>
+      {editing && (
+        <Modal
+          size="lg"
+          title={isNew ? "Add external IP" : `Edit ${editing.ip_address}`}
+          titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>}
+          onCancel={closeAddressModal}
+          footer={
+            <>
+              {!isNew && (
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--sm nm-btn--secondary external-ip-footer-lead"
+                  disabled={addressBusy}
+                  onClick={() => void markAvailable()}
+                >
+                  Mark available
+                </button>
+              )}
+              {isNew && canCreateDevice && !isRange && (
+                <div className="external-ip-footer-lead external-ip-inventory-toggle">
+                  <span>Also add to Inventory and Monitoring</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={addToInventory}
+                    aria-label="Also add to Inventory and Monitoring"
+                    className={`external-ip-device-switch${addToInventory ? " is-on" : ""}`}
+                    onClick={() => setAddToInventory((enabled) => !enabled)}
+                  >
+                    <span />
+                  </button>
+                </div>
+              )}
+              <ModalFooterActions
+                onCancel={closeAddressModal}
+                primaryLabel={primaryLabel}
+                primaryDisabled={addressBusy || parsedInput.kind === "error"}
+                formId="external-address-form"
+              />
+            </>
+          }
+        >
+          <form id="external-address-form" className="modal-form external-ip-form" onSubmit={(event) => void save(event)}>
             <div className="nm-form-row">
-              <label>Account / subscription<input value={poolForm.account ?? ""} onChange={(e) => setPoolForm({ ...poolForm, account: e.target.value })} placeholder="Subscription, project, or circuit" /></label>
-              <label>Region<input value={poolForm.region ?? ""} onChange={(e) => setPoolForm({ ...poolForm, region: e.target.value })} placeholder="Cloud region" /></label>
+              <label>{isNew ? "Address or range" : "Address"}
+                <input
+                  className="nm-input"
+                  autoFocus
+                  required
+                  value={form.ip_address}
+                  onChange={(event) => setForm({ ...form, ip_address: event.target.value })}
+                  placeholder="203.0.113.7"
+                />
+                {isNew && (
+                  <small className={`external-ip-count-hint${parsedInput.kind === "error" ? " external-ip-count-hint--over" : ""}`}>
+                    {countHint ?? "One address, a CIDR, or a start–end range."}
+                  </small>
+                )}
+              </label>
+              <label>Location
+                <PickOrCreate
+                  ariaLabel="Location"
+                  value={form.location_id}
+                  options={locationOptions}
+                  emptyLabel={UNASSIGNED}
+                  createLabel="Create location…"
+                  disabled={locationDraftOpen}
+                  onChange={(id) => setForm((current) => ({ ...current, location_id: id }))}
+                  onCreateRequested={openLocationDraft}
+                />
+              </label>
             </div>
-            <label className="icon-picker-field"><span className="icon-picker-field-label">Allocation icon</span><IconPickerTrigger value={poolForm.icon} onChange={(icon) => setPoolForm({ ...poolForm, icon })} /></label>
-            <label><span>Notes <span className="external-ip-optional-label">(optional)</span></span><textarea rows={3} value={poolForm.description ?? ""} onChange={(e) => setPoolForm({ ...poolForm, description: e.target.value })} placeholder="How this allocation is used" /></label>
-          </div>}
-          {/* Ranges live here rather than in the table. On the page they were a strip of
-              chips between an allocation and its addresses, which broke the run of IP rows
-              and made the tree hard to read; they are edit-time detail, not scan-time. */}
-          {poolModal !== "new" && (poolModal.allocations ?? []).length > 0 && <div className="external-ip-range-editor">
-            <span className="external-ip-range-editor-label">Ranges</span>
-            {(poolModal.allocations ?? []).map((item) => <span className="external-ip-allocation-chip" key={item.id}>
-              <code>{item.cidr}</code>
-              <small>{item.total} address{item.total === 1 ? "" : "es"}</small>
-              {canWrite && (poolModal.allocations ?? []).length > 1 && <button type="button" aria-label={`Remove ${item.cidr}`} onClick={() => void removeRange(item.id, item.cidr)}>×</button>}
-            </span>)}
-          </div>}
-          {formError && <p className="modal-error">{formError}</p>}
-        </form>
-      </Modal>}
 
-      {rangeModal && selectedPool && <Modal title={`Add range to ${selectedPool.name}`} titleIcon={<Plus size={18} />} onCancel={() => { setRangeModal(false); setFormError(null); }} footer={<ModalFooterActions onCancel={() => { setRangeModal(false); setFormError(null); }} primaryLabel={busy ? "Adding…" : "Add range"} primaryDisabled={busy} formId="external-range-form" />}>
-        <form id="external-range-form" className="modal-form external-ip-form" onSubmit={(event) => void addRange(event)}>
-          <label>Public IP address or range<input autoFocus required value={rangeValue} onChange={(event) => setRangeValue(event.target.value)} placeholder="104.23.54.68, 104.23.54.68/32, or 104.23.54.64/29" /><small>Address, start-end range, or CIDR.</small></label>
-          {formError && <p className="modal-error">{formError}</p>}
-        </form>
-      </Modal>}
+            {locationDraftOpen && (
+              // Inline, inside this same modal — a second Modal would put the
+              // hierarchy back in front of the address. Enter is captured here so
+              // it creates the location instead of submitting the address form,
+              // and no field is `required`, which would block that outer submit.
+              <div
+                className="external-ip-inline-create"
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  if (!locationDraftBusy) void saveLocationDraft();
+                }}
+              >
+                <div className="external-ip-inline-create-head">
+                  <strong>New location</strong>
+                  <button type="button" className="nm-btn nm-btn--sm" onClick={() => { setLocationDraftOpen(false); setLocationDraftError(null); }}>Cancel</button>
+                </div>
+                <label>Account
+                  <select
+                    className="nm-select"
+                    value={locationDraft.account_id === "new" ? "new" : locationDraft.account_id ?? ""}
+                    onChange={(event) => setLocationDraft((draft) => ({
+                      ...draft,
+                      account_id: event.target.value === "new" ? "new" : event.target.value ? Number(event.target.value) : null,
+                      // Provider only reaches the API through a newly created account,
+                      // so it is cleared whenever no account is being created.
+                      provider_id: event.target.value === "new" ? draft.provider_id : null,
+                    }))}
+                  >
+                    <option value="">{NO_ACCOUNT}</option>
+                    {draftAccounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
+                    <option value="new">New account…</option>
+                  </select>
+                </label>
+                {/* Provider lives here, not beside Account: it is stored on the account
+                    row, so it can only be honoured while one is being created. Offered
+                    against an existing account or "No account" it had nowhere to go and
+                    was discarded on save without saying so. */}
+                {locationDraft.account_id === "new" && (
+                  <div className="nm-form-row">
+                    <label>Account name
+                      <input
+                        className="nm-input"
+                        maxLength={120}
+                        value={locationDraft.account_name}
+                        onChange={(event) => setLocationDraft((draft) => ({ ...draft, account_name: event.target.value }))}
+                        placeholder="Production subscription"
+                      />
+                    </label>
+                    <label>Provider
+                      <select
+                        className="nm-select"
+                        value={locationDraft.provider_id ?? ""}
+                        onChange={(event) => setLocationDraft((draft) => ({
+                          ...draft,
+                          provider_id: event.target.value ? Number(event.target.value) : null,
+                        }))}
+                      >
+                        <option value="">No provider</option>
+                        {/* `CloudProviderOption.id` is optional — a provider without one
+                            cannot be referenced by an account, so it is not offered. */}
+                        {cloudProviders.filter((provider) => typeof provider.id === "number").map((provider) => (
+                          <option key={provider.id} value={provider.id as number}>{provider.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                <div className="nm-form-row">
+                  <label>Name
+                    <input
+                      className="nm-input"
+                      maxLength={120}
+                      value={locationDraft.name}
+                      onChange={(event) => setLocationDraft((draft) => ({ ...draft, name: event.target.value }))}
+                      placeholder="Main datacentre"
+                    />
+                  </label>
+                  <label>Region
+                    <input
+                      className="nm-input"
+                      maxLength={120}
+                      value={locationDraft.region}
+                      onChange={(event) => setLocationDraft((draft) => ({ ...draft, region: event.target.value }))}
+                      placeholder="eu-west-1"
+                    />
+                  </label>
+                </div>
+                {locationDraftError && <p className="modal-error" role="alert">{locationDraftError}</p>}
+                <div className="external-ip-inline-create-actions">
+                  <button
+                    type="button"
+                    className="nm-btn nm-btn--sm nm-btn--primary"
+                    disabled={locationDraftBusy || !locationDraft.name.trim()}
+                    onClick={() => void saveLocationDraft()}
+                  >
+                    {locationDraftBusy ? "Creating…" : "Create location"}
+                  </button>
+                </div>
+              </div>
+            )}
 
-      {assignmentModal && <Modal title={assignmentModal === "new" ? "Track external IP" : "Edit external IP"} titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>} onCancel={() => setAssignmentModal(null)} size="lg" footer={<ModalFooterActions onCancel={() => setAssignmentModal(null)} primaryLabel={busy ? "Saving…" : "Save address"} primaryDisabled={busy} formId="external-assignment-form">{assignmentModal !== "new" && <button type="button" className="nm-btn nm-btn--danger" onClick={() => void removeAssignment(assignmentModal)}>Remove</button>}</ModalFooterActions>}>
-        <form id="external-assignment-form" className="modal-form external-ip-form" onSubmit={(event) => void saveAssignment(event)}>
-          <div className="nm-form-row">
-            <label>Address<input autoFocus required value={assignmentForm.ip_address} onChange={(e) => setAssignmentForm({ ...assignmentForm, ip_address: e.target.value })} placeholder="8.8.8.8" /></label>
-            <label>Allocation<select required value={assignmentForm.pool_id} onChange={(e) => setAssignmentForm({ ...assignmentForm, pool_id: Number(e.target.value) })}><option value={0} disabled>Select an allocation</option>{pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}</select></label>
-          </div>
-          <div className="nm-form-row">
-            <label>Device<select value={assignmentForm.device_id ?? ""} onChange={(e) => setAssignmentForm({ ...assignmentForm, device_id: e.target.value ? Number(e.target.value) : null })}><option value="">Not linked</option>{inventoryDevices.map((device) => <option key={device.id} value={device.id}>{device.display_name || device.hostname || device.ip_address}</option>)}</select><small>Groups this address under a device on the Cloud assets page.</small></label>
-            <label>Status<select value={assignmentForm.status} onChange={(e) => setAssignmentForm({ ...assignmentForm, status: e.target.value as ExternalIpAssignment["status"] })}><option value="in_use">In use</option><option value="reserved">Reserved</option><option value="available">Available</option></select></label>
-          </div>
-          <div className="nm-form-row">
-            <label>Label<input required value={assignmentForm.label} onChange={(e) => setAssignmentForm({ ...assignmentForm, label: e.target.value })} placeholder="Public web endpoint" /></label>
-            <label>Owner<input value={assignmentForm.owner ?? ""} onChange={(e) => setAssignmentForm({ ...assignmentForm, owner: e.target.value })} placeholder="Team or customer" /></label>
-          </div>
-          <label>Tags<input value={assignmentForm.tags ?? ""} onChange={(e) => setAssignmentForm({ ...assignmentForm, tags: e.target.value })} placeholder="production, wan, customer" /></label>
-          <label>Notes<textarea rows={3} value={assignmentForm.notes ?? ""} onChange={(e) => setAssignmentForm({ ...assignmentForm, notes: e.target.value })} /></label>
-          {canCreateDevice && <div className="external-ip-device-toggle"><span className="external-ip-device-toggle-copy"><strong>Add to Inventory and Monitoring</strong><small>Also create a monitored device.</small></span><button type="button" role="switch" aria-checked={addToInventory} aria-label="Add to Inventory and Monitoring" className={`external-ip-device-switch${addToInventory ? " is-on" : ""}`} onClick={() => setAddToInventory((enabled) => !enabled)}><span /></button></div>}
-          {formError && <p className="modal-error">{formError}</p>}
-        </form>
-      </Modal>}
+            <div className="nm-form-row">
+              <label>Status
+                <select
+                  className="nm-select"
+                  value={form.status}
+                  onChange={(event) => { setStatusTouched(true); setForm({ ...form, status: event.target.value as ExternalIpAddress["status"] }); }}
+                >
+                  <option value="in_use">In use</option>
+                  <option value="reserved">Reserved</option>
+                  <option value="available">Available</option>
+                </select>
+              </label>
+              {!isRange && (
+                <label>Device
+                  <select className="nm-select" value={form.device_id ?? ""} onChange={(event) => setForm({ ...form, device_id: event.target.value ? Number(event.target.value) : null })}>
+                    <option value="">Not linked</option>
+                    {inventoryDevices.map((device) => <option key={device.id} value={device.id}>{device.display_name || device.hostname || device.ip_address}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
 
-      {deviceSeed && deviceMetadataQuery.data && <DeviceForm
-        busy={busy}
-        device={null}
-        cloneSource={null}
-        initialValues={deviceSeed}
-        deviceTypes={deviceMetadataQuery.data.deviceTypes}
-        groups={deviceMetadataQuery.data.groups}
-        snmpProfiles={deviceMetadataQuery.data.snmpProfiles}
-        sites={deviceMetadataQuery.data.sites}
-        onCancel={() => setDeviceSeed(null)}
-        onSubmit={createInventoryDevice}
-      />}
+            {!isRange && (
+              <label>Purpose
+                <input className="nm-input" value={form.label ?? ""} onChange={(event) => setForm({ ...form, label: event.target.value })} placeholder="Public web endpoint" />
+              </label>
+            )}
+
+            <button type="button" className="external-ip-details-toggle" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>
+              <span>
+                <strong>More details</strong>
+                <small>{isRange ? "Tags and notes for every address in the range." : "Owner, URL, tags and notes."}</small>
+              </span>
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+
+            {detailsOpen && (
+              <div className="external-ip-details-section">
+                {!isRange && (
+                  <div className="nm-form-row">
+                    <label>Owner<input className="nm-input" value={form.owner ?? ""} onChange={(event) => setForm({ ...form, owner: event.target.value })} placeholder="Team or customer" /></label>
+                    <label>URL<input className="nm-input" type="url" value={form.url ?? ""} onChange={(event) => setForm({ ...form, url: event.target.value })} placeholder="https://example.com" /></label>
+                  </div>
+                )}
+                <label>Tags<input className="nm-input" value={form.tags ?? ""} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="production, wan" /></label>
+                <label>Notes<textarea className="nm-input" rows={3} value={form.notes ?? ""} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+              </div>
+            )}
+
+            {addressError && <p className="modal-error" role="alert">{addressError}</p>}
+          </form>
+        </Modal>
+      )}
+
+      {locationEditor && (
+        <Modal
+          title={`Edit ${locationEditor.name}`}
+          titleIcon={<span className="ipam-panel-icon" aria-hidden="true"><Globe2 size={18} /></span>}
+          onCancel={() => setLocationEditor(null)}
+          footer={<ModalFooterActions onCancel={() => setLocationEditor(null)} primaryLabel={locationEditorBusy ? "Saving…" : "Save"} primaryDisabled={locationEditorBusy} formId="external-location-form" />}
+        >
+          <form id="external-location-form" className="modal-form external-ip-form" onSubmit={(event) => void saveLocationEditor(event)}>
+            <label>Provider account
+              <select className="nm-select" value={locationEditorForm.account_id ?? ""} onChange={(event) => setLocationEditorForm({ ...locationEditorForm, account_id: event.target.value ? Number(event.target.value) : null })}>
+                <option value="">{NO_ACCOUNT}</option>
+                {accounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
+              </select>
+            </label>
+            <label>Location name<input className="nm-input" required maxLength={120} value={locationEditorForm.name} onChange={(event) => setLocationEditorForm({ ...locationEditorForm, name: event.target.value })} placeholder="Main datacentre or Central US" /></label>
+            <label>Region<input className="nm-input" maxLength={120} value={locationEditorForm.region ?? ""} onChange={(event) => setLocationEditorForm({ ...locationEditorForm, region: event.target.value })} /></label>
+            {locationEditorError && <p className="modal-error" role="alert">{locationEditorError}</p>}
+          </form>
+        </Modal>
+      )}
+
+      {deviceSeed && deviceMetadataQuery.data && (
+        <DeviceForm
+          busy={deviceBusy}
+          device={null}
+          cloneSource={null}
+          initialValues={deviceSeed}
+          deviceTypes={deviceMetadataQuery.data.deviceTypes}
+          groups={deviceMetadataQuery.data.groups}
+          snmpProfiles={deviceMetadataQuery.data.snmpProfiles}
+          sites={deviceMetadataQuery.data.sites}
+          onCancel={() => { setDeviceSeed(null); setSeededAddressId(null); }}
+          onSubmit={createInventoryDevice}
+        />
+      )}
     </div>
   );
 }

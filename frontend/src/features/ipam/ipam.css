@@ -17,9 +17,9 @@
 
 .external-ip-workspace .ipam-stats { margin: 0; }
 .external-ip-panel { overflow: hidden; }
-.external-ip-panel-header { display: flex; min-height: 44px; align-items: center; gap: 16px; padding: 6px 14px; }
+.external-ip-panel-header { flex-wrap: wrap; display: flex; min-height: 44px; align-items: center; gap: 16px; padding: 6px 14px; }
 .external-ip-panel-header .ipam-panel-meta { overflow: hidden; text-overflow: ellipsis; }
-.external-ip-panel-actions { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
+.external-ip-panel-actions { flex-wrap: wrap; display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
 .external-ip-header-controls { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
 /* Structure and behaviour come from the canonical `.nm-table` rules (sticky uppercase
    header, borders, hover + teal edge). Surfaces follow the IPAM workspace hierarchy so
@@ -27,95 +27,31 @@
    than the component's darker `--nm-surface` default, which read as a separate app. */
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
 .external-ip-table { min-width: 980px; table-layout: fixed; background: var(--nm-modal-section); }
-.external-ip-table tbody td { background: var(--nm-table-row-bg); }
-.external-ip-table .external-ip-col-provider { width: 27%; }
-.external-ip-table .external-ip-col-account { width: 14%; }
-.external-ip-table .external-ip-col-status { width: 12%; }
-.external-ip-table .external-ip-col-stat { width: 10%; }
-.external-ip-table .external-ip-col-util { width: 14%; }
-.external-ip-table .external-ip-col-actions { width: 13%; }
-/* Operational values read as one evenly spaced band. Centring both the headings and
-   their values avoids the visual collision caused by a right-aligned `In use` value
-   sitting beside a left-aligned utilisation bar. Identity columns remain left aligned
-   and the canonical Actions treatment remains flush right. */
-.external-ip-table th:nth-child(n + 3):nth-child(-n + 6),
-.external-ip-table td:nth-child(n + 3):nth-child(-n + 6) { text-align: center; }
-.external-ip-table td:nth-child(6) .external-ip-utilization { justify-content: center; }
-.external-ip-table .external-ip-provider-row,
-.external-ip-table .external-ip-service-row,
-.external-ip-table .external-ip-pool-row { cursor: pointer; }
-.external-ip-table .external-ip-provider-row td {
-  border-top: 1px solid var(--nm-border-strong);
-  background: var(--nm-table-row-bg);
-  color: var(--nm-text);
-}
-.external-ip-table .external-ip-service-row td { background: var(--nm-row-alt-soft); }
+/* Two different rules meet here and both are kept:
+   - `thead th` keeps the canonical `--nm-table-header-bg` so every table header in the app
+     reads the same (docs/UI_THEME_RULES.md § Data-table headers, guarded by "Inventory and
+     IPAM render the same table header" in ipam-theme.spec.ts). Restated, not overridden,
+     so the intent survives any future `.nm-table` change.
+   - `tbody td` takes the workspace's own `--nm-modal-section`, the within-page depth rule
+     written about this very page, so the register does not sit deeper than the panel
+     around it. Light mode aliases it to --nm-surface, so that problem is dark-mode-only. */
+.external-ip-table thead th { background: var(--nm-table-header-bg); }
+.external-ip-table tbody td { background: var(--nm-modal-section); }
+.external-ip-table .external-ip-col-address { width: 16%; }
+.external-ip-table .external-ip-col-location { width: 14%; }
+.external-ip-table .external-ip-col-purpose { width: 18%; }
+.external-ip-table .external-ip-col-device { width: 16%; }
+.external-ip-table .external-ip-col-status { width: 11%; }
+.external-ip-table .external-ip-col-owner { width: 13%; }
+.external-ip-table .external-ip-col-tags { width: 15%; }
+.external-ip-table .external-ip-col-actions { width: 11%; }
 .external-ip-search { min-width: 220px; max-width: 520px; flex: 0 1 420px; }
 .external-ip-status-filter { display: flex; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
 .external-ip-status-filter .nm-select { width: 130px; }
 
-.external-ip-tree-cell { position: relative; display: flex; min-width: 0; align-items: center; gap: 8px; }
-.external-ip-tree-level-0 { padding-left: 0; }
-.external-ip-tree-level-1 { padding-left: 28px; }
-.external-ip-tree-level-2 { padding-left: 56px; }
-.external-ip-tree-level-3 { padding-left: 110px; }
-.external-ip-tree-level-1::before,
-.external-ip-tree-level-2::before,
-.external-ip-tree-level-3::before { content: ""; position: absolute; top: -14px; bottom: 50%; border-left: 1px solid var(--nm-border-strong); }
-.external-ip-tree-level-1::after,
-.external-ip-tree-level-2::after,
-.external-ip-tree-level-3::after { content: ""; position: absolute; top: 50%; border-top: 1px solid var(--nm-border-strong); }
-.external-ip-tree-level-1::before,
-.external-ip-tree-level-1::after { left: 40px; }
-.external-ip-tree-level-1::after { width: 12px; }
-.external-ip-tree-level-2::before,
-.external-ip-tree-level-2::after { left: 66px; }
-.external-ip-tree-level-2::after { width: 14px; }
-.external-ip-tree-level-3::before,
-.external-ip-tree-level-3::after { left: 94px; }
-.external-ip-tree-level-3::after { width: 14px; }
 .external-ip-tree-toggle { position: relative; z-index: 1; display: inline-flex; width: 18px; height: 24px; flex: 0 0 auto; align-items: center; justify-content: center; border: 0; padding: 0; background: transparent; color: var(--nm-accent-strong); cursor: pointer; }
 .external-ip-tree-toggle:focus-visible { border-radius: var(--nm-radius-sm); outline: 2px solid var(--nm-accent); outline-offset: 1px; }
-.external-ip-tree-icon,
-.external-ip-leaf-mark { position: relative; z-index: 1; display: inline-flex; width: 24px; height: 24px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-table-row-bg); color: var(--nm-text-muted); }
-.external-ip-service-row .external-ip-tree-icon { background: var(--nm-row-alt-soft); }
-.external-ip-tree-icon img { display: block; width: 15px; height: 15px; }
-.external-ip-leaf-mark { border-color: transparent; }
-.external-ip-leaf-mark i { width: 7px; height: 7px; border: 2px solid var(--nm-accent); border-radius: 50%; background: var(--nm-table-row-bg); }
-.external-ip-tree-identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; overflow: hidden; }
-.external-ip-tree-identity strong,
-.external-ip-tree-identity code,
-.external-ip-tree-identity small { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
-.external-ip-tree-identity strong { color: var(--nm-text); font-size: var(--nm-text-sm); font-weight: 650; }
-.external-ip-tree-identity code { color: var(--nm-text); font-size: var(--nm-text-xs); font-weight: 650; }
-.external-ip-tree-identity small { color: var(--nm-text-faint); font-size: var(--nm-text-xs); font-weight: 500; }
 .external-ip-count-badge { flex: 0 0 auto; border: 1px solid var(--nm-border); border-radius: 999px; padding: 2px 7px; background: var(--nm-surface-soft); color: var(--nm-text-muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
-.external-ip-provider-icon {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--nm-accent) 38%, var(--nm-border));
-  border-radius: var(--nm-radius-sm);
-  background: color-mix(in srgb, var(--nm-accent) 11%, var(--nm-modal-input));
-  color: var(--nm-accent-strong);
-}
-/* Brand marks — the one documented exception to the tokens-only rule: these are
-   third-party identities, not theme colours, and must not shift between themes.
-   See docs/UI_THEME_RULES.md § Tokens. */
-.external-ip-provider-icon--aws { color: #ff9900; }
-.external-ip-provider-icon--azure { color: #38a9ed; }
-.external-ip-provider-icon img { display: block; width: 20px; height: 20px; object-fit: contain; }
-.external-ip-provider-icon--cloudflare { color: #f48120; }
-.external-ip-provider-icon--cloud,
-.external-ip-provider-icon--globe { color: var(--nm-accent-strong); }
-.external-ip-provider-accounts { color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 600; }
-.external-ip-provider-stat { color: var(--nm-text); font-weight: 700; }
-.external-ip-table td strong, .external-ip-table td small { display: block; }
-.external-ip-table td code { display: block; color: var(--nm-accent-strong); }
-.external-ip-table td small { margin-top: 3px; color: var(--nm-text-faint); }
 .external-ip-table th.external-ip-actions,
 .external-ip-table td.external-ip-actions { padding-right: 12px; padding-left: 12px; text-align: right; }
 /* Row actions sit flush to the right of the last column, matching the design system
@@ -131,123 +67,114 @@
    defeat the right alignment. Natural widths, flush right. */
 .external-ip-table td.external-ip-actions .nm-table-actions .nm-btn--sm { flex: 0 0 auto; }
 .external-ip-table td.external-ip-actions .nm-btn { white-space: nowrap; }
-.external-ip-table .external-ip-address-delete { width: 28px; min-width: 28px; padding-right: 0; padding-left: 0; }
-.external-ip-utilization { display: flex; align-items: center; gap: 7px; }
-.external-ip-utilization .ipam-util-bar { width: 68px; flex: 0 1 68px; }
-.external-ip-utilization small { flex: 0 0 auto; margin: 0; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-variant-numeric: tabular-nums; }
-.external-ip-actions-menu { position: relative; display: inline-flex; }
-.external-ip-actions-trigger { min-width: 84px; }
-.external-ip-actions-popover {
-  position: fixed;
-  z-index: 320;
-  display: flex;
-  width: 178px;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-md);
-  background: var(--nm-modal-header);
-  box-shadow: var(--nm-shadow-md);
-  text-align: left;
-}
-.external-ip-actions-popover button { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 8px 10px; background: transparent; color: var(--nm-text); text-align: left; cursor: pointer; font-size: var(--nm-text-xs); font-weight: 600; }
-.external-ip-actions-popover button:hover { background: var(--nm-row-hover); color: var(--nm-accent-strong); }
-.external-ip-actions-popover button.is-danger { color: var(--nm-danger); }
-.external-ip-actions-separator { height: 1px; margin: 3px 0; background: var(--nm-border); }
-.external-ip-allocation-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-modal-input); }
-.external-ip-allocation-chip code { color: var(--nm-accent-strong); }
-.external-ip-allocation-chip small { color: var(--nm-text-faint); }
-.external-ip-allocation-chip button { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border: 0; border-radius: 4px; background: transparent; color: var(--dash-red); cursor: pointer; }
-.external-ip-allocation-chip button:hover { background: color-mix(in srgb, var(--dash-red) 12%, transparent); }
-.external-ip-util { display: inline-block; width: 72px; height: 5px; margin-right: 8px; overflow: hidden; border-radius: 999px; background: var(--nm-border); vertical-align: middle; }
-.external-ip-util i { display: block; height: 100%; border-radius: inherit; background: var(--nm-accent); }
-.external-ip-empty { padding: 28px 18px; color: var(--nm-text-muted); text-align: center; }
+.external-ip-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 18px; color: var(--nm-text-muted); text-align: center; }
+.external-ip-empty p { margin: 0; }
 .external-ip-error { color: var(--dash-red); }
+
+/* The migration notice reuses the ObservationsAlert bar treatment rather than a new banner. */
+.external-ip-migration-hint { color: inherit; font-size: var(--nm-text-xs); opacity: 0.85; }
 
 /* ── row banding ─────────────────────────────────────────────────────────────
    Tracks the eye across a wide row and shows which group you are inside. Parity
    comes from the component (`is-alt`), not :nth-child, because the rows are a
    flattened tree — sibling index at each level is what should alternate. */
-.external-ip-table .external-ip-address-row.is-alt td { background: var(--nm-row-alt-soft); }
+.external-ip-table .external-ip-address-row td.is-alt { background: var(--nm-row-alt-soft); }
 
-/* Banding paints on the `td`, so the canonical `tr`-level hover would be covered by it.
-   Re-apply the standard hover background at a specificity that beats the banding, and
-   keep the canonical 3px teal left edge from components.css. */
-.external-ip-table tbody tr.is-alt:hover td,
-.external-ip-table .external-ip-provider-row:hover td,
-.external-ip-table .external-ip-service-row:hover td { background: var(--nm-row-hover); }
+/* Banding paints on the `td`, so a `tr`-level hover would be covered by it. Re-apply the
+   canonical hover background at a specificity that beats the banding selector (3 classes),
+   and leave the 3px teal left edge to the grouped rule in components.css — a second
+   box-shadow here would compete with it. */
+.external-ip-table .external-ip-address-row:hover td,
+.external-ip-table .external-ip-address-row:hover td.is-alt,
+.external-ip-table .external-ip-group-row:hover td { background: var(--nm-row-hover); }
 
-/* ── service tree ────────────────────────────────────────────────────────────
-   Provider > service > allocation > address. Indentation and the deliberately
-   short connector segments carry the hierarchy without ancestor ghost rails. */
-
-.external-ip-table .external-ip-address-row td { padding-top: 6px; padding-bottom: 6px; }
-.external-ip-table .external-ip-address-row { cursor: pointer; }
-.external-ip-table .external-ip-address-row:hover td { background: var(--nm-row-hover); }
-.external-ip-table .external-ip-address-row.is-alt:hover td { background: var(--nm-row-hover); }
-.external-ip-table .external-ip-address-row--unassigned code { color: var(--nm-text-muted); }
-.external-ip-table .external-ip-address-row--unassigned small { color: var(--nm-text-faint); }
-
-/* Allocations render inside their service group, so spare capacity remains visible
-   alongside the individual address records instead of moving to another surface. */
-.external-ip-table .external-ip-pool-row { cursor: pointer; }
-.external-ip-table .external-ip-pool-row td { padding-top: 6px; padding-bottom: 6px; }
-.external-ip-table .external-ip-pool-row:hover td { background: var(--nm-row-hover); }
-.external-ip-table .external-ip-pool-row.is-alt td { background: var(--nm-row-alt-soft); }
-.external-ip-table .external-ip-pool-row.is-alt:hover td { background: var(--nm-row-hover); }
-.external-ip-table .external-ip-pool-row code { margin-top: 0; color: var(--nm-text); font-family: inherit; font-weight: 650; }
+/* ── Group-header rows ───────────────────────────────────────────────────────
+   Grouping is a lens over the flat register, so a group header is a band inside the
+   same table, not a container. It takes the panel's header surface — the same
+   `--nm-modal-header` as `thead th` — so it reads as structure rather than data. */
+.external-ip-table .external-ip-group-row { cursor: pointer; }
+.external-ip-table .external-ip-group-row td {
+  border-top: 1px solid var(--nm-border-strong);
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: var(--nm-modal-header);
+  color: var(--nm-text);
+}
+.external-ip-group-cell { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.external-ip-group-name { overflow: hidden; color: var(--nm-text); font-size: var(--nm-text-sm); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Address rows ────────────────────────────────────────────────────────────
-   Addresses used to render as a grid of tiles inside a colSpan cell, which read as a
-   separate widget bolted onto the table. They are ordinary rows now — one IP per row,
-   three steps in from their provider — so the whole drill-down is one continuous table. */
-
-/* Status reads from the nm-status pill in the Status column and nowhere else. The 3px
-   inset left edge is the canonical hover affordance and is teal — do not repurpose it to
-   carry status, which is what an earlier pass here did (green for in use, amber for
-   reserved). It invented a colour vocabulary the design system does not have AND made
-   hover unreadable on any row that already had an edge. The `--<status>` class stays as a
-   behaviour/test hook; it must not paint. */
-
-.external-ip-table .external-ip-pager-row td,
-.external-ip-table .external-ip-pager-row:hover td {
-  padding: 0 12px;
-  background: var(--nm-table-row-bg);
-  box-shadow: none;
-}
-.external-ip-pager-row .external-ip-pager { border-top: 0; padding-right: 0; padding-left: 0; }
-
-.external-ip-form-hint { margin: 0; color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
-
-.external-ip-link-list { display: flex; flex-direction: column; gap: 6px; padding: 18px; }
-.external-ip-link-option {
-  display: flex; flex-direction: column; gap: 2px;
-  border: 1px solid var(--nm-border); border-radius: var(--nm-radius-md);
-  padding: 9px 11px; background: var(--nm-modal-input); color: var(--nm-text);
-  text-align: left; cursor: pointer;
-}
-.external-ip-link-option:hover { border-color: var(--nm-tab-hover-border); background: var(--nm-tab-hover-bg); }
-.external-ip-link-option:disabled { opacity: 0.55; cursor: not-allowed; }
-.external-ip-link-option small { color: var(--nm-text-muted); font-family: var(--nm-font-mono); font-size: var(--nm-text-xs); }
-
-.external-ip-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--nm-border); color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
-.external-ip-pager span { margin-right: auto; }
-.external-ip-form { padding: 18px; }
-.external-ip-form .modal-error { margin: 0; color: var(--dash-red); }
-
-.external-ip-form-intro {
-  margin: 0;
+   One public IP per row, no hierarchy to assemble first. Status reads from the
+   nm-status pill in the Status column and nowhere else — the 3px inset left edge is
+   the canonical hover affordance and is teal; do not repurpose it to carry status.
+   The `--<status>` class stays as a behaviour/test hook and must not paint. */
+.external-ip-table .external-ip-address-row { cursor: pointer; }
+.external-ip-table .external-ip-address-row td { padding-top: 6px; padding-bottom: 6px; }
+.external-ip-address-cell { color: var(--nm-accent-strong); font-weight: 650; }
+.external-ip-purpose-cell { display: flex; align-items: baseline; gap: 8px; }
+.external-ip-url { color: var(--nm-accent-strong); font-size: var(--nm-text-xs); font-weight: 600; }
+.external-ip-muted { color: var(--nm-text-faint); }
+.external-ip-tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+/* `--nm-surface-soft` is *darker* than the `--nm-modal-section` cell behind it in dark mode,
+   which makes a pill read as a hole. The panel-header surface sits above the cell in both
+   themes, so the tag reads as a raised chip. */
+.external-ip-tag {
+  border: 1px solid var(--nm-border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: var(--nm-modal-header);
   color: var(--nm-text-muted);
-  font-size: var(--nm-text-sm);
-  line-height: 1.45;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.external-ip-optional-label {
+/* Live address count under the address field. `.modal-form label` sets a heavy
+   label weight that a bare <small> would inherit, so reset it here. */
+.external-ip-form .external-ip-count-hint {
   color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
   font-weight: 500;
 }
 
-.external-ip-form .external-ip-core-fields { grid-template-columns: minmax(0, 1fr); }
+.external-ip-form .external-ip-count-hint--over { color: var(--nm-danger); }
+
+/* Inline "create a location" block: a section card inside the modal shell,
+   never a second Modal. */
+.external-ip-inline-create {
+  display: grid;
+  gap: var(--nm-space-3);
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  padding: 14px;
+  background: var(--nm-modal-section);
+}
+
+.external-ip-inline-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.external-ip-inline-create-head strong { color: var(--nm-text); font-size: var(--nm-text-sm); }
+.external-ip-inline-create-actions { display: flex; justify-content: flex-end; }
+
+/* The modal footer is justify-content: flex-end, so the leading control claims
+   the free space rather than the shared footer growing a variant. */
+.external-ip-footer-lead { margin-right: auto; }
+
+.external-ip-inventory-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-sm);
+  font-weight: 600;
+}
+
+.external-ip-form { padding: 18px; }
+.external-ip-form .modal-error { margin: 0; color: var(--dash-red); }
 
 .external-ip-details-toggle {
   display: flex;
@@ -286,36 +213,6 @@
 .external-ip-details-toggle svg { flex: 0 0 auto; transition: transform 140ms ease; }
 .external-ip-details-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .external-ip-details-section { gap: var(--nm-space-3); }
-
-.external-ip-device-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border: 1px solid var(--nm-border);
-  border-radius: var(--nm-radius-md);
-  padding: 12px 14px;
-  background: var(--nm-surface-soft);
-}
-
-.external-ip-device-toggle-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.external-ip-device-toggle-copy strong {
-  color: var(--nm-text);
-  font-size: var(--nm-text-sm);
-  font-weight: 700;
-}
-
-.external-ip-device-toggle-copy small {
-  color: var(--nm-text-muted);
-  font-size: var(--nm-text-xs);
-  line-height: 1.4;
-}
 
 .external-ip-device-switch {
   display: flex;
@@ -1025,17 +922,5 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
   }
 }
 
-/* Range editing lives in the allocation modal — on the page it was a chip strip between
-   an allocation and its addresses, which broke the run of IP rows. */
-.external-ip-range-editor {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.external-ip-range-editor-label {
-  color: var(--nm-modal-label);
-  font-size: var(--nm-text-xs);
-  font-weight: 700;
-}
+/* Account/location actions wrap within their column instead of overlapping counts. */
+.external-ip-table .nm-table-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
