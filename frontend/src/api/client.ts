@@ -141,67 +141,6 @@ export type CloudProviderPayload = {
   icon_data: string | null;
 };
 
-/** Fixed set — mirrors CLOUD_ASSET_KINDS in `backend/app/models/cloud.py`. */
-export const CLOUD_ASSET_KINDS = [
-  "ec2", "vm", "load_balancer", "nat_gateway", "k8s_ingress", "database", "storage", "cdn", "other",
-] as const;
-export type CloudAssetKind = (typeof CLOUD_ASSET_KINDS)[number];
-
-export const CLOUD_ASSET_KIND_LABELS: Record<string, string> = {
-  ec2: "EC2 instance",
-  vm: "Virtual machine",
-  load_balancer: "Load balancer",
-  nat_gateway: "NAT gateway",
-  k8s_ingress: "Kubernetes ingress",
-  database: "Database",
-  storage: "Storage",
-  cdn: "CDN",
-  other: "Other",
-};
-
-/**
- * A cloud resource that owns one or more public addresses. This is the tier the
- * model was missing — before it, several IPs on one EC2 instance were unrelated
- * rows sharing a typed `service` string.
- */
-export type CloudAsset = {
-  id: number;
-  name: string;
-  kind: string | null;
-  provider_id: number | null;
-  provider: CloudProviderOption | null;
-  account: string | null;
-  region: string | null;
-  /** Optional bridge into inventory; null keeps the asset IPAM-only. */
-  device_id: number | null;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-  address_count: number;
-  in_use: number;
-  reserved: number;
-};
-
-export type CloudAssetAddressPayload = {
-  ip_address: string;
-  label?: string | null;
-  status?: ExternalIpAssignment["status"];
-  /** Optional — omit to match or create an allocation automatically. */
-  pool_id?: number | null;
-  owner?: string | null;
-  tags?: string | null;
-  notes?: string | null;
-};
-
-export type CloudAssetPayload = {
-  name: string;
-  kind: string | null;
-  provider_id: number | null;
-  account: string | null;
-  region: string | null;
-  device_id?: number | null;
-  description: string | null;
-};
 
 export type Device = {
   id: number;
@@ -714,6 +653,7 @@ export type AuditLogList = {
 
 export type RestoreValidationResult = {
   valid: boolean;
+  encrypted: boolean;
   size_bytes: number;
   table_count: number;
   devices: number | null;
@@ -738,6 +678,8 @@ export type SystemSettings = {
   backup_schedule_enabled: boolean;
   backup_schedule_interval_hours: number;
   backup_retention_count: number;
+  backup_filename_prefix?: string;
+  backup_date_format?: "yyyy-MM-dd" | "MM-dd-yyyy" | "dd-MM-yyyy";
 };
 
 export type ScheduledBackup = {
@@ -1119,33 +1061,10 @@ export type IpamSummary = {
   reservation_count: number;
 };
 
-export type ExternalIpPool = {
-  id: number;
-  name: string;
-  provider_id: number | null;
-  provider: CloudProviderOption | null;
-  service: string | null;
-  icon: DeviceIcon;
-  account: string | null;
-  region: string | null;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-  total: number;
-  in_use: number;
-  reserved: number;
-  free: number;
-  utilization: number;
-  allocations: ExternalIpRange[];
-};
-
-export type ExternalIpRange = {
-  id: number;
-  pool_id: number;
-  cidr: string;
-  total: number;
-  created_at: string;
-};
+export type ExternalProviderAccount = { id: number; provider_id: number | null; name: string };
+/** `account_id` is nullable: a location may exist before any provider account does — the
+ *  hierarchy is a lens on the address register, never a prerequisite for entering one. */
+export type ExternalLocation = { id: number; account_id: number | null; name: string; region: string | null };
 
 /** Minimal device identity carried by an external address. */
 export type ExternalIpDevice = {
@@ -1157,18 +1076,16 @@ export type ExternalIpDevice = {
   site_id: number | null;
 };
 
-export type ExternalIpAssignment = {
+/** The flat external address register (Task 3's `/ipam/external/addresses`). Mirrors `ExternalIpAddressOut`. */
+export type ExternalIpAddress = {
   id: number;
-  pool_id: number;
-  /** The inventory device holding this address — a cloud asset is a device. */
+  ip_address: string;
+  location_id: number | null;
   device_id: number | null;
   device: ExternalIpDevice | null;
-  /** @deprecated superseded by device_id; retained for one release. */
-  asset_id: number | null;
-  asset: CloudAsset | null;
-  ip_address: string;
-  label: string;
-  status: "available" | "reserved" | "in_use";
+  status: "in_use" | "reserved" | "available";
+  label: string | null;
+  url: string | null;
   owner: string | null;
   tags: string | null;
   notes: string | null;
@@ -1176,28 +1093,33 @@ export type ExternalIpAssignment = {
   updated_at: string;
 };
 
-export type ExternalIpAssignmentPayload = Omit<ExternalIpAssignment, "id" | "asset" | "device" | "created_at" | "updated_at">;
-export type ExternalIpPoolPayload = Pick<ExternalIpPool, "name" | "provider_id" | "service" | "icon" | "account" | "region" | "description"> & { cidr?: string };
+export type ExternalIpAddressPayload = Omit<ExternalIpAddress, "id" | "device" | "created_at" | "updated_at">;
 
-export type ExternalIpAddressPage = {
-  total: number;
-  offset: number;
-  limit: number;
-  addresses: Array<{
-    ip_address: string;
-    status: "available" | "reserved" | "in_use";
-    assignment: ExternalIpAssignment | null;
-  }>;
+/** Mirrors `ExternalMigrationDecline` / `ExternalMigrationReport`. `null` on a clean upgrade — not an error. */
+export type ExternalMigrationDecline = {
+  cidr: string;
+  location: string;
+  kept: number;
+};
+
+/** Mirrors `ExternalMigrationSkip` — a range the migration could not parse at all. */
+export type ExternalMigrationSkip = {
+  cidr: string;
+  location: string;
+  reason: string;
+};
+
+export type ExternalMigrationReport = {
+  migrated: number;
+  declined: ExternalMigrationDecline[];
+  skipped?: ExternalMigrationSkip[];
 };
 
 export type ExternalIpSummary = {
-  pool_count: number;
   total: number;
   in_use: number;
   reserved: number;
   free: number;
-  asset_count: number;
-  unassigned_address_count: number;
 };
 
 export type IpReservation = {
@@ -1940,24 +1862,33 @@ export const api = {
   },
   downloadReport: (token: string) => requestBlob("/api/v1/exports/report.pdf", { token }),
   downloadBackup: (token: string) => requestBlob("/api/v1/exports/backup", { token }),
-  restoreBackup: (token: string, payload: Blob) =>
+  downloadEncryptedBackup: (token: string, passphrase: string) =>
+    requestBlob("/api/v1/exports/backup/encrypted", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ passphrase }),
+    }),
+  restoreBackup: (token: string, payload: Blob, passphrase?: string) =>
     request<void>("/api/v1/exports/restore", {
       method: "POST",
       token,
       headers: {
         "Content-Type": "application/octet-stream",
+        ...(passphrase ? { "X-NetMap-Backup-Passphrase": passphrase } : {}),
       },
       body: payload,
     }),
-  validateRestoreBackup: (token: string, payload: Blob) =>
+  validateRestoreBackup: (token: string, payload: Blob, passphrase?: string) =>
     request<RestoreValidationResult>("/api/v1/exports/restore/validate", {
       method: "POST",
       token,
       headers: {
         "Content-Type": "application/octet-stream",
+        ...(passphrase ? { "X-NetMap-Backup-Passphrase": passphrase } : {}),
       },
       body: payload,
     }),
+  getBackupLocation: (token: string) => request<{ directory: string }>("/api/v1/exports/backup-location", { token }),
   listScheduledBackups: (token: string) =>
     request<ScheduledBackup[]>("/api/v1/exports/scheduled-backups", { token }),
   downloadScheduledBackup: (token: string, filename: string) =>
@@ -2124,6 +2055,8 @@ export const api = {
     request<DeviceMonitorSummary>(`/api/v1/monitoring/devices/${deviceId}`, { token }),
   getDeviceHistory: (token: string, deviceId: number, hours = 24) =>
     request<MonitorHistoryPoint[]>(`/api/v1/monitoring/devices/${deviceId}/history?hours=${hours}`, { token }),
+  checkDeviceNow: (token: string, deviceId: number) =>
+    request<{ device_id: number; checked: boolean }>(`/api/v1/monitoring/devices/${deviceId}/check`, { method: "POST", token }),
   getDeviceAnalysis: (token: string, deviceId: number) =>
     request<DeviceAnalysis>(`/api/v1/monitoring/devices/${deviceId}/analysis`, { token }),
   listPortTargets: (token: string) =>
@@ -2205,46 +2138,31 @@ export const api = {
     request<{ ip: string }>(`/api/v1/ipam/subnets/${subnetId}/next-available`, { token }),
   getExternalIpSummary: (token: string) =>
     request<ExternalIpSummary>("/api/v1/ipam/external/summary", { token }),
-  listExternalIpPools: (token: string) =>
-    request<ExternalIpPool[]>("/api/v1/ipam/external/pools", { token }),
-  createExternalIpPool: (token: string, payload: ExternalIpPoolPayload) =>
-    request<ExternalIpPool>("/api/v1/ipam/external/pools", { method: "POST", token, body: JSON.stringify(payload) }),
-  updateExternalIpPool: (token: string, id: number, payload: Partial<ExternalIpPoolPayload>) =>
-    request<ExternalIpPool>(`/api/v1/ipam/external/pools/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
-  deleteExternalIpPool: (token: string, id: number) =>
-    request<void>(`/api/v1/ipam/external/pools/${id}`, { method: "DELETE", token }),
-  createExternalIpRange: (token: string, id: number, cidr: string) =>
-    request<ExternalIpRange>(`/api/v1/ipam/external/pools/${id}/ranges`, { method: "POST", token, body: JSON.stringify({ cidr }) }),
-  deleteExternalIpRange: (token: string, poolId: number, rangeId: number) =>
-    request<void>(`/api/v1/ipam/external/pools/${poolId}/ranges/${rangeId}`, { method: "DELETE", token }),
-  getExternalPoolAddresses: (token: string, id: number, offset = 0, limit = 256) =>
-    request<ExternalIpAddressPage>(`/api/v1/ipam/external/pools/${id}/addresses?offset=${offset}&limit=${limit}`, { token }),
-  deleteExternalPoolAddress: (token: string, poolId: number, ipAddress: string) =>
-    request<void>(`/api/v1/ipam/external/pools/${poolId}/addresses/${encodeURIComponent(ipAddress)}`, { method: "DELETE", token }),
-  listExternalIpAssignments: (token: string, assetId?: number) =>
-    request<ExternalIpAssignment[]>(`/api/v1/ipam/external/assignments${assetId ? `?asset_id=${assetId}` : ""}`, { token }),
-  listCloudAssets: (token: string) =>
-    request<CloudAsset[]>("/api/v1/ipam/external/assets", { token }),
-  createCloudAsset: (token: string, payload: CloudAssetPayload) =>
-    request<CloudAsset>("/api/v1/ipam/external/assets", { method: "POST", token, body: JSON.stringify(payload) }),
-  updateCloudAsset: (token: string, id: number, payload: Partial<CloudAssetPayload>) =>
-    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
-  deleteCloudAsset: (token: string, id: number) =>
-    request<void>(`/api/v1/ipam/external/assets/${id}`, { method: "DELETE", token }),
-  addCloudAssetAddress: (token: string, id: number, payload: CloudAssetAddressPayload) =>
-    request<ExternalIpAssignment>(`/api/v1/ipam/external/assets/${id}/addresses`, { method: "POST", token, body: JSON.stringify(payload) }),
-  linkCloudAssetDevice: (token: string, id: number, deviceId: number) =>
-    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}/link-device`, { method: "POST", token, body: JSON.stringify({ device_id: deviceId }) }),
-  unlinkCloudAssetDevice: (token: string, id: number) =>
-    request<CloudAsset>(`/api/v1/ipam/external/assets/${id}/link-device`, { method: "DELETE", token }),
-  updateExternalIpRange: (token: string, poolId: number, rangeId: number, cidr: string) =>
-    request<ExternalIpRange>(`/api/v1/ipam/external/pools/${poolId}/ranges/${rangeId}`, { method: "PATCH", token, body: JSON.stringify({ cidr }) }),
-  createExternalIpAssignment: (token: string, payload: ExternalIpAssignmentPayload) =>
-    request<ExternalIpAssignment>("/api/v1/ipam/external/assignments", { method: "POST", token, body: JSON.stringify(payload) }),
-  updateExternalIpAssignment: (token: string, id: number, payload: Partial<ExternalIpAssignmentPayload>) =>
-    request<ExternalIpAssignment>(`/api/v1/ipam/external/assignments/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
-  deleteExternalIpAssignment: (token: string, id: number) =>
-    request<void>(`/api/v1/ipam/external/assignments/${id}`, { method: "DELETE", token }),
+  listExternalAccounts: (token: string) => request<ExternalProviderAccount[]>("/api/v1/ipam/external/accounts", { token }),
+  saveExternalAccount: (token: string, payload: Omit<ExternalProviderAccount, "id">, id?: number) => request<ExternalProviderAccount>(`/api/v1/ipam/external/accounts${id ? `/${id}` : ""}`, { token, method: id ? "PUT" : "POST", body: JSON.stringify(payload) }),
+  deleteExternalAccount: (token: string, id: number) => request<void>(`/api/v1/ipam/external/accounts/${id}`, { token, method: "DELETE" }),
+  listExternalLocations: (token: string) => request<ExternalLocation[]>("/api/v1/ipam/external/locations", { token }),
+  saveExternalLocation: (token: string, payload: Omit<ExternalLocation, "id">, id?: number) => request<ExternalLocation>(`/api/v1/ipam/external/locations${id ? `/${id}` : ""}`, { token, method: id ? "PUT" : "POST", body: JSON.stringify(payload) }),
+  deleteExternalLocation: (token: string, id: number) => request<void>(`/api/v1/ipam/external/locations/${id}`, { token, method: "DELETE" }),
+  listExternalAddresses: (token: string, params?: { status?: ExternalIpAddress["status"]; location_id?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.location_id !== undefined) qs.set("location_id", String(params.location_id));
+    const q = qs.toString();
+    return request<ExternalIpAddress[]>(`/api/v1/ipam/external/addresses${q ? `?${q}` : ""}`, { token });
+  },
+  // Returns an array: one request can expand a CIDR or range into many addresses.
+  createExternalAddresses: (token: string, payload: ExternalIpAddressPayload) =>
+    request<ExternalIpAddress[]>("/api/v1/ipam/external/addresses", { method: "POST", token, body: JSON.stringify(payload) }),
+  updateExternalAddress: (token: string, id: number, payload: Partial<ExternalIpAddressPayload>) =>
+    request<ExternalIpAddress>(`/api/v1/ipam/external/addresses/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),
+  deleteExternalAddress: (token: string, id: number) =>
+    request<void>(`/api/v1/ipam/external/addresses/${id}`, { method: "DELETE", token }),
+  // `null` is the normal case on a clean upgrade, not an error.
+  getExternalMigrationReport: (token: string) =>
+    request<ExternalMigrationReport | null>("/api/v1/ipam/external/migration-report", { token }),
+  dismissExternalMigrationReport: (token: string) =>
+    request<void>("/api/v1/ipam/external/migration-report", { method: "DELETE", token }),
   listSavedSecuritySearches: (token: string) =>
     request<SavedSecuritySearch[]>("/api/v1/syslog/searches", { token }),
   createSavedSecuritySearch: (token: string, name: string, filters: Record<string, unknown>) =>
