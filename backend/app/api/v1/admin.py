@@ -32,8 +32,8 @@ from app.schemas.admin import (
     TestNotificationRequest,
     normalize_device_type_value,
 )
-from app.models.cloud import CloudAsset, CloudProvider
-from app.models.external_ip import ExternalIpPool
+from app.models.cloud import CloudProvider
+from app.models.external_ip import ExternalProviderAccount
 from app.services.cloud_providers import provider_key
 from app.schemas.notification import (
     NotificationProfileCreate,
@@ -85,6 +85,8 @@ DEFAULTS: dict[str, str] = {
     "backup_schedule_enabled": "false",
     "backup_schedule_interval_hours": "24",
     "backup_retention_count": "7",
+    "backup_filename_prefix": "netmap-backup",
+    "backup_date_format": "yyyy-MM-dd",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (
@@ -265,11 +267,11 @@ def delete_cloud_provider(
     # not a fixed set, and an install that uses neither AWS nor Azure should not be stuck
     # with them in every provider picker. The seed runs once (recorded in the migrations
     # table), so a deleted built-in stays deleted across restarts.
-    # Pools and assets fall back to "no provider" rather than being deleted.
-    for pool in db.scalars(select(ExternalIpPool).where(ExternalIpPool.provider_id == row.id)).all():
-        pool.provider_id = None
-    for asset in db.scalars(select(CloudAsset).where(CloudAsset.provider_id == row.id)).all():
-        asset.provider_id = None
+    # Accounts remain attached to their locations when a provider is removed.
+    for account in db.scalars(select(ExternalProviderAccount).where(ExternalProviderAccount.provider_id == row.id)).all():
+        account.provider_id = None
+    # `cloud_assets` (like the legacy pool tables) is part of the frozen rollback
+    # snapshot and must not be written to (see `delete_external_account`).
     db.delete(row)
     db.commit()
 
