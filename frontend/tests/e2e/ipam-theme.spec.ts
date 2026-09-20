@@ -475,6 +475,46 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+test("every row in an overlay surface has the same shape, and nothing touches its edge", async ({ page }) => {
+  // The written contract is `docs/UI_THEME_RULES.md` § Overlay surfaces. Both halves
+  // are here because both were review comments rather than code review findings:
+  // the create row kept `border-radius: 0` while every other row was rounded, so one
+  // highlight in the menu was square; and it carried `padding-top` with no bottom
+  // counterpart inside a uniform 5px gutter, so its label rode the menu's bottom edge.
+  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await openExternalIps(page);
+  await page.getByRole("button", { name: "Add external IP" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add external IP" });
+  await dialog.getByRole("button", { name: "Location", exact: true }).click();
+  const menu = page.locator(".nm-pick-menu");
+  await expect(menu).toBeVisible();
+
+  const shape = await menu.evaluate((node) => {
+    const rows = [...node.querySelectorAll<HTMLElement>(".nm-pick-row")];
+    const last = rows[rows.length - 1];
+    const menuBox = node.getBoundingClientRect();
+    const menuStyle = getComputedStyle(node);
+    return {
+      radii: [...new Set(rows.map((row) => getComputedStyle(row).borderRadius))],
+      insets: [...new Set(rows.map((row) => getComputedStyle(row).paddingLeft + "/" + getComputedStyle(row).paddingRight))],
+      // Symmetric vertical padding on the one row that carries a separator.
+      createPadding: [getComputedStyle(last).paddingTop, getComputedStyle(last).paddingBottom],
+      // Real measured breathing room under the last row, gutter included.
+      gapBelow: Math.round(menuBox.bottom - last.getBoundingClientRect().bottom),
+      gutter: parseFloat(menuStyle.paddingTop),
+      borderBottom: parseFloat(menuStyle.borderBottomWidth),
+    };
+  });
+
+  // One radius and one horizontal inset across every row, command row included.
+  expect(shape.radii).toHaveLength(1);
+  expect(shape.radii[0]).not.toBe("0px");
+  expect(shape.insets).toHaveLength(1);
+  expect(shape.createPadding[0]).toBe(shape.createPadding[1]);
+  // At least the surface's own gutter below the last row, never flush to the border.
+  expect(shape.gapBelow).toBeGreaterThanOrEqual(shape.gutter + shape.borderBottom);
+});
+
 test("External IPs is one flat register of addresses, not a tree", async ({ page }) => {
   await setupIpam(page, "dark", async () => { await mockExternal(page); });
   await openExternalIps(page);

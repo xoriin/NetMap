@@ -26,8 +26,8 @@ export type AdminTabId =
 export const adminTabs = [
   { id: "system", label: "System", Icon: Settings, permissions: ["diagnostics_view", "backup_manage"] },
   { id: "devices-icons", label: "Devices & Icons", Icon: IconPalette, permissions: ["device_catalog_manage"] },
-  // Providers are shared by External IPAM allocations and Cloud assets, not by devices —
-  // they only sat under Devices & Icons because that tab had spare column.
+  // Providers belong to External IP provider accounts, not to devices — they only sat
+  // under Devices & Icons because that tab had spare column.
   { id: "cloud-providers", label: "Cloud providers", Icon: IconCloud, permissions: ["device_catalog_manage"] },
   { id: "users", label: "Users", Icon: IconUsers, permissions: ["user_manage"] },
   { id: "groups", label: "Groups", Icon: IconShieldCheck, superAdminOnly: true },

@@ -1546,7 +1546,10 @@ body.theme-dark .theme-lab-secret input {
   overflow: hidden;
   border: 1px solid var(--nm-border-strong);
   border-radius: var(--nm-radius-md);
-  padding: 5px;
+  /* The bottom gutter is wider than the top on purpose: the pinned command row
+     below carries a separator, and 5px under it reads as flush against the
+     border. Nothing in an overlay surface touches its own edge. */
+  padding: 5px 5px 7px;
   background: var(--nm-modal-header);
   box-shadow: 0 12px 28px rgba(3, 10, 18, 0.24);
 }
@@ -1577,7 +1580,7 @@ body.theme-dark .theme-lab-choice-menu > label input {
   font-size: var(--nm-text-xs);
 }
 
-.theme-lab-choice-menu > button,
+.theme-lab-choice-menu button,
 .theme-lab-action-menu > div button {
   display: flex;
   align-items: center;
@@ -1593,14 +1596,35 @@ body.theme-dark .theme-lab-choice-menu > label input {
   text-align: left;
 }
 
-.theme-lab-choice-menu > button:hover,
-.theme-lab-choice-menu > button.is-selected,
+.theme-lab-choice-menu button:hover,
+.theme-lab-choice-menu button.is-selected,
 .theme-lab-action-menu > div button:hover {
   background: var(--nm-tab-hover-bg);
   color: var(--nm-text);
 }
 
-.theme-lab-choice-menu > button svg { margin-left: auto; color: var(--nm-accent-strong); }
+.theme-lab-choice-list > button svg { margin-left: auto; color: var(--nm-accent-strong); }
+
+/* The pinned command row. It is a sibling of the listbox, never a child — a
+   listbox's DOM children must be options. It is set apart by a separator and
+   the accent, and by nothing else: same radius, same horizontal inset and the
+   same hover surface as the options above it, so the menu has one row shape
+   from top to bottom. The separator lives on this row's own top border, which
+   is why the padding below the label has to be stated as well as the padding
+   above it. */
+/* `.theme-lab-choice-menu button` sets the shared row padding and scores (0,1,1),
+   so this row has to match that element count to override it. */
+.theme-lab-choice-menu > .theme-lab-choice-create {
+  flex: 0 0 auto;
+  margin-top: 5px;
+  border-top: 1px solid var(--nm-border);
+  padding-top: 7px;
+  padding-bottom: 7px;
+  color: var(--nm-accent);
+  font-weight: 600;
+}
+
+.theme-lab-choice-menu > .theme-lab-choice-create:hover { color: var(--nm-accent-strong); }
 
 .theme-lab-swatch {
   width: 10px;

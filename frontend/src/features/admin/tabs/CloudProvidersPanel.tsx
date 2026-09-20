@@ -57,7 +57,7 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
   }
 
   async function removeProvider(provider: CloudProviderOption) {
-    if (!await confirm({ title: "Remove cloud provider", message: `Remove ${provider.name} from the reusable provider catalogue?`, detail: "Allocations and cloud assets that use it fall back to \u201cno provider\u201d; nothing else is deleted.", confirmLabel: "Remove provider" })) return;
+    if (!await confirm({ title: "Remove cloud provider", message: `Remove ${provider.name} from the reusable provider catalogue?`, detail: "External addresses that use it fall back to \u201cno provider\u201d; nothing else is deleted.", confirmLabel: "Remove provider" })) return;
     setBusy(provider.key); onError(null);
     try { await api.deleteCloudProvider(accessToken, provider.key); await query.reload(); onSuccess("Cloud provider removed"); }
     catch (error) { onError(error instanceof Error ? error.message : "Unable to remove cloud provider"); } finally { setBusy(null); }
@@ -69,7 +69,7 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
         <span className="admin-panel-icon" aria-hidden="true"><Cloud size={17} /></span>
         <span className="admin-panel-title-wrap">
           <span className="admin-panel-title">Cloud providers</span>
-          <span className="admin-panel-meta">Shared by External IPs and Cloud assets</span>
+          <span className="admin-panel-meta">Shared by External IPs</span>
         </span>
       </span>
     </div>
