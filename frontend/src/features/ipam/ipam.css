@@ -12,7 +12,6 @@
   min-width: 0;
   flex-direction: column;
   gap: 16px;
-  margin-top: 16px;
 }
 
 .external-ip-workspace .ipam-stats { margin: 0; }

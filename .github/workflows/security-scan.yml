@@ -1,12 +1,12 @@
-# Non-blocking security scanning: SAST (Semgrep) + dependency audits.
-# Report-only for now — every job is continue-on-error so findings never
-# block a push. Flip that off per-job once the baseline is triaged.
+# Blocking secret and dependency scans, plus report-only SAST while its
+# existing baseline is being triaged.
 name: Security scan
 
 on:
   push:
     branches: [main, test]
   pull_request:
+  workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1" # weekly Monday sweep for new advisories
 
@@ -14,6 +14,17 @@ permissions:
   contents: read
 
 jobs:
+  secrets:
+    name: Secret history scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
@@ -28,7 +39,6 @@ jobs:
   python-deps:
     name: Python dependency audit
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -42,7 +52,6 @@ jobs:
   npm-deps:
     name: npm dependency audit
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
@@ -51,3 +60,30 @@ jobs:
       - name: Run npm audit (production deps)
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
+
+  container-image:
+    name: Container image audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the production image for scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/aio.Dockerfile
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: netmap:security-scan
+          cache-from: type=gha,scope=security-scan
+          cache-to: type=gha,mode=max,scope=security-scan
+      - name: Block fixable high and critical image findings
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: netmap:security-scan
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH

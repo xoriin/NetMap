@@ -6,6 +6,7 @@ import {
   setupMonitoringMocks,
   setupTopologyMocks,
 } from "./helpers/api-mocks";
+import { setupExternalIps } from "./helpers/external-ip";
 
 const standardRoutes = [
   ["/overview", ".overview-workspace"],
@@ -126,6 +127,27 @@ for (const theme of ["light", "dark"] as const) {
         return contentBox.top - bannerBox.bottom;
       }, contentSelector);
       expect(gap, `${route} should use the 16px workspace section gap`).toBeCloseTo(16, 0);
+    }
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`External IPAM keeps its cards on the shared workspace anchor in ${theme} mode`, async ({ page }) => {
+    await setupExternalIps(page, { theme });
+
+    for (const width of [1440, 700]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.locator(".external-ip-workspace")).toBeVisible();
+      await expectAlignedEdges(page, ".ipam-workspace", ".external-ip-workspace", `External IPAM shell at ${width}px`);
+      await expectAlignedEdges(page, ".external-ip-workspace", ".external-ip-workspace .ipam-stats", `External IPAM cards at ${width}px`);
+      await expectAlignedEdges(page, ".external-ip-workspace", ".external-ip-panel", `External IPAM panel at ${width}px`);
+
+      const topOffset = await page.evaluate(() => {
+        const workspace = document.querySelector<HTMLElement>(".ipam-workspace")!.getBoundingClientRect();
+        const external = document.querySelector<HTMLElement>(".external-ip-workspace")!.getBoundingClientRect();
+        return external.top - workspace.top;
+      });
+      expect(topOffset, `External IPAM should not add a route-specific top offset at ${width}px`).toBeCloseTo(0, 0);
     }
   });
 }

@@ -21,7 +21,7 @@ envsubst '${APP_PORT}' < /etc/netmap/aio-nginx.conf.template > /tmp/nginx.genera
 # ready backend.
 rm -f /tmp/uvicorn.sock
 
-gosu netmap uvicorn app.main:app \
+setpriv --reuid=netmap --regid=netmap --init-groups uvicorn app.main:app \
   --uds /tmp/uvicorn.sock \
   --proxy-headers \
   --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}" \

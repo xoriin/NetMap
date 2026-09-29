@@ -28,7 +28,6 @@ RUN apt-get update \
        bash \
        ca-certificates \
        gettext-base \
-       gosu \
        iproute2 \
        iputils-ping \
        libcap2-bin \
@@ -38,6 +37,7 @@ RUN apt-get update \
        tini \
        traceroute \
        tzdata \
+       util-linux \
   && rm -rf /var/lib/apt/lists/* \
   && setcap cap_net_raw+ep /bin/ping \
   && echo "netmap ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/netmap-nmap \
@@ -56,14 +56,16 @@ RUN pip install --no-cache-dir --upgrade pip \
        "sqlalchemy~=2.0" \
        "alembic~=1.13" \
        "argon2-cffi~=25.1" \
-       "cryptography>=48.0.1" \
+       "cryptography>=50.0.0" \
        "defusedxml~=0.7.1" \
+       "pillow>=11.0.0" \
        "PyJWT~=2.10" \
        "starlette>=1.3.1" \
        "dnspython~=2.7" \
        "reportlab~=4.4" \
        "apprise~=1.9" \
-       "httpx>=0.27.0"
+       "httpx>=0.27.0" \
+  && python -m pip uninstall -y pip setuptools
 
 COPY backend/app ./app
 COPY VERSION /app/VERSION
@@ -80,7 +82,8 @@ RUN mkdir -p /app/data /tmp/nginx \
   && ln -sf /usr/local/bin/netmap-aio-entrypoint /app/docker/aio-entrypoint.sh \
   && test -x /usr/local/bin/netmap-aio-entrypoint \
   && test -x /app/docker/aio-entrypoint.sh \
-  && test -f /etc/netmap/aio-nginx.conf.template
+  && test -f /etc/netmap/aio-nginx.conf.template \
+  && setpriv --reuid=netmap --regid=netmap --init-groups true
 
 EXPOSE 8080 1514/tcp 1514/udp
 VOLUME ["/app/data"]
