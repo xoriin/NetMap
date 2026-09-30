@@ -22,6 +22,7 @@ import {
   type User,
 } from "../../api/client";
 import { type AppRoute } from "../../routes";
+import { PanelSkeleton } from "../../components/Skeleton";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
@@ -1004,7 +1005,7 @@ export function OverviewWorkspace({
                     </div>
                     <div className="mon-heartbeat-body">
                       {favouriteHistoryLoading
-                        ? <p className="dash-empty">Loading...</p>
+                        ? <PanelSkeleton lines={2} />
                         : <HeartbeatTimeline history={favouriteHistory} hours={favouriteHistoryHours} />
                       }
                     </div>
@@ -1014,7 +1015,7 @@ export function OverviewWorkspace({
                     <div className="mon-hero-section-title">Response time</div>
                     <div className="mon-chart-body">
                       {favouriteHistoryLoading ? (
-                        <p className="dash-empty">Loading...</p>
+                        <PanelSkeleton lines={3} />
                       ) : (
                         <>
                           <RttSparkline data={favouriteHistory} />

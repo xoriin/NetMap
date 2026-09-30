@@ -4,6 +4,7 @@ import { IconUsers } from "@tabler/icons-react";
 import { api, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { userInitials } from "../../../utils/format";
+import { TableSkeleton } from "../../../components/Skeleton";
 
 const BUILT_IN_ROLES = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"];
 
@@ -133,7 +134,7 @@ export function UsersTab({
           <button type="button" className="nm-btn" onClick={onReloadUsers}>Refresh</button>
         </div>
         <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
-        {usersLoading ? <p>Loading…</p> : (
+        {usersLoading ? <TableSkeleton rows={7} columns={4} /> : (
           <div className="admin-users-table admin-users-table--accounts">
             <div className="admin-users-header">
               <span>User</span>

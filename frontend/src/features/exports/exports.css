@@ -6,68 +6,14 @@
   gap: var(--nm-workspace-section-gap);
 }
 
+.exports-layout > .nm-summary-band {
+  margin-bottom: 0;
+}
+
 .exports-layout > .form-error {
   width: 100%;
   margin: 0;
 }
-
-.exports-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
-}
-
-.exports-summary-card.nm-app-panel {
-  --exports-card-accent: var(--nm-accent);
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 82px;
-  align-items: center;
-  gap: 12px;
-  overflow: hidden;
-  padding: 12px 14px;
-  border-color: var(--nm-border);
-  background: var(--nm-modal-section);
-  box-shadow: var(--nm-shadow-sm);
-}
-
-.exports-summary-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-  background: var(--exports-card-accent);
-  content: "";
-  opacity: 0.75;
-}
-
-.exports-summary-card.is-data { --exports-card-accent: var(--nm-success); }
-.exports-summary-card.is-json { --exports-card-accent: #4d9ee8; }
-.exports-summary-card.is-report { --exports-card-accent: #a980e8; }
-
-.exports-summary-icon {
-  display: inline-flex;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--nm-tab-hover-border);
-  border-radius: var(--nm-radius-md);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent);
-}
-
-.exports-summary-icon.is-data { border-color: color-mix(in srgb, var(--nm-success) 26%, var(--nm-border)); background: var(--nm-success-soft); color: var(--nm-success); }
-.exports-summary-icon.is-json { border-color: color-mix(in srgb, #4d9ee8 26%, var(--nm-border)); background: color-mix(in srgb, #4d9ee8 12%, transparent); color: #4d9ee8; }
-.exports-summary-icon.is-report { border-color: color-mix(in srgb, #a980e8 26%, var(--nm-border)); background: color-mix(in srgb, #a980e8 12%, transparent); color: #a980e8; }
-
-.exports-summary-card > span:last-child { display: grid; min-width: 0; gap: 1px; }
-.exports-summary-card small { color: var(--nm-modal-label); font-size: var(--nm-text-sm); font-weight: 700; }
-.exports-summary-card strong { color: var(--nm-text); font-size: 22px; line-height: 1.05; }
-.exports-summary-card strong.exports-summary-last { font-size: 17px; }
-.exports-summary-card em { overflow: hidden; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 
 .exports-console-grid {
   display: grid;

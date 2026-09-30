@@ -28,7 +28,7 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { useSortableData } from "../../hooks/useSortableData";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { WorkspaceSkeleton } from "../../components/Skeleton";
+import { TableSkeleton, WorkspaceSkeleton } from "../../components/Skeleton";
 import { ExternalIpPanel } from "./ExternalIpPanel";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
@@ -478,7 +478,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
   }
 
   if (loading) return <div className="dash-layout"><WorkspaceSkeleton /></div>;
-  if (error) return <div className="dash-layout"><p className="dash-empty" style={{ color: "var(--dash-red)" }}>{error}</p></div>;
+  if (error) return <div className="dash-layout"><div className="nm-alert nm-alert--error" role="alert">{error}</div></div>;
 
   const errorConflicts = conflicts.filter((c) => c.severity === "error");
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
@@ -939,7 +939,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
 
           <div className="ipam-modal-body">
             {addressesLoading ? (
-              <p className="dash-empty ipam-modal-body-inner">Loading addresses…</p>
+              <div className="ipam-modal-body-inner"><TableSkeleton rows={8} columns={5} /></div>
             ) : addresses.length === 0 ? (
               <p className="dash-empty ipam-modal-body-inner">Subnet too large to enumerate individual IPs (max 1024 hosts).</p>
             ) : addrFilter === "all" && addresses.length <= 256 ? (

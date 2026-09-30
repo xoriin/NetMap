@@ -118,12 +118,15 @@ body:not(.theme-dark) .admin-panel {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: var(--nm-workspace-section-gap);
 }
 
 .dash-stats--monitoring {
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  margin-bottom: 8px;
+}
+
+.dash-stats--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 /* For bands with fewer than six stats. The fixed six-column grid leaves them squeezed
@@ -162,14 +165,16 @@ body.theme-dark .inv-stat-chip--muted { color: #7a9aaa; border-color: rgba(122,1
 .dash-stat {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px 16px;
-  border: 1px solid rgba(210, 214, 218, 0.8);
-  border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.03);
   position: relative;
+  min-width: 0;
+  min-height: 86px;
+  gap: 10px;
   overflow: hidden;
+  padding: 13px 14px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-lg);
+  background: var(--nm-modal-section);
+  box-shadow: var(--nm-shadow-sm);
   transition: box-shadow 0.2s, transform 0.2s;
   cursor: default;
 }
@@ -196,8 +201,8 @@ body.route-overview .dash-stat {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: 14px 14px 0 0;
+  height: 2px;
+  border-radius: var(--nm-radius-lg) var(--nm-radius-lg) 0 0;
 }
 
 .dash-stat--clickable {
@@ -217,12 +222,13 @@ body.route-overview .dash-stat {
 .dash-stat--purple::before { background: var(--dash-purple); }
 .dash-stat--blue::before   { background: var(--dash-blue); }
 .dash-stat--indigo::before { background: var(--dash-indigo); }
+.dash-stat--amber::before  { background: var(--nm-warning); }
 
 .dash-stat-icon {
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
-  border-radius: 13px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--nm-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,6 +241,7 @@ body.route-overview .dash-stat {
 .dash-stat--purple .dash-stat-icon { background: rgba(124, 92, 191, 0.1);  color: #6040a0; }
 .dash-stat--blue   .dash-stat-icon { background: rgba(59, 128, 208, 0.1);  color: #2860b0; }
 .dash-stat--indigo .dash-stat-icon { background: rgba(80, 96, 192, 0.1);   color: #4050a0; }
+.dash-stat--amber  .dash-stat-icon { background: var(--nm-warning-soft); color: var(--nm-warning); }
 
 .dash-stat-body {
   display: flex;
@@ -243,26 +250,31 @@ body.route-overview .dash-stat {
 }
 
 .dash-stat-value {
-  font-size: 30px;
+  font-size: 19px;
   font-weight: 800;
   line-height: 1;
   color: var(--nm-shell);
   letter-spacing: -0.03em;
 }
 
+.dash-stat-value--compact { font-size: 17px; }
+
 .dash-stat-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #4a6070;
+  color: var(--nm-text-muted);
+  font-size: 10px;
+  font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-top: 5px;
 }
 
 .dash-stat-sub {
-  font-size: 11.5px;
-  color: #8aa0b0;
+  overflow: hidden;
+  color: var(--nm-text-faint);
+  font-size: var(--nm-text-xs);
   margin-top: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Alert banner */
@@ -306,7 +318,7 @@ body.route-overview .dash-stat {
 .dash-alert--overview-bar {
   max-width: none;
   width: 100%;
-  margin: -4px 0 16px;
+  margin: 0 0 var(--nm-workspace-section-gap);
   border-radius: 8px;
   padding: 10px 14px;
 }

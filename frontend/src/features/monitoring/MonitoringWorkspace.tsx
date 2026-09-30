@@ -16,6 +16,7 @@ import {
   MON_STATUS_COL_WIDTH, MON_FAVOURITE_COL_WIDTH, MON_MIN_COL_WIDTH,
 } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
+import { PanelSkeleton, WorkspaceSkeleton } from "../../components/Skeleton";
 import {
   AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge,
 } from "../../components/MonitorBadges";
@@ -118,11 +119,11 @@ export function MonitoringWorkspace({
     return () => clearInterval(id);
   }, []);
 
-  function relativeTime(iso: string): string {
+  const relativeTime = useCallback((iso: string): string => {
     const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
     if (diffMin < 1) return "just now";
     return `${diffMin} min ago`;
-  }
+  }, []);
 
   // A handle sits at the right edge of column colIdx and resizes that column and
   // nothing else. Widths come from the DOM on the first drag so the flexible
@@ -894,8 +895,8 @@ export function MonitoringWorkspace({
     return m > 0 ? `${h} h ${m} min` : `${h} h`;
   }
 
-  if (loading) return <div className="dash-layout"><p className="dash-empty">Loading monitoring data…</p></div>;
-  if (error) return <div className="dash-layout"><p className="dash-empty" style={{ color: "var(--dash-red)" }}>{error}</p></div>;
+  if (loading) return <WorkspaceSkeleton />;
+  if (error) return <div className="dash-layout"><div className="nm-alert nm-alert--error" role="alert">{error}</div></div>;
 
   const canManagePorts = canManageMonitoring;
   const globalPortTargets = portTargets.filter((p) => p.device_id === null);
@@ -1880,7 +1881,7 @@ export function MonitoringWorkspace({
                     </div>
                     <div className="mon-heartbeat-body">
                       {historyLoading
-                        ? <p className="dash-empty">Loading…</p>
+                        ? <PanelSkeleton lines={2} />
                         : <HeartbeatTimeline history={history} hours={historyHours} />
                       }
                     </div>
@@ -1935,7 +1936,7 @@ export function MonitoringWorkspace({
                     </div>
                     <div className="mon-chart-body">
                       {historyLoading ? (
-                        <p className="dash-empty">Loading…</p>
+                        <PanelSkeleton lines={3} />
                       ) : (
                         <>
                           <RttSparkline data={history} />

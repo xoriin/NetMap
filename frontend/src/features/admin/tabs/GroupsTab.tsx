@@ -3,6 +3,7 @@ import { IconShieldCheck } from "@tabler/icons-react";
 import { api } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function GroupsTab({
   accessToken,
@@ -187,7 +188,7 @@ export function GroupsTab({
             </div>
           );
         })() : (
-          <p>Loading permissions…</p>
+          <PanelSkeleton lines={8} />
         )}
       </section>
     </div>

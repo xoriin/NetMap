@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Monitor, MonitorCheckHistoryPoint } from "../../api/client";
 import { fmtMonitorRtt, fmtMonitorUptime } from "../../utils/monitoring";
+import { PanelSkeleton } from "../../components/Skeleton";
 
 export function MonitorDetails({
   monitor,
@@ -145,7 +146,7 @@ export function MonitorDetails({
               </div>
               <div className="mon-heartbeat-body">
                 {historyLoading ? (
-                  <p className="dash-empty">Loading history…</p>
+                  <PanelSkeleton lines={3} />
                 ) : history.length === 0 ? (
                   <p className="dash-empty">No checks recorded yet.</p>
                 ) : (

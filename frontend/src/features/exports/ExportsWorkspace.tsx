@@ -6,6 +6,7 @@ import { useToast } from "../../components/Toast";
 import { triggerDownload } from "../../utils/download";
 import { formatEventTime } from "../../utils/format";
 import { userHasPermission } from "../../utils/permissions";
+import { DashStat } from "../../components/DashStat";
 
 function ExportPanelHeader({ icon, title, allowed }: { icon: ReactNode; title: string; allowed: boolean }) {
   return (
@@ -62,23 +63,11 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
     <section className="exports-layout">
       {error && <div className="form-error">{error}</div>}
 
-      <div className="exports-summary-grid nm-summary-band" aria-label="Export activity summary">
-        <div className="exports-summary-card nm-app-panel">
-          <span className="exports-summary-icon"><Database size={19} /></span>
-          <span><small>Inventory rows</small><strong>{summary?.inventory_rows?.toLocaleString() ?? "—"}</strong><em>{summary?.inventory_rows == null && summary ? "Restricted for this role" : "Available in the next export"}</em></span>
-        </div>
-        <div className="exports-summary-card nm-app-panel is-data">
-          <span className="exports-summary-icon is-data"><ShieldCheck size={19} /></span>
-          <span><small>Firewall events</small><strong>{summary?.firewall_events?.toLocaleString() ?? "—"}</strong><em>{summary?.firewall_events == null && summary ? "Restricted for this role" : "Retained events available"}</em></span>
-        </div>
-        <div className="exports-summary-card nm-app-panel is-json">
-          <span className="exports-summary-icon is-json"><History size={19} /></span>
-          <span><small>Exports in 30 days</small><strong>{summary?.exports_last_30_days.toLocaleString() ?? "—"}</strong><em>Your completed downloads</em></span>
-        </div>
-        <div className="exports-summary-card nm-app-panel is-report">
-          <span className="exports-summary-icon is-report"><CalendarClock size={19} /></span>
-          <span><small>Last export</small><strong className="exports-summary-last">{summary?.last_export_type ?? "None yet"}</strong><em>{summary?.last_export_at ? formatEventTime(summary.last_export_at) : "No recorded exports"}</em></span>
-        </div>
+      <div className="dash-stats dash-stats--four exports-summary-grid nm-summary-band" aria-label="Export activity summary">
+        <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} sub={summary?.inventory_rows == null && summary ? "Restricted for this role" : "Available in the next export"} icon={<Database size={19} />} accent="teal" />
+        <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} sub={summary?.firewall_events == null && summary ? "Restricted for this role" : "Retained events available"} icon={<ShieldCheck size={19} />} accent="green" />
+        <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} sub="Your completed downloads" icon={<History size={19} />} accent="blue" />
+        <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? "None yet"} valueClassName="dash-stat-value--compact" sub={summary?.last_export_at ? formatEventTime(summary.last_export_at) : "No recorded exports"} icon={<CalendarClock size={19} />} accent="purple" />
       </div>
 
       <div className="exports-console-grid">

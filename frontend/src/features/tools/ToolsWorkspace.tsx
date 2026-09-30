@@ -12,6 +12,7 @@ import {
 import { SUBNET_REF } from "../../constants";
 import { deviceLabel, formatMs } from "../../utils/format";
 import { prefixToMask, wildcardMask, ipClass, ipType } from "../../utils/ip";
+import { DashStat } from "../../components/DashStat";
 
 function ToolPanelHeader({ icon, title, badge }: { icon: ReactNode; title: string; badge: ReactNode }) {
   return (
@@ -494,23 +495,11 @@ export function ToolsWorkspace({
           </button>
         </div>
       )}
-      <div className="tools-summary-grid nm-summary-band" aria-label="Tools summary">
-        <div className="tools-summary-card nm-app-panel">
-          <span className="tools-summary-icon"><IconLayoutDashboard size={20} /></span>
-          <span><small>Available tools</small><strong>{TOOL_DEFINITIONS.length}</strong><em>Network diagnostics</em></span>
-        </div>
-        <div className="tools-summary-card nm-app-panel">
-          <span className="tools-summary-icon tools-summary-icon--passive"><Clock3 size={20} /></span>
-          <span><small>Recent checks</small><strong>{recentRuns.length}</strong><em>Stored on this browser</em></span>
-        </div>
-        <div className="tools-summary-card nm-app-panel">
-          <span className="tools-summary-icon tools-summary-icon--active"><Bookmark size={20} /></span>
-          <span><small>Saved results</small><strong>{savedResults.length}</strong><em>Reusable diagnostic evidence</em></span>
-        </div>
-        <div className="tools-summary-card nm-app-panel">
-          <span className="tools-summary-icon tools-summary-icon--access"><IconTopologyRing size={20} /></span>
-          <span><small>Access level</small><strong className="tools-summary-access">{canRunActiveTools ? "Full" : "Passive"}</strong><em>{canRunActiveTools ? "All tools available" : "Active checks restricted"}</em></span>
-        </div>
+      <div className="dash-stats dash-stats--four tools-summary-grid nm-summary-band" aria-label="Tools summary">
+        <DashStat className="tools-summary-card" label="Available tools" value={TOOL_DEFINITIONS.length} sub="Network diagnostics" icon={<IconLayoutDashboard size={20} />} accent="teal" />
+        <DashStat className="tools-summary-card" label="Recent checks" value={recentRuns.length} sub="Stored on this browser" icon={<Clock3 size={20} />} accent="green" />
+        <DashStat className="tools-summary-card" label="Saved results" value={savedResults.length} sub="Reusable diagnostic evidence" icon={<Bookmark size={20} />} accent="blue" />
+        <DashStat className="tools-summary-card" label="Access level" value={canRunActiveTools ? "Full" : "Passive"} sub={canRunActiveTools ? "All tools available" : "Active checks restricted"} icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
       <div className="tools-console-grid">
       <div className="tools-window">

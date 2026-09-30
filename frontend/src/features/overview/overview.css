@@ -8,7 +8,6 @@
   color: var(--nm-text);
 }
 
-.overview-workspace .dash-stats,
 .overview-workspace .dash-grids,
 .overview-workspace .dash-grid-3,
 .overview-workspace .dash-grid-2 {
@@ -224,4 +223,3 @@ body.route-overview .overview-workspace .overview-panel.nm-app-panel {
     max-width: none;
   }
 }
-

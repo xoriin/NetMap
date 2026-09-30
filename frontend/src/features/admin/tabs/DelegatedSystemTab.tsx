@@ -3,6 +3,7 @@ import { IconDatabase, IconServer } from "@tabler/icons-react";
 import { api, type ScheduledBackup, type SystemDiagnostics } from "../../../api/client";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
+import { PanelSkeleton } from "../../../components/Skeleton";
 import { fmtBytes } from "../notificationProfiles";
 
 export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageBackups }: { accessToken: string; canViewDiagnostics: boolean; canManageBackups: boolean }) {
@@ -32,6 +33,6 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
           </div></article>)}{backups.length === 0 && <p className="tool-note">No scheduled backup files are available.</p>}</div>
       </div>
     </section>}
-    {canViewDiagnostics && <section className="panel admin-panel nm-app-panel admin-system-card"><div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2></div><div className="admin-system-card-body">{diagnostics ? <pre className="nm-code-block">{JSON.stringify(diagnostics, null, 2)}</pre> : <p className="tool-note">Loading diagnostics…</p>}</div></section>}
+    {canViewDiagnostics && <section className="panel admin-panel nm-app-panel admin-system-card"><div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2></div><div className="admin-system-card-body">{diagnostics ? <pre className="nm-code-block">{JSON.stringify(diagnostics, null, 2)}</pre> : <PanelSkeleton lines={6} />}</div></section>}
   </div>;
 }

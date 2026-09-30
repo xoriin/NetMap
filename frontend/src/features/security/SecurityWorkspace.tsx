@@ -10,6 +10,7 @@ import { SecurityFilterInput } from "../../components/SecurityFilterInput";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { ClickableCell } from "../../components/ClickableCell";
 import { Modal } from "../../components/Modal";
+import { DashStat } from "../../components/DashStat";
 
 export function SecurityWorkspace({
   accessToken,
@@ -248,23 +249,11 @@ export function SecurityWorkspace({
   return (
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
-      <div className="security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
-        <div className="security-summary-card nm-app-panel is-stored">
-          <span className="security-summary-icon"><Database size={19} /></span>
-          <span><small>Stored events</small><strong>{(status?.stored_events ?? status?.total_events ?? 0).toLocaleString()}</strong><em>{status?.retention_days ?? 7} day retention</em></span>
-        </div>
-        <div className="security-summary-card nm-app-panel is-success">
-          <span className="security-summary-icon is-success"><Radio size={19} /></span>
-          <span><small>Received packets</small><strong>{(status?.received_packets ?? 0).toLocaleString()}</strong><em>{liveTail ? "Live stream active" : "Live stream paused"}</em></span>
-        </div>
-        <div className="security-summary-card nm-app-panel is-warning">
-          <span className="security-summary-icon is-warning"><ShieldAlert size={19} /></span>
-          <span><small>Unparsed packets</small><strong>{(status?.dropped_unparsed ?? 0).toLocaleString()}</strong><em>Could not be indexed</em></span>
-        </div>
-        <div className="security-summary-card nm-app-panel is-danger">
-          <span className="security-summary-icon is-danger"><Ban size={19} /></span>
-          <span><small>Denied senders</small><strong>{(status?.denied_senders ?? 0).toLocaleString()}</strong><em>Rejected by allowlist</em></span>
-        </div>
+      <div className="dash-stats dash-stats--four security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
+        <DashStat className="security-summary-card" label="Stored events" value={status?.stored_events ?? status?.total_events ?? 0} sub={`${status?.retention_days ?? 7} day retention`} icon={<Database size={19} />} accent="teal" />
+        <DashStat className="security-summary-card" label="Received packets" value={status?.received_packets ?? 0} sub={liveTail ? "Live stream active" : "Live stream paused"} icon={<Radio size={19} />} accent="green" />
+        <DashStat className="security-summary-card" label="Unparsed packets" value={status?.dropped_unparsed ?? 0} sub="Could not be indexed" icon={<ShieldAlert size={19} />} accent="amber" />
+        <DashStat className="security-summary-card" label="Denied senders" value={status?.denied_senders ?? 0} sub="Rejected by allowlist" icon={<Ban size={19} />} accent="red" />
       </div>
       <div className="security-content">
         <form
@@ -320,7 +309,7 @@ export function SecurityWorkspace({
           </div>
           <div className="security-saved-searches">
             <select
-              className="toolbar-select"
+              className="toolbar-select nm-select"
               value={selectedSearchId === "" ? "" : String(selectedSearchId)}
               onChange={(event) => {
                 if (!event.target.value) { setSelectedSearchId(""); return; }

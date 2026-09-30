@@ -932,6 +932,7 @@ body.theme-dark .dash-stat--red    .dash-stat-icon { background: rgba(224,80,80,
 body.theme-dark .dash-stat--purple .dash-stat-icon { background: rgba(124,92,191,0.12); color: #a080e8; }
 body.theme-dark .dash-stat--blue   .dash-stat-icon { background: rgba(59,128,208,0.12); color: #60a0e0; }
 body.theme-dark .dash-stat--indigo .dash-stat-icon { background: rgba(80,96,192,0.12);  color: #8090d8; }
+body.theme-dark .dash-stat--amber  .dash-stat-icon { background: var(--nm-warning-soft); color: var(--nm-warning); }
 
 body.theme-dark .dash-alert {
   background: rgba(224,80,80,0.1);

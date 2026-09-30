@@ -8,6 +8,7 @@ import { HeartbeatBar } from "../../components/HeartbeatBar";
 import { Modal } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
+import { TableSkeleton } from "../../components/Skeleton";
 import { MonitorDetails } from "./MonitorDetails";
 import { MonitorFormFields, type MonitorFormState } from "./MonitorFormFields";
 import {
@@ -346,7 +347,7 @@ export function MonitorsPanel({
           </span>
         </div>
         <div className="mon-panel-controls">
-          <select className="toolbar-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter endpoints by status">
+          <select className="toolbar-select nm-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter endpoints by status">
             <option value="all">All statuses</option>
             <option value="online">Online</option>
             <option value="offline">Offline</option>
@@ -362,12 +363,12 @@ export function MonitorsPanel({
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-          {canWrite && <button type="button" className="nm-btn nm-btn--primary nm-btn--sm" onClick={openAddForm}>+ Add endpoint</button>}
+          {canWrite && <button type="button" className="nm-btn nm-btn--primary" onClick={openAddForm}>+ Add endpoint</button>}
         </div>
       </div>
 
       {loading ? (
-        <p className="dash-empty">Loading endpoints…</p>
+        <TableSkeleton rows={8} columns={8} />
       ) : monitors.length === 0 ? (
         <p className="dash-empty">No HTTP/HTTPS endpoints yet. Add one to start tracking availability and response time.</p>
       ) : filteredMonitors.length === 0 ? (

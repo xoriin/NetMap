@@ -3,6 +3,7 @@ import { IconPalette } from "@tabler/icons-react";
 
 import { api, type Site, type TopologyGroup } from "../../../api/client";
 import { EntityChip } from "../../../components/EntityChip";
+import { TableSkeleton } from "../../../components/Skeleton";
 import { autoEntityColor, isValidHexColor, resolveEntityColor } from "../../../utils/entityColor";
 
 type Row = {
@@ -145,7 +146,7 @@ export function EntityColorsPanel({
 
 
       {loading ? (
-        <p className="tool-note">Loading…</p>
+        <TableSkeleton rows={6} columns={3} />
       ) : (
         <>
           <h3 className="entity-colors-heading">VLANs / groups</h3>

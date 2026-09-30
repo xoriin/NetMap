@@ -1,16 +1,12 @@
 /* ── Security approved workspace migration ─────────────────────────────
    Solid operational panels, compact 44px identities, and one full-height
    event table. Legacy security selectors remain behavioural only. */
-.security-summary-grid {
-  display: grid;
-  flex: 0 0 auto;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
-}
-
 body.route-security .security-layout {
   gap: var(--nm-workspace-section-gap);
+}
+
+body.route-security .security-layout > .nm-summary-band {
+  margin-bottom: 0;
 }
 
 body.route-security .security-layout > .form-error {
@@ -18,61 +14,6 @@ body.route-security .security-layout > .form-error {
   width: 100%;
   margin: 0;
 }
-
-.security-summary-card.nm-app-panel {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 82px;
-  align-items: center;
-  gap: 12px;
-  overflow: hidden;
-  padding: 12px 14px;
-  border-color: var(--nm-border);
-  background: var(--nm-modal-section);
-  box-shadow: var(--nm-shadow-sm);
-}
-
-.security-summary-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-  background: var(--security-card-accent, var(--nm-accent));
-  content: "";
-  opacity: 0.75;
-}
-
-.security-summary-card.is-stored { --security-card-accent: var(--nm-accent); }
-.security-summary-card.is-success { --security-card-accent: var(--nm-success); }
-.security-summary-card.is-warning { --security-card-accent: var(--nm-warning); }
-.security-summary-card.is-danger { --security-card-accent: var(--nm-danger); }
-
-.security-summary-icon {
-  display: inline-flex;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--nm-tab-hover-border);
-  border-radius: var(--nm-radius-md);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent);
-}
-
-.security-summary-icon.is-success { background: var(--nm-success-soft); color: var(--nm-success); }
-.security-summary-icon.is-warning { background: color-mix(in srgb, var(--nm-warning) 12%, transparent); color: var(--nm-warning); }
-.security-summary-icon.is-danger { background: var(--nm-danger-soft); color: var(--nm-danger); }
-
-.security-summary-card > span:last-child {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.security-summary-card small { color: var(--nm-modal-label); font-size: var(--nm-text-sm); font-weight: 700; }
-.security-summary-card strong { color: var(--nm-text); font-size: 22px; line-height: 1.05; }
-.security-summary-card em { overflow: hidden; color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 
 body.route-security .security-content {
   display: flex;
@@ -354,7 +295,7 @@ body.route-security .security-pagination > div {
 }
 
 @media (max-width: 1100px) {
-  .security-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.route-security .dash-stats--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body.route-security .security-filters { flex-basis: 270px; }
 }
 
@@ -366,6 +307,6 @@ body.route-security .security-pagination > div {
 }
 
 @media (max-width: 560px) {
-  .security-summary-grid { grid-template-columns: 1fr; }
+  body.route-security .dash-stats--four { grid-template-columns: 1fr; }
   .security-results-range { display: none; }
 }

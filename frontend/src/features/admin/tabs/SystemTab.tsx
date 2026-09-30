@@ -13,6 +13,7 @@ import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
 import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from "../notificationProfiles";
+import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function SystemTab({
   accessToken,
@@ -534,7 +535,7 @@ export function SystemTab({
                 <dt>Last cleanup</dt><dd>{syslogStatus.retention_last_run_at ? new Date(syslogStatus.retention_last_run_at).toLocaleString() : "n/a"}</dd>
                 <dt>Last event</dt><dd>{syslogStatus.last_event_received_at ? new Date(syslogStatus.last_event_received_at).toLocaleString() : "n/a"}</dd>
                 </dl>
-              ) : <p>Loading…</p>}
+              ) : <PanelSkeleton lines={8} />}
             </div>
           </section>
           <section className="panel admin-panel nm-app-panel admin-system-card">

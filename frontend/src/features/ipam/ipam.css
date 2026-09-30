@@ -11,7 +11,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--nm-workspace-section-gap);
 }
 
 .external-ip-workspace .ipam-stats { margin: 0; }
@@ -276,7 +276,7 @@
 
 .ipam-workspace > .ipam-panel,
 .ipam-workspace > .ipam-subnets-panel-wrap {
-  margin-top: 16px;
+  margin-top: var(--nm-workspace-section-gap);
   margin-bottom: 0;
 }
 

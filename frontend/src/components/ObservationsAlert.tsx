@@ -3,6 +3,7 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { api, type DiscoveryObservation } from "../api/client";
 import type { AppRoute } from "../routes";
 import { Modal } from "./Modal";
+import { TableSkeleton } from "./Skeleton";
 import { useConfirm } from "./ConfirmDialog";
 
 const OBSERVATION_TARGET_ROUTE: Record<string, AppRoute> = {
@@ -149,7 +150,7 @@ export function ObservationsAlert({
               )}
             </div>
             {obsBreakdown.length === 0 && (
-              <p className="obs-modal-empty">Loading…</p>
+              <TableSkeleton rows={5} columns={3} />
             )}
             {obsBreakdown.length > 0 && openObs.length === 0 && (
               <p className="obs-modal-empty">All network changes have been resolved.</p>

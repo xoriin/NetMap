@@ -7,6 +7,7 @@ import {
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function AutomationTab({
   accessToken,
@@ -234,8 +235,10 @@ export function AutomationTab({
                 <span>{schedules.length} configured</span>
               </div>
             </div>
-            {schedules.length === 0
-              ? <p className="admin-schedule-empty">{automationBusy ? "Loading schedules…" : "No schedules yet. Create one using the form alongside."}</p>
+            {automationQuery.isLoading
+              ? <PanelSkeleton lines={4} />
+              : schedules.length === 0
+              ? <p className="admin-schedule-empty">No schedules yet. Create one using the form alongside.</p>
               : (
                 <div className="admin-schedule-card-list">
                   {schedules.map((sched) => (

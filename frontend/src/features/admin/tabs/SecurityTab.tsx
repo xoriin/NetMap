@@ -4,6 +4,7 @@ import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type Use
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { TableSkeleton } from "../../../components/Skeleton";
 import { triggerDownload } from "../../../utils/download";
 
 type SsoFormState = {
@@ -336,8 +337,10 @@ function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
         All registered API keys across users. Keys inherit their owner's role permissions; users create their own
         keys from the Profile page.{revokedCount > 0 ? ` ${revokedCount} revoked key${revokedCount === 1 ? "" : "s"} hidden.` : ""}
       </p>
-      {activeKeys.length === 0
-        ? <p className="auth-field-hint">{keysQuery.isLoading ? "Loading…" : "No active API keys."}</p>
+      {keysQuery.isLoading
+        ? <TableSkeleton rows={5} columns={5} />
+        : activeKeys.length === 0
+        ? <p className="auth-field-hint">No active API keys.</p>
         : (
           <div className="nm-table-wrap">
             <table className="nm-table">
@@ -479,7 +482,7 @@ export function SecurityTab({
               <span>Result</span>
               <span>IP address</span>
             </div>
-            {auditLogs.length === 0 && <p className="audit-empty">{auditQuery.isLoading ? "Loading…" : "No login events found."}</p>}
+            {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No login events found.</p>}
             {auditLogs.map((log) => {
               const dt = new Date(log.created_at);
               const result = loginResultBadge(log.action);
@@ -504,7 +507,7 @@ export function SecurityTab({
               <span>Actor</span>
               <span>Context</span>
             </div>
-            {auditLogs.length === 0 && <p className="audit-empty">{auditQuery.isLoading ? "Loading…" : "No audit records found."}</p>}
+            {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No audit records found.</p>}
             {auditLogs.map((log) => {
               const dt = new Date(log.created_at);
               const category = log.action.split(".")[0];

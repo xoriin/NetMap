@@ -841,6 +841,12 @@ body.route-locations .topology-content {
   color: var(--nm-shell);
 }
 
+.auth-loading-skeleton {
+  display: grid;
+  gap: var(--nm-space-2);
+  justify-items: center;
+}
+
 .auth-card h1 {
   font-size: 24px;
 }

@@ -241,7 +241,7 @@ export function TopologyToolbar({
       <div className="toolbar-group">
         <div className="toolbar-group-controls">
           <select
-            className="toolbar-select"
+            className="toolbar-select nm-select"
             value={selectedSiteId ?? 0}
             onChange={(event) => {
               const id = Number(event.target.value);

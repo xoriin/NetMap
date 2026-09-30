@@ -329,7 +329,7 @@
 }
 
 .inventory-layout {
-  gap: 16px;
+  gap: var(--nm-workspace-section-gap);
 }
 
 .inventory-layout .dash-alert--overview-bar {
@@ -3667,10 +3667,10 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   gap: 8px;
 }
 
-.quick-filters button,
-.security-search-btn,
-.clear-filters,
-.security-pagination button {
+.quick-filters button:not(.nm-btn),
+.security-search-btn:not(.nm-btn),
+.clear-filters:not(.nm-btn),
+.security-pagination button:not(.nm-btn) {
   min-height: 34px;
   border: 1px solid #c8d3dd;
   border-radius: 6px;
@@ -3681,7 +3681,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   cursor: pointer;
 }
 
-.security-search-btn {
+.security-search-btn:not(.nm-btn) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3691,10 +3691,10 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   background: var(--nm-accent-soft);
 }
 
-.quick-filters button:hover,
-.security-search-btn:hover,
-.clear-filters:hover,
-.security-pagination button:hover:not(:disabled) {
+.quick-filters button:not(.nm-btn):hover,
+.security-search-btn:not(.nm-btn):hover,
+.clear-filters:not(.nm-btn):hover,
+.security-pagination button:not(.nm-btn):hover:not(:disabled) {
   border-color: var(--nm-accent-strong);
   color: var(--nm-accent-strong);
 }

@@ -35,6 +35,7 @@ import { EntityChip } from "../../components/EntityChip";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
+import { TableSkeleton } from "../../components/Skeleton";
 
 export function DeviceDetails({
   canViewSecurity,
@@ -573,7 +574,7 @@ export function DeviceDetails({
       {activeTab === "activity" && canViewSecurity && (
         <div className="device-security-panel">
           {securityLoading ? (
-            <p className="dash-empty">Loading security activity…</p>
+            <TableSkeleton rows={6} columns={4} />
           ) : securitySummary ? (
             <>
               <dl className="security-summary-list">

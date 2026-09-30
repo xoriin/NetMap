@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   mockDevice,
+  mockMonitoringDevice,
   setupCoreMocks,
   setupInventoryMocks,
   setupMonitoringMocks,
@@ -109,6 +111,26 @@ async function expectAlignedEdges(page: Page, first: string, second: string, lab
   ).toBeLessThanOrEqual(1);
 }
 
+async function expectSectionGap(page: Page, first: string, second: string, label = `${first} and ${second}`) {
+  const [firstBox, secondBox] = await Promise.all([
+    page.locator(first).boundingBox(),
+    page.locator(second).boundingBox(),
+  ]);
+  expect(firstBox, `${label} first surface should render`).not.toBeNull();
+  expect(secondBox, `${label} second surface should render`).not.toBeNull();
+  const gap = secondBox!.y - (firstBox!.y + firstBox!.height);
+  expect(gap, `${label} should use the 16px workspace section gap`).toBeCloseTo(16, 0);
+}
+
+test("shared controls and feedback are owned by the shared component stylesheet", () => {
+  const components = readFileSync(new URL("../../src/styles/components.css", import.meta.url), "utf8");
+  const monitoring = readFileSync(new URL("../../src/styles/monitoring.css", import.meta.url), "utf8");
+  for (const selector of [/^\.nm-btn \{/m, /^\.nm-input,/m, /^\.nm-search \{/m, /^\.nm-alert \{/m, /^\.nm-status \{/m]) {
+    expect(components, `${selector} should be owned by components.css`).toMatch(selector);
+    expect(monitoring, `${selector} must not be redeclared by Monitoring`).not.toMatch(selector);
+  }
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`standard workspaces keep the MOTD on the shared content anchor in ${theme} mode`, async ({ page }) => {
     await setupWorkspaceMocks(page, theme);
@@ -132,6 +154,86 @@ for (const theme of ["light", "dark"] as const) {
 }
 
 for (const theme of ["light", "dark"] as const) {
+  test(`summary cards share one canonical geometry in ${theme} mode`, async ({ page }) => {
+    await setupWorkspaceMocks(page, theme);
+    const routes = ["/overview", "/inventory", "/locations", "/monitoring", "/ipam", "/tools", "/security", "/exports"];
+
+    for (const width of [1440, 700]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const route of routes) {
+        await page.goto(route);
+        const card = page.locator(".nm-summary-band .dash-stat").first();
+        await expect(card, `${route} at ${width}px should use DashStat`).toBeVisible({ timeout: 10_000 });
+        await expect(card).toHaveCSS("min-height", "86px");
+        await expect(card.locator(".dash-stat-icon")).toHaveCSS("width", "36px");
+        await expect(card.locator(".dash-stat-icon")).toHaveCSS("height", "36px");
+        await expect(card.locator(".dash-stat-label")).toHaveCSS("font-size", "10px");
+      }
+    }
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`conditional outage banners preserve the workspace rhythm in ${theme} mode`, async ({ page }) => {
+    await setupWorkspaceMocks(page, theme);
+    const offlineDevice = mockDevice({ monitor_status: "offline", status: "active", expected_status: "online" });
+    const unexpectedDevice = mockMonitoringDevice({ status: "offline", expected_status: "online", health_status: "unhealthy" });
+    await setupTopologyMocks(page, [offlineDevice], []);
+    await setupMonitoringMocks(page, [unexpectedDevice]);
+
+    await page.goto("/overview");
+    await expect(page.locator(".overview-workspace > .dash-alert--overview-bar")).toBeVisible({ timeout: 10_000 });
+    await expectSectionGap(page, ".overview-workspace > .nm-summary-band", ".overview-workspace > .dash-alert--overview-bar", "Overview outage banner");
+
+    await page.goto("/monitoring");
+    await expect(page.locator(".dash-layout > .dash-alert")).toBeVisible({ timeout: 10_000 });
+    await expectSectionGap(page, ".dash-layout > .nm-summary-band", ".dash-layout > .dash-alert", "Monitoring unexpected-state banner");
+    await expectSectionGap(page, ".dash-layout > .dash-alert", ".dash-layout > .mon-content", "Monitoring content after unexpected-state banner");
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`summary bands keep the canonical gap before their primary surface in ${theme} mode`, async ({ page }) => {
+    await setupWorkspaceMocks(page, theme);
+    const renderLoopWarnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && message.text().includes("Maximum update depth exceeded")) {
+        renderLoopWarnings.push(message.text());
+      }
+    });
+    const routes = [
+      ["/overview", ".nm-summary-band", ".dash-grids"],
+      ["/inventory", ".nm-summary-band", ".topology-content"],
+      ["/locations", ".nm-summary-band", ".locations-panel"],
+      ["/monitoring#endpoints", ".nm-summary-band", ".mon-content"],
+      ["/ipam", ".nm-summary-band", ".ipam-reservations-panel"],
+      ["/tools", ".nm-summary-band", ".tools-console-grid"],
+      ["/security", ".nm-summary-band", ".security-content"],
+      ["/exports", ".nm-summary-band", ".exports-console-grid"],
+    ] as const;
+
+    const measuredGaps: Record<string, number> = {};
+    for (const width of [1440, 700]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const [route, summarySelector, surfaceSelector] of routes) {
+        await page.goto(route);
+        await expect(page.locator(summarySelector), `${route} should render its summary band`).toBeVisible({ timeout: 10_000 });
+        await expect(page.locator(surfaceSelector), `${route} should render its primary surface`).toBeVisible({ timeout: 10_000 });
+        measuredGaps[`${route} at ${width}px`] = await page.evaluate(({ firstSelector, secondSelector }) => {
+          const firstBox = document.querySelector<HTMLElement>(firstSelector)!.getBoundingClientRect();
+          const secondBox = document.querySelector<HTMLElement>(secondSelector)!.getBoundingClientRect();
+          return secondBox.top - firstBox.bottom;
+        }, { firstSelector: summarySelector, secondSelector: surfaceSelector });
+      }
+    }
+    expect(measuredGaps).toEqual(Object.fromEntries(
+      [1440, 700].flatMap((width) => routes.map(([route]) => [`${route} at ${width}px`, 16])),
+    ));
+    expect(renderLoopWarnings, "workspace navigation should not trigger React render loops").toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
   test(`External IPAM keeps its cards on the shared workspace anchor in ${theme} mode`, async ({ page }) => {
     await setupExternalIps(page, { theme });
 
@@ -148,6 +250,7 @@ for (const theme of ["light", "dark"] as const) {
         return external.top - workspace.top;
       });
       expect(topOffset, `External IPAM should not add a route-specific top offset at ${width}px`).toBeCloseTo(0, 0);
+      await expectSectionGap(page, ".external-ip-workspace .nm-summary-band", ".external-ip-panel", `External IPAM at ${width}px`);
     }
   });
 }

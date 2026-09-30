@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Modal } from "./Modal";
+import { PanelSkeleton } from "./Skeleton";
 import {
   builtInIconPack,
   extractSvgIconMarkup,
@@ -152,7 +153,7 @@ export function IconManagerModal({
       <div className="icon-mgr-body">
           {tab === "packs" && (
             <div className="icon-mgr-packs-list">
-              {iconPackLoading && <p className="tool-note" style={{ padding: "8px 16px" }}>Loading server packs...</p>}
+              {iconPackLoading && <PanelSkeleton lines={4} />}
               {allPacksList.map(({ pack, isLocal }) => {
                 const isActive = pack.id === activeIconPackId;
                 return (
