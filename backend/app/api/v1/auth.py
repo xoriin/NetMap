@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from secrets import token_urlsafe
 from typing import Annotated
@@ -59,6 +60,7 @@ from app.services.notifications import (
 )
 
 router = APIRouter(tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/setup/status", response_model=SetupStatus)
@@ -629,7 +631,7 @@ def forgot_password(
         )
         db.commit()
     except Exception:
-        pass
+        logger.exception("Password reset email delivery failed for user_id=%s", user.id)
 
 
 @router.post("/auth/reset-password", status_code=status.HTTP_204_NO_CONTENT)

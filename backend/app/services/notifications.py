@@ -162,6 +162,32 @@ def load_notification_settings(db: Session) -> dict[str, str]:
     return result
 
 
+def _load_account_email_settings(db: Session) -> dict[str, str]:
+    """Resolve SMTP settings for account emails from profiles, then legacy settings."""
+    from app.models.notification_profile import NotificationProfile
+
+    profiles = db.scalars(
+        select(NotificationProfile)
+        .where(
+            NotificationProfile.provider == "smtp",
+            NotificationProfile.enabled.is_(True),
+        )
+        .order_by(NotificationProfile.id)
+    ).all()
+    for profile in profiles:
+        config = _decrypt_profile_config(profile.config_json)
+        if not str(config.get("smtp_host", "")).strip():
+            continue
+        settings = dict(NOTIFICATION_DEFAULTS)
+        for key in settings:
+            if key.startswith("smtp_") and key in config:
+                value = config[key]
+                settings[key] = "" if value is None else str(value)
+        return settings
+
+    return load_notification_settings(db)
+
+
 def load_notification_settings_redacted(db: Session) -> dict[str, str]:
     """Load notification settings for API responses — secrets are redacted."""
     from app.models.system_setting import SystemSetting
@@ -382,7 +408,7 @@ def send_password_reset_email(
     reset_link: str,
     app_name: str = "NetMap",
 ) -> None:
-    s = load_notification_settings(db)
+    s = _load_account_email_settings(db)
     if not s.get("smtp_host") or not email:
         return
     name = display_name or username
@@ -408,7 +434,7 @@ def send_self_service_password_reset_email(
     reset_link: str,
     app_name: str = "NetMap",
 ) -> None:
-    s = load_notification_settings(db)
+    s = _load_account_email_settings(db)
     if not s.get("smtp_host") or not email:
         raise ValueError("SMTP is not configured or user has no email address")
     name = display_name or username
@@ -433,7 +459,7 @@ def send_welcome_email(
     role: str,
     app_name: str = "NetMap",
 ) -> None:
-    s = load_notification_settings(db)
+    s = _load_account_email_settings(db)
     if not s.get("smtp_host") or not email:
         return
     name = display_name or username

@@ -1,5 +1,6 @@
 import io
 import urllib.error
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sqlalchemy import create_engine
@@ -11,13 +12,17 @@ from app.models.notification_profile import NotificationProfile
 from app.models.site import Site  # noqa: F401
 from app.models.system_setting import SystemSetting
 from app.schemas.alert import AlertRuleCreate
+from app.schemas.auth import ForgotPasswordRequest
 from app.services.notifications import (
     _support_contact_line,
     create_notification_profile,
     get_notification_profile,
     list_notification_profiles,
+    send_password_reset_email,
+    send_self_service_password_reset_email,
     send_notification,
     send_notification_target,
+    send_welcome_email,
 )
 
 
@@ -109,6 +114,160 @@ def test_send_notification_profile_dispatches_legacy_provider(monkeypatch) -> No
     result = send_notification_target(f"profile:{profile.id}", "hello", {}, profiles)
 
     assert result == "smtp:ops@example.com:hello"
+
+
+def test_account_emails_use_an_enabled_smtp_profile(monkeypatch) -> None:
+    db = _session()
+    create_notification_profile(
+        db,
+        name="Account email",
+        provider="smtp",
+        enabled=True,
+        config={
+            "smtp_host": "smtp.profile.example",
+            "smtp_port": "2525",
+            "smtp_user": "profile-user",
+            "smtp_password": "profile-password",
+            "smtp_from": "netmap@example.com",
+            "smtp_to": "alerts@example.com",
+            "smtp_tls": "true",
+        },
+    )
+    sent: list[tuple[str, dict[str, str], str]] = []
+    monkeypatch.setattr(
+        "app.services.notifications._send_smtp",
+        lambda message, settings, *, subject="NetMap Notification": sent.append((message, settings, subject)) or "ok",
+    )
+
+    send_self_service_password_reset_email(
+        db,
+        username="alice",
+        display_name="Alice",
+        email="alice@example.com",
+        reset_link="https://netmap.example/?reset_token=self-service",
+    )
+    send_password_reset_email(
+        db,
+        username="bob",
+        display_name=None,
+        email="bob@example.com",
+        reset_link="https://netmap.example/?reset_token=admin-reset",
+    )
+    send_welcome_email(
+        db,
+        username="carol",
+        display_name="Carol",
+        email="carol@example.com",
+        role="User",
+    )
+
+    assert [settings["smtp_to"] for _, settings, _ in sent] == [
+        "alice@example.com",
+        "bob@example.com",
+        "carol@example.com",
+    ]
+    assert all(settings["smtp_host"] == "smtp.profile.example" for _, settings, _ in sent)
+    assert all(settings["smtp_user"] == "profile-user" for _, settings, _ in sent)
+    assert [subject for _, _, subject in sent] == [
+        "NetMap — Password reset request",
+        "NetMap — Your password has been reset",
+        "NetMap — Your account has been created",
+    ]
+
+
+def test_account_email_prefers_profile_over_stale_legacy_smtp(monkeypatch) -> None:
+    db = _session()
+    db.add_all([
+        SystemSetting(key="smtp_host", value="smtp.legacy.example"),
+        SystemSetting(key="smtp_to", value="legacy@example.com"),
+    ])
+    db.commit()
+    create_notification_profile(
+        db,
+        name="Current SMTP",
+        provider="smtp",
+        enabled=True,
+        config={"smtp_host": "smtp.current.example", "smtp_to": "alerts@example.com"},
+    )
+    sent: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.notifications._send_smtp",
+        lambda _message, settings, **_kwargs: sent.append(settings) or "ok",
+    )
+
+    send_self_service_password_reset_email(
+        db,
+        username="alice",
+        display_name=None,
+        email="alice@example.com",
+        reset_link="https://netmap.example/?reset_token=token",
+    )
+
+    assert sent[0]["smtp_host"] == "smtp.current.example"
+    assert sent[0]["smtp_to"] == "alice@example.com"
+
+
+def test_account_email_falls_back_to_legacy_smtp_settings(monkeypatch) -> None:
+    db = _session()
+    db.add_all([
+        SystemSetting(key="smtp_host", value="smtp.legacy.example"),
+        SystemSetting(key="smtp_to", value="legacy@example.com"),
+    ])
+    db.commit()
+    sent: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.notifications._send_smtp",
+        lambda _message, settings, **_kwargs: sent.append(settings) or "ok",
+    )
+
+    send_self_service_password_reset_email(
+        db,
+        username="alice",
+        display_name=None,
+        email="alice@example.com",
+        reset_link="https://netmap.example/?reset_token=token",
+    )
+
+    assert sent[0]["smtp_host"] == "smtp.legacy.example"
+    assert sent[0]["smtp_to"] == "alice@example.com"
+
+
+def test_forgot_password_logs_delivery_failure_without_exposing_it(monkeypatch, caplog) -> None:
+    from app.api.v1 import auth
+
+    user = SimpleNamespace(
+        id=42,
+        username="alice",
+        display_name="Alice",
+        email="alice@example.com",
+        is_active=True,
+    )
+
+    class FakeSession:
+        def scalar(self, _statement):
+            return user
+
+    monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
+    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: False)
+    monkeypatch.setattr(auth, "_invalidate_pending_reset_tokens", lambda _db, _user_id: None)
+    monkeypatch.setattr(auth, "create_password_reset_token", lambda _user_id: "reset-token")
+    monkeypatch.setattr(auth, "_store_reset_token", lambda _db, _token, _user_id: None)
+    monkeypatch.setattr(auth.settings, "app_url", "https://netmap.example")
+    monkeypatch.setattr(
+        auth,
+        "send_self_service_password_reset_email",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("SMTP rejected message")),
+    )
+    caplog.set_level("ERROR", logger="app.api.v1.auth")
+
+    result = auth.forgot_password(
+        ForgotPasswordRequest(username_or_email="alice"),
+        object(),
+        FakeSession(),
+    )
+
+    assert result is None
+    assert "Password reset email delivery failed for user_id=42" in caplog.text
 
 
 def test_legacy_notification_settings_backfill_profiles() -> None:
