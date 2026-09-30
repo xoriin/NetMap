@@ -24,6 +24,7 @@ ENV SYSLOG_UDP_PORT=1514
 ENV SYSLOG_TCP_PORT=1514
 
 RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends \
        bash \
        ca-certificates \

@@ -76,8 +76,9 @@ jobs:
           platforms: linux/amd64
           push: false
           tags: netmap:security-scan
-          cache-from: type=gha,scope=security-scan
-          cache-to: type=gha,mode=max,scope=security-scan
+          # Always rebuild from a freshly pulled base so cached OS layers cannot hide Debian fixes.
+          pull: true
+          no-cache: true
       - name: Block fixable high and critical image findings
         uses: aquasecurity/trivy-action@v0.36.0
         with:
