@@ -490,3 +490,117 @@ def test_email_branding_preview_falls_back_to_default_logo() -> None:
     response = preview_email_branding(EmailBrandingSettingsUpdate(), SimpleNamespace(role="SuperAdmin"), db)
     assert 'src="data:image/svg+xml;base64,' in response["html"]
     assert "cid:" not in response["html"]
+
+
+def _admin_reset_fixture(monkeypatch, *, app_url: str, send):
+    from app.api.v1 import auth
+    from app.schemas.admin import AdminPasswordResetRequest
+
+    target = SimpleNamespace(
+        id=7,
+        username="bob",
+        display_name="Bob",
+        email="bob@example.com",
+        role="Viewer",
+        password_hash="old",
+    )
+
+    class FakeSession:
+        def get(self, _model, _user_id):
+            return target
+
+        def commit(self):
+            return None
+
+    monkeypatch.setattr(auth, "hash_password", lambda value: f"hashed:{value}")
+    monkeypatch.setattr(auth, "_invalidate_pending_reset_tokens", lambda _db, _user_id: None)
+    monkeypatch.setattr(auth, "revoke_all_user_refresh_tokens", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(auth, "write_audit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(auth, "create_password_reset_token", lambda _user_id: "reset-token")
+    monkeypatch.setattr(auth, "_store_reset_token", lambda _db, _token, _user_id: None)
+    monkeypatch.setattr(auth.settings, "app_url", app_url)
+    monkeypatch.setattr(auth, "send_password_reset_email", send)
+    return lambda: auth.admin_reset_password(
+        7,
+        AdminPasswordResetRequest(new_password="a-long-new-password"),
+        SimpleNamespace(id=1, role="SuperAdmin"),
+        object(),
+        FakeSession(),
+    )
+
+
+def test_admin_password_reset_logs_email_delivery_failure(monkeypatch, caplog) -> None:
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("SMTP rejected message")
+
+    reset = _admin_reset_fixture(monkeypatch, app_url="https://netmap.example", send=fail)
+    caplog.set_level("WARNING", logger="app.api.v1.auth")
+
+    assert reset() is None
+    assert "Password reset email delivery failed for user_id=7" in caplog.text
+
+
+def test_admin_password_reset_warns_when_app_url_is_missing(monkeypatch, caplog) -> None:
+    sent: list[str] = []
+    reset = _admin_reset_fixture(monkeypatch, app_url="", send=lambda *_a, **_k: sent.append("sent"))
+    caplog.set_level("WARNING", logger="app.api.v1.auth")
+
+    reset()
+
+    assert sent == []
+    assert "APP_URL is not configured" in caplog.text
+
+
+def test_forgot_password_warns_when_app_url_is_missing(monkeypatch, caplog) -> None:
+    from app.api.v1 import auth
+
+    user = SimpleNamespace(id=42, username="alice", display_name="Alice", email="alice@example.com", is_active=True)
+
+    class FakeSession:
+        def scalar(self, _statement):
+            return user
+
+    monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
+    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: False)
+    monkeypatch.setattr(auth.settings, "app_url", "")
+    caplog.set_level("WARNING", logger="app.api.v1.auth")
+
+    assert auth.forgot_password(ForgotPasswordRequest(username_or_email="alice"), object(), FakeSession()) is None
+    assert "APP_URL is not configured" in caplog.text
+
+
+def test_welcome_email_logs_delivery_failure(monkeypatch, caplog) -> None:
+    from app.api.v1 import auth
+    from app.schemas.auth import UserCreateRequest
+
+    class FakeSession:
+        def scalar(self, _statement):
+            return None
+
+        def add(self, user):
+            user.id = 9
+
+        def flush(self):
+            return None
+
+        def commit(self):
+            return None
+
+        def refresh(self, _user):
+            return None
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("SMTP rejected message")
+
+    monkeypatch.setattr(auth, "hash_password", lambda value: f"hashed:{value}")
+    monkeypatch.setattr(auth, "write_audit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(auth, "send_welcome_email", fail)
+    caplog.set_level("WARNING", logger="app.api.v1.auth")
+
+    auth.create_user(
+        UserCreateRequest(username="carol", password="a-long-password", email="carol@example.com"),
+        SimpleNamespace(id=1, role="SuperAdmin"),
+        FakeSession(),
+    )
+
+    assert "Welcome email delivery failed for user_id=9" in caplog.text

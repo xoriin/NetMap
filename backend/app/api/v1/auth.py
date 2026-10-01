@@ -418,7 +418,7 @@ def create_user(
                 role=str(user.role),
             )
         except Exception:
-            pass
+            logger.exception("Welcome email delivery failed for user_id=%s", user.id)
     return user
 
 
@@ -508,6 +508,8 @@ def admin_reset_password(
         target=f"user:{user.username}",
     )
     db.commit()
+    if user.email and not settings.app_url:
+        logger.warning("Password reset email not sent for user_id=%s: APP_URL is not configured", user.id)
     if user.email and settings.app_url:
         try:
             token = create_password_reset_token(user.id)
@@ -522,7 +524,7 @@ def admin_reset_password(
                 reset_link=reset_link,
             )
         except Exception:
-            pass
+            logger.exception("Password reset email delivery failed for user_id=%s", user.id)
 
 
 @router.delete("/auth/users/{user_id}/sessions", status_code=status.HTTP_204_NO_CONTENT)
@@ -607,7 +609,11 @@ def forgot_password(
             )
         )
     )
-    if user is None or not user.is_active or not user.email or not settings.app_url:
+    if user is None or not user.is_active or not user.email:
+        return
+    if not settings.app_url:
+        # Server-side only: the response stays a generic 204 so this reveals nothing to the caller.
+        logger.warning("Password reset email not sent for user_id=%s: APP_URL is not configured", user.id)
         return
 
     _invalidate_pending_reset_tokens(db, user.id)
