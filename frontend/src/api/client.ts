@@ -716,6 +716,16 @@ export type NotificationSettings = {
   smtp_tls: string;
 };
 
+export type EmailBrandingSettings = {
+  email_brand_theme: "login_banner" | "clean_stripe";
+  email_brand_name: string;
+  email_brand_accent: string;
+  email_brand_logo: string;
+  email_brand_footer: string;
+  email_brand_url: string;
+  email_brand_show_support: boolean;
+};
+
 export type NotificationProfile = {
   id: number;
   name: string;
@@ -1924,6 +1934,20 @@ export const api = {
   updateNotificationSettings: (token: string, payload: Partial<NotificationSettings>) =>
     request<NotificationSettings>("/api/v1/admin/notification-settings", {
       method: "PUT",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  getEmailBranding: (token: string) =>
+    request<EmailBrandingSettings>("/api/v1/admin/email-branding", { token }),
+  updateEmailBranding: (token: string, payload: EmailBrandingSettings) =>
+    request<EmailBrandingSettings>("/api/v1/admin/email-branding", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(payload),
+    }),
+  previewEmailBranding: (token: string, payload: Partial<EmailBrandingSettings>) =>
+    request<{ html: string }>("/api/v1/admin/email-branding/preview", {
+      method: "POST",
       token,
       body: JSON.stringify(payload),
     }),

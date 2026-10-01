@@ -6,12 +6,17 @@ import socket
 import ssl
 import urllib.error
 import urllib.request
-from email.mime.text import MIMEText
-from email.utils import formataddr
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.services.email_templates import (
+    EmailContent,
+    branding_subset,
+    build_email_message,
+    load_email_branding_settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +164,7 @@ def load_notification_settings(db: Session) -> dict[str, str]:
     for row in rows:
         if row.key in result:
             result[row.key] = _decrypt(row.value) if row.key in _SECRET_FIELDS else row.value
+    result.update(load_email_branding_settings(db))
     return result
 
 
@@ -183,6 +189,7 @@ def _load_account_email_settings(db: Session) -> dict[str, str]:
             if key.startswith("smtp_") and key in config:
                 value = config[key]
                 settings[key] = "" if value is None else str(value)
+        settings.update(load_email_branding_settings(db))
         return settings
 
     return load_notification_settings(db)
@@ -366,11 +373,16 @@ def send_notification_target(
             return f"Notification profile {profile_id} was not found"
         if not profile.get("enabled", True):
             return "Notification profile is disabled"
-        return send_notification_profile(profile, message)
+        return send_notification_profile(profile, message, branding=branding_subset(settings))
     return send_notification(target, message, settings)
 
 
-def send_notification_profile(profile: dict[str, Any], message: str) -> str:
+def send_notification_profile(
+    profile: dict[str, Any],
+    message: str,
+    *,
+    branding: dict[str, str] | None = None,
+) -> str:
     provider = str(profile.get("provider", "")).lower()
     config = profile.get("config") if isinstance(profile.get("config"), dict) else {}
     try:
@@ -380,6 +392,8 @@ def send_notification_profile(profile: dict[str, Any], message: str) -> str:
             return _send_webhook(message, config)
         if provider in LEGACY_CHANNELS:
             settings = {key: "" if value is None else str(value) for key, value in config.items()}
+            if provider == "smtp" and branding:
+                settings.update(branding)
             return send_notification(provider, message, settings)
         return f"Unknown notification provider: {provider}"
     except Exception:
@@ -422,7 +436,24 @@ def send_password_reset_email(
         f"{_support_contact_line(db)}"
         f"— {app_name}"
     )
-    _send_smtp(body, {**s, "smtp_to": email}, subject=f"{app_name} — Your password has been reset")
+    _send_smtp(
+        body,
+        {**s, "smtp_to": email},
+        subject=f"{app_name} — Your password has been reset",
+        content=EmailContent(
+            eyebrow="Account security",
+            heading="Set a new password",
+            paragraphs=(
+                f"Hi {name},",
+                f"Your password for your {app_name} account has been reset by an administrator.",
+            ),
+            detail_title=f"Username: {username}",
+            detail_text="The reset link expires in 1 hour and can only be used once.",
+            action_label="Set a new password",
+            action_url=reset_link,
+            note="If you did not expect this, contact your administrator.",
+        ),
+    )
 
 
 def send_self_service_password_reset_email(
@@ -447,7 +478,24 @@ def send_self_service_password_reset_email(
         f"{_support_contact_line(db)}"
         f"— {app_name}"
     )
-    _send_smtp(body, {**s, "smtp_to": email}, subject=f"{app_name} — Password reset request")
+    _send_smtp(
+        body,
+        {**s, "smtp_to": email},
+        subject=f"{app_name} — Password reset request",
+        content=EmailContent(
+            eyebrow="Account security",
+            heading="Reset your password",
+            paragraphs=(
+                f"Hi {name},",
+                f"We received a request to reset the password for your {app_name} account.",
+            ),
+            detail_title="Link expires in 1 hour",
+            detail_text="For your security, this link can only be used once.",
+            action_label="Set a new password",
+            action_url=reset_link,
+            note="If you did not request this, you can safely ignore this email. Your password will not change.",
+        ),
+    )
 
 
 def send_welcome_email(
@@ -471,7 +519,24 @@ def send_welcome_email(
         f"Please contact your administrator to obtain your initial credentials.\n\n"
         f"— {app_name}"
     )
-    _send_smtp(body, {**s, "smtp_to": email}, subject=f"{app_name} — Your account has been created")
+    _send_smtp(
+        body,
+        {**s, "smtp_to": email},
+        subject=f"{app_name} — Your account has been created",
+        content=EmailContent(
+            eyebrow=f"Welcome to {app_name}",
+            heading="Your account is ready",
+            paragraphs=(
+                f"Hi {name},",
+                f"An account has been created for you on this {app_name} installation.",
+            ),
+            detail_title=f"Username: {username}",
+            detail_text=f"Role: {role}",
+            action_label=f"Open {app_name}",
+            action_url=s.get("email_brand_url", ""),
+            note="Contact your administrator to obtain your initial credentials.",
+        ),
+    )
 
 
 def _send_ntfy(message: str, s: dict[str, str]) -> str:
@@ -537,7 +602,13 @@ def _send_signal(message: str, s: dict[str, str]) -> str:
         return "ok" if resp.status in (200, 201) else f"HTTP {resp.status}"
 
 
-def _send_smtp(message: str, s: dict[str, str], *, subject: str = "NetMap Notification") -> str:
+def _send_smtp(
+    message: str,
+    s: dict[str, str],
+    *,
+    subject: str = "NetMap Notification",
+    content: EmailContent | None = None,
+) -> str:
     host = s.get("smtp_host", "").strip()
     to_addr = s.get("smtp_to", "").strip()
     if not host or not to_addr:
@@ -548,10 +619,14 @@ def _send_smtp(message: str, s: dict[str, str], *, subject: str = "NetMap Notifi
     password = s.get("smtp_password", "").strip()
     from_addr = s.get("smtp_from", "").strip() or user or "netmap@localhost"
     tls = s.get("smtp_tls", "true").strip().lower() == "true"
-    msg = MIMEText(message)
-    msg["Subject"] = subject
-    msg["From"] = formataddr(("NetMap", from_addr))
-    msg["To"] = to_addr
+    msg = build_email_message(
+        message,
+        s,
+        subject=subject,
+        from_addr=from_addr,
+        to_addr=to_addr,
+        content=content,
+    )
     if tls:
         ctx = ssl.create_default_context()
         with smtplib.SMTP(host, port, timeout=15) as smtp:

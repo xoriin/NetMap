@@ -1,8 +1,11 @@
 import json
 import re
+from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from app.core.image_validation import validate_email_logo_data_uri
 from app.schemas.alert import PROFILE_TARGET_RE, VALID_CHANNELS
 
 
@@ -130,6 +133,48 @@ class NotificationSettingsUpdate(BaseModel):
     smtp_from: str | None = None
     smtp_to: str | None = None
     smtp_tls: str | None = None
+
+
+class EmailBrandingSettings(BaseModel):
+    email_brand_theme: Literal["login_banner", "clean_stripe"] = "login_banner"
+    email_brand_name: str = ""
+    email_brand_accent: str = "#1d9ab0"
+    email_brand_logo: str = ""
+    email_brand_footer: str = ""
+    email_brand_url: str = ""
+    email_brand_show_support: bool = True
+
+    @field_validator("email_brand_show_support", mode="before")
+    @classmethod
+    def _coerce_brand_bool(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() not in ("false", "0", "")
+
+
+class EmailBrandingSettingsUpdate(BaseModel):
+    email_brand_theme: Literal["login_banner", "clean_stripe"] | None = None
+    email_brand_name: str | None = Field(None, max_length=80, pattern=r"^[^\r\n]*$")
+    email_brand_accent: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    email_brand_logo: str | None = Field(None, max_length=360_000)
+    email_brand_footer: str | None = Field(None, max_length=300)
+    email_brand_url: str | None = Field(None, max_length=500)
+    email_brand_show_support: bool | None = None
+
+    @field_validator("email_brand_logo")
+    @classmethod
+    def _validate_logo(cls, value: str | None) -> str | None:
+        return validate_email_logo_data_uri(value) if value else value
+
+    @field_validator("email_brand_url")
+    @classmethod
+    def _validate_url(cls, value: str | None) -> str | None:
+        if not value:
+            return value
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Installation URL must be a complete http or https URL")
+        return value
 
 
 class TestNotificationRequest(BaseModel):

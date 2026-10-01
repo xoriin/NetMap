@@ -72,6 +72,16 @@ const oidcSettings = {
   env_configured: false,
 };
 
+const emailBranding = {
+  email_brand_theme: "login_banner",
+  email_brand_name: "",
+  email_brand_accent: "#1d9ab0",
+  email_brand_logo: "",
+  email_brand_footer: "",
+  email_brand_url: "",
+  email_brand_show_support: true,
+};
+
 async function setupAdminMocks(page: Page) {
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
@@ -92,6 +102,14 @@ async function setupAdminMocks(page: Page) {
   await page.route("**/api/v1/syslog/status", (route) => route.fulfill({ json: syslogStatus }));
   await page.route("**/api/v1/exports/scheduled-backups", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/admin/notification-profiles", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/admin/email-branding", (route) => route.fulfill({ json: emailBranding }));
+  await page.route("**/api/v1/admin/email-branding/preview", (route) => {
+    const body = route.request().postDataJSON() as typeof emailBranding;
+    const name = body.email_brand_name || "NetMap";
+    return route.fulfill({
+      json: { html: `<!doctype html><html><body style="margin:0"><div class="preview-email" data-theme="${body.email_brand_theme}" style="height:700px">${name}</div></body></html>` },
+    });
+  });
   await page.route("**/api/v1/admin/device-types", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/topology/sites", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/admin/role-permissions", (route) =>
@@ -170,6 +188,121 @@ const tabs = [
   ["Automation", "Scheduled scans", "automation"],
   ["Security", "Single Sign-On (OIDC)", "security"],
 ] as const;
+
+test("email branding uses the approved banner and saves only controlled fields", async ({ page }) => {
+  await setupAdminMocks(page);
+  let saved: typeof emailBranding | null = null;
+  await page.route("**/api/v1/admin/email-branding", async (route) => {
+    if (route.request().method() === "PUT") {
+      saved = route.request().postDataJSON() as typeof emailBranding;
+      return route.fulfill({ json: saved });
+    }
+    return route.fulfill({ json: emailBranding });
+  });
+
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Notifications", exact: true }).click();
+  const panel = page.locator(".email-branding-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel("Template")).toHaveValue("login_banner");
+  const preview = panel.frameLocator("iframe[title='Email branding preview']").locator(".preview-email");
+  await expect(preview).toHaveAttribute("data-theme", "login_banner");
+
+  await panel.getByLabel("Brand name").fill("Acme Networks");
+  await panel.getByLabel("Installation URL").fill("https://netmap.example");
+  await panel.getByLabel("Template").selectOption("clean_stripe");
+  // The preview is re-rendered from the unsaved form, before anything is saved.
+  await expect(preview).toHaveText("Acme Networks");
+  await expect(preview).toHaveAttribute("data-theme", "clean_stripe");
+  expect(saved).toBeNull();
+  await panel.getByRole("button", { name: "Save email branding" }).click();
+
+  await expect.poll(() => saved?.email_brand_name).toBe("Acme Networks");
+  expect(saved).toEqual({
+    ...emailBranding,
+    email_brand_name: "Acme Networks",
+    email_brand_url: "https://netmap.example",
+    email_brand_theme: "clean_stripe",
+  });
+});
+
+test("email branding reflows without horizontal overflow at the narrow breakpoint", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "dark"));
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Notifications", exact: true }).click();
+  await page.setViewportSize({ width: 480, height: 900 });
+
+  const panel = page.locator(".email-branding-panel");
+  await expect(panel).toBeVisible();
+  const geometry = await panel.evaluate((node) => ({
+    panelRight: node.getBoundingClientRect().right,
+    viewport: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  expect(geometry.panelRight).toBeLessThanOrEqual(geometry.viewport);
+  expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewport);
+  await expect(panel.frameLocator("iframe[title='Email branding preview']").locator(".preview-email")).toBeVisible();
+});
+
+test("email branding upload is a standard button and the preview shows the whole email", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Notifications", exact: true }).click();
+  const panel = page.locator(".email-branding-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("Message structure and security text")).toHaveCount(0);
+
+  // The upload control must be the canonical button, not a form label restyled by `.tool-form label`.
+  const upload = panel.getByRole("button", { name: "Upload logo" });
+  const save = panel.getByRole("button", { name: "Save email branding" });
+  await expect(upload).not.toHaveCSS("display", "grid");
+  const [uploadBox, saveBox, iconBox] = await Promise.all([
+    upload.boundingBox(),
+    save.boundingBox(),
+    upload.locator("svg").boundingBox(),
+  ]);
+  expect(uploadBox!.height).toBe(saveBox!.height);
+  // Icon sits beside the text, not stacked above it.
+  expect(iconBox!.y + iconBox!.height / 2).toBeCloseTo(uploadBox!.y + uploadBox!.height / 2, 0);
+  for (const property of ["font-size", "font-weight"]) {
+    expect(await upload.evaluate((node, p) => getComputedStyle(node).getPropertyValue(p), property))
+      .toBe(await save.evaluate((node, p) => getComputedStyle(node).getPropertyValue(p), property));
+  }
+
+  // Checkbox sits beside its copy, matching Security's inline checks.
+  const check = panel.locator(".tool-form-inline-check");
+  await expect(check).toHaveCSS("display", "flex");
+  const [boxBox, copyBox] = await Promise.all([
+    check.locator("input[type='checkbox']").boundingBox(),
+    check.locator(".tool-form-check-copy").boundingBox(),
+  ]);
+  expect(boxBox!.x + boxBox!.width).toBeLessThanOrEqual(copyBox!.x);
+  expect(boxBox!.y).toBeLessThan(copyBox!.y + 12);
+
+  // The preview never makes the panel taller than the form: it ends level with the save button,
+  // shows the email at a readable 80%, and scrolls for the rest.
+  const frame = panel.locator("iframe[title='Email branding preview']");
+  await expect(frame).toBeVisible();
+  const box = panel.locator(".email-branding-preview");
+  const [boxRect, saveRect] = [(await box.boundingBox())!, (await save.boundingBox())!];
+  expect(Math.abs(boxRect.y + boxRect.height - (saveRect.y + saveRect.height))).toBeLessThanOrEqual(1);
+  await expect.poll(() => frame.evaluate((node: HTMLIFrameElement) => node.style.zoom)).toBe("0.8");
+  const scroll = await box.evaluate((node) => ({ scrollHeight: node.scrollHeight, clientHeight: node.clientHeight }));
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  await box.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+  const scrolled = await box.evaluate((node) => node.scrollTop + node.clientHeight >= node.scrollHeight - 1);
+  expect(scrolled).toBe(true);
+
+  // The box is sized to the zoomed email plus its scrollbar: no empty margin beside it.
+  await box.evaluate((node) => { node.scrollTop = 0; });
+  const frameRect = (await frame.boundingBox())!;
+  const fitted = (await box.boundingBox())!;
+  const chrome = await box.evaluate((node) => node.offsetWidth - node.clientWidth);
+  expect(frameRect.x + frameRect.width).toBeLessThanOrEqual(fitted.x + fitted.width - chrome + 2);
+  expect(fitted.width - chrome - frameRect.width).toBeLessThanOrEqual(4);
+});
 
 test("every cloud provider can be removed, built-in or not", async ({ page }) => {
   // Built-ins used to be undeletable (422 from the API, no Remove button in the UI). They

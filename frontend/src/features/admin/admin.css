@@ -595,6 +595,79 @@
   color: var(--nm-text-muted);
 }
 
+.admin-layout .email-branding-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.admin-layout .email-branding-fields {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-layout .email-branding-colour {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-layout .email-branding-colour input[type="color"] {
+  width: 44px;
+  height: var(--nm-control-lg);
+  box-sizing: border-box;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  padding: 3px;
+  background: var(--nm-modal-input);
+  cursor: pointer;
+}
+
+.admin-layout .email-branding-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-layout .email-branding-save {
+  justify-self: start;
+}
+
+/* The preview is the real rendered email in a sandboxed frame. Its canvas keeps the email's own
+   light palette in both application themes, because that is what recipients see. It stretches to the
+   form column's height without contributing any, so the panel is sized by the form and the preview
+   ends level with the save button. NotificationsTab shows the email at a readable 80% and sets the
+   box width to the zoomed email plus scrollbar; the rest of the email scrolls inside the box. */
+.admin-layout .email-branding-preview {
+  position: relative;
+  width: 520px;
+  max-width: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-shell);
+}
+
+.admin-layout .email-branding-preview > * {
+  position: absolute;
+  inset: 0;
+}
+
+.admin-layout .email-branding-preview-frame {
+  display: block;
+  inset: 0 auto auto 0;
+  border: 0;
+  background: #f0f4f8;
+}
+
 .admin-layout .rbac-role-card--custom {
   border-color: color-mix(in srgb, #8174a3 32%, var(--nm-border));
   background: color-mix(in srgb, #8174a3 6%, var(--nm-surface-soft));
@@ -905,6 +978,16 @@
 @media (max-width: 1050px) {
   .admin-layout .admin-automation-split {
     grid-template-columns: 1fr;
+  }
+
+  .admin-layout .email-branding-form {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stacked, there is no form column beside it to borrow a height from. */
+  .admin-layout .email-branding-preview {
+    justify-self: center;
+    height: 460px;
   }
 }
 

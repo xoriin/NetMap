@@ -21,6 +21,8 @@ from app.schemas.admin import (
     DeviceTypeCreate,
     DeviceTypeRead,
     DeviceTypeUpdate,
+    EmailBrandingSettings,
+    EmailBrandingSettingsUpdate,
     NotificationSettings,
     NotificationSettingsUpdate,
     PermissionMeta,
@@ -54,6 +56,7 @@ from app.services.notifications import (
     send_notification_profile,
     update_notification_profile,
 )
+from app.services.email_templates import EMAIL_BRANDING_DEFAULTS, load_email_branding_settings, render_email_preview_html
 from app.services.rbac.permissions import (
     BUILT_IN_ROLES,
     PERMISSION_KEYS,
@@ -427,6 +430,39 @@ def update_notification_settings(
     return NotificationSettings(**load_notification_settings_redacted(db))
 
 
+@router.get("/email-branding", response_model=EmailBrandingSettings)
+def get_email_branding(
+    _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> EmailBrandingSettings:
+    return EmailBrandingSettings(**load_email_branding_settings(db))
+
+
+@router.put("/email-branding", response_model=EmailBrandingSettings)
+def update_email_branding(
+    payload: EmailBrandingSettingsUpdate,
+    _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> EmailBrandingSettings:
+    updates = payload.model_dump(exclude_unset=True)
+    _save(db, EMAIL_BRANDING_DEFAULTS, updates)
+    return EmailBrandingSettings(**load_email_branding_settings(db))
+
+
+@router.post("/email-branding/preview")
+def preview_email_branding(
+    payload: EmailBrandingSettingsUpdate,
+    _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, str]:
+    """Render unsaved branding through the real email template without persisting it."""
+    settings = load_email_branding_settings(db)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        if value is not None:
+            settings[key] = str(value).lower() if isinstance(value, bool) else str(value)
+    return {"html": render_email_preview_html(settings)}
+
+
 @router.post("/notifications/test")
 def test_notification(
     payload: TestNotificationRequest,
@@ -501,7 +537,11 @@ def test_notification_profile_endpoint(
     profile = get_notification_profile(db, profile_id, redacted=False)
     if not profile:
         raise HTTPException(status_code=404, detail="Notification profile not found")
-    result = send_notification_profile(profile, "NetMap test notification")
+    result = send_notification_profile(
+        profile,
+        "NetMap test notification",
+        branding=load_email_branding_settings(db),
+    )
     return {"status": result}
 
 

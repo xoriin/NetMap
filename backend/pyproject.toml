@@ -12,6 +12,7 @@ dependencies = [
   "argon2-cffi>=25.1.0",
   "cryptography>=50.0.0",
   "defusedxml>=0.7.1",
+  "pillow>=11.0.0",
   "PyJWT>=2.15.0",
   "anyio>=4.14.2",
   "oauthlib>=4.0.0",

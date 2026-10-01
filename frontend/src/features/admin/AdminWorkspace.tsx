@@ -133,7 +133,7 @@ export function AdminWorkspace({
           />
         )}
         {activeTab === "notifications" && (
-          <NotificationsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+          <NotificationsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} canManageBranding={user.role === "SuperAdmin"} />
         )}
         {activeTab === "alerts" && (
           <AlertsTab accessToken={accessToken} graph={graph} />

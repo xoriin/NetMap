@@ -12,7 +12,10 @@ from app.models.notification_profile import NotificationProfile
 from app.models.site import Site  # noqa: F401
 from app.models.system_setting import SystemSetting
 from app.schemas.alert import AlertRuleCreate
+from app.schemas.admin import EmailBrandingSettingsUpdate
 from app.schemas.auth import ForgotPasswordRequest
+from app.api.v1.admin import preview_email_branding, update_email_branding
+from app.services.email_templates import EmailContent, build_email_message, load_email_branding_settings
 from app.services.notifications import (
     _support_contact_line,
     create_notification_profile,
@@ -91,7 +94,7 @@ def test_send_notification_target_dispatches_profile(monkeypatch) -> None:
     )
     profiles = {int(row["id"]): row for row in list_notification_profiles(db, redacted=False)}
 
-    monkeypatch.setattr("app.services.notifications.send_notification_profile", lambda p, m: f"sent:{p['name']}:{m}")
+    monkeypatch.setattr("app.services.notifications.send_notification_profile", lambda p, m, **_kwargs: f"sent:{p['name']}:{m}")
 
     result = send_notification_target(f"profile:{profile.id}", "hello", {}, profiles)
 
@@ -116,6 +119,34 @@ def test_send_notification_profile_dispatches_legacy_provider(monkeypatch) -> No
     assert result == "smtp:ops@example.com:hello"
 
 
+def test_smtp_profile_inherits_global_email_branding(monkeypatch) -> None:
+    db = _session()
+    profile = create_notification_profile(
+        db,
+        name="Ops email",
+        provider="smtp",
+        enabled=True,
+        config={"smtp_host": "smtp.example.com", "smtp_to": "ops@example.com"},
+    )
+    profiles = {int(row["id"]): row for row in list_notification_profiles(db, redacted=False)}
+    delivered: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        "app.services.notifications._send_smtp",
+        lambda _message, settings, **_kwargs: delivered.append(settings) or "ok",
+    )
+
+    result = send_notification_target(
+        f"profile:{profile.id}",
+        "hello",
+        {"email_brand_name": "Acme Networks", "email_brand_accent": "#123456"},
+        profiles,
+    )
+
+    assert result == "ok"
+    assert delivered[0]["email_brand_name"] == "Acme Networks"
+    assert delivered[0]["email_brand_accent"] == "#123456"
+
+
 def test_account_emails_use_an_enabled_smtp_profile(monkeypatch) -> None:
     db = _session()
     create_notification_profile(
@@ -136,7 +167,7 @@ def test_account_emails_use_an_enabled_smtp_profile(monkeypatch) -> None:
     sent: list[tuple[str, dict[str, str], str]] = []
     monkeypatch.setattr(
         "app.services.notifications._send_smtp",
-        lambda message, settings, *, subject="NetMap Notification": sent.append((message, settings, subject)) or "ok",
+        lambda message, settings, *, subject="NetMap Notification", **_kwargs: sent.append((message, settings, subject)) or "ok",
     )
 
     send_self_service_password_reset_email(
@@ -324,3 +355,138 @@ def test_support_contact_line_includes_only_email_when_url_unset() -> None:
     line = _support_contact_line(db)
     assert "help@example.com" in line
     assert "http" not in line
+
+
+def test_email_message_contains_plain_html_and_inline_logo() -> None:
+    message = build_email_message(
+        "Plain fallback with <unsafe> text",
+        {
+            "app_name": "NetMap",
+            "email_brand_name": "Example & Co",
+            "email_brand_theme": "login_banner",
+            "email_brand_accent": "#1d9ab0",
+            "email_brand_footer": "Managed <carefully>",
+            "email_brand_url": "https://netmap.example",
+            "email_brand_show_support": "true",
+            "support_email": "help@example.com",
+        },
+        subject="Security notice",
+        from_addr="netmap@example.com",
+        to_addr="alice@example.com",
+        content=EmailContent(
+            eyebrow="Account security",
+            heading="Reset <requested>",
+            paragraphs=("Hi Alice,", "Use the secure link."),
+            action_label="Reset password",
+            action_url="https://netmap.example/reset?token=a&b=c",
+            note="Ignore this if it was not you.",
+        ),
+    )
+
+    plain = message.get_body(preferencelist=("plain",))
+    html = message.get_body(preferencelist=("html",))
+    assert plain is not None and plain.get_content() == "Plain fallback with <unsafe> text\n"
+    assert html is not None
+    rendered = html.get_content()
+    assert "Reset &lt;requested&gt;" in rendered
+    assert "Example &amp; Co" in rendered
+    assert "token=a&amp;b=c" in rendered
+    assert "<unsafe>" not in rendered
+    assert any(part.get("Content-ID") == "<netmap-brand-logo>" for part in message.walk())
+
+
+def test_email_branding_settings_validate_logo_colour_and_url() -> None:
+    one_pixel_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    parsed = EmailBrandingSettingsUpdate(
+        email_brand_accent="#22c0cf",
+        email_brand_url="https://netmap.example",
+        email_brand_logo=one_pixel_png,
+    )
+    assert parsed.email_brand_logo == one_pixel_png
+
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        EmailBrandingSettingsUpdate(email_brand_accent="teal")
+    with pytest.raises(ValidationError):
+        EmailBrandingSettingsUpdate(email_brand_url="javascript:alert(1)")
+    with pytest.raises(ValidationError):
+        EmailBrandingSettingsUpdate(email_brand_logo="data:image/svg+xml;base64,PHN2Zz4=")
+
+
+def test_email_branding_loads_existing_app_and_support_settings() -> None:
+    db = _session()
+    db.add_all([
+        SystemSetting(key="app_name", value="Acme Map"),
+        SystemSetting(key="support_email", value="help@example.com"),
+        SystemSetting(key="email_brand_theme", value="clean_stripe"),
+        SystemSetting(key="email_brand_name", value="Acme Networks"),
+    ])
+    db.commit()
+
+    settings = load_email_branding_settings(db)
+    assert settings["app_name"] == "Acme Map"
+    assert settings["support_email"] == "help@example.com"
+    assert settings["email_brand_theme"] == "clean_stripe"
+    assert settings["email_brand_name"] == "Acme Networks"
+
+
+def test_email_branding_update_persists_only_controlled_settings() -> None:
+    db = _session()
+    response = update_email_branding(
+        EmailBrandingSettingsUpdate(
+            email_brand_theme="clean_stripe",
+            email_brand_name="Acme Networks",
+            email_brand_show_support=False,
+        ),
+        SimpleNamespace(role="SuperAdmin"),
+        db,
+    )
+
+    assert response.email_brand_theme == "clean_stripe"
+    assert response.email_brand_name == "Acme Networks"
+    assert response.email_brand_show_support is False
+    assert db.get(SystemSetting, "email_brand_name").value == "Acme Networks"
+    assert db.get(SystemSetting, "email_brand_show_support").value == "False"
+
+
+def test_email_branding_preview_renders_unsaved_values_with_inline_logo() -> None:
+    db = _session()
+    db.add_all([
+        SystemSetting(key="app_name", value="Acme Map"),
+        SystemSetting(key="support_email", value="help@example.com"),
+        SystemSetting(key="email_brand_footer", value="Saved footer"),
+    ])
+    db.commit()
+    one_pixel_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+    response = preview_email_branding(
+        EmailBrandingSettingsUpdate(
+            email_brand_theme="clean_stripe",
+            email_brand_name="Unsaved <Brand>",
+            email_brand_logo=one_pixel_png,
+            email_brand_show_support=False,
+        ),
+        SimpleNamespace(role="SuperAdmin"),
+        db,
+    )
+
+    html = response["html"]
+    assert "Unsaved &lt;Brand&gt;" in html
+    assert "<Brand>" not in html
+    assert "Reset your password" in html
+    assert "Saved footer" in html
+    assert "help@example.com" not in html
+    assert "border-top:5px solid" in html
+    assert "cid:" not in html
+    assert f'src="{one_pixel_png}"' in html
+    # Previewing must not persist anything.
+    assert db.get(SystemSetting, "email_brand_name") is None
+
+
+def test_email_branding_preview_falls_back_to_default_logo() -> None:
+    db = _session()
+    response = preview_email_branding(EmailBrandingSettingsUpdate(), SimpleNamespace(role="SuperAdmin"), db)
+    assert 'src="data:image/svg+xml;base64,' in response["html"]
+    assert "cid:" not in response["html"]
