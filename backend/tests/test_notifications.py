@@ -15,7 +15,7 @@ from app.schemas.alert import AlertRuleCreate
 from app.schemas.admin import EmailBrandingSettingsUpdate
 from app.schemas.auth import ForgotPasswordRequest
 from app.api.v1.admin import preview_email_branding, update_email_branding
-from app.services.email_templates import EmailContent, build_email_message, load_email_branding_settings
+from app.services.email_templates import DEFAULT_LOGO_URL, EmailContent, build_email_message, load_email_branding_settings
 from app.services.notifications import (
     _support_contact_line,
     create_notification_profile,
@@ -392,7 +392,28 @@ def test_email_message_contains_plain_html_and_inline_logo() -> None:
     assert "Example &amp; Co" in rendered
     assert "token=a&amp;b=c" in rendered
     assert "<unsafe>" not in rendered
-    assert any(part.get("Content-ID") == "<netmap-brand-logo>" for part in message.walk())
+    # The default logo is linked, not embedded: nothing for a mail client to show as an attachment.
+    assert f'src="{DEFAULT_LOGO_URL}"' in rendered
+    assert "cid:" not in rendered
+    assert not any(part.get("Content-ID") for part in message.walk())
+    assert not any(part.get_content_type() == "image/svg+xml" for part in message.walk())
+
+
+def test_email_message_embeds_a_custom_raster_logo() -> None:
+    one_pixel_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    message = build_email_message(
+        "Plain text",
+        {"app_name": "NetMap", "email_brand_logo": one_pixel_png},
+        subject="Notice",
+        from_addr="netmap@example.com",
+        to_addr="alice@example.com",
+    )
+
+    html = message.get_body(preferencelist=("html",)).get_content()
+    assert 'src="cid:netmap-brand-logo"' in html
+    assert DEFAULT_LOGO_URL not in html
+    logos = [part for part in message.walk() if part.get("Content-ID") == "<netmap-brand-logo>"]
+    assert [part.get_content_type() for part in logos] == ["image/png"]
 
 
 def test_email_branding_settings_validate_logo_colour_and_url() -> None:
@@ -488,7 +509,8 @@ def test_email_branding_preview_renders_unsaved_values_with_inline_logo() -> Non
 def test_email_branding_preview_falls_back_to_default_logo() -> None:
     db = _session()
     response = preview_email_branding(EmailBrandingSettingsUpdate(), SimpleNamespace(role="SuperAdmin"), db)
-    assert 'src="data:image/svg+xml;base64,' in response["html"]
+    # Same PNG as the linked email logo, but same-origin so the app's CSP lets the preview load it.
+    assert 'src="/brand/email-logo.png"' in response["html"]
     assert "cid:" not in response["html"]
 
 
