@@ -52,3 +52,18 @@ def test_clear_user_login_lockout_returns_false_when_no_state_exists():
     db = _session()
 
     assert clear_user_login_lockout(db, "missing") is False
+
+
+def test_reset_rate_limit_allows_a_full_quota_again_after_the_lockout_expires():
+    from app.services.auth.security import _check_reset_rate_limit
+
+    db = _session()
+    assert [_check_reset_rate_limit(db, "192.0.2.10") for _ in range(6)] == [False] * 5 + [True]
+
+    state = db.query(LoginThrottleState).filter_by(subject="reset:ip:192.0.2.10").one()
+    two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
+    state.locked_until = two_hours_ago
+    state.last_failed_at = two_hours_ago
+    db.commit()
+
+    assert [_check_reset_rate_limit(db, "192.0.2.10") for _ in range(6)] == [False] * 5 + [True]

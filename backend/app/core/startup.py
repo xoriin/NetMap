@@ -114,9 +114,8 @@ def ensure_production_network_configuration() -> None:
 def _check_app_url() -> None:
     if not settings.app_url:
         logger.warning(
-            "APP_URL is not set. Password reset links will fall back to the request "
-            "Host header, which can be spoofed. Set APP_URL (e.g. https://netmap.example.com) "
-            "if this instance is internet-facing."
+            "APP_URL is not set, so password reset emails will not be sent. Set APP_URL to "
+            "the address users open NetMap on (e.g. https://netmap.example.com)."
         )
 
 

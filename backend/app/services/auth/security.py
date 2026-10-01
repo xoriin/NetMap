@@ -101,6 +101,12 @@ def _check_reset_rate_limit(db: Session, ip_address: str | None) -> bool:
     if state is None:
         state = LoginThrottleState(subject=subject, failed_attempts=0)
         db.add(state)
+    elif state.locked_until or (
+        state.last_failed_at
+        and now - _as_aware_utc(state.last_failed_at) > timedelta(minutes=_RESET_LOCKOUT_MINUTES)
+    ):
+        state.failed_attempts = 0
+        state.locked_until = None
     state.failed_attempts += 1
     state.last_failed_at = now
     state.updated_at = now
