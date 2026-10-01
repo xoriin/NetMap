@@ -3,14 +3,19 @@
   <h1>NetMap</h1>
   <p>Self-hosted network visibility and operations for home labs and small environments.</p>
 
-  [![Docker Pulls](https://img.shields.io/docker/pulls/xoriin/netmap?logo=docker&logoColor=white&color=1d9ab0)](https://hub.docker.com/r/xoriin/netmap)
-  [![Image Size](https://img.shields.io/docker/image-size/xoriin/netmap/latest?logo=docker&logoColor=white&color=1d6472)](https://hub.docker.com/r/xoriin/netmap)
-  [![Version](https://img.shields.io/github/v/tag/xoriin/netmap?label=version&logo=github&logoColor=white&color=1d9ab0)](https://github.com/xoriin/netmap/tags)
-  [![Build](https://img.shields.io/github/actions/workflow/status/xoriin/netmap/docker-aio.yml?label=build&logo=github-actions&logoColor=white)](https://github.com/xoriin/netmap/actions/workflows/docker-aio.yml)
-  [![Stars](https://img.shields.io/github/stars/xoriin/netmap?logo=github&logoColor=white&color=091420)](https://github.com/xoriin/netmap/stargazers)
-  [![Issues](https://img.shields.io/github/issues/xoriin/netmap?logo=github&logoColor=white&color=1d6472)](https://github.com/xoriin/netmap/issues)
-  [![Last Commit](https://img.shields.io/github/last-commit/xoriin/netmap?logo=github&logoColor=white&color=1d9ab0)](https://github.com/xoriin/netmap/commits/main)
-  [![License](https://img.shields.io/badge/license-GPL--3.0-091420)](LICENSE)
+  <div>
+    <a href="https://hub.docker.com/r/xoriin/netmap"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/xoriin/netmap?logo=docker&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="https://hub.docker.com/r/xoriin/netmap"><img alt="Image Size" src="https://img.shields.io/docker/image-size/xoriin/netmap/latest?logo=docker&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="https://github.com/xoriin/netmap/tags"><img alt="Version" src="https://img.shields.io/github/v/tag/xoriin/netmap?label=version&amp;logo=github&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="https://github.com/xoriin/netmap/actions/workflows/docker-aio.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/xoriin/netmap/docker-aio.yml?label=build&amp;logo=github-actions&amp;logoColor=white"></a>
+  </div>
+  <div>
+    <a href="https://github.com/xoriin/netmap/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/xoriin/netmap?style=flat&amp;label=%E2%98%85%20stars&amp;logo=github&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="https://github.com/xoriin/netmap/issues"><img alt="Issues" src="https://img.shields.io/github/issues/xoriin/netmap?logo=github&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="https://github.com/xoriin/netmap/commits/main"><img alt="Last Commit" src="https://img.shields.io/github/last-commit/xoriin/netmap?logo=github&amp;logoColor=white&amp;color=1d9ab0"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-091420"></a>
+    <a href="https://docs.netmap.dev"><img alt="Docs" src="https://img.shields.io/badge/docs-view-1d9ab0?logo=readthedocs&amp;logoColor=white"></a>
+  </div>
 </div>
 
 ---
