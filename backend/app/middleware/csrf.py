@@ -11,6 +11,9 @@ CSRF_HEADER_NAME = "x-csrf-token"
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 _EXEMPT_PATHS = frozenset({
     "/api/v1/auth/login",
+    "/api/v1/auth/login/totp",
+    "/api/v1/auth/login/totp/setup",
+    "/api/v1/auth/login/totp/setup/confirm",
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
     "/api/v1/setup/admin",

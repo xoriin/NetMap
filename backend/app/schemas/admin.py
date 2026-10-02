@@ -30,6 +30,7 @@ class SystemSettingsRead(BaseModel):
     backup_schedule_enabled: bool = False
     backup_schedule_interval_hours: int = 24
     backup_retention_count: int = 7
+    totp_required: Literal["off", "admins", "all"] = "off"
 
     @field_validator(
         "live_ping_enabled", "active_network_public_targets_enabled",
@@ -89,6 +90,7 @@ class SystemSettingsUpdate(BaseModel):
     backup_schedule_enabled: bool | None = None
     backup_schedule_interval_hours: int | None = Field(None, ge=1, le=168)
     backup_retention_count: int | None = Field(None, ge=1, le=90)
+    totp_required: Literal["off", "admins", "all"] | None = None
 
     @field_validator("ip_reservation_reminder_channels")
     @classmethod

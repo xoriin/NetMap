@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LogIn } from "lucide-react";
-import { api, type OidcStatus } from "../../api/client";
+import { api, type MfaChallenge, type OidcStatus, type TokenPair } from "../../api/client";
+import { TotpCodeStep, TotpSetupStep } from "./TotpSignIn";
 
 const SSO_ERROR_MESSAGES: Record<string, string> = {
   provider_unreachable: "Could not reach the identity provider. Try again or contact your administrator.",
@@ -48,13 +49,15 @@ function LoginForm({
   onForgotPassword,
   oidc,
   ssoError,
+  notice,
 }: {
-  onSubmit: (username: string, password: string) => Promise<void>;
+  onSubmit: (username: string, password: string) => Promise<MfaChallenge | null>;
   appName?: string;
   loginMessage?: string;
   onForgotPassword: () => void;
   oidc: OidcStatus | null;
   ssoError: string | null;
+  notice: string | null;
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -93,6 +96,7 @@ function LoginForm({
         </div>
         <h2 className="auth-form-heading">Sign in</h2>
         {ssoError && <div className="form-error">{ssoError}</div>}
+        {notice && <div className="form-error">{notice}</div>}
         {ssoRequired && <SsoButton providerName={oidc?.provider_name || "SSO"} />}
         {localFormVisible && (
           <>
@@ -212,8 +216,17 @@ function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?:
   );
 }
 
-export function LoginView({ onSubmit, appName, loginMessage }: { onSubmit: (username: string, password: string) => Promise<void>; appName?: string; loginMessage?: string }) {
+export function LoginView({ onSubmit, onAuthenticated, appName, loginMessage }: {
+  onSubmit: (username: string, password: string) => Promise<MfaChallenge | null>;
+  onAuthenticated: (tokens: TokenPair) => void;
+  appName?: string;
+  loginMessage?: string;
+}) {
   const [view, setView] = useState<"login" | "forgot">("login");
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const back = useCallback(() => setMfa(null), []);
+  const expired = useCallback(() => { setMfa(null); setNotice("Your sign-in timed out. Enter your password again."); }, []);
   const [oidc, setOidc] = useState<OidcStatus | null>(null);
   const [ssoError, setSsoError] = useState<string | null>(null);
 
@@ -226,18 +239,24 @@ export function LoginView({ onSubmit, appName, loginMessage }: { onSubmit: (user
     return () => { cancelled = true; };
   }, []);
 
+  if (mfa) {
+    const Step = mfa.mfa_setup_required ? TotpSetupStep : TotpCodeStep;
+    return <Step challenge={mfa.challenge} appName={appName} onAuthenticated={onAuthenticated} onExpired={expired} onBack={back} />;
+  }
+
   if (view === "forgot") {
     return <ForgotPasswordView onBack={() => setView("login")} appName={appName} />;
   }
 
   return (
     <LoginForm
-      onSubmit={onSubmit}
+      onSubmit={async (u, p) => { setNotice(null); const challenge = await onSubmit(u, p); if (challenge) setMfa(challenge); return challenge; }}
       appName={appName}
       loginMessage={loginMessage}
       onForgotPassword={() => setView("forgot")}
       oidc={oidc}
       ssoError={ssoError}
+      notice={notice}
     />
   );
 }

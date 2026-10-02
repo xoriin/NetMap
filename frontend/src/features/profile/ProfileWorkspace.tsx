@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import "./profile.css";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import { api, type ApiKey, type ApiKeyExpiryDays, type User } from "../../api/cl
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
+import { RecoveryCodesView, TotpEnrolment } from "../auth/TotpEnrolment";
 
 const API_KEY_EXPIRY_OPTIONS: { label: string; value: ApiKeyExpiryDays }[] = [
   { label: "Never", value: null },
@@ -295,6 +296,23 @@ export function ProfileWorkspace({
   const [pwError, setPwError] = useState<string | null>(null);
   const [activeKeyCount, setActiveKeyCount] = useState<number | null>(null);
 
+  const [totpModal, setTotpModal] = useState<"setup" | "disable" | "regenerate" | null>(null);
+  const [totpPassword, setTotpPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpBusy, setTotpBusy] = useState(false);
+  const [totpError, setTotpError] = useState<string | null>(null);
+  const [newCodes, setNewCodes] = useState<string[] | null>(null);
+  const totpSession = useRef(0);
+  const refreshUser = useCallback(() => {
+    void api.me(accessToken).then(onUserUpdate).catch(() => undefined);
+  }, [accessToken, onUserUpdate]);
+  const startTotp = useCallback(() => api.startMyTotp(accessToken), [accessToken]);
+  const confirmTotp = useCallback(async (code: string) => {
+    const result = await api.confirmMyTotp(accessToken, code);
+    refreshUser();
+    return result.recovery_codes;
+  }, [accessToken, refreshUser]);
+
   function handleAvatarFile(file: File) {
     if (!file.type.startsWith("image/")) {
       setProfileError("Please select an image file.");
@@ -366,6 +384,49 @@ export function ProfileWorkspace({
       setPwError(err instanceof Error ? err.message : "Failed to change password");
     } finally {
       setPwBusy(false);
+    }
+  }
+
+  function resetTotpModal(kind: "setup" | "disable" | "regenerate" | null) {
+    totpSession.current += 1;
+    setTotpModal(kind);
+    setTotpPassword("");
+    setTotpCode("");
+    setTotpBusy(false);
+    setTotpError(null);
+    setNewCodes(null);
+  }
+
+  function openTotpModal(kind: "setup" | "disable" | "regenerate") {
+    resetTotpModal(kind);
+  }
+
+  function closeTotpModal() {
+    resetTotpModal(null);
+    refreshUser();
+  }
+
+  async function submitTotpManage(event: FormEvent) {
+    event.preventDefault();
+    const session = totpSession.current;
+    const kind = totpModal;
+    setTotpBusy(true);
+    setTotpError(null);
+    try {
+      if (kind === "disable") {
+        await api.disableMyTotp(accessToken, totpPassword, totpCode);
+        refreshUser();
+        toast.success("Two-factor authentication turned off");
+        if (session === totpSession.current) resetTotpModal(null);
+      } else {
+        const result = await api.regenerateRecoveryCodes(accessToken, totpPassword, totpCode);
+        refreshUser();
+        if (session === totpSession.current) setNewCodes(result.recovery_codes);
+      }
+    } catch (err) {
+      if (session === totpSession.current) setTotpError(err instanceof Error ? err.message : "Unable to update two-factor authentication");
+    } finally {
+      if (session === totpSession.current) setTotpBusy(false);
     }
   }
 
@@ -576,16 +637,75 @@ export function ProfileWorkspace({
                 <span><strong>Password access</strong><small>{user.auth_source === "oidc" ? "Managed by your provider" : "Can be updated on this page"}</small></span>
                 <span className={`nm-pill ${user.auth_source === "oidc" ? "nm-pill--sso" : "nm-pill--online"}`}>{user.auth_source === "oidc" ? "SSO" : "Protected"}</span>
               </div>
+              {user.auth_source !== "oidc" && (
+                <div className="profile-security-row">
+                  <span>
+                    <strong>Two-factor authentication</strong>
+                    <small>
+                      {user.totp_enabled
+                        ? `${user.recovery_codes_remaining ?? 0} recovery ${(user.recovery_codes_remaining ?? 0) === 1 ? "code" : "codes"} left${user.totp_required ? " · Required by your administrator" : ""}`
+                        : user.totp_required ? "Required by your administrator" : "Ask for a code from your authenticator app when you sign in"}
+                    </small>
+                  </span>
+                  <span className="profile-security-actions">
+                    <span className={`nm-pill${user.totp_enabled ? " nm-pill--online" : ""}`}>{user.totp_enabled ? "On" : "Off"}</span>
+                    {!user.totp_enabled && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openTotpModal("setup")}>Set up</button>}
+                    {user.totp_enabled && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openTotpModal("regenerate")}>New recovery codes</button>}
+                    {user.totp_enabled && !user.totp_required && <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => openTotpModal("disable")}>Turn off</button>}
+                  </span>
+                </div>
+              )}
               <div className="profile-security-row">
                 <span><strong>API access</strong><small>Keys inherit your account permissions</small></span>
                 <span className="nm-pill">{activeKeyCount ?? "—"} active</span>
               </div>
             </div>
+            {user.auth_source !== "oidc" && user.totp_enabled && (user.recovery_codes_remaining ?? 0) <= 2 && (
+              <div className="profile-security-alert nm-alert nm-alert--warning" role="note">
+                <AlertTriangle size={17} aria-hidden="true" />
+                <span>You're running low on recovery codes. Generate new ones so you don't get locked out.</span>
+              </div>
+            )}
           </section>
         </div>
       </div>
 
       <ApiKeysPanel accessToken={accessToken} onActiveCountChange={setActiveKeyCount} />
+
+      {totpModal === "setup" && (
+        <Modal title="Set up two-factor authentication" onCancel={closeTotpModal}>
+          <div className="modal-form">
+            <TotpEnrolment start={startTotp} confirm={confirmTotp} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
+          </div>
+        </Modal>
+      )}
+      {(totpModal === "disable" || totpModal === "regenerate") && (
+        <Modal title={totpModal === "disable" ? "Turn off two-factor authentication" : "New recovery codes"} onCancel={closeTotpModal}>
+          {newCodes ? (
+            <div className="modal-form">
+              <RecoveryCodesView codes={newCodes} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
+            </div>
+          ) : (
+            <form className="modal-form" onSubmit={(e) => void submitTotpManage(e)}>
+              <label className="nm-field">
+                Current password
+                <input className="nm-input" type="password" autoComplete="current-password" required value={totpPassword} onChange={(e) => setTotpPassword(e.target.value)} />
+              </label>
+              <label className="nm-field">
+                Authentication code
+                <input className="nm-input" autoComplete="one-time-code" required value={totpCode} onChange={(e) => setTotpCode(e.target.value)} />
+                <span className="profile-field-hint">You can also use a recovery code.</span>
+              </label>
+              {totpError && <div className="form-error">{totpError}</div>}
+              <div className="profile-form-actions">
+                <button type="submit" className={`nm-btn ${totpModal === "disable" ? "nm-btn--danger" : "nm-btn--primary"}`} disabled={totpBusy}>
+                  {totpModal === "disable" ? "Turn off" : "Generate new codes"}
+                </button>
+              </div>
+            </form>
+          )}
+        </Modal>
+      )}
     </section>
   );
 }

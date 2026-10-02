@@ -9,6 +9,7 @@ from app.db.session import Base
 from app.models.audit_log import AuditLog
 from app.models.device import Device  # noqa: F401 — registers mappers Device relates to
 from app.models.site import Site  # noqa: F401
+from app.models.system_setting import SystemSetting
 from app.models.topology_group import TopologyGroup  # noqa: F401
 from app.models.user import User, UserRole
 from app.schemas.auth import ProfileUpdateRequest, UserRead
@@ -20,7 +21,7 @@ def _db():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__])
+    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__, SystemSetting.__table__])
     db = sessionmaker(bind=engine, autoflush=False, autocommit=False)()
     user = User(username="alice", password_hash="x", role=UserRole.VIEWER.value, display_name="Alice")
     db.add(user)

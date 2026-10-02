@@ -47,6 +47,7 @@ export function SystemTab({
     backup_schedule_enabled: false,
     backup_schedule_interval_hours: 24,
     backup_retention_count: 7,
+    totp_required: "off",
   });
   const [monitorIntervalRaw, setMonitorIntervalRaw] = useState("300");
   const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
@@ -141,7 +142,8 @@ export function SystemTab({
     setSettingsBusy(true);
     onError(null); onSuccess(null);
     try {
-      const updated = await api.updateAdminSettings(accessToken, settingsForm);
+      const { totp_required, ...payload } = settingsForm;
+      const updated = await api.updateAdminSettings(accessToken, payload);
       setSettingsForm(updated);
       setMonitorIntervalRaw(String(updated.monitor_interval_seconds));
       setIdleTimeoutRaw(String(updated.idle_timeout_minutes));

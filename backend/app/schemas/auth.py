@@ -63,6 +63,17 @@ class TokenPair(BaseModel):
     token_type: str = "bearer"
 
 
+class MfaChallengeResponse(BaseModel):
+    mfa_required: bool = False
+    mfa_setup_required: bool = False
+    challenge: str
+
+
+class TotpLoginRequest(BaseModel):
+    challenge: str = Field(min_length=1, max_length=2048)
+    code: str = Field(min_length=1, max_length=32)
+
+
 class UserRead(BaseModel):
     id: int
     username: str
@@ -76,9 +87,40 @@ class UserRead(BaseModel):
     sso_last_login_at: datetime | None = None
     whats_new_acknowledged_version: str | None = None
     entity_colors_enabled: bool = True
+    totp_enabled: bool = False
+    totp_required: bool = False
+    recovery_codes_remaining: int = 0
     permissions: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TotpCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
+class TotpManageRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+    code: str = Field(min_length=1, max_length=32)
+
+
+class TotpChallengeRequest(BaseModel):
+    challenge: str = Field(min_length=1, max_length=2048)
+
+
+class TotpSetupConfirmRequest(BaseModel):
+    challenge: str = Field(min_length=1, max_length=2048)
+    code: str = Field(min_length=1, max_length=32)
+
+
+class TotpSetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class TotpCodesResponse(BaseModel):
+    recovery_codes: list[str]
+    access_token: str | None = None
 
 
 class ForgotPasswordRequest(BaseModel):

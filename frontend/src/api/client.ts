@@ -16,6 +16,9 @@ export type User = {
   entity_colors_enabled?: boolean;
   /** Effective permissions for the user's current role. */
   permissions?: string[];
+  totp_enabled?: boolean;
+  totp_required?: boolean;
+  recovery_codes_remaining?: number;
 };
 
 export type OidcStatus = {
@@ -76,6 +79,15 @@ export type TokenPair = {
   access_token: string;
   token_type: "bearer";
 };
+
+export type MfaChallenge = { mfa_required: boolean; mfa_setup_required: boolean; challenge: string };
+export type LoginResult = TokenPair | MfaChallenge;
+export type TotpSetup = { secret: string; otpauth_uri: string };
+export type TotpCodes = { recovery_codes: string[]; access_token?: string | null };
+
+export function isMfaChallenge(result: LoginResult): result is MfaChallenge {
+  return "challenge" in result;
+}
 
 export type ApiKey = {
   id: number;
@@ -680,6 +692,7 @@ export type SystemSettings = {
   backup_retention_count: number;
   backup_filename_prefix?: string;
   backup_date_format?: "yyyy-MM-dd" | "MM-dd-yyyy" | "dd-MM-yyyy";
+  totp_required: "off" | "admins" | "all";
 };
 
 export type ScheduledBackup = {
@@ -1434,10 +1447,26 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   login: (username: string, password: string) =>
-    request<TokenPair>("/api/v1/auth/login", {
+    request<LoginResult>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
+  loginTotp: (challenge: string, code: string) =>
+    request<TokenPair>("/api/v1/auth/login/totp", { method: "POST", body: JSON.stringify({ challenge, code }) }),
+  loginTotpSetup: (challenge: string) =>
+    request<TotpSetup>("/api/v1/auth/login/totp/setup", { method: "POST", body: JSON.stringify({ challenge }) }),
+  loginTotpSetupConfirm: (challenge: string, code: string) =>
+    request<TotpCodes>("/api/v1/auth/login/totp/setup/confirm", { method: "POST", body: JSON.stringify({ challenge, code }) }),
+  startMyTotp: (token: string) =>
+    request<TotpSetup>("/api/v1/auth/me/totp/setup", { method: "POST", token, body: JSON.stringify({}) }),
+  confirmMyTotp: (token: string, code: string) =>
+    request<TotpCodes>("/api/v1/auth/me/totp/confirm", { method: "POST", token, body: JSON.stringify({ code }) }),
+  regenerateRecoveryCodes: (token: string, password: string, code: string) =>
+    request<TotpCodes>("/api/v1/auth/me/totp/recovery-codes", { method: "POST", token, body: JSON.stringify({ password, code }) }),
+  disableMyTotp: (token: string, password: string, code: string) =>
+    request<void>("/api/v1/auth/me/totp", { method: "DELETE", token, body: JSON.stringify({ password, code }) }),
+  resetUserTotp: (token: string, userId: number) =>
+    request<void>(`/api/v1/auth/users/${userId}/totp`, { method: "DELETE", token }),
   refresh: () => {
     if (!_pendingRefresh) {
       _pendingRefresh = request<TokenPair>("/api/v1/auth/refresh", {

@@ -410,6 +410,21 @@ body.route-profile .profile-security-row small {
   font-size: var(--nm-text-xs);
 }
 
+body.route-profile .profile-security-row:has(.profile-security-actions) {
+  flex-wrap: wrap;
+}
+
+body.route-profile .profile-security-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+body.route-profile .profile-security-alert {
+  margin: 0 16px 16px;
+}
+
 body.route-profile .profile-section-intro {
   display: flex;
   align-items: center;

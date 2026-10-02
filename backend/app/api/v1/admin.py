@@ -13,6 +13,7 @@ from app.models.device import Device
 from app.models.device_type import DeviceType
 from app.models.system_setting import SystemSetting
 from app.models.user import User
+from app.services.audit.service import write_audit
 from app.schemas.admin import (
     CloudProviderCreate,
     CloudProviderRead,
@@ -90,6 +91,7 @@ DEFAULTS: dict[str, str] = {
     "backup_retention_count": "7",
     "backup_filename_prefix": "netmap-backup",
     "backup_date_format": "yyyy-MM-dd",
+    "totp_required": "off",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (
@@ -396,12 +398,21 @@ def get_settings(
 @router.put("/settings", response_model=SystemSettingsRead)
 def update_settings(
     payload: SystemSettingsUpdate,
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SystemSettingsRead:
     updates = payload.model_dump(exclude_unset=True)
     if "ip_reservation_reminder_channels" in updates and updates["ip_reservation_reminder_channels"] is not None:
         updates["ip_reservation_reminder_channels"] = json.dumps(updates["ip_reservation_reminder_channels"])
+    if updates.get("totp_required") is not None:
+        previous = load_settings(db)["totp_required"]
+        if updates["totp_required"] != previous:
+            write_audit(
+                db,
+                action="admin.totp_required_changed",
+                actor_user_id=current_user.id,
+                detail=f"from={previous} to={updates['totp_required']}",
+            )
     _save(db, DEFAULTS, updates)
     return SystemSettingsRead(**load_settings(db))
 

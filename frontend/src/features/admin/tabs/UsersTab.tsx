@@ -5,6 +5,7 @@ import { api, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { userInitials } from "../../../utils/format";
 import { TableSkeleton } from "../../../components/Skeleton";
+import { useConfirm } from "../../../components/ConfirmDialog";
 
 const BUILT_IN_ROLES = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"];
 
@@ -38,6 +39,7 @@ export function UsersTab({
   const [editingEmailValue, setEditingEmailValue] = useState("");
   const [createForm, setCreateForm] = useState({ username: "", password: "", email: "", role: "Viewer", is_active: true });
 
+  const confirmAction = useConfirm();
   const rolesQuery = useApiQuery(() => api.getRolePermissions(accessToken), [accessToken]);
   const customRoles = Object.keys(rolesQuery.data?.roles ?? {}).filter((r) => !BUILT_IN_ROLES.includes(r)).sort();
 
@@ -108,6 +110,26 @@ export function UsersTab({
     } finally { setBusyUserId(null); }
   }
 
+  async function resetTotp(userId: number) {
+    const user = users.find((u) => u.id === userId);
+    const confirmed = await confirmAction({
+      title: "Reset 2FA",
+      message: `Turn off two-factor authentication for ${user?.username ?? "this user"}? They will be signed out everywhere and can set it up again at their next sign-in.`,
+      confirmLabel: "Reset 2FA",
+      danger: true,
+    });
+    if (!confirmed) return;
+    setBusyUserId(userId);
+    onError(null); onSuccess(null);
+    try {
+      await api.resetUserTotp(accessToken, userId);
+      setUsers((current) => (current ?? []).map((u) => (u.id === userId ? { ...u, totp_enabled: false } : u)));
+      onSuccess(`Two-factor authentication reset for ${user?.username ?? "user"}`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to reset two-factor authentication");
+    } finally { setBusyUserId(null); }
+  }
+
   async function createUser(event: FormEvent) {
     event.preventDefault();
     onError(null); onSuccess(null);
@@ -135,7 +157,7 @@ export function UsersTab({
         </div>
         <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
         {usersLoading ? <TableSkeleton rows={7} columns={4} /> : (
-          <div className="admin-users-table admin-users-table--accounts">
+          <div className={`admin-users-table admin-users-table--accounts${canManageSuperAdmins && users.some((u) => u.totp_enabled) ? " admin-users-table--wide-actions" : ""}`}>
             <div className="admin-users-header">
               <span>User</span>
               <span className="admin-col-center">Role</span>
@@ -171,6 +193,7 @@ export function UsersTab({
                           SSO
                         </span>
                       )}
+                      {row.totp_enabled && <span className="nm-pill nm-pill--online" title="Two-factor authentication is on">2FA</span>}
                     </span>
                     {editingEmailId === row.id ? (
                       <div className="admin-email-edit-row">
@@ -233,6 +256,7 @@ export function UsersTab({
                 <div className="admin-row-actions admin-user-row-actions">
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => setResetPasswordForm({ userId: row.id, password: "" })}>Reset PW</button>
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void unlockLogin(row.id)}>Unlock</button>
+                  {canManageSuperAdmins && row.totp_enabled && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busyUserId === row.id} onClick={() => void resetTotp(row.id)}>Reset 2FA</button>}
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={busyUserId === row.id || (!canManageSuperAdmins && row.role === "SuperAdmin")} onClick={() => void forceLogout(row.id)}>Logout</button>
                   {canViewAudit && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onShowUserAudit(row.id)}>Audit</button>}
                 </div>

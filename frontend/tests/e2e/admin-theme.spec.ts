@@ -554,6 +554,104 @@ for (const theme of ["light", "dark"] as const) {
     const distinct = new Set(Object.values(headingStyles));
     expect(distinct.size, `heading styles differ across tabs: ${JSON.stringify(headingStyles)}`).toBe(1);
   });
+
+  test(`security tab saves the two-factor requirement in ${theme} mode`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);
+    let saved: Record<string, unknown> | null = null;
+    await page.route("**/api/v1/admin/settings", async (route) => {
+      if (route.request().method() === "PUT") saved = route.request().postDataJSON();
+      await route.fulfill({ json: { ...settings, totp_required: "off", ...saved } });
+    });
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Security", exact: true }).click();
+    const panel = page.locator(".admin-panel", { hasText: "Two-factor authentication" });
+    await panel.getByLabel("Require two-factor authentication").selectOption("admins");
+    await panel.getByRole("button", { name: "Save" }).click();
+    await expect.poll(() => saved?.totp_required).toBe("admins");
+    expect(Object.keys(saved ?? {})).toEqual(["totp_required"]);
+    await expect(panel).toContainText("Single sign-on sign-ins are not affected");
+    const noteSize = await panel.getByText("Single sign-on sign-ins are not affected").evaluate((n) => getComputedStyle(n).fontSize);
+    const siblingSize = await page.locator(".admin-panel", { hasText: "API Keys" }).locator(".auth-field-hint").first().evaluate((n) => getComputedStyle(n).fontSize);
+    expect(noteSize).toBe(siblingSize);
+  });
+
+  test(`login history labels a failed 2FA code like other failed sign-ins in ${theme} mode`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);
+    await page.route("**/api/v1/audit/logs*", (route) => route.fulfill({ json: { total: 2, limit: 50, offset: 0, records: [
+      { id: 2, created_at: "2026-10-02T10:01:00Z", action: "auth.mfa_failed", actor_user_id: mockUser.id, target: `user:${mockUser.username}`, detail: "attempts=1 ip=10.0.0.9" },
+      { id: 1, created_at: "2026-10-02T10:00:00Z", action: "auth.login_failed", actor_user_id: null, target: "user:bob", detail: "attempts=1 ip=10.0.0.2" },
+    ] } }));
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Security", exact: true }).click();
+    await page.getByRole("button", { name: "Login history", exact: true }).click();
+    const mfa = page.locator(".audit-log-table--login .audit-log-row", { hasText: "10.0.0.9" }).locator(".notif-result");
+    const failed = page.locator(".audit-log-table--login .audit-log-row", { hasText: "10.0.0.2" }).locator(".notif-result");
+    await expect(mfa).toHaveText("Failed (2FA code)");
+    const look = (node: Element) => {
+      const s = getComputedStyle(node);
+      return { className: node.className, color: s.color, background: s.backgroundColor, border: s.borderTopColor };
+    };
+    expect(await mfa.evaluate(look)).toEqual(await failed.evaluate(look));
+  });
+
+  test(`users list shows 2FA status and resets it after confirmation in ${theme} mode`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);
+    await page.route("**/api/v1/auth/users", (route) => route.fulfill({ json: [{ ...mockUser, id: 7, username: "bob", role: "Viewer", display_name: null, avatar_data: null, auth_source: "local", totp_enabled: true }] }));
+    let reset = false;
+    await page.route("**/api/v1/auth/users/7/totp", async (route) => { reset = route.request().method() === "DELETE"; await route.fulfill({ status: 204, body: "" }); });
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Users", exact: true }).click();
+    const row = page.locator(".admin-users-row", { hasText: "bob" });
+    const pill = row.getByText("2FA", { exact: true });
+    await expect(pill).toBeVisible();
+    const pillStyle = await pill.evaluate((node) => {
+      const probe = document.createElement("span");
+      node.parentElement!.appendChild(probe);
+      probe.style.color = getComputedStyle(node).getPropertyValue("--nm-success").trim();
+      const success = getComputedStyle(probe).color;
+      probe.remove();
+      return { color: getComputedStyle(node).color, success, display: getComputedStyle(node).display };
+    });
+    expect(pillStyle.color).toBe(pillStyle.success);
+    expect(pillStyle.display).toBe("inline-flex");
+    await row.getByRole("button", { name: "Reset 2FA" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Reset 2FA" }).click();
+    await expect.poll(() => reset).toBe(true);
+    await expect(row.getByText("2FA", { exact: true })).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Reset 2FA" })).toHaveCount(0);
+  });
+
+  test(`Reset 2FA fits the Users actions column without covering the status in ${theme} mode`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);
+    await page.route("**/api/v1/auth/users", (route) => route.fulfill({ json: [
+      { ...mockUser, id: 7, username: "bob", role: "Viewer", display_name: null, avatar_data: null, auth_source: "oidc", totp_enabled: true },
+      { ...mockUser, id: 8, username: "carol", role: "Viewer", display_name: null, avatar_data: null, auth_source: "local", totp_enabled: false },
+    ] }));
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Users", exact: true }).click();
+    for (const name of ["bob", "carol"]) {
+      const row = page.locator(".admin-users-row", { hasText: name });
+      const geometry = await row.evaluate((rowNode) => {
+        const status = rowNode.querySelector(".admin-status-pill")!.getBoundingClientRect();
+        const actions = rowNode.querySelector(".admin-user-row-actions")!;
+        const first = actions.querySelector("button")!.getBoundingClientRect();
+        const heading = rowNode.parentElement!.querySelector(".admin-users-actions-heading")!.getBoundingClientRect();
+        return { statusRight: status.right, firstLeft: first.left, actionsRight: actions.getBoundingClientRect().right, headingRight: heading.right };
+      });
+      expect(geometry.firstLeft).toBeGreaterThanOrEqual(geometry.statusRight + 6);
+      expect(Math.abs(geometry.actionsRight - geometry.headingRight)).toBeLessThanOrEqual(1);
+    }
+    const bob = page.locator(".admin-users-row", { hasText: "bob" });
+    const pillGap = await bob.evaluate((rowNode) => {
+      const [sso, totp] = Array.from(rowNode.querySelectorAll(".admin-user-name .nm-pill")).map((n) => n.getBoundingClientRect());
+      return totp.left - sso.right;
+    });
+    expect(pillGap).toBeGreaterThanOrEqual(4);
+  });
 }
 
 test("API keys stay masked after creation and clearly warn about one-time display", async ({ page }) => {
@@ -596,4 +694,18 @@ test("API keys stay masked after creation and clearly warn about one-time displa
   await createdDialog.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("dialog", { name: "API key created" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(plaintext);
+});
+
+test("system settings save never sends the two-factor requirement", async ({ page }) => {
+  await setupAdminMocks(page);
+  let saved: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/admin/settings", async (route) => {
+    if (route.request().method() === "PUT") saved = route.request().postDataJSON();
+    await route.fulfill({ json: { ...settings, totp_required: "all", ...saved } });
+  });
+  await page.goto("/admin");
+  await expect(page.getByRole("button", { name: "Save settings" })).toBeEnabled();
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect(saved).not.toHaveProperty("totp_required");
 });

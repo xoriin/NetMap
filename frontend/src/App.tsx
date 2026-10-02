@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
-  type SystemSettings, type TokenPair, type User, type VersionInfo, api, subscribeTokenRefresh,
+  type SystemSettings, type TokenPair, type User, type VersionInfo, api, isMfaChallenge, subscribeTokenRefresh,
 } from "./api/client";
 import { useGraphData } from "./hooks/useGraphData";
 import { useTheme } from "./providers/ThemeProvider";
@@ -214,20 +214,28 @@ export function App() {
     setError(null);
     await api.createAdmin(username, password);
     const newTokens = await api.login(username, password);
+    if (!isMfaChallenge(newTokens)) {
+      storeTokens(newTokens);
+      setTokens(newTokens);
+    }
+    setNeedsSetup(false);
+    navigateToRoute("/overview", true);
+    setCurrentRoute("/overview");
+  }
+
+  function completeLogin(newTokens: TokenPair) {
     storeTokens(newTokens);
     setTokens(newTokens);
-    setNeedsSetup(false);
     navigateToRoute("/overview", true);
     setCurrentRoute("/overview");
   }
 
   async function handleLogin(username: string, password: string) {
     setError(null);
-    const newTokens = await api.login(username, password);
-    storeTokens(newTokens);
-    setTokens(newTokens);
-    navigateToRoute("/overview", true);
-    setCurrentRoute("/overview");
+    const result = await api.login(username, password);
+    if (isMfaChallenge(result)) return result;
+    completeLogin(result);
+    return null;
   }
 
   async function handleLogout(reason: "user" | "idle" | "expired" = "user") {
@@ -356,7 +364,7 @@ export function App() {
             {error && <div className="error-banner">{error}</div>}
             {screen === "loading" && <LoadingView />}
             {screen === "setup" && <SetupView onSubmit={handleSetup} />}
-            {screen === "login" && <LoginView onSubmit={handleLogin} appName={appSettings?.app_name} loginMessage={appSettings?.login_message} />}
+            {screen === "login" && <LoginView onSubmit={handleLogin} onAuthenticated={completeLogin} appName={appSettings?.app_name} loginMessage={appSettings?.login_message} />}
             {screen === "reset-password" && (
               <ResetPasswordView
                 resetToken={resetToken!}

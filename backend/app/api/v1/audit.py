@@ -17,6 +17,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 LOGIN_HISTORY_ACTIONS = (
     "auth.login_success",
     "auth.login_failed",
+    "auth.mfa_failed",
     "auth.login_blocked",
     "auth.login_blocked_sso_required",
     "auth.logout",
@@ -26,6 +27,7 @@ LOGIN_RESULT_LABELS = {
     "auth.login_success": "Success",
     "auth.logout": "Logout",
     "auth.login_failed": "Failed",
+    "auth.mfa_failed": "Failed (2FA code)",
     "auth.login_blocked": "Blocked (rate limit)",
     "auth.login_blocked_sso_required": "Blocked (SSO required)",
 }

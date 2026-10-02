@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from enum import StrEnum
+import json
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -40,6 +41,18 @@ class User(Base):
     # Per-user opt-out for the coloured VLAN/group, location, and device type
     # chips. Off falls back to neutral grey chips, not to plain text.
     entity_colors_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    totp_recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    @property
+    def totp_enabled(self) -> bool:
+        return self.totp_enabled_at is not None
+
+    @property
+    def recovery_codes_remaining(self) -> int:
+        return len(json.loads(self.totp_recovery_codes or "[]"))
 
     @property
     def permissions(self) -> list[str]:

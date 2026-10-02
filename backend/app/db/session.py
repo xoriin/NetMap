@@ -56,8 +56,12 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def init_db() -> None:
+def import_all_models() -> None:
     from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
+
+
+def init_db() -> None:
+    import_all_models()
 
     Base.metadata.create_all(bind=engine)
     _ensure_migrations_table()
@@ -180,6 +184,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0076_core_cloud_providers", _migrate_core_cloud_providers)
         _run_migration(conn, inspector, "0077_external_locations", _migrate_external_locations)
         _run_migration(conn, inspector, "0078_external_ip_addresses", _migrate_external_ip_addresses)
+        _run_migration(conn, inspector, "0079_user_totp", _migrate_user_totp)
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:
@@ -2110,3 +2115,18 @@ def _migrate_external_ip_addresses(conn, inspector) -> None:
         ),
         {"value": report, "now": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")},
     )
+
+
+def _migrate_user_totp(conn, inspector) -> None:
+    if "users" not in _live_tables(conn):
+        return
+    existing = _live_columns(conn, "users")
+    column_sql = {
+        "totp_secret": "ALTER TABLE users ADD COLUMN totp_secret TEXT",
+        "totp_enabled_at": "ALTER TABLE users ADD COLUMN totp_enabled_at DATETIME",
+        "totp_last_step": "ALTER TABLE users ADD COLUMN totp_last_step INTEGER",
+        "totp_recovery_codes": "ALTER TABLE users ADD COLUMN totp_recovery_codes TEXT",
+    }
+    for col, sql in column_sql.items():
+        if col not in existing:
+            conn.execute(text(sql))

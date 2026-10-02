@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 from typing import Annotated
 
@@ -14,6 +14,7 @@ from app.core.security import (
     create_access_token,
     create_password_reset_token,
     create_refresh_token,
+    create_token,
     decode_token,
     hash_password,
     verify_password,
@@ -27,12 +28,20 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
+    MfaChallengeResponse,
     PasswordChangeRequest,
     ProfileUpdateRequest,
     RefreshRequest,
     ResetPasswordRequest,
     SetupStatus,
     TokenPair,
+    TotpChallengeRequest,
+    TotpCodeRequest,
+    TotpCodesResponse,
+    TotpLoginRequest,
+    TotpManageRequest,
+    TotpSetupConfirmRequest,
+    TotpSetupResponse,
     UserCreateRequest,
     UserRead,
     UserUpdateRequest,
@@ -52,6 +61,7 @@ from app.services.auth import (
 )
 from app.services.auth.security import _check_reset_rate_limit
 from app.schemas.admin import AdminPasswordResetRequest
+from app.services import totp as totp_service
 from app.services.audit.service import write_audit
 from app.services.notifications import (
     send_password_reset_email,
@@ -61,6 +71,51 @@ from app.services.notifications import (
 
 router = APIRouter(tags=["auth"])
 logger = logging.getLogger(__name__)
+
+MFA_CHALLENGE_TTL = timedelta(minutes=5)
+_CHALLENGE_EXPIRED = "Sign-in expired. Enter your password again."
+
+
+def _issue_challenge(user: User, token_type: str) -> str:
+    return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL)
+
+
+def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
+    payload = decode_token(challenge, token_type)
+    try:
+        user_id = int(payload["sub"]) if payload and payload.get("sub") else None
+    except (TypeError, ValueError):
+        user_id = None
+    user = db.get(User, user_id) if user_id is not None else None
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
+    if (user.totp_enabled_at is not None) != (token_type == "mfa_challenge"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
+    return user
+
+
+def _complete_login(
+    db: Session,
+    response: Response,
+    user: User,
+    client_ip: str | None,
+    subjects: list[str],
+    method: str,
+) -> TokenPair:
+    clear_login_failures(db, subjects)
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+    register_refresh_token(db, user_id=user.id, refresh_token=refresh_token, client_ip=client_ip)
+    write_audit(
+        db,
+        action="auth.login_success",
+        actor_user_id=user.id,
+        target=f"user:{user.username}",
+        detail=f"ip={client_ip or '-'} method={method}",
+    )
+    db.commit()
+    _set_auth_cookies(response, access_token, refresh_token)
+    return TokenPair(access_token=access_token)
 
 
 @router.get("/setup/status", response_model=SetupStatus)
@@ -139,13 +194,13 @@ def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(key=CSRF_COOKIE_NAME, path="/api/")
 
 
-@router.post("/auth/login", response_model=TokenPair)
+@router.post("/auth/login", response_model=TokenPair | MfaChallengeResponse)
 def login(
     payload: LoginRequest,
     request: Request,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
-) -> TokenPair:
+) -> TokenPair | MfaChallengeResponse:
     client_ip = client_ip_from_request(request)
     subjects = throttle_subjects(payload.username, client_ip)
     locked, wait_seconds = is_locked(db, subjects)
@@ -193,20 +248,98 @@ def login(
             detail="Local sign-in is disabled. Use single sign-on.",
         )
 
-    clear_login_failures(db, subjects)
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    register_refresh_token(db, user_id=user.id, refresh_token=refresh_token, client_ip=client_ip)
-    write_audit(
-        db,
-        action="auth.login_success",
-        actor_user_id=user.id,
-        target=f"user:{user.username}",
-        detail=f"ip={client_ip or '-'}",
-    )
+    if user.totp_enabled:
+        write_audit(db, action="auth.mfa_challenge_issued", actor_user_id=user.id, target=f"user:{user.username}", detail=f"ip={client_ip or '-'}")
+        db.commit()
+        return MfaChallengeResponse(mfa_required=True, challenge=_issue_challenge(user, "mfa_challenge"))
+    if totp_service.is_required_for(db, user):
+        return MfaChallengeResponse(mfa_setup_required=True, challenge=_issue_challenge(user, "mfa_setup"))
+    return _complete_login(db, response, user, client_ip, subjects, "password")
+
+
+@router.post("/auth/login/totp", response_model=TokenPair)
+def login_totp(
+    payload: TotpLoginRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+) -> TokenPair:
+    user = _user_from_challenge(db, payload.challenge, "mfa_challenge")
+    client_ip = client_ip_from_request(request)
+    subjects = throttle_subjects(user.username, client_ip)
+    locked, wait_seconds = is_locked(db, subjects)
+    if locked:
+        write_audit(
+            db,
+            action="auth.login_blocked",
+            actor_user_id=user.id,
+            target=f"user:{user.username}",
+            detail=f"wait_seconds={wait_seconds} ip={client_ip or '-'} stage=totp",
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many login attempts. Retry in {wait_seconds} seconds.",
+            headers={"Retry-After": str(max(1, wait_seconds))},
+        )
+    method = totp_service.verify(db, user, payload.code)
+    if method is None:
+        attempts = record_login_failure(db, subjects)
+        write_audit(db, action="auth.mfa_failed", actor_user_id=user.id, target=f"user:{user.username}", detail=f"attempts={attempts} ip={client_ip or '-'}")
+        db.commit()
+        apply_progressive_delay(attempts)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
+    if method == "recovery":
+        write_audit(db, action="auth.mfa_recovery_used", actor_user_id=user.id, target=f"user:{user.username}", detail=f"remaining={user.recovery_codes_remaining}")
+    return _complete_login(db, response, user, client_ip, subjects, method)
+
+
+@router.post("/auth/login/totp/setup", response_model=TotpSetupResponse)
+def login_totp_setup(
+    payload: TotpChallengeRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> TotpSetupResponse:
+    user = _user_from_challenge(db, payload.challenge, "mfa_setup")
+    secret, uri = totp_service.begin_enrolment(db, user)
     db.commit()
-    _set_auth_cookies(response, access_token, refresh_token)
-    return TokenPair(access_token=access_token)
+    return TotpSetupResponse(secret=secret, otpauth_uri=uri)
+
+
+@router.post("/auth/login/totp/setup/confirm", response_model=TotpCodesResponse)
+def login_totp_setup_confirm(
+    payload: TotpSetupConfirmRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+) -> TotpCodesResponse:
+    user = _user_from_challenge(db, payload.challenge, "mfa_setup")
+    client_ip = client_ip_from_request(request)
+    subjects = throttle_subjects(user.username, client_ip)
+    locked, wait_seconds = is_locked(db, subjects)
+    if locked:
+        write_audit(
+            db,
+            action="auth.login_blocked",
+            actor_user_id=user.id,
+            target=f"user:{user.username}",
+            detail=f"wait_seconds={wait_seconds} ip={client_ip or '-'} stage=totp enrolment=true",
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many login attempts. Retry in {wait_seconds} seconds.",
+            headers={"Retry-After": str(max(1, wait_seconds))},
+        )
+    codes = totp_service.confirm_enrolment(db, user, payload.code)
+    if codes is None:
+        attempts = record_login_failure(db, subjects)
+        write_audit(db, action="auth.mfa_failed", actor_user_id=user.id, target=f"user:{user.username}", detail=f"attempts={attempts} ip={client_ip or '-'} enrolment=true")
+        db.commit()
+        apply_progressive_delay(attempts)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
+    write_audit(db, action="auth.mfa_enabled", actor_user_id=user.id, target=f"user:{user.username}", detail="source=sign_in")
+    tokens = _complete_login(db, response, user, client_ip, subjects, "totp")
+    return TotpCodesResponse(recovery_codes=codes, access_token=tokens.access_token)
 
 
 @router.post("/auth/refresh", response_model=TokenPair)
@@ -254,9 +387,16 @@ def refresh(
     return TokenPair(access_token=next_access_token)
 
 
+def _current_user_read(db: Session, user: User) -> UserRead:
+    return UserRead.model_validate(user).model_copy(update={"totp_required": totp_service.is_required_for(db, user)})
+
+
 @router.get("/auth/me", response_model=UserRead)
-def me(current_user: Annotated[User, Depends(get_current_user)]) -> User:
-    return current_user
+def me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> UserRead:
+    return _current_user_read(db, current_user)
 
 
 @router.patch("/auth/me", response_model=UserRead)
@@ -264,7 +404,7 @@ def update_profile(
     payload: ProfileUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> UserRead:
     updates = payload.model_dump(exclude_unset=True)
     if "display_name" in updates:
         current_user.display_name = updates["display_name"]
@@ -285,7 +425,7 @@ def update_profile(
     )
     db.commit()
     db.refresh(current_user)
-    return current_user
+    return _current_user_read(db, current_user)
 
 
 @router.post("/auth/me/acknowledge-whats-new", response_model=UserRead)
@@ -293,11 +433,11 @@ def acknowledge_whats_new(
     payload: WhatsNewAckRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> UserRead:
     current_user.whats_new_acknowledged_version = payload.version.strip()
     db.commit()
     db.refresh(current_user)
-    return current_user
+    return _current_user_read(db, current_user)
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -354,6 +494,87 @@ def change_password(
         actor_user_id=current_user.id,
         target=f"user:{current_user.username}",
     )
+    db.commit()
+
+
+def _verify_password_and_code(db: Session, user: User, payload: TotpManageRequest, request: Request) -> None:
+    client_ip = client_ip_from_request(request)
+    subjects = throttle_subjects(user.username, client_ip)
+    locked, wait_seconds = is_locked(db, subjects)
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many attempts. Retry in {wait_seconds} seconds.",
+            headers={"Retry-After": str(max(1, wait_seconds))},
+        )
+    if verify_password(payload.password, user.password_hash) and totp_service.verify(db, user, payload.code) is not None:
+        return
+    db.rollback()
+    attempts = record_login_failure(db, subjects)
+    write_audit(
+        db,
+        action="auth.mfa_verify_failed",
+        actor_user_id=user.id,
+        target=f"user:{user.username}",
+        detail=f"attempts={attempts} ip={client_ip or '-'} source=profile",
+    )
+    db.commit()
+    apply_progressive_delay(attempts)
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password or authentication code is incorrect")
+
+
+@router.post("/auth/me/totp/setup", response_model=TotpSetupResponse)
+def start_my_totp(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TotpSetupResponse:
+    if current_user.totp_enabled:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Two-factor authentication is already on")
+    secret, uri = totp_service.begin_enrolment(db, current_user)
+    db.commit()
+    return TotpSetupResponse(secret=secret, otpauth_uri=uri)
+
+
+@router.post("/auth/me/totp/confirm", response_model=TotpCodesResponse)
+def confirm_my_totp(
+    payload: TotpCodeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TotpCodesResponse:
+    codes = totp_service.confirm_enrolment(db, current_user, payload.code)
+    if codes is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
+    write_audit(db, action="auth.mfa_enabled", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
+    db.commit()
+    return TotpCodesResponse(recovery_codes=codes)
+
+
+@router.post("/auth/me/totp/recovery-codes", response_model=TotpCodesResponse)
+def regenerate_my_recovery_codes(
+    payload: TotpManageRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TotpCodesResponse:
+    _verify_password_and_code(db, current_user, payload, request)
+    codes = totp_service.regenerate_recovery_codes(db, current_user)
+    write_audit(db, action="auth.mfa_recovery_regenerated", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
+    db.commit()
+    return TotpCodesResponse(recovery_codes=codes)
+
+
+@router.delete("/auth/me/totp", status_code=status.HTTP_204_NO_CONTENT)
+def disable_my_totp(
+    payload: TotpManageRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    if totp_service.is_required_for(db, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor authentication is required for your role")
+    _verify_password_and_code(db, current_user, payload, request)
+    totp_service.disable(db, current_user)
+    write_audit(db, action="auth.mfa_disabled", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
     db.commit()
 
 
@@ -556,6 +777,21 @@ def force_logout_user(
         target=f"user:{user.username}",
         detail=f"sessions={len(active_sessions)}",
     )
+    db.commit()
+
+
+@router.delete("/auth/users/{user_id}/totp", status_code=status.HTTP_204_NO_CONTENT)
+def reset_user_totp(
+    user_id: int,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    totp_service.disable(db, user)
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="mfa_reset")
+    write_audit(db, action="auth.mfa_reset", actor_user_id=current_user.id, target=f"user:{user.username}", detail="source=admin")
     db.commit()
 
 

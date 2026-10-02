@@ -147,3 +147,19 @@ def test_full_fresh_database_initialization_keeps_current_schema(monkeypatch):
     assert "entity_colors_enabled" in repaired
     with engine.connect() as conn:
         assert conn.execute(text("PRAGMA integrity_check")).scalar_one() == "ok"
+
+
+def test_user_totp_columns_are_added_to_an_existing_users_table():
+    from app.db.session import _migrate_user_totp
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR(80))"))
+        conn.execute(text("INSERT INTO users (id, username) VALUES (1, 'alice')"))
+        _migrate_user_totp(conn, inspect(conn))
+        _migrate_user_totp(conn, inspect(conn))
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+        row = conn.execute(text("SELECT totp_secret, totp_enabled_at, totp_last_step, totp_recovery_codes FROM users")).one()
+
+    assert {"totp_secret", "totp_enabled_at", "totp_last_step", "totp_recovery_codes"} <= columns
+    assert tuple(row) == (None, None, None, None)

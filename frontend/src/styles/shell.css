@@ -1088,6 +1088,74 @@ body.route-locations .topology-content {
   box-shadow: none;
 }
 
+.totp-qr {
+  display: block;
+  width: 176px;
+  height: 176px;
+  margin: 16px auto 0;
+  border-radius: var(--nm-radius-md);
+  background: #ffffff;
+}
+
+.totp-secret code,
+.totp-recovery-codes {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.totp-recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 16px 0 0;
+  padding: 12px 16px 12px 36px;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-surface-soft);
+}
+
+.totp-recovery-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.modal .totp-enrolment {
+  display: grid;
+  gap: 12px;
+}
+
+.modal .totp-enrolment > .totp-qr,
+.modal .totp-enrolment > .totp-recovery-codes,
+.modal .totp-enrolment > .totp-recovery-actions {
+  margin-top: 0;
+}
+
+.modal .totp-enrolment > p {
+  margin: 0;
+}
+
+.modal .totp-enrolment > button {
+  justify-self: start;
+}
+
+.modal .totp-enrolment > .nm-btn--primary {
+  justify-self: end;
+}
+
+.modal .totp-enrolment .totp-secret {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-md);
+}
+
+.modal .totp-enrolment .totp-secret code {
+  color: var(--nm-text);
+}
+
+.modal .totp-enrolment .auth-reset-info,
+body.theme-dark .modal .totp-enrolment .auth-reset-info {
+  color: var(--nm-text-muted);
+}
+
 .auth-reset-info {
   font-size: 13px;
   color: #587183;

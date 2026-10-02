@@ -97,3 +97,22 @@ def test_export_login_history_respects_actor_filter():
     body = response.body.decode("utf-8")
     # only one data row (plus header) for the scoped user
     assert len(body.strip().splitlines()) == 2
+
+
+def test_failed_second_factor_appears_in_login_history_and_export():
+    db = _session()
+    alice = User(id=1, username="alice", password_hash="x", role="SuperAdmin")
+    db.add(alice)
+    now = datetime.now(timezone.utc)
+    db.add_all([
+        AuditLog(action="auth.mfa_failed", actor_user_id=1, target="user:alice", detail="attempts=1 ip=10.0.0.9", created_at=now),
+        AuditLog(action="auth.mfa_verify_failed", actor_user_id=1, target="user:alice", created_at=now - timedelta(minutes=1)),
+    ])
+    db.commit()
+
+    result = list_audit_logs(None, db, limit=100, offset=0, actor_user_id=None, category="login")  # type: ignore[arg-type]
+    assert [r.action for r in result.records] == ["auth.mfa_failed"]
+
+    body = export_login_history(alice, db, actor_user_id=1).body.decode("utf-8")  # type: ignore[arg-type]
+    assert "Failed (2FA code)" in body
+    assert "10.0.0.9" in body

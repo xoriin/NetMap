@@ -66,6 +66,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "reportlab~=4.4" \
        "apprise~=1.9" \
        "httpx>=0.27.0" \
+       "pyotp~=2.9" \
   && python -m pip uninstall -y pip setuptools
 
 COPY backend/app ./app
@@ -74,11 +75,13 @@ COPY CHANGELOG.md /app/CHANGELOG.md
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 COPY docker/aio-nginx.conf.template /etc/netmap/aio-nginx.conf.template
 COPY docker/aio-entrypoint.sh /usr/local/bin/netmap-aio-entrypoint
+COPY docker/netmap-admin /usr/local/bin/netmap-admin
 
 RUN mkdir -p /app/data /tmp/nginx \
   && chown -R netmap:netmap /app /tmp/nginx /usr/share/nginx/html \
   && setcap cap_net_bind_service+ep "$(readlink -f "$(command -v python3)")" \
   && chmod +x /usr/local/bin/netmap-aio-entrypoint \
+  && chmod 0755 /usr/local/bin/netmap-admin \
   && mkdir -p /app/docker \
   && ln -sf /usr/local/bin/netmap-aio-entrypoint /app/docker/aio-entrypoint.sh \
   && test -x /usr/local/bin/netmap-aio-entrypoint \

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRound, KeySquare, Shield } from "lucide-react";
-import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type User } from "../../../api/client";
+import { KeyRound, KeySquare, Shield, ShieldCheck } from "lucide-react";
+import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type SystemSettings, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
@@ -293,6 +293,59 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   );
 }
 
+function TwoFactorPanel({ accessToken }: { accessToken: string }) {
+  const toast = useToast();
+  const query = useApiQuery(() => api.adminSettings(accessToken), [accessToken]);
+  const [value, setValue] = useState<SystemSettings["totp_required"]>("off");
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (query.data) setValue(query.data.totp_required ?? "off");
+  }, [query.data]);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setFormError(null);
+    try {
+      const updated = await api.updateAdminSettings(accessToken, { totp_required: value });
+      query.setData(updated);
+      toast.success("Two-factor requirement saved");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to save the two-factor requirement";
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel admin-panel nm-app-panel">
+      <div className="admin-panel-header nm-app-panel-header">
+        <h2 className="admin-section-title"><ShieldCheck size={16} />Two-factor authentication</h2>
+      </div>
+      {query.error && <div className="form-error">{query.error}</div>}
+      <form className="tool-form" onSubmit={(e) => void save(e)}>
+        <label className="nm-field">
+          <span>Require two-factor authentication</span>
+          <select className="nm-select" value={value} onChange={(e) => setValue(e.target.value as SystemSettings["totp_required"])}>
+            <option value="off">Off</option>
+            <option value="admins">Administrators</option>
+            <option value="all">All local users</option>
+          </select>
+        </label>
+        <p className="auth-field-hint">Single sign-on sign-ins are not affected. Users without it set up are asked to enrol at their next sign-in.</p>
+        {formError && <div className="form-error">{formError}</div>}
+        <button type="submit" className="nm-btn nm-btn--primary" disabled={busy || query.isLoading}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
   const toast = useToast();
   const confirmAction = useConfirm();
@@ -443,6 +496,7 @@ export function SecurityTab({
       case "auth.login_success": return { label: "Success", tone: "ok" };
       case "auth.logout": return { label: "Logout", tone: "ok" };
       case "auth.login_failed": return { label: "Failed", tone: "err" };
+      case "auth.mfa_failed": return { label: "Failed (2FA code)", tone: "err" };
       case "auth.login_blocked": return { label: "Blocked (rate limit)", tone: "err" };
       case "auth.login_blocked_sso_required": return { label: "Blocked (SSO required)", tone: "warn" };
       default: return { label: action, tone: "warn" };
@@ -456,6 +510,7 @@ export function SecurityTab({
 
   return (
     <div className="admin-tab-content">
+      {showSensitivePanels && <TwoFactorPanel accessToken={accessToken} />}
       {showSensitivePanels && <SsoSettingsPanel accessToken={accessToken} />}
       {showSensitivePanels && <ApiKeysOversightPanel accessToken={accessToken} />}
       <section className="panel admin-panel nm-app-panel admin-security-audit-panel">

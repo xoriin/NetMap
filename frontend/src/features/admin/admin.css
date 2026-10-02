@@ -59,7 +59,7 @@
   border-color: rgba(29, 154, 176, 0.25);
 }
 
-.admin-user-name .nm-pill--sso {
+.admin-user-name .nm-pill {
   margin-left: 6px;
   vertical-align: middle;
 }
@@ -442,6 +442,15 @@
 .admin-layout .admin-users-table--accounts .admin-users-header,
 .admin-layout .admin-users-table--accounts .admin-users-row {
   grid-template-columns: minmax(220px, 1fr) 152px 100px 268px;
+}
+
+.admin-layout .admin-users-table--wide-actions {
+  min-width: 990px;
+}
+
+.admin-layout .admin-users-table--wide-actions .admin-users-header,
+.admin-layout .admin-users-table--wide-actions .admin-users-row {
+  grid-template-columns: minmax(220px, 1fr) 152px 100px 356px;
 }
 
 .admin-layout .admin-users-actions-heading {
