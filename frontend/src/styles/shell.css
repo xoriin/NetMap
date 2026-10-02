@@ -197,6 +197,7 @@
   margin-top: auto;
 }
 
+.sidebar-docs-link,
 .sidebar-theme-toggle,
 .sidebar-logout,
 .sidebar-collapse-btn--footer {
@@ -220,6 +221,11 @@
   margin-top: 0;
 }
 
+.sidebar-docs-link {
+  text-decoration: none;
+}
+
+.sidebar-docs-link:hover,
 .sidebar-theme-toggle:hover,
 .sidebar-logout:hover,
 .sidebar-collapse-btn--footer:hover {

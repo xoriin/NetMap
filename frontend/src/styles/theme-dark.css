@@ -174,6 +174,7 @@ body.theme-dark .sidebar-link.active {
   color: var(--nm-accent-strong);
 }
 
+body.theme-dark .sidebar-docs-link,
 body.theme-dark .sidebar-theme-toggle,
 body.theme-dark .sidebar-logout {
   border-color: var(--nm-shell-border);
@@ -181,6 +182,7 @@ body.theme-dark .sidebar-logout {
   background: rgba(255, 255, 255, 0.02);
 }
 
+body.theme-dark .sidebar-docs-link:hover,
 body.theme-dark .sidebar-theme-toggle:hover,
 body.theme-dark .sidebar-logout:hover {
   border-color: rgba(255, 255, 255, 0.12);
@@ -1460,6 +1462,7 @@ body.theme-dark .topology-toolbar-right button:hover {
     flex-shrink: 0;
   }
 
+  .sidebar-docs-link,
   .sidebar-theme-toggle,
   .sidebar-logout,
   .sidebar-collapse-btn--footer {
@@ -1749,6 +1752,7 @@ body.theme-dark .topology-toolbar-right button:hover {
     padding-left: 6px;
   }
 
+  .sidebar-docs-link,
   .sidebar-theme-toggle,
   .sidebar-logout,
   .sidebar-collapse-btn--footer {

@@ -3497,6 +3497,7 @@ body.theme-dark .fav-btn--active { color: #e8b840; }
   background: rgba(29, 154, 176, 0.12);
   border-color: rgba(29, 154, 176, 0.28);
 }
+.sidebar--collapsed .sidebar-docs-link,
 .sidebar--collapsed .sidebar-theme-toggle,
 .sidebar--collapsed .sidebar-logout,
 .sidebar--collapsed .sidebar-collapse-btn--footer {

@@ -53,7 +53,7 @@ function useStickyMenu(key: string, fallback: boolean) {
 
   return [expanded, setExpanded] as const;
 }
-import { ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { BookOpen, ChevronDown, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { type AppRoute, appRoutes, appRouteByHref, appRouteCopy } from "./routes";
 import { type User, type VersionInfo } from "./api/client";
 import { SpaLink } from "./components/SpaLink";
@@ -379,6 +379,17 @@ export function Sidebar({
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           {!collapsed && "Collapse sidebar"}
         </button>
+        <a
+          className="sidebar-docs-link"
+          href="https://docs.netmap.dev"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Documentation"
+          title={collapsed ? "Documentation" : undefined}
+        >
+          <BookOpen size={16} aria-hidden="true" />
+          {!collapsed && "Documentation"}
+        </a>
         <button className="sidebar-theme-toggle" type="button" onClick={toggleTheme} title={collapsed ? (theme === "dark" ? "Light mode" : "Dark mode") : undefined}>
           {theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
           {!collapsed && (theme === "dark" ? "Light mode" : "Dark mode")}
