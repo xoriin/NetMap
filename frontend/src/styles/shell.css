@@ -111,12 +111,11 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow-y: hidden;
 }
-.sidebar::-webkit-scrollbar { display: none; }
 
 .sidebar-brand-row {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -179,11 +178,19 @@
 
 .sidebar nav {
   display: grid;
+  align-content: start;
   gap: 3px;
+  flex: 1 1 auto;
+  min-height: 0;
   margin-top: 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.sidebar nav::-webkit-scrollbar { display: none; }
 
 .sidebar-footer-actions {
+  flex-shrink: 0;
+  padding-top: 8px;
   display: grid;
   gap: 6px;
   width: 100%;
