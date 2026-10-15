@@ -99,7 +99,7 @@ for (const theme of ["light", "dark"] as const) {
     // reachability — a device that is expected to be offline is not listed.
     await page.getByRole("button", { name: /Offline/ }).click();
     await expect(page.locator(".overview-offline-panel")).toBeVisible();
-    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Offline devices");
+    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Current outages");
   });
 }
 
@@ -232,3 +232,36 @@ test("Overview lists favourited endpoints in the favourites panel", async ({ pag
   await expect(page).toHaveURL(/\/monitoring#endpoints$/);
   await expect(page.locator(".mon-view-window--endpoints")).toBeVisible();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`unstarred endpoint outages refresh on an open Overview in ${theme}`, async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, [mockDevice({ id: 1, monitor_status: "online", lifecycle: "active" })]);
+    await setupMonitoringMocks(page);
+    let status = "online";
+    let fail = false;
+    await page.route("**/api/v1/monitors", (route) => fail ? route.fulfill({ status: 503, json: { detail: "Unavailable" } }) : route.fulfill({ json: [
+      { id: 9, name: "Customer portal", url: "https://portal.example.com", enabled: true, last_status: status, heartbeat: [], is_favourite: false, last_checked_at: "2026-09-10T09:00:00Z" },
+      { id: 10, name: "Paused endpoint", url: "https://paused.example.com", enabled: false, last_status: "offline", heartbeat: [], is_favourite: false },
+    ] }));
+    await page.addInitScript((value) => localStorage.setItem("netmap.theme", value), theme);
+    await page.clock.install();
+    await page.goto("/overview");
+    await expect(page.locator(".overview-workspace")).toBeVisible();
+    status = "offline";
+    await page.clock.fastForward(30_000);
+    await expect(page.locator(".dash-alert--overview-bar")).toContainText("1 endpoint offline");
+    await expect(page.locator(".dash-alert--overview-bar")).not.toContainText("Paused endpoint");
+    await page.locator(".dash-alert--overview-bar").getByRole("button", { name: /View/ }).click();
+    const outage = page.locator(".overview-offline-panel");
+    await expect(outage.getByRole("link", { name: /Customer portal/ })).toHaveAttribute("href", "/monitoring#endpoints");
+    await expect(outage).toHaveCSS("background-image", "none");
+    await page.screenshot({ path: `/tmp/netmap-overview-${theme}.png`, fullPage: true });
+    fail = true;
+    await page.clock.fastForward(30_000);
+    await expect(page.getByRole("alert").filter({ hasText: "Endpoint status could not" })).toBeVisible();
+    fail = false; status = "online";
+    await page.clock.fastForward(30_000);
+    await expect(page.locator(".dash-alert--overview-bar")).toHaveCount(0);
+  });
+}

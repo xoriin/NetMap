@@ -1,3 +1,4 @@
+import { useEndpointMonitors } from "../../hooks/useEndpointMonitors";
 import { useState, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import "./overview.css";
 import { Search, Star } from "lucide-react";
@@ -165,10 +166,8 @@ export function OverviewWorkspace({
   // Favourited standalone endpoints (GitHub #31). Kept as its own query rather
   // than folded into monDevices: endpoints are not inventory devices and must
   // never affect the device counts above.
-  const monitorsQuery = useApiQuery(
-    accessToken ? () => api.listMonitors(accessToken) : null,
-    [accessToken],
-  );
+  const monitorsQuery = useEndpointMonitors(accessToken);
+  const offlineEndpoints = (monitorsQuery.data ?? []).filter((monitor) => monitor.enabled && monitor.last_status === "offline");
   const favouriteMonitors = useMemo(
     () => (monitorsQuery.data ?? []).filter((monitor) => monitor.is_favourite),
     [monitorsQuery.data],
@@ -243,7 +242,9 @@ export function OverviewWorkspace({
     [graph.devices],
   );
 
-  useEffect(() => { setAlertDismissed(false); }, [offlineDevices.length]);
+  const outageKey = [...offlineDevices.map((d) => `device:${d.id}`), ...offlineEndpoints.map((m) => `endpoint:${m.id}`)].sort().join(",");
+  const outageCount = offlineDevices.length + offlineEndpoints.length;
+  useEffect(() => { setAlertDismissed(false); }, [outageKey]);
 
   const typeBreakdown = useMemo(() => {
     const m = new Map<string, number>();
@@ -405,15 +406,18 @@ export function OverviewWorkspace({
         />
       </div>
 
-      {offlineDevices.length > 0 && !alertDismissed && (
+      {monitorsQuery.error && <div className="nm-alert nm-alert--error" role="alert">Endpoint status could not be refreshed. Displayed results may be out of date. <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void monitorsQuery.reload()}>Retry</button></div>}
+
+      {outageCount > 0 && !alertDismissed && (
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
-          <strong>{offlineDevices.length} device{offlineDevices.length !== 1 ? "s" : ""} offline</strong>
+          <strong>{offlineDevices.length > 0 ? `${offlineDevices.length} device${offlineDevices.length === 1 ? "" : "s"}` : ""}{offlineDevices.length > 0 && offlineEndpoints.length > 0 ? " and " : ""}{offlineEndpoints.length > 0 ? `${offlineEndpoints.length} endpoint${offlineEndpoints.length === 1 ? "" : "s"}` : ""} offline</strong>
           {!showOfflineList && offlineDevices.slice(0, 6).map((d: Device) => (
             <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
-          {!showOfflineList && offlineDevices.length > 6 && (
-            <span className="dash-alert-tag dash-alert-tag--more">+{offlineDevices.length - 6} more</span>
+          {!showOfflineList && offlineEndpoints.slice(0, Math.max(0, 6 - offlineDevices.length)).map((m) => <span key={`endpoint-${m.id}`} className="dash-alert-tag">{m.name}</span>)}
+          {!showOfflineList && outageCount > 6 && (
+            <span className="dash-alert-tag dash-alert-tag--more">+{outageCount - 6} more</span>
           )}
           <button type="button" className="dash-alert-link" onClick={() => setShowOfflineList((v) => !v)}>
             {showOfflineList ? "Hide" : "View"} <IconArrowRight size={13} />
@@ -424,12 +428,12 @@ export function OverviewWorkspace({
         </div>
       )}
 
-      {showOfflineList && offlineDevices.length > 0 && !alertDismissed && (
+      {showOfflineList && outageCount > 0 && !alertDismissed && (
         <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Offline devices" meta={`${offlineDevices.length} total`} />
-            <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/inventory")}>
-              View inventory <IconArrowRight size={13} />
+            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Current outages" meta={`${outageCount} total`} />
+            <SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>
+              View monitoring <IconArrowRight size={13} />
             </SpaLink>
           </div>
           <div className="dash-panel-body">
@@ -452,6 +456,13 @@ export function OverviewWorkspace({
                       : "not checked yet"}
                   </span>
                 </div>
+              ))}
+              {offlineEndpoints.map((monitor) => (
+                <SpaLink key={`endpoint-${monitor.id}`} href="/monitoring#endpoints" className="dash-device-row" onNavigate={openEndpointMonitoring}>
+                  <span className="dash-status-dot dash-status-dot--offline" />
+                  <div className="dash-device-info"><span className="dash-device-name">{monitor.name}</span><span className="dash-device-meta">{monitor.url}</span></div>
+                  <span className="dash-panel-meta">Endpoint · {monitor.last_checked_at ? `last checked ${new Date(monitor.last_checked_at).toLocaleString()}` : "not checked yet"}</span>
+                </SpaLink>
               ))}
             </div>
           </div>
