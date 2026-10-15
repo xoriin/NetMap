@@ -106,6 +106,7 @@ def ensure_production_network_configuration() -> None:
         return
 
     _check_app_url()
+    _enforce_https_security_settings()
     _check_cors_origins()
     _check_trusted_hosts()
     _check_syslog_allowlist()
@@ -117,6 +118,18 @@ def _check_app_url() -> None:
             "APP_URL is not set, so password reset emails will not be sent. Set APP_URL to "
             "the address users open NetMap on (e.g. https://netmap.example.com)."
         )
+
+
+def _enforce_https_security_settings() -> None:
+    app_uses_https = settings.app_url.lower().startswith("https://")
+    if settings.secure_hsts_enabled and not settings.auth_cookie_secure:
+        raise RuntimeError(
+            "AUTH_COOKIE_SECURE must be true when SECURE_HSTS_ENABLED is true"
+        )
+    if app_uses_https and not settings.auth_cookie_secure:
+        raise RuntimeError("AUTH_COOKIE_SECURE must be true when APP_URL uses HTTPS")
+    if app_uses_https and not settings.secure_hsts_enabled:
+        raise RuntimeError("SECURE_HSTS_ENABLED must be true when APP_URL uses HTTPS")
 
 
 def _check_cors_origins() -> None:

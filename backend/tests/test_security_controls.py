@@ -128,3 +128,29 @@ def test_startup_rejects_invalid_master_key() -> None:
     with patch.object(startup, "settings", fake_settings):
         with pytest.raises(RuntimeError, match="MASTER_KEY is not a valid Fernet key"):
             startup.ensure_secret_configuration()
+
+
+def test_production_hsts_requires_secure_cookies() -> None:
+    from app.core import startup
+
+    fake_settings = SimpleNamespace(
+        app_url="https://netmap.example.com",
+        secure_hsts_enabled=True,
+        auth_cookie_secure=False,
+    )
+    with patch.object(startup, "settings", fake_settings):
+        with pytest.raises(RuntimeError, match="AUTH_COOKIE_SECURE"):
+            startup._enforce_https_security_settings()
+
+
+def test_production_https_url_requires_hsts() -> None:
+    from app.core import startup
+
+    fake_settings = SimpleNamespace(
+        app_url="https://netmap.example.com",
+        secure_hsts_enabled=False,
+        auth_cookie_secure=True,
+    )
+    with patch.object(startup, "settings", fake_settings):
+        with pytest.raises(RuntimeError, match="SECURE_HSTS_ENABLED"):
+            startup._enforce_https_security_settings()
