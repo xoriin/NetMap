@@ -666,3 +666,25 @@ def delete_port_target(
         raise HTTPException(status_code=404, detail="Port target not found")
     db.delete(target)
     db.commit()
+
+
+@router.post("/devices/{device_id}/check", status_code=200)
+def check_device_now(
+    device_id: int,
+    current_user: Annotated[User, Depends(require_monitoring_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    from app.services.alerting.service import alert_monitor
+
+    device = db.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device.status == "disabled" or device.monitoring_paused or device.lifecycle != "active":
+        raise HTTPException(status_code=409, detail="Enable monitoring on an active device before checking it")
+    # Close the read transaction before any network probe begins.
+    db.close()
+    if not alert_monitor._check(device_id):
+        raise HTTPException(status_code=409, detail="A monitoring check is already running. Try again shortly.")
+    global _fleet_summary_cache, _device_summaries_cache
+    _fleet_summary_cache = _device_summaries_cache = None
+    return {"device_id": device_id, "checked": True}

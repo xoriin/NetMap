@@ -46,6 +46,24 @@ test.describe("Monitoring workspace", () => {
     await page.getByRole("link", { name: "Monitoring", exact: true }).click();
   });
 
+  test("checks only the selected device and reports a busy worker", async ({ page }) => {
+    const requested: string[] = [];
+    let fail = false;
+    await page.route("**/api/v1/monitoring/devices/*/check", async (route) => {
+      requested.push(route.request().url());
+      await route.fulfill(fail ? { status: 409, json: { detail: "A monitoring check is already running" } } : { json: { device_id: 1, checked: true } });
+    });
+    await page.locator(".mon-row", { hasText: "Core Router With A Longer Name" }).click();
+    await page.getByRole("button", { name: "Check now", exact: true }).click();
+    await expect(page.getByText("Device checks completed", { exact: true })).toBeVisible();
+    expect(requested).toHaveLength(1);
+    expect(requested[0]).toContain("/devices/1/check");
+    fail = true;
+    await page.getByRole("button", { name: "Check now", exact: true }).click();
+    await expect(page.getByText(/A monitoring check is already running/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check now", exact: true })).toBeEnabled();
+  });
+
   test("allocates most row width to heartbeat and RTT displays", async ({ page }) => {
     const row = page.locator(".mon-row").first();
     await expect(row).toBeVisible();

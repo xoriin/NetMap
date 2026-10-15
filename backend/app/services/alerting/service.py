@@ -54,6 +54,7 @@ class AlertMonitorService:
         self._known_ports: dict[tuple[int, int], bool] = {}
         self._flap_times: dict[int, list[datetime]] = {}
         self._initialized = False
+        self._check_lock = threading.Lock()
         self._last_pruned_at: datetime | None = None
 
     def start(self) -> None:
@@ -102,12 +103,32 @@ class AlertMonitorService:
             if self._stop.wait(interval):
                 break
 
-    def _check(self) -> None:
+    def _check(self, device_id: int | None = None) -> bool:
+        # One worker owns transition state, including on-demand checks.
+        if not self._check_lock.acquire(blocking=False):
+            return False
+        try:
+            self._check_devices(device_id)
+            return True
+        finally:
+            self._check_lock.release()
+
+    def _remember(self, current, health, ports, device_id: int | None) -> None:
+        if device_id is None:
+            self._known, self._known_health, self._known_ports = current, health, ports
+        else:
+            self._known.update(current)
+            self._known_health.update(health)
+            self._known_ports = {key: value for key, value in self._known_ports.items() if key[0] != device_id}
+            self._known_ports.update(ports)
+
+    def _check_devices(self, scoped_device_id: int | None = None) -> None:
         with SessionLocal() as db:
             devices = db.scalars(select(Device).where(
                 Device.status != "disabled",
                 Device.monitoring_paused == False,  # noqa: E712
                 Device.lifecycle == "active",
+                *([Device.id == scoped_device_id] if scoped_device_id is not None else []),
             )).all()
             rules = db.scalars(select(AlertRule).where(AlertRule.enabled == True)).all()  # noqa: E712
             port_targets = db.scalars(select(DevicePortTarget).where(DevicePortTarget.enabled == True)).all()  # noqa: E712
@@ -119,7 +140,8 @@ class AlertMonitorService:
             app_name = self._get_app_name(db)
 
         if not devices:
-            self._initialized = True
+            if scoped_device_id is None:
+                self._initialized = True
             return
 
         # Build per-device port list (global targets + device-specific)
@@ -230,18 +252,15 @@ class AlertMonitorService:
             for device in devices
         }
 
-        if not self._initialized:
-            self._known = current
-            self._known_health = current_health
-            self._known_ports = known_ports_now
-            self._initialized = True
+        if not self._initialized and (scoped_device_id is None or scoped_device_id not in self._known):
+            self._remember(current, current_health, known_ports_now, scoped_device_id)
+            if scoped_device_id is None:
+                self._initialized = True
             logger.debug("Alert monitor: initial state learned for %d devices", len(current))
             return
 
         if not rules:
-            self._known = current
-            self._known_health = current_health
-            self._known_ports = known_ports_now
+            self._remember(current, current_health, known_ports_now, scoped_device_id)
             return
 
         device_map = {d.id: d for d in devices}
@@ -363,12 +382,12 @@ class AlertMonitorService:
         self._flap_times = {
             device_id: kept
             for device_id, times in self._flap_times.items()
-            if (kept := [t for t in times if t >= cutoff]) and device_id in device_map
+            if (kept := [t for t in times if t >= cutoff]) and (scoped_device_id is not None or device_id in device_map)
         }
         flap_counts = {
             device_id: len(times)
             for device_id, times in self._flap_times.items()
-            if len(times) >= FLAP_MIN_TRANSITIONS
+            if len(times) >= FLAP_MIN_TRANSITIONS and device_id in device_map
         }
         for rule in rules:
             if rule.event_type != "device_flapping":
@@ -397,9 +416,7 @@ class AlertMonitorService:
                     db.add(delivery)
                 db.commit()
 
-        self._known = current
-        self._known_health = current_health
-        self._known_ports = known_ports_now
+        self._remember(current, current_health, known_ports_now, scoped_device_id)
 
     def _probe_device_status(self, device: Device) -> tuple[str, float | None]:
         try:

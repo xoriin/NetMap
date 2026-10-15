@@ -1,3 +1,4 @@
+import { useToast } from "../../components/Toast";
 import { useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
 import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, X } from "lucide-react";
@@ -99,6 +100,8 @@ export function MonitoringWorkspace({
   monitorIntervalSeconds: number;
   onToggleFavourite: (deviceId: number) => void;
 }) {
+  const toast = useToast();
+  const [checkingDevice, setCheckingDevice] = useState<number | null>(null);
   const [viewTab, setViewTab] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
@@ -481,6 +484,18 @@ export function MonitoringWorkspace({
     }),
     [devices],
   );
+
+  async function checkNow(deviceId: number) {
+    if (checkingDevice !== null) return;
+    setCheckingDevice(deviceId);
+    try {
+      await api.checkDeviceNow(accessToken, deviceId);
+      await Promise.all([loadAll(), loadHistory(deviceId, historyHours)]);
+      toast.success("Device checks completed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Device check failed");
+    } finally { setCheckingDevice(null); }
+  }
 
   const selectedDevice = displayDevices.find((d) => d.device_id === selectedId) ?? null;
 
@@ -1570,9 +1585,10 @@ export function MonitoringWorkspace({
                           const devId = Number(deviceIdStr);
                           const dev = devices.find((d) => d.device_id === devId);
                           const devName = dev ? (dev.display_name ?? dev.hostname ?? dev.ip_address) : `Device #${devId}`;
-                          return checks.map((p) => (
+                          return checks.map((p, checkIndex) => (
                             <div key={p.id} className={`incident-row mon-port-sort-row${draggedPortTargetId === p.id ? " is-dragging" : ""}${dragOverPortTargetId === p.id && draggedPortTargetId !== p.id ? " is-drag-over" : ""}`} style={{ alignItems: "center" }} onDragOver={(event) => previewPortTargetDrop(event, p.id)} onDragLeave={() => setDragOverPortTargetId((current) => current === p.id ? null : current)} onDrop={(event) => { event.preventDefault(); void dropPortTarget(); }}>
                               {organisingPortTargets && portTargetOrderMode === "manual" && <button type="button" draggable className="mon-port-drag-handle" onDragStart={(event) => beginPortTargetDrag(event, p.id)} onDragEnd={endPortTargetDrag} title={`Drag ${p.label} to reorder`} aria-label={`Drag ${p.label} to reorder`}><GripVertical size={15} /></button>}
+                              {checkIndex === 0 && canManageMonitoring && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={checkingDevice !== null || !dev || dev.monitoring_paused || dev.lifecycle !== "active"} onClick={() => void checkNow(devId)} aria-label={`Check ${devName} now`}>{checkingDevice === devId ? "Checking…" : "Check now"}</button>}
                               <span className="mon-dot mon-dot-online" />
                               <div className="incident-row-body" style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
                                 <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.label}</span>
@@ -1611,6 +1627,11 @@ export function MonitoringWorkspace({
           <div className="mon-hero">
 
             {/* Header */}
+            {canManageMonitoring && <div className="nm-toolbar">
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={checkingDevice !== null || selectedDevice.monitoring_paused || selectedDevice.lifecycle !== "active"} onClick={() => void checkNow(selectedDevice.device_id)}>
+                {checkingDevice === selectedDevice.device_id ? "Checking…" : "Check now"}
+              </button>
+            </div>}
             <div className={`mon-hero-header mon-hero-header--${selectedDevice.health_status}`}>
               <div className="mon-hero-header-left">
                 <MonStatusDot status={selectedDevice.health_status} />
