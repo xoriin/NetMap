@@ -21,7 +21,7 @@ class SystemSettingsRead(BaseModel):
     support_url: str = ""
     live_ping_enabled: bool = True
     monitor_interval_seconds: int = 300
-    idle_timeout_minutes: int = 15
+    idle_timeout_minutes: int = 0
     active_network_public_targets_enabled: bool = False
     ip_reservation_default_expiry_enabled: bool = True
     ip_reservation_reminder_enabled: bool = False
@@ -83,7 +83,7 @@ class SystemSettingsUpdate(BaseModel):
     support_url: str | None = Field(None, max_length=500)
     live_ping_enabled: bool | None = None
     monitor_interval_seconds: int | None = Field(None, ge=30, le=3600)
-    idle_timeout_minutes: int | None = Field(None, ge=1, le=480)
+    idle_timeout_minutes: int | None = Field(None, ge=0, le=480)
     active_network_public_targets_enabled: bool | None = None
     ip_reservation_default_expiry_enabled: bool | None = None
     ip_reservation_reminder_enabled: bool | None = None

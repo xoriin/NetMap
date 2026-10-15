@@ -39,7 +39,7 @@ export function SystemTab({
     support_url: "",
     live_ping_enabled: true,
     monitor_interval_seconds: 300,
-    idle_timeout_minutes: 15,
+    idle_timeout_minutes: 0,
     active_network_public_targets_enabled: false,
     ip_reservation_default_expiry_enabled: true,
     ip_reservation_reminder_enabled: false,
@@ -51,7 +51,7 @@ export function SystemTab({
     totp_required: "off",
   });
   const [monitorIntervalRaw, setMonitorIntervalRaw] = useState("300");
-  const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
+  const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("0");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restorePassphrase, setRestorePassphrase] = useState("");
@@ -360,37 +360,59 @@ export function SystemTab({
                   </fieldset>
                 </>
               )}
-              <label>
-                Idle session timeout (minutes)
-                {(() => {
-                  const n = parseInt(idleTimeoutRaw, 10);
-                  const err = idleTimeoutRaw.trim() === "" || isNaN(n) ? "Must be a number" : n < 1 ? "Minimum is 1 minute" : n > 480 ? "Maximum is 480 minutes (8 hours)" : null;
-                  return (
-                    <>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="e.g. 15"
-                        value={idleTimeoutRaw}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          setIdleTimeoutRaw(raw);
-                          const parsed = parseInt(raw, 10);
-                          if (!isNaN(parsed) && parsed >= 1 && parsed <= 480) {
-                            setSettingsForm((c) => ({ ...c, idle_timeout_minutes: parsed }));
-                          }
-                        }}
-                        style={err ? { borderColor: "var(--dash-red)" } : undefined}
-                      />
-                      {err
-                        ? <span className="tool-note tool-note--hint" style={{ color: "var(--dash-red)" }}>{err}</span>
-                        : <span className="tool-note tool-note--hint">Users are logged out after this many minutes of inactivity (1–480). Set to 480 to effectively disable.</span>
-                      }
-                    </>
-                  );
-                })()}
+              <label className="tool-form-inline-check">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.idle_timeout_minutes > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const previous = parseInt(idleTimeoutRaw, 10);
+                      const minutes = previous >= 1 && previous <= 480 ? previous : 15;
+                      setIdleTimeoutRaw(String(minutes));
+                      setSettingsForm((c) => ({ ...c, idle_timeout_minutes: minutes }));
+                    } else {
+                      setSettingsForm((c) => ({ ...c, idle_timeout_minutes: 0 }));
+                    }
+                  }}
+                />
+                <span className="tool-form-check-copy">
+                  <span>Log out inactive users</span>
+                  <span className="tool-note">When off, users stay signed in until they sign out, their session expires, or it is revoked.</span>
+                </span>
               </label>
-              <button type="submit" className="nm-btn nm-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); return isNaN(n) || n < 1 || n > 480 || isNaN(m) || m < 30 || m > 3600; })()}>
+              {settingsForm.idle_timeout_minutes > 0 && (
+                <label>
+                  Idle session timeout (minutes)
+                  {(() => {
+                    const n = parseInt(idleTimeoutRaw, 10);
+                    const err = idleTimeoutRaw.trim() === "" || isNaN(n) ? "Must be a number" : n < 1 ? "Minimum is 1 minute" : n > 480 ? "Maximum is 480 minutes (8 hours)" : null;
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="e.g. 15"
+                          value={idleTimeoutRaw}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setIdleTimeoutRaw(raw);
+                            const parsed = parseInt(raw, 10);
+                            if (!isNaN(parsed) && parsed >= 1 && parsed <= 480) {
+                              setSettingsForm((c) => ({ ...c, idle_timeout_minutes: parsed }));
+                            }
+                          }}
+                          style={err ? { borderColor: "var(--dash-red)" } : undefined}
+                        />
+                        {err
+                          ? <span className="tool-note tool-note--hint" style={{ color: "var(--dash-red)" }}>{err}</span>
+                          : <span className="tool-note tool-note--hint">Users are logged out after this many minutes of inactivity (1–480).</span>
+                        }
+                      </>
+                    );
+                  })()}
+                </label>
+              )}
+              <button type="submit" className="nm-btn nm-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); const idleInvalid = settingsForm.idle_timeout_minutes > 0 && (isNaN(n) || n < 1 || n > 480); return idleInvalid || isNaN(m) || m < 30 || m > 3600; })()}>
                 {settingsBusy ? "Saving…" : "Save settings"}
               </button>
             </form>

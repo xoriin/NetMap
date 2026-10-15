@@ -185,6 +185,22 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0077_external_locations", _migrate_external_locations)
         _run_migration(conn, inspector, "0078_external_ip_addresses", _migrate_external_ip_addresses)
         _run_migration(conn, inspector, "0079_user_totp", _migrate_user_totp)
+        _run_migration(conn, inspector, "0080_idle_timeout_preserve", _migrate_idle_timeout_preserve)
+
+
+
+def _migrate_idle_timeout_preserve(conn, inspector) -> None:
+    """Inactivity logout now defaults to disabled; existing installs keep the old 15-minute default."""
+    if conn.execute(text("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'")).fetchone() is None:
+        return
+    if conn.execute(text("SELECT 1 FROM users LIMIT 1")).fetchone() is None:
+        return
+    if conn.execute(text("SELECT 1 FROM system_settings WHERE key = 'idle_timeout_minutes'")).fetchone():
+        return
+    conn.execute(
+        text("INSERT INTO system_settings (key, value, updated_at) VALUES ('idle_timeout_minutes', '15', :now)"),
+        {"now": datetime.now(timezone.utc).isoformat()},
+    )
 
 
 def _run_migration(conn, inspector, name: str, fn) -> None:

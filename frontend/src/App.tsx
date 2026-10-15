@@ -32,7 +32,7 @@ export function App() {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => readRouteFromLocation());
   const [appSettings, setAppSettings] = useState<SystemSettings | null>(null);
   const [topbarNote, setTopbarNote] = useState<ReactNode>("");
-  const idleTimeoutMs = (appSettings?.idle_timeout_minutes ?? 15) * 60 * 1000;
+  const idleTimeoutMs = (appSettings?.idle_timeout_minutes ?? 0) * 60 * 1000;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readBool(storageKeys.sidebarCollapsed));
   const { theme, toggleTheme } = useTheme();
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
@@ -275,7 +275,7 @@ export function App() {
   }, [screen, tokens?.access_token]);
 
   useEffect(() => {
-    if (screen !== "dashboard" || !tokens?.access_token) {
+    if (screen !== "dashboard" || !tokens?.access_token || idleTimeoutMs <= 0) {
       return;
     }
     let timeoutId = window.setTimeout(() => {

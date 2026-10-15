@@ -784,3 +784,31 @@ test("system settings save never sends the two-factor requirement", async ({ pag
   await expect.poll(() => saved).not.toBeNull();
   expect(saved).not.toHaveProperty("totp_required");
 });
+
+for (const theme of ["light", "dark"]) {
+  test(`idle logout can be disabled and re-enabled in ${theme}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((theme) => localStorage.setItem("netmap.theme", theme), theme);
+    let saved: Record<string, unknown> | null = null;
+    await page.route("**/api/v1/admin/settings", async (route) => {
+      if (route.request().method() === "PUT") saved = route.request().postDataJSON();
+      await route.fulfill({ json: { ...settings, ...saved } });
+    });
+    await page.goto("/admin");
+    const toggle = page.getByRole("checkbox", { name: /Log out inactive users/ });
+    await expect(toggle).toBeChecked();
+    await expect(page.getByLabel("Idle session timeout (minutes)")).toHaveValue("15");
+    await expect(toggle.locator("xpath=ancestor::label[1]")).toHaveClass(/tool-form-inline-check/);
+
+    await toggle.uncheck();
+    await expect(page.getByLabel("Idle session timeout (minutes)")).toHaveCount(0);
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect.poll(() => saved?.idle_timeout_minutes).toBe(0);
+
+    await toggle.check();
+    await expect(page.getByLabel("Idle session timeout (minutes)")).toHaveValue("15");
+    await page.getByLabel("Idle session timeout (minutes)").fill("30");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect.poll(() => saved?.idle_timeout_minutes).toBe(30);
+  });
+}

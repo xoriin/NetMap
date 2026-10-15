@@ -80,7 +80,7 @@ DEFAULTS: dict[str, str] = {
     "support_url": "",
     "live_ping_enabled": "true",
     "monitor_interval_seconds": "300",
-    "idle_timeout_minutes": "15",
+    "idle_timeout_minutes": "0",
     "active_network_public_targets_enabled": str(settings.active_network_public_targets_enabled).lower(),
     "ip_reservation_default_expiry_enabled": "true",
     "ip_reservation_reminder_enabled": "false",

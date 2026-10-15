@@ -343,7 +343,6 @@ All configuration is done via environment variables in your compose file. There 
 | `SYSLOG_SENDER_ALLOWLIST` | *(unset = accept all)* | JSON array of IPs or CIDRs allowed to send logs. |
 | `ACTIVE_NETWORK_PUBLIC_TARGETS_ENABLED` | `false` | Allow ping/traceroute/TCP to public internet addresses. |
 | `ACCESS_TOKEN_MINUTES` | `15` | Lifetime of JWT access tokens. |
-| `IDLE_TIMEOUT_MINUTES` | `15` | Session idle timeout before re-authentication is required. |
 | `REFRESH_TOKEN_DAYS` | `7` | Refresh token lifetime. |
 | `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed login attempts before lockout. |
 | `AUTH_LOCKOUT_MINUTES` | `15` | Duration of account lockout after failed attempts. |
