@@ -497,8 +497,17 @@ def format_csv_value(value: object) -> str:
     if isinstance(value, datetime):
         return value.astimezone(timezone.utc).isoformat()
     if isinstance(value, list):
-        return ", ".join(str(item) for item in value)
+        return _neutralize_csv_formula(", ".join(str(item) for item in value))
+    if isinstance(value, str):
+        return _neutralize_csv_formula(value)
     return str(value)
+
+
+def _neutralize_csv_formula(value: str) -> str:
+    candidate = value.lstrip(" \t\r\n")
+    if candidate.startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
 
 
 def json_default(value: object) -> str:

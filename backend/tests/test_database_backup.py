@@ -74,6 +74,13 @@ def test_validate_restore_bytes_rejects_bad_signature(tmp_path, monkeypatch):
     assert raised
 
 
+def test_csv_export_neutralizes_spreadsheet_formulas():
+    assert export_service.format_csv_value('=HYPERLINK("https://example.invalid")').startswith("'=")
+    assert export_service.format_csv_value("  +cmd") == "'  +cmd"
+    assert export_service.format_csv_value("@SUM(A1:A2)") == "'@SUM(A1:A2)"
+    assert export_service.format_csv_value(-42) == "-42"
+
+
 def test_network_report_pdf_skips_malformed_firewall_db(tmp_path):
     db_path = tmp_path / "netmap.db"
     test_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
