@@ -314,8 +314,8 @@ export function ProfileWorkspace({
   }, [accessToken, refreshUser]);
 
   function handleAvatarFile(file: File) {
-    if (!file.type.startsWith("image/")) {
-      setProfileError("Please select an image file.");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setProfileError("Please select a PNG, JPEG, or WebP image.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -463,7 +463,7 @@ export function ProfileWorkspace({
                 {avatarPreview ? "Change photo" : "Upload photo"}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp"
                   className="profile-avatar-file"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
                 />

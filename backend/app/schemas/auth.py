@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.image_validation import validate_avatar_data_uri
 from app.models.user import UserRole
 
 
@@ -44,14 +45,24 @@ class UserUpdateRequest(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     email: str | None = Field(default=None, max_length=254)
-    avatar_data: str | None = None
+    avatar_data: str | None = Field(default=None, max_length=2_800_000)
+
+    @field_validator("avatar_data")
+    @classmethod
+    def validate_avatar(cls, value: str | None) -> str | None:
+        return validate_avatar_data_uri(value) if value else value
 
 
 class ProfileUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
-    avatar_data: str | None = None
+    avatar_data: str | None = Field(default=None, max_length=2_800_000)
     email: str | None = Field(default=None, max_length=254)
     entity_colors_enabled: bool | None = None
+
+    @field_validator("avatar_data")
+    @classmethod
+    def validate_avatar(cls, value: str | None) -> str | None:
+        return validate_avatar_data_uri(value) if value else value
 
 
 class WhatsNewAckRequest(BaseModel):

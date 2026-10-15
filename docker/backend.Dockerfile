@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "alembic~=1.13" \
        "argon2-cffi~=25.1" \
        "defusedxml~=0.7.1" \
+       "pillow>=11.0.0" \
        "python-jose[cryptography]~=3.3" \
        "dnspython~=2.7" \
        "reportlab~=4.4" \

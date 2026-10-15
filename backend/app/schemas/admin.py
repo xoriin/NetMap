@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from app.core.image_validation import validate_email_logo_data_uri
 from app.schemas.alert import PROFILE_TARGET_RE, VALID_CHANNELS
+from app.core.image_validation import validate_email_logo_data_uri, validate_icon_data_uri
 
 
 class AdminPasswordResetRequest(BaseModel):
@@ -121,20 +121,20 @@ class NotificationSettings(BaseModel):
 
 
 class NotificationSettingsUpdate(BaseModel):
-    ntfy_url: str | None = None
-    ntfy_token: str | None = None
-    telegram_bot_token: str | None = None
-    telegram_chat_id: str | None = None
-    signal_url: str | None = None
-    signal_number: str | None = None
-    signal_recipient: str | None = None
-    smtp_host: str | None = None
-    smtp_port: str | None = None
-    smtp_user: str | None = None
-    smtp_password: str | None = None
-    smtp_from: str | None = None
-    smtp_to: str | None = None
-    smtp_tls: str | None = None
+    ntfy_url: str | None = Field(default=None, max_length=2048)
+    ntfy_token: str | None = Field(default=None, max_length=2048)
+    telegram_bot_token: str | None = Field(default=None, max_length=2048)
+    telegram_chat_id: str | None = Field(default=None, max_length=256)
+    signal_url: str | None = Field(default=None, max_length=2048)
+    signal_number: str | None = Field(default=None, max_length=64)
+    signal_recipient: str | None = Field(default=None, max_length=256)
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: str | None = Field(default=None, max_length=5, pattern=r"^\d{1,5}$")
+    smtp_user: str | None = Field(default=None, max_length=254)
+    smtp_password: str | None = Field(default=None, max_length=2048)
+    smtp_from: str | None = Field(default=None, max_length=254)
+    smtp_to: str | None = Field(default=None, max_length=2000)
+    smtp_tls: str | None = Field(default=None, pattern=r"^(true|false)$")
 
 
 class EmailBrandingSettings(BaseModel):
@@ -180,8 +180,8 @@ class EmailBrandingSettingsUpdate(BaseModel):
 
 
 class TestNotificationRequest(BaseModel):
-    channel: str
-    message: str = "NetMap test notification"
+    channel: str = Field(min_length=1, max_length=120)
+    message: str = Field(default="NetMap test notification", min_length=1, max_length=4000)
 
 
 class PermissionMeta(BaseModel):
@@ -253,7 +253,7 @@ class CloudProviderCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     aliases: list[str] = Field(default_factory=list, max_length=20)
     icon: str = Field(default="custom", pattern="^(aws|azure|google_cloud|cloudflare|cloud|globe|custom)$")
-    icon_data: str | None = Field(default=None, max_length=400_000, pattern=r"^data:image/(png|jpeg|webp|svg\+xml);base64,")
+    icon_data: str | None = Field(default=None, max_length=400_000)
 
     @field_validator("name")
     @classmethod
@@ -264,6 +264,11 @@ class CloudProviderCreate(BaseModel):
     @classmethod
     def clean_aliases(cls, values: list[str]) -> list[str]:
         return list(dict.fromkeys(" ".join(value.strip().split())[:80] for value in values if value.strip()))
+
+    @field_validator("icon_data")
+    @classmethod
+    def validate_icon_data(cls, value: str | None) -> str | None:
+        return validate_icon_data_uri(value) if value else value
 
 
 class CloudProviderUpdate(CloudProviderCreate):

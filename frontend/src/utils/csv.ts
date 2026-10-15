@@ -1,5 +1,8 @@
 import type { ImportRow } from "../types";
 
+export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 5000;
+
 const COLUMN_ALIASES: Record<string, string> = {
   ip: "ip_address", "ip address": "ip_address", ipaddress: "ip_address", "ip_address": "ip_address",
   host: "hostname", name: "hostname", hostname: "hostname",
@@ -83,8 +86,16 @@ function parseJSON(text: string): Record<string, string>[] {
 }
 
 export async function parseImportFile(file: File): Promise<Record<string, string>[]> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("Import files must be 5 MB or smaller.");
+  }
   const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext === "json") return parseJSON(await file.text());
-  if (ext === "xlsx" || ext === "xls") throw new Error("XLSX import is not supported. Please export your data as CSV and import that instead.");
-  return parseCSV(await file.text());
+  let rows: Record<string, string>[];
+  if (ext === "json") rows = parseJSON(await file.text());
+  else if (ext === "xlsx" || ext === "xls") throw new Error("XLSX import is not supported. Please export your data as CSV and import that instead.");
+  else rows = parseCSV(await file.text());
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`Import files may contain at most ${MAX_IMPORT_ROWS.toLocaleString()} devices.`);
+  }
+  return rows;
 }

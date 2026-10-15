@@ -56,7 +56,7 @@ export function UsersTab({
   }
 
   function handleAdminAvatarUpload(userId: number, file: File) {
-    if (!file.type.startsWith("image/")) { onError("Please select an image file."); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) { onError("Please select a PNG, JPEG, or WebP image."); return; }
     if (file.size > 2 * 1024 * 1024) { onError("Image must be under 2 MB."); return; }
     const reader = new FileReader();
     reader.onload = (e) => { void updateUser(userId, { avatar_data: e.target?.result as string }); };
@@ -176,7 +176,7 @@ export function UsersTab({
                       <span className="admin-avatar-overlay" aria-hidden="true">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                       </span>
-                      <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAdminAvatarUpload(row.id, f); e.target.value = ""; }} />
+                      <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAdminAvatarUpload(row.id, f); e.target.value = ""; }} />
                     </label>
                     {row.avatar_data && (
                       <button type="button" className="admin-avatar-clear" title="Remove photo" onClick={() => void updateUser(row.id, { avatar_data: null })}>×</button>

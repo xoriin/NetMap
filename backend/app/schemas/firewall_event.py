@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+_SAVED_SEARCH_FILTERS = {
+    "q", "src_ip", "dst_ip", "src_port", "dst_port", "action",
+    "protocol", "interface", "start_time", "end_time",
+}
 
 
 class FirewallEventRead(BaseModel):
@@ -63,6 +68,17 @@ class SyslogStatus(BaseModel):
 class SavedSearchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     filters: dict = Field(default_factory=dict)
+
+    @field_validator("filters")
+    @classmethod
+    def validate_filters(cls, value: dict) -> dict:
+        unknown = set(value) - _SAVED_SEARCH_FILTERS
+        if unknown:
+            raise ValueError(f"Unsupported saved-search filters: {sorted(unknown)}")
+        for key, item in value.items():
+            if not isinstance(item, str) or len(item) > 120:
+                raise ValueError(f"Saved-search filter '{key}' must be a string of 120 characters or fewer")
+        return value
 
 
 class SavedSearchRead(BaseModel):

@@ -450,7 +450,7 @@ class DeviceLiveStatusList(BaseModel):
 
 
 class DeviceBulkImportRequest(BaseModel):
-    devices: list[DeviceCreate]
+    devices: list[DeviceCreate] = Field(min_length=1, max_length=5000)
 
 class DeviceBulkImportResult(BaseModel):
     created: int

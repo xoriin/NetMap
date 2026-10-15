@@ -410,10 +410,7 @@ def update_profile(
     if "display_name" in updates:
         current_user.display_name = updates["display_name"]
     if "avatar_data" in updates:
-        avatar = updates["avatar_data"]
-        if avatar is not None and len(avatar) > 2_097_152:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Avatar image too large (2 MB max)")
-        current_user.avatar_data = avatar
+        current_user.avatar_data = updates["avatar_data"]
     if "email" in updates:
         current_user.email = updates["email"] or None
     if updates.get("entity_colors_enabled") is not None:
@@ -667,10 +664,7 @@ def update_user(
     if "email" in updates:
         user.email = updates["email"] or None
     if "avatar_data" in updates:
-        avatar = updates["avatar_data"]
-        if avatar is not None and len(avatar) > 2_097_152:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Avatar image too large (max 2 MB)")
-        user.avatar_data = avatar
+        user.avatar_data = updates["avatar_data"]
 
     write_audit(
         db,
