@@ -215,6 +215,7 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Too many login attempts. Retry in {wait_seconds} seconds.",
+            headers={"Retry-After": str(max(1, wait_seconds))},
         )
 
     user = db.scalar(select(User).where(User.username == payload.username))

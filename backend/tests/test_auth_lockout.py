@@ -8,7 +8,7 @@ from app.db.session import Base
 from app.models.auth_session import LoginThrottleState
 from app.models.site import Site  # noqa: F401 - imported so Device relationships resolve in tests
 from app.models.topology_group import TopologyGroup  # noqa: F401
-from app.services.auth.security import clear_user_login_lockout, is_locked
+from app.services.auth.security import clear_user_login_lockout, is_locked, record_login_failure
 
 
 def _session():
@@ -52,6 +52,22 @@ def test_clear_user_login_lockout_returns_false_when_no_state_exists():
     db = _session()
 
     assert clear_user_login_lockout(db, "missing") is False
+
+
+def test_ip_throttle_uses_shared_nat_safe_threshold(monkeypatch):
+    from app.services.auth import security
+
+    db = _session()
+    monkeypatch.setattr(security.settings, "auth_max_failed_attempts", 2)
+    monkeypatch.setattr(security.settings, "auth_ip_max_failed_attempts", 4)
+
+    record_login_failure(db, ["user:alice", "ip:192.0.2.10"])
+    db.commit()
+    record_login_failure(db, ["user:alice", "ip:192.0.2.10"])
+    db.commit()
+
+    assert is_locked(db, ["user:alice"])[0] is True
+    assert is_locked(db, ["ip:192.0.2.10"])[0] is False
 
 
 def test_reset_rate_limit_allows_a_full_quota_again_after_the_lockout_expires():

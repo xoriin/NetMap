@@ -33,10 +33,15 @@ def is_locked(db: Session, subjects: list[str]) -> tuple[bool, int]:
 
 def record_login_failure(db: Session, subjects: list[str]) -> int:
     now = datetime.now(timezone.utc)
-    max_attempts = max(1, settings.auth_max_failed_attempts)
     lockout_window = timedelta(minutes=max(1, settings.auth_lockout_minutes))
     observed_attempts = 1
     for subject in subjects:
+        max_attempts = max(
+            1,
+            settings.auth_ip_max_failed_attempts
+            if subject.startswith("ip:")
+            else settings.auth_max_failed_attempts,
+        )
         state = db.scalar(select(LoginThrottleState).where(LoginThrottleState.subject == subject))
         if state is None:
             state = LoginThrottleState(subject=subject, failed_attempts=0)
