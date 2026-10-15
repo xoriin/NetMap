@@ -907,17 +907,16 @@ export function MonitoringWorkspace({
       {/* Stat cards — same pattern as Overview */}
       {viewTab === "endpoints" ? (
         <div className="dash-stats dash-stats--monitoring nm-summary-band">
-          <DashStat label="Endpoints" value={monitorStats.total} sub={monitorStats.total === 0 ? "none yet" : "HTTP/HTTPS targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
-          <DashStat label="Up" value={monitorStats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
-          <DashStat label="Down" value={monitorStats.offline} sub={monitorStats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={monitorStats.offline > 0 ? "red" : "green"} />
-          <DashStat label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
+          <DashStat label="Endpoints" value={monitorStats.total} icon={<IconPlugConnected size={20} />} accent="teal" />
+          <DashStat label="Up" value={monitorStats.online} icon={<IconWifi size={20} />} accent="green" />
+          <DashStat label="Down" value={monitorStats.offline} icon={<IconWifiOff size={20} />} accent={monitorStats.offline > 0 ? "red" : "green"} />
+          <DashStat label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} icon={<IconGauge size={20} />} accent="indigo" />
         </div>
       ) : (
       <div className="dash-stats dash-stats--monitoring nm-summary-band">
         <DashStat
           label="Monitored"
           value={fleet?.total ?? 0}
-          sub={(fleet?.paused ?? 0) > 0 ? `${fleet?.paused} paused` : fleet?.total === 0 ? "no active devices" : "active devices"}
           icon={<IconServer size={20} />}
           accent="teal"
           onClick={() => { setFilterStatus("all"); setFilterHealth("all"); }}
@@ -925,14 +924,12 @@ export function MonitoringWorkspace({
         <DashStat
           label="Live ping"
           value={livePingEnabled ? "On" : "Off"}
-          sub={livePingEnabled ? "polling enabled" : "polling disabled"}
           icon={<Activity size={20} />}
           accent={livePingEnabled ? "green" : "red"}
         />
         <DashStat
           label="Healthy"
           value={fleet?.healthy ?? 0}
-          sub="in expected state"
           icon={<IconWifi size={20} />}
           accent="green"
           onClick={() => setFilterHealth((current) => current === "healthy" ? "all" : "healthy")}
@@ -941,36 +938,23 @@ export function MonitoringWorkspace({
         <DashStat
           label="Unexpected"
           value={fleet?.unhealthy ?? 0}
-          sub={(fleet?.unhealthy ?? 0) > 0 ? "need attention" : "all clear"}
           icon={<IconWifiOff size={20} />}
           accent={(fleet?.unhealthy ?? 0) > 0 ? "red" : "green"}
           onClick={() => setFilterHealth((current) => current === "unhealthy" ? "all" : "unhealthy")}
           active={filterHealth === "unhealthy"}
         />
-        {(() => {
-          const labels = [...new Set(portTargets.map((p) => p.label))].sort();
-          const shown = labels.slice(0, 3);
-          const extra = labels.length - shown.length;
-          return (
-            <button
-              type="button"
-              className="dash-stat dash-stat--blue dash-stat--clickable"
-              onClick={() => setShowPortsModal(true)}
-              title="Manage service checks"
-            >
-              <div className="dash-stat-icon"><IconPlugConnected size={20} /></div>
-              <div className="dash-stat-body">
-                <strong className="dash-stat-value">{labels.length}</strong>
-                <span className="dash-stat-label">Monitored ports</span>
-                <span className="dash-stat-sub">
-                  {labels.length === 0
-                    ? "click to add checks"
-                    : shown.join(" · ") + (extra > 0 ? ` +${extra} more` : "")}
-                </span>
-              </div>
-            </button>
-          );
-        })()}
+        <button
+          type="button"
+          className="dash-stat dash-stat--blue dash-stat--clickable"
+          onClick={() => setShowPortsModal(true)}
+          title="Manage service checks"
+        >
+          <div className="dash-stat-icon"><IconPlugConnected size={20} /></div>
+          <div className="dash-stat-body">
+            <strong className="dash-stat-value">{new Set(portTargets.map((target) => target.label)).size}</strong>
+            <span className="dash-stat-label">Monitored ports</span>
+          </div>
+        </button>
       </div>
       )}
 

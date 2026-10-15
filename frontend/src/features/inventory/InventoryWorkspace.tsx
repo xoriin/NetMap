@@ -677,7 +677,6 @@ export function InventoryWorkspace({
         <DashStat
           label="Devices"
           value={graph.devices.length}
-          sub="in inventory"
           icon={<IconServer size={20} />}
           accent="teal"
           onClick={() => setStatusFilter("all")}
@@ -685,7 +684,6 @@ export function InventoryWorkspace({
         <DashStat
           label="Online"
           value={invOnlineCount}
-          sub="reachable"
           icon={<IconWifi size={20} />}
           accent="green"
           onClick={() => setStatusFilter((current) => current === "online" ? "all" : "online")}
@@ -694,13 +692,12 @@ export function InventoryWorkspace({
         <DashStat
           label="Offline"
           value={invOfflineCount}
-          sub={invOfflineCount > 0 ? "need attention" : "all clear"}
           icon={<IconWifiOff size={20} />}
           accent={invOfflineCount > 0 ? "red" : "green"}
           onClick={() => setStatusFilter((current) => current === "offline" ? "all" : "offline")}
           active={statusFilter === "offline"}
         />
-        <DashStat label="Groups" value={groupCount} sub="topology segments" icon={<IconTopologyRing size={20} />} accent="purple" />
+        <DashStat label="Groups" value={groupCount} icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
 
       <ObservationsAlert

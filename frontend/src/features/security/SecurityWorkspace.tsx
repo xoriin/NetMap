@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useContext } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./security.css";
 import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties } from "lucide-react";
 import { api, type FirewallEvent, type FirewallEventList, type SavedSecuritySearch, type SyslogStatus, type Device, type TopologyGraph } from "../../api/client";
@@ -11,6 +11,41 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { ClickableCell } from "../../components/ClickableCell";
 import { Modal } from "../../components/Modal";
 import { DashStat } from "../../components/DashStat";
+
+const SECURITY_COLUMN_WIDTHS_KEY = "netmap.securityEventColumnWidths.v1";
+const SECURITY_COLUMN_COUNT = 11;
+const SECURITY_MIN_COLUMN_WIDTH = 56;
+const SECURITY_COLUMNS = [
+  { label: "Time", sort: "received_at" },
+  { label: "Interface", sort: "interface" },
+  { label: "Source" },
+  { label: "Destination" },
+  { label: "Topology" },
+  { label: "Protocol", sort: "protocol" },
+  { label: "Source Port", sort: "src_port" },
+  { label: "Destination Port", sort: "dst_port" },
+  { label: "Action", sort: "action" },
+  { label: "Rule" },
+  { label: "Reason" },
+] as const;
+
+type LiveStreamState = "connecting" | "connected" | "reconnecting" | "paused";
+
+function loadSecurityColumnWidths(): number[] | null {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(SECURITY_COLUMN_WIDTHS_KEY) ?? "null");
+    if (Array.isArray(parsed) && parsed.length === SECURITY_COLUMN_COUNT && parsed.every((width) => typeof width === "number" && Number.isFinite(width))) {
+      return parsed.map((width) => Math.max(SECURITY_MIN_COLUMN_WIDTH, width));
+    }
+  } catch {
+    // Ignore malformed browser preferences and use the responsive defaults.
+  }
+  return null;
+}
+
+function securityGridTemplate(widths: number[]) {
+  return widths.map((width) => `${width}px`).join(" ");
+}
 
 export function SecurityWorkspace({
   accessToken,
@@ -32,7 +67,10 @@ export function SecurityWorkspace({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [offset, setOffset] = useState(0);
   const [liveTail, setLiveTail] = useState(true);
+  const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("connecting");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
+  const [columnWidths, setColumnWidths] = useState<number[] | null>(loadSecurityColumnWidths);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSecuritySearch[]>([]);
@@ -41,6 +79,10 @@ export function SecurityWorkspace({
   const [saveSearchName, setSaveSearchName] = useState("");
   const [saveSearchBusy, setSaveSearchBusy] = useState(false);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const tableHeaderRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollRef = useRef(autoScroll);
+  const pendingLiveScrollRef = useRef(false);
+  const streamHasConnectedRef = useRef(false);
   const setTopbarNote = useContext(TopbarNoteCtx);
   const pageSize = 100;
 
@@ -134,33 +176,135 @@ export function SecurityWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [accessToken, filters, offset, sortBy, sortDir]);
+  }, [accessToken, eventsRefreshKey, filters, offset, sortBy, sortDir]);
+
+  useEffect(() => {
+    autoScrollRef.current = autoScroll;
+  }, [autoScroll]);
+
+  useLayoutEffect(() => {
+    if (!pendingLiveScrollRef.current) {
+      return;
+    }
+    pendingLiveScrollRef.current = false;
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0;
+    }
+  }, [events]);
 
   useEffect(() => {
     if (!accessToken || !liveTail) {
+      setLiveStreamState("paused");
       return;
     }
-    const socket = new WebSocket(buildFirewallEventsWsUrl());
-    socket.onopen = () => socket.send(accessToken);
-    socket.onmessage = (message) => {
-      const event = JSON.parse(message.data) as FirewallEvent;
-      if (!eventMatchesFilters(event, filters)) {
-        return;
-      }
-      setEvents((current) => [event, ...current.filter((existing) => existing.id !== event.id)].slice(0, pageSize));
-      setStatus((current) => (current ? { ...current, total_events: current.total_events + 1 } : current));
-      setResultMeta((current) => (current ? { ...current, total: current.total + 1 } : current));
-      if (autoScroll) {
-        requestAnimationFrame(() => {
-          if (tableRef.current) {
-            tableRef.current.scrollTop = 0;
+    const token = accessToken;
+    let disposed = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let heartbeatTimer: number | null = null;
+    let reconnectAttempt = 0;
+
+    function clearHeartbeat() {
+      if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+
+    function scheduleReconnect() {
+      if (disposed) return;
+      setLiveStreamState("reconnecting");
+      const delay = Math.min(1000 * (2 ** reconnectAttempt), 15_000);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(connect, delay);
+    }
+
+    function connect() {
+      if (disposed) return;
+      setLiveStreamState(reconnectAttempt === 0 ? "connecting" : "reconnecting");
+      const nextSocket = new WebSocket(buildFirewallEventsWsUrl());
+      socket = nextSocket;
+      nextSocket.onopen = () => nextSocket.send(token);
+      nextSocket.onmessage = (message) => {
+        const payload = JSON.parse(message.data) as FirewallEvent | { type: "ready" | "heartbeat" };
+        if ("type" in payload) {
+          if (payload.type === "ready") {
+            const shouldRefresh = streamHasConnectedRef.current;
+            streamHasConnectedRef.current = true;
+            reconnectAttempt = 0;
+            setLiveStreamState("connected");
+            clearHeartbeat();
+            heartbeatTimer = window.setInterval(() => {
+              if (nextSocket.readyState === WebSocket.OPEN) nextSocket.send("ping");
+            }, 30_000);
+            if (shouldRefresh) setEventsRefreshKey((current) => current + 1);
           }
-        });
-      }
+          return;
+        }
+        if (!eventMatchesFilters(payload, filters)) {
+          return;
+        }
+        pendingLiveScrollRef.current = autoScrollRef.current;
+        setEvents((current) => [payload, ...current.filter((existing) => existing.id !== payload.id)].slice(0, pageSize));
+        setStatus((current) => (current ? { ...current, total_events: current.total_events + 1 } : current));
+        setResultMeta((current) => (current ? { ...current, total: current.total + 1 } : current));
+      };
+      nextSocket.onerror = () => nextSocket.close();
+      nextSocket.onclose = () => {
+        if (socket !== nextSocket) return;
+        socket = null;
+        clearHeartbeat();
+        scheduleReconnect();
+      };
+    }
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      clearHeartbeat();
+      socket?.close();
     };
-    socket.onerror = () => setError("Live firewall event stream disconnected");
-    return () => socket.close();
-  }, [accessToken, autoScroll, filters, liveTail]);
+  }, [accessToken, filters, liveTail]);
+
+  function startColumnResize(columnIndex: number, event: ReactMouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const renderedWidths = columnWidths ?? (
+      tableHeaderRef.current
+        ? Array.from(tableHeaderRef.current.querySelectorAll<HTMLElement>(".security-table-heading"))
+            .map((heading) => heading.getBoundingClientRect().width)
+        : []
+    );
+    if (renderedWidths.length !== SECURITY_COLUMN_COUNT) return;
+    const startX = event.clientX;
+    const startWidth = renderedWidths[columnIndex];
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(moveEvent: MouseEvent) {
+      const nextWidths = [...renderedWidths];
+      nextWidths[columnIndex] = Math.max(SECURITY_MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX);
+      setColumnWidths(nextWidths);
+    }
+
+    function onUp() {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setColumnWidths((current) => {
+        if (current) window.localStorage.setItem(SECURITY_COLUMN_WIDTHS_KEY, JSON.stringify(current));
+        return current;
+      });
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  function resetColumnWidths() {
+    window.localStorage.removeItem(SECURITY_COLUMN_WIDTHS_KEY);
+    setColumnWidths(null);
+  }
 
   function updateDraftFilter(field: keyof SecurityFilters, value: string) {
     setDraftFilters((current) => ({ ...current, [field]: value }));
@@ -220,7 +364,7 @@ export function SecurityWorkspace({
         <div className="security-topbar-copy">
           <span>
             {(status?.total_events ?? 0).toLocaleString()} retained events · {status?.retention_days ?? 7} day retention ·{" "}
-            {liveTail ? "live tail active" : "live tail paused"}
+            {liveTail ? `live stream ${liveStreamState}` : "live stream paused"}
           </span>
           {status && (
             <span>
@@ -237,23 +381,23 @@ export function SecurityWorkspace({
             {liveTail ? "Pause" : "Resume"}
           </button>
           <label className="inline-toggle">
-            <input checked={autoScroll} type="checkbox" onChange={(event) => setAutoScroll(event.target.checked)} />
+            <input defaultChecked={autoScroll} type="checkbox" onChange={(event) => setAutoScroll(event.target.checked)} />
             Auto-scroll
           </label>
         </div>
       </div>
     );
     return () => setTopbarNote("");
-  }, [autoScroll, liveTail, setTopbarNote, status]);
+  }, [autoScroll, liveStreamState, liveTail, setTopbarNote, status]);
 
   return (
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
       <div className="dash-stats dash-stats--four security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
-        <DashStat className="security-summary-card" label="Stored events" value={status?.stored_events ?? status?.total_events ?? 0} sub={`${status?.retention_days ?? 7} day retention`} icon={<Database size={19} />} accent="teal" />
-        <DashStat className="security-summary-card" label="Received packets" value={status?.received_packets ?? 0} sub={liveTail ? "Live stream active" : "Live stream paused"} icon={<Radio size={19} />} accent="green" />
-        <DashStat className="security-summary-card" label="Unparsed packets" value={status?.dropped_unparsed ?? 0} sub="Could not be indexed" icon={<ShieldAlert size={19} />} accent="amber" />
-        <DashStat className="security-summary-card" label="Denied senders" value={status?.denied_senders ?? 0} sub="Rejected by allowlist" icon={<Ban size={19} />} accent="red" />
+        <DashStat className="security-summary-card" label="Stored events" value={status?.stored_events ?? status?.total_events ?? 0} icon={<Database size={19} />} accent="teal" />
+        <DashStat className="security-summary-card" label="Received packets" value={status?.received_packets ?? 0} icon={<Radio size={19} />} accent="green" />
+        <DashStat className="security-summary-card" label="Unparsed packets" value={status?.dropped_unparsed ?? 0} icon={<ShieldAlert size={19} />} accent="amber" />
+        <DashStat className="security-summary-card" label="Denied senders" value={status?.denied_senders ?? 0} icon={<Ban size={19} />} accent="red" />
       </div>
       <div className="security-content">
         <form
@@ -335,21 +479,35 @@ export function SecurityWorkspace({
         <div className="security-results nm-app-panel">
           <div className="security-results-meta">
             <span className="security-panel-identity"><span className="security-panel-icon"><TableProperties size={18} /></span><span aria-hidden="true">-</span><strong>Firewall events</strong><small>{loading ? "Searching…" : `${total.toLocaleString()} results`}</small></span>
-            <span className="security-results-range">Showing {total === 0 ? 0 : offset + 1}-{Math.min(offset + pageSize, total)}</span>
+            <span className="security-results-actions">
+              {columnWidths && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={resetColumnWidths}>Reset columns</button>}
+              <span className="security-results-range">Showing {total === 0 ? 0 : offset + 1}-{Math.min(offset + pageSize, total)}</span>
+            </span>
           </div>
-          <div className="security-table" ref={tableRef}>
-            <div className="security-table-header">
-              <button type="button" onClick={() => changeSort("received_at")}>Time</button>
-              <button type="button" onClick={() => changeSort("interface")}>Interface</button>
-              <span>Source</span>
-              <span>Destination</span>
-              <span>Topology</span>
-              <button type="button" onClick={() => changeSort("protocol")}>Protocol</button>
-              <button type="button" onClick={() => changeSort("src_port")}>Source Port</button>
-              <button type="button" onClick={() => changeSort("dst_port")}>Destination Port</button>
-              <button type="button" onClick={() => changeSort("action")}>Action</button>
-              <span>Rule</span>
-              <span>Reason</span>
+          <div
+            className={`security-table${columnWidths ? " security-table--fixed" : ""}`}
+            ref={tableRef}
+            style={columnWidths ? ({
+              "--security-grid-template": securityGridTemplate(columnWidths),
+              "--security-table-width": `${columnWidths.reduce((totalWidth, width) => totalWidth + width, 0) + 100}px`,
+            } as CSSProperties) : undefined}
+          >
+            <div className="security-table-header" ref={tableHeaderRef}>
+              {SECURITY_COLUMNS.map((column, columnIndex) => (
+                <span className="security-table-heading" key={column.label}>
+                  {"sort" in column
+                    ? <button type="button" onClick={() => changeSort(column.sort)}>{column.label}</button>
+                    : <span>{column.label}</span>}
+                  <span
+                    role="separator"
+                    aria-orientation="vertical"
+                    className="security-col-resize-handle"
+                    title="Drag to resize · double-click to reset all columns"
+                    onMouseDown={(event) => startColumnResize(columnIndex, event)}
+                    onDoubleClick={(event) => { event.stopPropagation(); resetColumnWidths(); }}
+                  />
+                </span>
+              ))}
             </div>
             {events.length === 0 ? (
               <div className="security-empty">No firewall events match the current filters.</div>

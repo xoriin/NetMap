@@ -699,10 +699,10 @@ export function ExternalIpPanel({
   return (
     <div className="external-ip-workspace">
       <div className="dash-stats dash-stats--fill ipam-stats nm-summary-band">
-        <DashStat label="Addresses" value={addresses.length} sub="public IPs tracked" icon={<Globe2 size={20} />} accent="teal" />
-        <DashStat label="In use" value={inUseCount} sub="assigned to something" icon={<Globe2 size={20} />} accent="blue" />
-        <DashStat label="Available" value={availableCount} sub="free to hand out" icon={<Globe2 size={20} />} accent="green" />
-        <DashStat label="Locations" value={locations.length} sub="places addresses live" icon={<Globe2 size={20} />} accent="purple" />
+        <DashStat label="Addresses" value={addresses.length} icon={<Globe2 size={20} />} accent="teal" />
+        <DashStat label="In use" value={inUseCount} icon={<Globe2 size={20} />} accent="blue" />
+        <DashStat label="Available" value={availableCount} icon={<Globe2 size={20} />} accent="green" />
+        <DashStat label="Locations" value={locations.length} icon={<Globe2 size={20} />} accent="purple" />
       </div>
 
       {migration && (migration.declined.length > 0 || (migration.skipped?.length ?? 0) > 0) && (

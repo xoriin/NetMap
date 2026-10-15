@@ -10,9 +10,9 @@ import {
   type LldpNeighbour, type Device, type TopologyGraph,
 } from "../../api/client";
 import { SUBNET_REF } from "../../constants";
+import { DashStat } from "../../components/DashStat";
 import { deviceLabel, formatMs } from "../../utils/format";
 import { prefixToMask, wildcardMask, ipClass, ipType } from "../../utils/ip";
-import { DashStat } from "../../components/DashStat";
 
 function ToolPanelHeader({ icon, title, badge }: { icon: ReactNode; title: string; badge: ReactNode }) {
   return (
@@ -496,10 +496,10 @@ export function ToolsWorkspace({
         </div>
       )}
       <div className="dash-stats dash-stats--four tools-summary-grid nm-summary-band" aria-label="Tools summary">
-        <DashStat className="tools-summary-card" label="Available tools" value={TOOL_DEFINITIONS.length} sub="Network diagnostics" icon={<IconLayoutDashboard size={20} />} accent="teal" />
-        <DashStat className="tools-summary-card" label="Recent checks" value={recentRuns.length} sub="Stored on this browser" icon={<Clock3 size={20} />} accent="green" />
-        <DashStat className="tools-summary-card" label="Saved results" value={savedResults.length} sub="Reusable diagnostic evidence" icon={<Bookmark size={20} />} accent="blue" />
-        <DashStat className="tools-summary-card" label="Access level" value={canRunActiveTools ? "Full" : "Passive"} sub={canRunActiveTools ? "All tools available" : "Active checks restricted"} icon={<IconTopologyRing size={20} />} accent="purple" />
+        <DashStat className="tools-summary-card" label="Available tools" value={TOOL_DEFINITIONS.length} icon={<IconLayoutDashboard size={20} />} accent="teal" />
+        <DashStat className="tools-summary-card" label="Recent checks" value={recentRuns.length} icon={<Clock3 size={20} />} accent="green" />
+        <DashStat className="tools-summary-card" label="Saved results" value={savedResults.length} icon={<Bookmark size={20} />} accent="blue" />
+        <DashStat className="tools-summary-card" label="Access level" value={canRunActiveTools ? "Full" : "Passive"} icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
       <div className="tools-console-grid">
       <div className="tools-window">

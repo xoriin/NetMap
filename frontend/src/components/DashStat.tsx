@@ -1,10 +1,9 @@
 import React from "react";
 import { SpaLink } from "./SpaLink";
 
-export function DashStat({ label, value, sub, icon, accent, href, onClick, active, className, valueClassName }: {
+export function DashStat({ label, value, icon, accent, href, onClick, active, className, valueClassName }: {
   label: string;
   value: number | string;
-  sub: string;
   icon: React.ReactNode;
   accent: "teal" | "green" | "red" | "purple" | "blue" | "indigo" | "amber";
   href?: string;
@@ -19,7 +18,6 @@ export function DashStat({ label, value, sub, icon, accent, href, onClick, activ
       <div className="dash-stat-body">
         <strong className={["dash-stat-value", valueClassName].filter(Boolean).join(" ")}>{typeof value === "number" ? value.toLocaleString() : value}</strong>
         <span className="dash-stat-label">{label}</span>
-        <span className="dash-stat-sub">{sub}</span>
       </div>
     </>
   );

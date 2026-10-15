@@ -167,7 +167,9 @@ for (const theme of ["light", "dark"] as const) {
         await expect(card).toHaveCSS("min-height", "86px");
         await expect(card.locator(".dash-stat-icon")).toHaveCSS("width", "36px");
         await expect(card.locator(".dash-stat-icon")).toHaveCSS("height", "36px");
-        await expect(card.locator(".dash-stat-label")).toHaveCSS("font-size", "10px");
+        await expect(card.locator(".dash-stat-value")).toHaveCSS("font-size", "24px");
+        await expect(card.locator(".dash-stat-label")).toHaveCSS("font-size", "11px");
+        await expect(page.locator(".nm-summary-band .dash-stat-sub"), `${route} at ${width}px should not render summary-card subtext`).toHaveCount(0);
       }
     }
   });

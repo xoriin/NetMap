@@ -221,10 +221,10 @@ export function LocationsWorkspace({
     <section className="dash-layout locations-workspace">
       {!sitesLoading && (
         <div className="dash-stats loc-stats nm-summary-band">
-          <DashStat label="Total sites" value={sites.length} sub="locations configured" icon={<IconMapPin size={20} />} accent="teal" />
-          <DashStat label="Assigned devices" value={[...deviceCountBySite.values()].reduce((a, b) => a + b, 0)} sub="with a location" icon={<IconServer size={20} />} accent="green" />
-          <DashStat label="Unassigned" value={unassignedDeviceCount} sub={unassignedDeviceCount > 0 ? "no location set" : "all assigned"} icon={<IconDeviceDesktop size={20} />} accent={unassignedDeviceCount > 0 ? "red" : "teal"} />
-          <DashStat label="Links" value={graph.relationships.length} sub="topology connections" icon={<IconBolt size={20} />} accent="blue" />
+          <DashStat label="Total sites" value={sites.length} icon={<IconMapPin size={20} />} accent="teal" />
+          <DashStat label="Assigned devices" value={[...deviceCountBySite.values()].reduce((a, b) => a + b, 0)} icon={<IconServer size={20} />} accent="green" />
+          <DashStat label="Unassigned" value={unassignedDeviceCount} icon={<IconDeviceDesktop size={20} />} accent={unassignedDeviceCount > 0 ? "red" : "teal"} />
+          <DashStat label="Links" value={graph.relationships.length} icon={<IconBolt size={20} />} accent="blue" />
         </div>
       )}
 

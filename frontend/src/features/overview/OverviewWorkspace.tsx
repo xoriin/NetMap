@@ -383,23 +383,21 @@ export function OverviewWorkspace({
     <section className="dash-layout overview-workspace">
       {/* Stat row */}
       <div className="dash-stats nm-summary-band">
-        <DashStat label="Total devices" value={total} sub={total === 0 ? "none yet" : `${healthyPct}% healthy`} icon={<IconServer size={20} />} accent="teal" href="/inventory" onClick={() => onNavigate("/inventory")} />
-        <DashStat label="Online" value={statusCounts.online} sub="healthy state" icon={<IconWifi size={20} />} accent="green" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
+        <DashStat label="Total devices" value={total} icon={<IconServer size={20} />} accent="teal" href="/inventory" onClick={() => onNavigate("/inventory")} />
+        <DashStat label="Online" value={statusCounts.online} icon={<IconWifi size={20} />} accent="green" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
         <DashStat
           label="Offline"
           value={statusCounts.offline}
-          sub={statusCounts.offline > 0 ? "need attention" : statusCounts.paused > 0 ? `all clear · ${statusCounts.paused} paused` : "all clear"}
           icon={<IconWifiOff size={20} />}
           accent={statusCounts.offline > 0 ? "red" : "green"}
           onClick={statusCounts.offline > 0 ? () => { setAlertDismissed(false); setShowOfflineList((v) => !v); } : undefined}
           active={showOfflineList}
         />
-        <DashStat label="Groups / VLANs" value={groupCount} sub="topology segments" icon={<IconMap size={20} />} accent="purple" href="/vlans" onClick={() => onNavigate("/vlans")} />
-        <DashStat label="Links" value={graph.relationships.length} sub="connections" icon={<IconBolt size={20} />} accent="blue" href="/topology" onClick={() => onNavigate("/topology")} />
+        <DashStat label="Groups / VLANs" value={groupCount} icon={<IconMap size={20} />} accent="purple" href="/vlans" onClick={() => onNavigate("/vlans")} />
+        <DashStat label="Links" value={graph.relationships.length} icon={<IconBolt size={20} />} accent="blue" href="/topology" onClick={() => onNavigate("/topology")} />
         <DashStat
           label="Avg RTT"
           value={fmtRtt(monFleet?.avg_rtt_ms ?? null)}
-          sub="fleet average"
           icon={<IconGauge size={20} />}
           accent="indigo"
           href="/monitoring"

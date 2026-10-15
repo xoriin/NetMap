@@ -75,6 +75,7 @@ for (const theme of ["light", "dark"] as const) {
 
     const stat = page.locator(".dash-stat").first();
     await expect(stat).toHaveCSS("background-image", "none");
+    await expect(page.locator(".dash-stats .dash-stat-sub")).toHaveCount(0);
 
     const favouriteSearch = page.locator(".overview-fav-search");
     await expect(favouriteSearch).toBeVisible();

@@ -25,6 +25,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("heading", { name: "Operational data visuals" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Device monitoring popup" })).toBeVisible();
     await expect(page.locator(".theme-lab-monitor-popup")).toContainText("Core gateway");
+    await expect(page.locator(".theme-lab-stat strong").first()).toHaveCSS("font-size", "24px");
+    await expect(page.locator(".theme-lab-stat small").first()).toHaveCSS("font-size", "11px");
     await expect(page.getByRole("heading", { name: "Overlays and choice controls" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Authentication screens" })).toBeVisible();
 

@@ -4,7 +4,6 @@ import { CalendarClock, Database, Download, FileText, History, ShieldCheck, Tabl
 import { api, type DownloadResult, type ExportSummary, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { triggerDownload } from "../../utils/download";
-import { formatEventTime } from "../../utils/format";
 import { userHasPermission } from "../../utils/permissions";
 import { DashStat } from "../../components/DashStat";
 
@@ -64,10 +63,10 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
       {error && <div className="form-error">{error}</div>}
 
       <div className="dash-stats dash-stats--four exports-summary-grid nm-summary-band" aria-label="Export activity summary">
-        <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} sub={summary?.inventory_rows == null && summary ? "Restricted for this role" : "Available in the next export"} icon={<Database size={19} />} accent="teal" />
-        <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} sub={summary?.firewall_events == null && summary ? "Restricted for this role" : "Retained events available"} icon={<ShieldCheck size={19} />} accent="green" />
-        <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} sub="Your completed downloads" icon={<History size={19} />} accent="blue" />
-        <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? "None yet"} valueClassName="dash-stat-value--compact" sub={summary?.last_export_at ? formatEventTime(summary.last_export_at) : "No recorded exports"} icon={<CalendarClock size={19} />} accent="purple" />
+        <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} icon={<Database size={19} />} accent="teal" />
+        <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} icon={<ShieldCheck size={19} />} accent="green" />
+        <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} icon={<History size={19} />} accent="blue" />
+        <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? "None yet"} valueClassName="dash-stat-value--compact" icon={<CalendarClock size={19} />} accent="purple" />
       </div>
 
       <div className="exports-console-grid">

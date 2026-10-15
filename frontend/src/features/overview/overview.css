@@ -208,10 +208,6 @@ body.route-overview .overview-workspace .overview-panel.nm-app-panel {
     border-radius: var(--nm-radius-md);
   }
 
-  .overview-workspace .dash-stat-value {
-    font-size: 22px;
-  }
-
   .overview-workspace .overview-panel-header.nm-app-panel-header {
     align-items: flex-start;
     flex-direction: column;

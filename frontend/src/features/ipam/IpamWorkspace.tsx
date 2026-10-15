@@ -484,12 +484,12 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
   const summaryCards = (
     <div className="dash-stats ipam-stats nm-summary-band">
-      <DashStat label="Subnets" value={summary?.subnet_count ?? 0} sub="defined" icon={<Network size={20} />} accent="teal" />
-      <DashStat label="Total hosts" value={summary?.total_hosts ?? 0} sub="across all subnets" icon={<IconServer size={20} />} accent="blue" />
-      <DashStat label="Used" value={summary?.used ?? 0} sub="addresses assigned" icon={<IconWifi size={20} />} accent="green" />
-      <DashStat label="Free" value={summary?.free ?? 0} sub="addresses available" icon={<IconWifiOff size={20} />} accent="indigo" />
-      <DashStat label="Reserved" value={summary?.reservation_count ?? 0} sub="IP reservations" icon={<IconMapPin size={20} />} accent="purple" />
-      <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} sub="imported" icon={<Activity size={20} />} accent="blue" />
+      <DashStat label="Subnets" value={summary?.subnet_count ?? 0} icon={<Network size={20} />} accent="teal" />
+      <DashStat label="Total hosts" value={summary?.total_hosts ?? 0} icon={<IconServer size={20} />} accent="blue" />
+      <DashStat label="Used" value={summary?.used ?? 0} icon={<IconWifi size={20} />} accent="green" />
+      <DashStat label="Free" value={summary?.free ?? 0} icon={<IconWifiOff size={20} />} accent="indigo" />
+      <DashStat label="Reserved" value={summary?.reservation_count ?? 0} icon={<IconMapPin size={20} />} accent="purple" />
+      <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} icon={<Activity size={20} />} accent="blue" />
     </div>
   );
 

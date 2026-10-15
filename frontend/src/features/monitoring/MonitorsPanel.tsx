@@ -541,10 +541,10 @@ export function MonitorsPanel({
   return (
     <div className="monitors-panel">
       <div className="dash-stats">
-        <DashStat label="Endpoints" value={stats.total} sub={stats.total === 0 ? "none yet" : "HTTP/HTTPS targets"} icon={<IconPlugConnected size={20} />} accent="teal" />
-        <DashStat label="Up" value={stats.online} sub="responding" icon={<IconWifi size={20} />} accent="green" />
-        <DashStat label="Down" value={stats.offline} sub={stats.offline > 0 ? "need attention" : "all clear"} icon={<IconWifiOff size={20} />} accent={stats.offline > 0 ? "red" : "green"} />
-        <DashStat label="Avg response" value={fmtMonitorRtt(stats.avgRtt)} sub="last 24h" icon={<IconGauge size={20} />} accent="indigo" />
+        <DashStat label="Endpoints" value={stats.total} icon={<IconPlugConnected size={20} />} accent="teal" />
+        <DashStat label="Up" value={stats.online} icon={<IconWifi size={20} />} accent="green" />
+        <DashStat label="Down" value={stats.offline} icon={<IconWifiOff size={20} />} accent={stats.offline > 0 ? "red" : "green"} />
+        <DashStat label="Avg response" value={fmtMonitorRtt(stats.avgRtt)} icon={<IconGauge size={20} />} accent="indigo" />
       </div>
       {body}
     </div>

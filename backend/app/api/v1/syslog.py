@@ -245,8 +245,11 @@ async def live_firewall_events(websocket: WebSocket) -> None:
     try:
         await firewall_event_broadcaster.register(websocket)
         try:
+            await websocket.send_json({"type": "ready"})
             while True:
-                await websocket.receive_text()
+                message = await websocket.receive_text()
+                if message == "ping":
+                    await websocket.send_json({"type": "heartbeat"})
         except WebSocketDisconnect:
             pass
         finally:

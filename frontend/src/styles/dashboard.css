@@ -250,18 +250,18 @@ body.route-overview .dash-stat {
 }
 
 .dash-stat-value {
-  font-size: 19px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1;
   color: var(--nm-shell);
   letter-spacing: -0.03em;
 }
 
-.dash-stat-value--compact { font-size: 17px; }
+.dash-stat-value--compact { font-size: 20px; }
 
 .dash-stat-label {
   color: var(--nm-text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.06em;
