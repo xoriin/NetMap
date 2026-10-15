@@ -61,7 +61,7 @@ function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: stri
   );
 }
 
-export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, canClaimReservation = false, onDeviceChange }: { accessToken: string; canWrite: boolean; canCreateDevice?: boolean; canClaimReservation?: boolean; onDeviceChange?: (device: Device) => void }) {
+export function IpamWorkspace({ canManageProviders = false, accessToken, canWrite, canCreateDevice = false, canClaimReservation = false, onDeviceChange }: { canManageProviders?: boolean; accessToken: string; canWrite: boolean; canCreateDevice?: boolean; canClaimReservation?: boolean; onDeviceChange?: (device: Device) => void }) {
   const confirmAction = useConfirm();
   const toast = useToast();
   const [ipamView, setIpamView] = useState<IpamViewId>(() => readIpamViewFromLocation());
@@ -500,6 +500,7 @@ export function IpamWorkspace({ accessToken, canWrite, canCreateDevice = false, 
     return (
       <section className="dash-layout ipam-workspace ipam-workspace--external">
         <ExternalIpPanel
+          canManageProviders={canManageProviders}
           accessToken={accessToken}
           canWrite={canWrite}
           canCreateDevice={canCreateDevice}
