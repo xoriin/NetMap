@@ -838,3 +838,28 @@ for (const theme of ["light", "dark"]) {
     expect(emptyGap).toBeGreaterThanOrEqual(12);
   });
 }
+
+for (const theme of ["light", "dark"]) {
+  test(`admin card titles match checkbox labels and restore uses the themed file control in ${theme}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((theme) => localStorage.setItem("netmap.theme", theme), theme);
+    await page.goto("/admin");
+    const title = page.locator(".admin-section-title", { hasText: "Scheduled backups" });
+    const checkbox = page.locator(".tool-form-check-copy > span:first-child", { hasText: "Enable scheduled backups" });
+    const style = (locator: typeof title) => locator.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { size: s.fontSize, weight: s.fontWeight };
+    });
+    expect(await style(title)).toEqual(await style(checkbox));
+
+    const picker = page.locator(".admin-system-card .nm-file");
+    await expect(picker).toContainText("Choose a backup file");
+    await expect(picker).toHaveCSS("border-top-style", "dashed");
+    const native = picker.locator('input[type="file"]');
+    expect(await native.evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
+
+    await native.setInputFiles({ name: "netmap-backup.nmbak", mimeType: "application/octet-stream", buffer: Buffer.from("x") });
+    await expect(picker).toContainText("netmap-backup.nmbak");
+    await expect(page.getByLabel("Backup passphrase")).toBeVisible();
+  });
+}

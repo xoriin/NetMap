@@ -813,6 +813,30 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
 }
 
 .nm-search:focus-within { border-color: var(--nm-focus-border); outline: 1px solid var(--nm-focus-border); outline-offset: -1px; }
+
+/* File picker — the /theme-preview "Import configuration" control. Put `.nm-file` on a <span> inside
+   the field's <label> (or on the <label> itself outside forms). The native input stays inside for
+   keyboard and screen-reader use but is visually hidden; the whole area opens the file dialog. */
+.nm-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  border: 1px dashed var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  padding: 10px 12px;
+  background: var(--nm-surface-soft);
+  color: var(--nm-accent-strong);
+  cursor: pointer;
+}
+.nm-file:hover { border-color: var(--nm-accent-strong); }
+.nm-file:focus-within { border-color: var(--nm-focus-border); outline: 1px solid var(--nm-focus-border); outline-offset: -1px; }
+.nm-file input[type="file"] { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); opacity: 0; }
+.nm-file-copy { display: grid; gap: 2px; min-width: 0; }
+.nm-file-copy strong { overflow: hidden; color: var(--nm-text); font-size: var(--nm-text-md); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nm-file-copy small { color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
+.nm-file[aria-disabled="true"] { cursor: not-allowed; opacity: 0.6; }
 .nm-search-icon { position: absolute; left: 10px; color: var(--nm-text-faint); pointer-events: none; }
 .nm-search .nm-input { padding-left: 32px; border: 0; background: transparent; box-shadow: none; }
 .nm-search .nm-input:focus { border-color: transparent; outline: 0; box-shadow: none; }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Settings } from "lucide-react";
+import { FileUp, Settings } from "lucide-react";
 import {
   IconCloud, IconDatabase,
   IconServer,
@@ -432,17 +432,25 @@ export function SystemTab({
               </button>
               <label>
                 Restore from backup
-                <input
-                  accept=".db,.nmbak,application/octet-stream,application/vnd.netmap.backup"
-                  type="file"
-                  disabled={backupBusy === "restore" || backupBusy === "validate"}
-                  onChange={(e) => {
-                    setRestoreFile(e.target.files?.[0] ?? null);
-                    setRestoreValidation(null);
-                    setRestoreValidationError(null);
-                    setRestorePassphrase("");
-                  }}
-                />
+                <span className="nm-file" aria-disabled={backupBusy === "restore" || backupBusy === "validate"}>
+                  <FileUp size={17} aria-hidden="true" />
+                  <span className="nm-file-copy">
+                    <strong>{restoreFile ? restoreFile.name : "Choose a backup file"}</strong>
+                    <small>.nmbak or .db, up to 256 MB</small>
+                  </span>
+                  <input
+                    accept=".db,.nmbak,application/octet-stream,application/vnd.netmap.backup"
+                    type="file"
+                    aria-label="Backup file"
+                    disabled={backupBusy === "restore" || backupBusy === "validate"}
+                    onChange={(e) => {
+                      setRestoreFile(e.target.files?.[0] ?? null);
+                      setRestoreValidation(null);
+                      setRestoreValidationError(null);
+                      setRestorePassphrase("");
+                    }}
+                  />
+                </span>
               </label>
               {restoreFile?.name.toLowerCase().endsWith(".nmbak") && (
                 <label>
