@@ -3,8 +3,8 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { api, type DiscoveryObservation } from "../api/client";
 import type { AppRoute } from "../routes";
 import { Modal } from "./Modal";
-import { TableSkeleton } from "./Skeleton";
 import { useConfirm } from "./ConfirmDialog";
+import { TableSkeleton } from "./Skeleton";
 
 const OBSERVATION_TARGET_ROUTE: Record<string, AppRoute> = {
   new_device: "/inventory",

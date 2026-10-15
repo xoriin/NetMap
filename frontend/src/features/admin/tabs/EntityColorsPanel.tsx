@@ -3,8 +3,8 @@ import { IconPalette } from "@tabler/icons-react";
 
 import { api, type Site, type TopologyGroup } from "../../../api/client";
 import { EntityChip } from "../../../components/EntityChip";
-import { TableSkeleton } from "../../../components/Skeleton";
 import { autoEntityColor, isValidHexColor, resolveEntityColor } from "../../../utils/entityColor";
+import { TableSkeleton } from "../../../components/Skeleton";
 
 type Row = {
   kind: "group" | "site";

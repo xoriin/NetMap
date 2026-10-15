@@ -4,8 +4,8 @@ import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type Sys
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
-import { TableSkeleton } from "../../../components/Skeleton";
 import { triggerDownload } from "../../../utils/download";
+import { TableSkeleton } from "../../../components/Skeleton";
 
 type SsoFormState = {
   enabled: boolean;

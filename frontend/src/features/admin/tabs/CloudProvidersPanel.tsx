@@ -5,8 +5,8 @@ import { Cloud, Plus, Trash2, Upload } from "lucide-react";
 import { api, type CloudProviderOption } from "../../../api/client";
 import { CloudProviderIcon } from "../../../components/CloudProviderIcon";
 import { useConfirm } from "../../../components/ConfirmDialog";
-import { PanelSkeleton } from "../../../components/Skeleton";
 import { useApiQuery } from "../../../hooks/useApiQuery";
+import { PanelSkeleton } from "../../../components/Skeleton";
 
 async function iconDataFromFile(file: File) {
   if (file.size > 256 * 1024) throw new Error("Provider icons must be 256 KB or smaller");

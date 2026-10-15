@@ -14,6 +14,7 @@ import {
   IconCalendar,
   IconGauge,
 } from "@tabler/icons-react";
+import { TableSkeleton } from "../../components/Skeleton";
 import {
   type Device,
   type DeviceLiveStatus,
@@ -35,7 +36,6 @@ import { EntityChip } from "../../components/EntityChip";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
-import { TableSkeleton } from "../../components/Skeleton";
 
 export function DeviceDetails({
   canViewSecurity,
