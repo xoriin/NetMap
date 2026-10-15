@@ -309,12 +309,10 @@
   min-width: 0;
   margin: 0;
   color: var(--nm-modal-label);
-  /* Matches .admin-panel-title. The legacy headings ran at --nm-text-lg/750, which is why
-     Admin read as several products: a section title outweighed the page and sat level with
-     its own description. Restyling the shared class brings all nine remaining tabs into
-     line without rewriting nineteen JSX headings. */
-  font-size: var(--nm-text-sm);
-  font-weight: 700;
+  /* Matches .admin-panel-title and the checkbox labels in the same cards (14px/600), at the
+     user's request. Descriptions stay at the 11px helper scale, so the title still leads. */
+  font-size: var(--nm-text-lg);
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -1099,8 +1097,8 @@
 
 .admin-layout .admin-panel-title {
   color: var(--nm-modal-label);
-  font-size: var(--nm-text-sm);
-  font-weight: 700;
+  font-size: var(--nm-text-lg);
+  font-weight: 600;
 }
 
 /* Descriptions sit *below* the title in size and weight. They used to render at the
