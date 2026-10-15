@@ -1,5 +1,6 @@
 from app.services.exports.service import (
     backup_database_bytes,
+    encrypted_backup_database_bytes,
     build_inventory_export,
     build_network_report_pdf,
     build_firewall_export,
@@ -9,6 +10,7 @@ from app.services.exports.service import (
 
 __all__ = [
     "backup_database_bytes",
+    "encrypted_backup_database_bytes",
     "build_inventory_export",
     "build_network_report_pdf",
     "build_firewall_export",

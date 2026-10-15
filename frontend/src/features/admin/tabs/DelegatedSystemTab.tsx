@@ -3,13 +3,16 @@ import { IconDatabase, IconServer } from "@tabler/icons-react";
 import { api, type ScheduledBackup, type SystemDiagnostics } from "../../../api/client";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
-import { PanelSkeleton } from "../../../components/Skeleton";
 import { fmtBytes } from "../notificationProfiles";
+import { EncryptedBackupModal } from "../EncryptedBackupModal";
+import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageBackups }: { accessToken: string; canViewDiagnostics: boolean; canManageBackups: boolean }) {
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
   const [backups, setBackups] = useState<ScheduledBackup[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [showEncryptedBackupModal, setShowEncryptedBackupModal] = useState(false);
   const confirm = useConfirm();
   useEffect(() => {
     if (canViewDiagnostics) void api.getSystemDiagnostics(accessToken).then(setDiagnostics).catch((err) => setError(err instanceof Error ? err.message : "Unable to load diagnostics"));
@@ -20,12 +23,23 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
     await api.deleteScheduledBackup(accessToken, filename);
     setBackups((current) => current.filter((entry) => entry.filename !== filename));
   }
+  async function downloadEncryptedBackup(passphrase: string) {
+    setBackupBusy(true);
+    setError(null);
+    try {
+      triggerDownload(await api.downloadEncryptedBackup(accessToken, passphrase));
+      setShowEncryptedBackupModal(false);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
   return <div className="admin-tab-content admin-system-page">
     {error && <div className="form-error">{error}</div>}
     {canManageBackups && <section className="panel admin-panel nm-app-panel admin-system-card">
       <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Database backups</h2></div>
-      <div className="admin-system-card-body"><p className="tool-note">Create and manage backups. Database restore remains restricted to SuperAdmin.</p>
-        <button className="nm-btn nm-btn--primary" type="button" onClick={() => void api.downloadBackup(accessToken).then(triggerDownload)}>Download backup</button>
+      <div className="admin-system-card-body"><p className="tool-note">Create and manage backups. Encrypted downloads are portable; scheduled files require encrypted host storage. Database restore remains restricted to SuperAdmin.</p>
+        <button className="nm-btn nm-btn--primary" type="button" disabled={backupBusy} onClick={() => setShowEncryptedBackupModal(true)}>Download encrypted backup</button>
+        <button className="nm-btn nm-btn--secondary" type="button" disabled={backupBusy} onClick={() => void api.downloadBackup(accessToken).then(triggerDownload).catch((err) => setError(err instanceof Error ? err.message : "Download failed"))}>Download unencrypted .db</button>
         <div className="admin-schedule-card-list">{backups.map((backup) => <article className="admin-schedule-card" key={backup.filename}>
           <strong>{backup.filename}</strong><span>{fmtBytes(backup.size_bytes)}</span><div className="admin-row-actions">
             <button className="nm-btn nm-btn--sm" type="button" onClick={() => void api.downloadScheduledBackup(accessToken, backup.filename).then(triggerDownload)}>Download</button>
@@ -34,5 +48,6 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
       </div>
     </section>}
     {canViewDiagnostics && <section className="panel admin-panel nm-app-panel admin-system-card"><div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2></div><div className="admin-system-card-body">{diagnostics ? <pre className="nm-code-block">{JSON.stringify(diagnostics, null, 2)}</pre> : <PanelSkeleton lines={6} />}</div></section>}
+    {showEncryptedBackupModal && <EncryptedBackupModal busy={backupBusy} onCancel={() => { if (!backupBusy) setShowEncryptedBackupModal(false); }} onDownload={downloadEncryptedBackup} />}
   </div>;
 }

@@ -29,6 +29,7 @@ http {
   }
 
   server {
+    client_max_body_size 256m;
     listen ${APP_PORT};
     server_name _;
 

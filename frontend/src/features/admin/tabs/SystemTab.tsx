@@ -13,6 +13,7 @@ import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
 import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from "../notificationProfiles";
+import { EncryptedBackupModal } from "../EncryptedBackupModal";
 import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function SystemTab({
@@ -53,9 +54,11 @@ export function SystemTab({
   const [idleTimeoutRaw, setIdleTimeoutRaw] = useState("15");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePassphrase, setRestorePassphrase] = useState("");
   const [restoreValidation, setRestoreValidation] = useState<RestoreValidationResult | null>(null);
   const [restoreValidationError, setRestoreValidationError] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState<string | null>(null);
+  const [showEncryptedBackupModal, setShowEncryptedBackupModal] = useState(false);
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const [scheduleBusy, setScheduleBusy] = useState(false);
@@ -154,13 +157,16 @@ export function SystemTab({
     } finally { setSettingsBusy(false); }
   }
 
-  async function runBackup() {
-    setBackupBusy("backup");
+  async function runBackup(passphrase?: string) {
+    setBackupBusy(passphrase ? "encrypted-backup" : "backup");
     onError(null); onSuccess(null);
     try {
-      const result = await api.downloadBackup(accessToken);
+      const result = passphrase
+        ? await api.downloadEncryptedBackup(accessToken, passphrase)
+        : await api.downloadBackup(accessToken);
       triggerDownload(result);
       onSuccess(`Downloaded ${result.filename}`);
+      if (passphrase) setShowEncryptedBackupModal(false);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Backup failed");
     } finally { setBackupBusy(null); }
@@ -173,7 +179,11 @@ export function SystemTab({
     setRestoreValidation(null);
     onError(null); onSuccess(null);
     try {
-      const result = await api.validateRestoreBackup(accessToken, restoreFile);
+      const result = await api.validateRestoreBackup(
+        accessToken,
+        restoreFile,
+        restorePassphrase || undefined,
+      );
       setRestoreValidation(result);
     } catch (err) {
       setRestoreValidationError(err instanceof Error ? err.message : "Validation failed");
@@ -193,9 +203,10 @@ export function SystemTab({
     setBackupBusy("restore");
     onError(null); onSuccess(null);
     try {
-      await api.restoreBackup(accessToken, restoreFile);
+      await api.restoreBackup(accessToken, restoreFile, restorePassphrase || undefined);
       onSuccess(`Restored from ${restoreFile.name}`);
       setRestoreFile(null);
+      setRestorePassphrase("");
       setRestoreValidation(null);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Restore failed");
@@ -380,26 +391,47 @@ export function SystemTab({
               <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
             </div>
             <div className="admin-system-card-body">
-              <p className="tool-note">SuperAdmin only. Operates directly on the SQLite database file.</p>
+              <p className="tool-note">SuperAdmin only. Encrypted backups are portable and require the passphrase to restore.</p>
               <div className="tool-form">
-              <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "backup"} onClick={() => void runBackup()}>
-                {backupBusy === "backup" ? "Preparing…" : "Download backup"}
+              <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy !== null} onClick={() => setShowEncryptedBackupModal(true)}>
+                Download encrypted backup
+              </button>
+              <button type="button" className="nm-btn nm-btn--secondary" disabled={backupBusy !== null} onClick={() => void runBackup()}>
+                {backupBusy === "backup" ? "Preparing…" : "Download unencrypted .db"}
               </button>
               <label>
                 Restore from backup
                 <input
-                  accept=".db,application/octet-stream"
+                  accept=".db,.nmbak,application/octet-stream,application/vnd.netmap.backup"
                   type="file"
                   disabled={backupBusy === "restore" || backupBusy === "validate"}
                   onChange={(e) => {
                     setRestoreFile(e.target.files?.[0] ?? null);
                     setRestoreValidation(null);
                     setRestoreValidationError(null);
+                    setRestorePassphrase("");
                   }}
                 />
               </label>
+              {restoreFile?.name.toLowerCase().endsWith(".nmbak") && (
+                <label>
+                  Backup passphrase
+                  <input
+                    autoComplete="current-password"
+                    maxLength={256}
+                    minLength={12}
+                    type="password"
+                    value={restorePassphrase}
+                    onChange={(event) => {
+                      setRestorePassphrase(event.target.value);
+                      setRestoreValidation(null);
+                      setRestoreValidationError(null);
+                    }}
+                  />
+                </label>
+              )}
               {restoreFile && !restoreValidation && (
-                <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "validate"} onClick={() => void runValidateRestore()}>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy === "validate" || (restoreFile.name.toLowerCase().endsWith(".nmbak") && restorePassphrase.length < 12)} onClick={() => void runValidateRestore()}>
                   {backupBusy === "validate" ? "Validating…" : `Validate ${restoreFile.name}`}
                 </button>
               )}
@@ -407,7 +439,7 @@ export function SystemTab({
               {restoreValidation?.valid && (
                 <>
                   <p className="tool-note">
-                    ✓ Valid backup — {restoreValidation.devices ?? 0} devices, {restoreValidation.users ?? 0} users,{" "}
+                    ✓ Valid {restoreValidation.encrypted ? "encrypted " : ""}backup — {restoreValidation.devices ?? 0} devices, {restoreValidation.users ?? 0} users,{" "}
                     {restoreValidation.subnets ?? 0} subnets, {restoreValidation.table_count} tables,{" "}
                     {fmtBytes(restoreValidation.size_bytes)}. Restoring will overwrite the current live database.
                   </p>
@@ -424,7 +456,7 @@ export function SystemTab({
               <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
             </div>
             <div className="admin-system-card-body">
-              <p className="tool-note">Automatically writes a signed backup to disk on a schedule and prunes older copies.</p>
+              <p className="tool-note">Automatically writes a signed, unencrypted backup to disk and prunes older copies. Protect the data directory with encrypted storage.</p>
               <div className="tool-form">
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.backup_schedule_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_enabled: e.target.checked }))} />
@@ -590,6 +622,13 @@ export function SystemTab({
           </section>
         </div>
       </div>
+      {showEncryptedBackupModal && (
+        <EncryptedBackupModal
+          busy={backupBusy === "encrypted-backup"}
+          onCancel={() => { if (backupBusy === null) setShowEncryptedBackupModal(false); }}
+          onDownload={(passphrase) => runBackup(passphrase)}
+        />
+      )}
     </div>
   );
 }

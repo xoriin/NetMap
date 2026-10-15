@@ -43,7 +43,13 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-API-Key"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-CSRF-Token",
+            "X-API-Key",
+            "X-NetMap-Backup-Passphrase",
+        ],
     )
     app.add_middleware(CsrfProtectionMiddleware)
     if settings.trusted_hosts:

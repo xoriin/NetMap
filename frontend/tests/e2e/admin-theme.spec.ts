@@ -339,6 +339,58 @@ test("every cloud provider can be removed, built-in or not", async ({ page }) =>
   await expect.poll(() => deleted).toEqual(["aws"]);
 });
 
+test("encrypted backup is the primary download and requires a confirmed passphrase", async ({ page }) => {
+  await setupAdminMocks(page);
+  let submittedPassphrase = "";
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("requestfailed", (request) => failedRequests.push(request.url()));
+  await page.route("**/api/v1/exports/backup/encrypted", async (route) => {
+    submittedPassphrase = (route.request().postDataJSON() as { passphrase: string }).passphrase;
+    await route.fulfill({
+      body: "encrypted-backup",
+      contentType: "application/vnd.netmap.backup",
+      headers: { "Content-Disposition": 'attachment; filename="netmap-backup-test.nmbak"' },
+    });
+  });
+
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Download encrypted backup" });
+  await expect(dialog).toBeVisible();
+  const downloadButton = dialog.getByRole("button", { name: "Download" });
+  await dialog.getByLabel("Passphrase", { exact: true }).fill("a secure backup phrase");
+  await expect(downloadButton).toBeDisabled();
+  await dialog.getByLabel("Confirm passphrase").fill("a secure backup phrase");
+  await expect(downloadButton).toBeEnabled();
+  await downloadButton.click();
+
+  await expect(dialog).toBeHidden();
+  expect(submittedPassphrase).toBe("a secure backup phrase");
+  expect(consoleErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
+});
+
+test("encrypted backup modal fits a narrow dark viewport", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.setViewportSize({ width: 480, height: 800 });
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "dark"));
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Download encrypted backup" });
+  await expect(dialog).toBeVisible();
+  const bounds = await dialog.locator(".modal").evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, viewport: window.innerWidth };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+  await expect(dialog.getByLabel("Passphrase", { exact: true })).toBeFocused();
+});
+
 test("keeps Users actions evenly spaced on one right-aligned row", async ({ page }) => {
   await setupAdminMocks(page);
   await page.goto("/admin");

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -28,6 +28,7 @@ from app.services.exports import (
     build_firewall_export,
     build_inventory_export,
     build_network_report_pdf,
+    encrypted_backup_database_bytes,
     restore_database_bytes,
     validate_restore_bytes,
 )
@@ -43,6 +44,7 @@ router = APIRouter(prefix="/exports", tags=["exports"])
 
 class RestoreValidationResult(BaseModel):
     valid: bool
+    encrypted: bool = False
     size_bytes: int
     table_count: int
     devices: int | None = None
@@ -54,6 +56,10 @@ class ScheduledBackupRead(BaseModel):
     filename: str
     size_bytes: int
     created_at: datetime
+
+
+class EncryptedBackupRequest(BaseModel):
+    passphrase: str = Field(min_length=12, max_length=256)
 
 
 class ExportSummaryRead(BaseModel):
@@ -237,23 +243,74 @@ def export_database_backup(
     )
 
 
-MAX_BACKUP_SIZE = 500 * 1024 * 1024  # 500 MB
+@router.post("/backup/encrypted")
+def export_encrypted_database_backup(
+    payload: EncryptedBackupRequest,
+    current_user: Annotated[User, Depends(require_backup_manage)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    try:
+        filename, backup_payload = encrypted_backup_database_bytes(payload.passphrase)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except (OSError, sqlite3.Error, DBAPIError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Encrypted database backup failed",
+        ) from exc
+    write_audit(
+        db,
+        action="backup.database_exported_encrypted",
+        actor_user_id=current_user.id,
+        detail=filename,
+    )
+    db.commit()
+    return download_response(
+        backup_payload,
+        media_type="application/vnd.netmap.backup",
+        filename=filename,
+    )
+
+
+MAX_BACKUP_SIZE = 256 * 1024 * 1024
+_BACKUP_SIZE_LABEL = "256 MB"
 
 
 async def _read_backup_payload(request: Request) -> bytes:
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BACKUP_SIZE:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Backup file too large (500 MB max)")
+    try:
+        if content_length and int(content_length) > MAX_BACKUP_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Backup file too large ({_BACKUP_SIZE_LABEL} max)",
+            )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Content-Length header",
+        ) from exc
 
-    payload = await request.body()
+    collected = bytearray()
+    async for chunk in request.stream():
+        if len(collected) + len(chunk) > MAX_BACKUP_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Backup file too large ({_BACKUP_SIZE_LABEL} max)",
+            )
+        collected.extend(chunk)
+    payload = bytes(collected)
     if not payload:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Backup payload is empty")
-    if len(payload) > MAX_BACKUP_SIZE:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Backup file too large (500 MB max)")
 
-    # Validate SQLite magic bytes
-    if not payload.startswith(b"SQLite format 3\x00"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File does not appear to be a valid SQLite database")
+    from app.services.exports.service import ENCRYPTED_BACKUP_MAGIC
+    if not (
+        payload.startswith(b"SQLite format 3\x00")
+        or payload.startswith(ENCRYPTED_BACKUP_MAGIC)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File does not appear to be a NetMap backup",
+        )
     return payload
 
 
@@ -264,7 +321,10 @@ async def validate_database_restore(
 ) -> RestoreValidationResult:
     payload = await _read_backup_payload(request)
     try:
-        result = validate_restore_bytes(payload)
+        result = validate_restore_bytes(
+            payload,
+            request.headers.get("x-netmap-backup-passphrase"),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except sqlite3.Error as exc:
@@ -282,7 +342,10 @@ async def restore_database_backup(
 
     try:
         db.close()
-        restore_database_bytes(payload)
+        restore_database_bytes(
+            payload,
+            request.headers.get("x-netmap-backup-passphrase"),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except RuntimeError as exc:

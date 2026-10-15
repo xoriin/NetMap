@@ -6,12 +6,16 @@ import hmac
 import io
 import json
 import logging
+import os
 import sqlite3
 import tempfile
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -227,7 +231,7 @@ def build_report_firewall_summary(firewall_db: Session) -> dict[str, object]:
             "blocked_sources": top_blocked_dimension(firewall_db, FirewallEvent.src_ip),
             "blocked_destinations": top_blocked_dimension(firewall_db, FirewallEvent.dst_ip),
         }
-    except (DatabaseError, SQLAlchemyError, sqlite3.Error) as exc:
+    except (DatabaseError, SQLAlchemyError, sqlite3.Error):
         logger.warning("Skipping firewall summary in PDF report because firewall.db could not be read", exc_info=True)
         try:
             firewall_db.rollback()
@@ -248,6 +252,9 @@ _SIG_PREFIX = b"\n--NETMAP-SIG-V1:"
 _SIG_SUFFIX = b"\n"
 # Total trailer = prefix (17) + 64 hex chars + suffix (1) = 82 bytes
 _SIG_TRAILER_LEN = len(_SIG_PREFIX) + 64 + len(_SIG_SUFFIX)
+ENCRYPTED_BACKUP_MAGIC = b"NETMAP-BACKUP-ENC-V1\n"
+_ENCRYPTED_SALT_BYTES = 16
+_ENCRYPTED_NONCE_BYTES = 12
 
 _EXPECTED_TABLES = frozenset({
     "users", "system_settings", "devices",
@@ -290,11 +297,9 @@ def _validate_backup_schema(db_path: Path) -> None:
         raise ValueError(f"Backup is missing expected tables: {', '.join(sorted(missing))}")
 
 
-def backup_database_bytes() -> tuple[str, bytes]:
-    from app.core.secrets import signing_secret
+def _database_snapshot_bytes() -> bytes:
     if not settings.database_url.startswith("sqlite"):
         raise RuntimeError("Database backup is only implemented for SQLite")
-    timestamp = utc_timestamp()
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as handle:
         temp_path = Path(handle.name)
     source = engine.raw_connection()
@@ -304,17 +309,69 @@ def backup_database_bytes() -> tuple[str, bytes]:
             raise RuntimeError("Database backup is only implemented for SQLite")
         with sqlite3.connect(temp_path) as destination:
             source_connection.backup(destination)
-        raw = temp_path.read_bytes()
-        return f"netmap-backup-{timestamp}.db", _sign_backup(raw, signing_secret())
+        return temp_path.read_bytes()
     finally:
         source.close()
         temp_path.unlink(missing_ok=True)
 
 
-def validate_restore_bytes(payload: bytes) -> dict:
-    """Run the same checks as restore_database_bytes without touching the live database."""
+def backup_database_bytes() -> tuple[str, bytes]:
     from app.core.secrets import signing_secret
-    db_bytes = _verify_and_strip_backup(payload, signing_secret())
+    return (
+        f"netmap-backup-{utc_timestamp()}.db",
+        _sign_backup(_database_snapshot_bytes(), signing_secret()),
+    )
+
+
+def encrypted_backup_database_bytes(passphrase: str) -> tuple[str, bytes]:
+    return (
+        f"netmap-backup-{utc_timestamp()}.nmbak",
+        encrypt_backup_bytes(_database_snapshot_bytes(), passphrase),
+    )
+
+
+def encrypt_backup_bytes(db_bytes: bytes, passphrase: str) -> bytes:
+    salt = os.urandom(_ENCRYPTED_SALT_BYTES)
+    nonce = os.urandom(_ENCRYPTED_NONCE_BYTES)
+    key = _derive_backup_key(passphrase, salt)
+    ciphertext = AESGCM(key).encrypt(nonce, db_bytes, ENCRYPTED_BACKUP_MAGIC)
+    return ENCRYPTED_BACKUP_MAGIC + salt + nonce + ciphertext
+
+
+def _decrypt_backup_bytes(payload: bytes, passphrase: str | None) -> bytes:
+    if not payload.startswith(ENCRYPTED_BACKUP_MAGIC):
+        from app.core.secrets import signing_secret
+        return _verify_and_strip_backup(payload, signing_secret())
+    if not passphrase:
+        raise ValueError("This encrypted backup requires its passphrase")
+    offset = len(ENCRYPTED_BACKUP_MAGIC)
+    minimum_size = offset + _ENCRYPTED_SALT_BYTES + _ENCRYPTED_NONCE_BYTES + 16
+    if len(payload) < minimum_size:
+        raise ValueError("Encrypted backup is incomplete")
+    salt = payload[offset:offset + _ENCRYPTED_SALT_BYTES]
+    nonce_start = offset + _ENCRYPTED_SALT_BYTES
+    nonce = payload[nonce_start:nonce_start + _ENCRYPTED_NONCE_BYTES]
+    ciphertext = payload[nonce_start + _ENCRYPTED_NONCE_BYTES:]
+    try:
+        return AESGCM(_derive_backup_key(passphrase, salt)).decrypt(
+            nonce,
+            ciphertext,
+            ENCRYPTED_BACKUP_MAGIC,
+        )
+    except InvalidTag as exc:
+        raise ValueError("Encrypted backup passphrase is incorrect or the file was modified") from exc
+
+
+def _derive_backup_key(passphrase: str, salt: bytes) -> bytes:
+    if not 12 <= len(passphrase) <= 256:
+        raise ValueError("Backup passphrase must be between 12 and 256 characters")
+    return Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(passphrase.encode("utf-8"))
+
+
+def validate_restore_bytes(payload: bytes, passphrase: str | None = None) -> dict:
+    """Run the same checks as restore_database_bytes without touching the live database."""
+    encrypted = payload.startswith(ENCRYPTED_BACKUP_MAGIC)
+    db_bytes = _decrypt_backup_bytes(payload, passphrase)
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as handle:
         temp_path = Path(handle.name)
         temp_path.write_bytes(db_bytes)
@@ -334,6 +391,7 @@ def validate_restore_bytes(payload: bytes) -> dict:
                     counts[label] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608
         return {
             "valid": True,
+            "encrypted": encrypted,
             "size_bytes": len(db_bytes),
             "table_count": len(table_names),
             **counts,
@@ -342,9 +400,8 @@ def validate_restore_bytes(payload: bytes) -> dict:
         temp_path.unlink(missing_ok=True)
 
 
-def restore_database_bytes(payload: bytes) -> None:
-    from app.core.secrets import signing_secret
-    db_bytes = _verify_and_strip_backup(payload, signing_secret())
+def restore_database_bytes(payload: bytes, passphrase: str | None = None) -> None:
+    db_bytes = _decrypt_backup_bytes(payload, passphrase)
     database_path = sqlite_database_path()
     target_path = Path(database_path)
     target_path.parent.mkdir(parents=True, exist_ok=True)

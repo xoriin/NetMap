@@ -1,6 +1,7 @@
 import sqlite3
 from unittest.mock import Mock
 
+import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import sessionmaker
@@ -52,6 +53,7 @@ def test_validate_restore_bytes_reports_counts_without_touching_live_db(tmp_path
     result = export_service.validate_restore_bytes(payload)
 
     assert result["valid"] is True
+    assert result["encrypted"] is False
     assert result["users"] == 1
     assert result["devices"] == 0
     assert result["size_bytes"] > 0
@@ -72,6 +74,29 @@ def test_validate_restore_bytes_rejects_bad_signature(tmp_path, monkeypatch):
     except ValueError:
         raised = True
     assert raised
+
+
+def test_encrypted_backup_is_portable_and_authenticated(tmp_path, monkeypatch):
+    db_path = tmp_path / "netmap.db"
+    test_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=test_engine)
+    monkeypatch.setattr(export_service, "engine", test_engine)
+
+    filename, payload = export_service.encrypted_backup_database_bytes(
+        "correct horse battery staple"
+    )
+
+    assert filename.endswith(".nmbak")
+    assert payload.startswith(export_service.ENCRYPTED_BACKUP_MAGIC)
+    result = export_service.validate_restore_bytes(payload, "correct horse battery staple")
+    assert result["valid"] is True
+    assert result["encrypted"] is True
+
+    with pytest.raises(ValueError, match="incorrect or the file was modified"):
+        export_service.validate_restore_bytes(payload, "this is the wrong passphrase")
+    with pytest.raises(ValueError, match="incorrect or the file was modified"):
+        tampered = payload[:-1] + bytes([payload[-1] ^ 1])
+        export_service.validate_restore_bytes(tampered, "correct horse battery staple")
 
 
 def test_csv_export_neutralizes_spreadsheet_formulas():

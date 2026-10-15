@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "sqlalchemy~=2.0" \
        "alembic~=1.13" \
        "argon2-cffi~=25.1" \
+       "cryptography>=50.0.0" \
        "defusedxml~=0.7.1" \
        "pillow>=11.0.0" \
        "python-jose[cryptography]~=3.3" \
