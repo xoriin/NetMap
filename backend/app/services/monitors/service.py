@@ -12,6 +12,7 @@ from app.db.retention import delete_rows_before
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
+from app.services.alerting.cooldown import cooldown_ok
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.services.monitoring.port_checker import check_url
@@ -304,12 +305,7 @@ class StandaloneMonitorService:
         # datetime this app stores is UTC, so a naive value is safely UTC too.
         return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
-    @classmethod
-    def _cooldown_ok(cls, rule: AlertRule, now: datetime) -> bool:
-        if rule.last_triggered_at is None:
-            return True
-        elapsed = (now - cls._as_aware(rule.last_triggered_at)).total_seconds() / 60
-        return elapsed >= rule.cooldown_minutes
+    _cooldown_ok = staticmethod(cooldown_ok)
 
     @staticmethod
     def _get_app_name(db) -> str:  # type: ignore[no-untyped-def]

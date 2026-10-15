@@ -14,6 +14,7 @@ from app.db.retention import delete_rows_before
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
+from app.services.alerting.cooldown import cooldown_ok
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.notification_delivery import NotificationDelivery
@@ -558,12 +559,7 @@ class AlertMonitorService:
                 breaches.append((rule, device_id, response_ms, entry["label"]))
         return breaches
 
-    @staticmethod
-    def _cooldown_ok(rule: AlertRule, now: datetime) -> bool:
-        if rule.last_triggered_at is None:
-            return True
-        elapsed = (now - rule.last_triggered_at).total_seconds() / 60
-        return elapsed >= rule.cooldown_minutes
+    _cooldown_ok = staticmethod(cooldown_ok)
 
     @staticmethod
     def _build_message(
