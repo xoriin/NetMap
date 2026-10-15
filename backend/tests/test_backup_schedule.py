@@ -116,3 +116,34 @@ def test_backup_schedule_settings_defaults_and_validation():
         SystemSettingsUpdate(backup_schedule_interval_hours=0)
     with pytest.raises(ValidationError):
         SystemSettingsUpdate(backup_retention_count=91)
+
+
+def test_custom_backup_names_and_destination_remain_managed(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from app.api.v1 import admin
+    from app.services.exports import service as exports_service
+    monkeypatch.setattr(settings, 'data_dir', str(tmp_path / 'data'))
+    monkeypatch.setattr(settings, 'backup_dir', str(tmp_path / 'mounted'))
+    monkeypatch.setattr(backup_schedule, 'SessionLocal', lambda: nullcontext(None))
+    monkeypatch.setattr(admin, 'load_settings', lambda db: dict(app_name='NetMap',login_message='',announcement='',backup_filename_prefix='MyNetwork',backup_date_format='dd-MM-yyyy'))
+    monkeypatch.setattr(exports_service, 'backup_database_bytes', lambda: ('ignored.db',b'backup'))
+    legacy=tmp_path/'data'/'backups'
+    legacy.mkdir(parents=True)
+    _touch_backup(legacy,'netmap-backup-legacy.db',age_seconds=3600)
+    backup_schedule.BackupScheduleService._run_backup(7)
+    backup_schedule.BackupScheduleService._run_backup(7)
+    listed=backup_schedule.list_scheduled_backups()
+    assert len(listed)==3
+    assert listed[0]['filename'].startswith('MyNetwork-')
+    assert len({row['filename'] for row in listed})==3
+    assert backup_schedule.backup_filename_path(listed[0]['filename']).read_bytes()==b'backup'
+    (tmp_path/'mounted'/'unrelated.db').write_bytes(b'keep')
+    assert len(backup_schedule.prune_scheduled_backups(1))==2
+    assert (tmp_path/'mounted'/'unrelated.db').read_bytes()==b'keep'
+    assert len(backup_schedule.list_scheduled_backups())==1
+
+
+@pytest.mark.parametrize('prefix',['../outside','a/b','a\\b','', 'hello.db'])
+def test_backup_prefix_rejects_paths(prefix):
+    with pytest.raises(ValidationError):
+        SystemSettingsUpdate(backup_filename_prefix=prefix)

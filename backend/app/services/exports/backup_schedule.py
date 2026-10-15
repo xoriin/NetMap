@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import json
+import re
+import uuid
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,26 +20,36 @@ BACKUP_GLOB = "netmap-backup-*.db"
 
 
 def scheduled_backup_dir() -> Path:
-    path = Path(settings.data_dir) / "backups"
+    path = Path(settings.backup_dir) if settings.backup_dir else Path(settings.data_dir) / "backups"
+    if not path.is_absolute():
+        raise ValueError("BACKUP_DIR must be an absolute container path")
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _existing_backups() -> list[Path]:
-    directory = scheduled_backup_dir().resolve()
+    directories = {scheduled_backup_dir().resolve(), (Path(settings.data_dir) / "backups").resolve()}
     backups: list[Path] = []
-    for candidate in directory.glob(BACKUP_GLOB):
-        # Scheduled backups are regular files created in this directory. Ignore
-        # symlinks and anything that no longer resolves beneath the fixed root.
-        if candidate.is_symlink():
-            continue
-        try:
-            resolved = candidate.resolve(strict=True)
-            resolved.relative_to(directory)
-        except (OSError, ValueError):
-            continue
-        if resolved.is_file():
-            backups.append(resolved)
+    for directory in directories:
+        # Custom filenames are managed explicitly; never glob arbitrary .db files.
+        manifest = directory / ".netmap-backups.json"
+        names = []
+        if manifest.is_file() and not manifest.is_symlink():
+            names = json.loads(manifest.read_text())
+        candidates = set(directory.glob(BACKUP_GLOB))
+        for name in names:
+            if isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_-]+\.db", name):
+                candidates.add(directory / name)
+        for candidate in candidates:
+            if candidate.is_symlink():
+                continue
+            try:
+                resolved = candidate.resolve(strict=True)
+                resolved.relative_to(directory)
+            except (OSError, ValueError):
+                continue
+            if resolved.is_file():
+                backups.append(resolved)
     return sorted(backups, key=lambda path: path.stat().st_mtime, reverse=True)
 
 
@@ -131,8 +144,35 @@ class BackupScheduleService:
     def _run_backup(retention_count: int) -> None:
         from app.services.exports.service import backup_database_bytes
 
-        filename, payload = backup_database_bytes()
-        (scheduled_backup_dir() / filename).write_bytes(payload)
+        from app.api.v1.admin import load_settings
+        from app.schemas.admin import SystemSettingsRead, SystemSettingsUpdate
+
+        with SessionLocal() as db:
+            config = SystemSettingsRead(**load_settings(db))
+        # Revalidate stored naming settings before using them as a filename.
+        naming = SystemSettingsUpdate(backup_filename_prefix=config.backup_filename_prefix, backup_date_format=config.backup_date_format)
+        formats = {"yyyy-MM-dd": "%Y-%m-%d", "MM-dd-yyyy": "%m-%d-%Y", "dd-MM-yyyy": "%d-%m-%Y"}
+        stamp = datetime.now(timezone.utc).strftime(formats[naming.backup_date_format] + "-%H%M%S")
+        filename = f"{naming.backup_filename_prefix}-{stamp}-{uuid.uuid4().hex[:12]}.db"
+        _, payload = backup_database_bytes()
+        directory = scheduled_backup_dir()
+        manifest = directory / ".netmap-backups.json"
+        if manifest.is_symlink():
+            raise ValueError("Backup manifest must not be a symlink")
+        names = json.loads(manifest.read_text()) if manifest.exists() else []
+        # Write via an exclusive temporary file, then atomically publish.
+        temporary = directory / f".{uuid.uuid4().hex}.tmp"
+        try:
+            with temporary.open("xb") as output:
+                output.write(payload)
+            temporary.replace(directory / filename)
+            names = [name for name in names if isinstance(name, str) and (directory / name).name == name and (directory / name).is_file()]
+            names.append(filename)
+            with temporary.open("x") as output:
+                json.dump(names, output)
+            temporary.replace(manifest)
+        finally:
+            temporary.unlink(missing_ok=True)
         logger.info("Scheduled backup written: %s", filename)
         prune_scheduled_backups(retention_count)
 

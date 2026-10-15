@@ -361,6 +361,14 @@ async def restore_database_backup(
     db.commit()
 
 
+@router.get("/backup-location")
+def get_backup_location(
+    _current_user: Annotated[User, Depends(require_backup_manage)],
+) -> dict[str, str]:
+    from app.services.exports.backup_schedule import scheduled_backup_dir
+    return {"directory": str(scheduled_backup_dir()), "configuration": "BACKUP_DIR"}
+
+
 @router.get("/scheduled-backups", response_model=list[ScheduledBackupRead])
 def list_scheduled_backup_files(
     _current_user: Annotated[User, Depends(require_backup_manage)],

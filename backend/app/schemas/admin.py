@@ -30,6 +30,8 @@ class SystemSettingsRead(BaseModel):
     backup_schedule_enabled: bool = False
     backup_schedule_interval_hours: int = 24
     backup_retention_count: int = 7
+    backup_filename_prefix: str = "netmap-backup"
+    backup_date_format: str = "yyyy-MM-dd"
     totp_required: Literal["off", "admins", "all"] = "off"
 
     @field_validator(
@@ -90,6 +92,8 @@ class SystemSettingsUpdate(BaseModel):
     backup_schedule_enabled: bool | None = None
     backup_schedule_interval_hours: int | None = Field(None, ge=1, le=168)
     backup_retention_count: int | None = Field(None, ge=1, le=90)
+    backup_filename_prefix: str | None = Field(None, min_length=1, max_length=60, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+    backup_date_format: Literal["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy"] | None = None
     totp_required: Literal["off", "admins", "all"] | None = None
 
     @field_validator("ip_reservation_reminder_channels")

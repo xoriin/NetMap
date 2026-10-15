@@ -57,6 +57,8 @@ export function SystemTab({
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [restoreValidation, setRestoreValidation] = useState<RestoreValidationResult | null>(null);
   const [restoreValidationError, setRestoreValidationError] = useState<string | null>(null);
+  const [backupDirectory, setBackupDirectory] = useState<string | null>(null);
+  useEffect(() => { void api.getBackupLocation(accessToken).then((result) => setBackupDirectory(result.directory)).catch(() => setBackupDirectory(null)); }, [accessToken]);
   const [backupBusy, setBackupBusy] = useState<string | null>(null);
   const [showEncryptedBackupModal, setShowEncryptedBackupModal] = useState(false);
   const [diagnostics, setDiagnostics] = useState<SystemDiagnostics | null>(null);
@@ -78,6 +80,11 @@ export function SystemTab({
   }, [accessToken]);
 
   async function saveBackupSchedule() {
+    const prefix = settingsForm.backup_filename_prefix ?? "netmap-backup";
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,59}$/.test(prefix)) {
+      onError("Use a filename prefix starting with a letter or number, followed by letters, numbers, underscores or hyphens (up to 60 characters).");
+      return;
+    }
     setScheduleBusy(true);
     onError(null); onSuccess(null);
     try {
@@ -85,6 +92,8 @@ export function SystemTab({
         backup_schedule_enabled: settingsForm.backup_schedule_enabled,
         backup_schedule_interval_hours: settingsForm.backup_schedule_interval_hours,
         backup_retention_count: settingsForm.backup_retention_count,
+        backup_filename_prefix: settingsForm.backup_filename_prefix ?? "netmap-backup",
+        backup_date_format: settingsForm.backup_date_format ?? "yyyy-MM-dd",
       });
       setSettingsForm(updated);
       onSettingsChange(updated);
@@ -457,6 +466,7 @@ export function SystemTab({
             </div>
             <div className="admin-system-card-body">
               <p className="tool-note">Automatically writes a signed, unencrypted backup to disk and prunes older copies. Protect the data directory with encrypted storage.</p>
+              <p className="tool-note">Server destination: <code>{backupDirectory ?? "Unable to read destination"}</code>. Set BACKUP_DIR to a mounted directory to change it.</p>
               <div className="tool-form">
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.backup_schedule_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_enabled: e.target.checked }))} />
@@ -475,6 +485,8 @@ export function SystemTab({
                       <option value={168}>Weekly</option>
                     </select>
                   </label>
+                  <label>Filename prefix<input className="nm-input" maxLength={60} pattern="[A-Za-z0-9][A-Za-z0-9_\-]*" value={settingsForm.backup_filename_prefix ?? "netmap-backup"} onChange={(event) => setSettingsForm((current) => ({ ...current, backup_filename_prefix: event.target.value }))} /></label>
+                  <label>Date format<select className="nm-select" value={settingsForm.backup_date_format ?? "yyyy-MM-dd"} onChange={(event) => setSettingsForm((current) => ({ ...current, backup_date_format: event.target.value as SystemSettings["backup_date_format"] }))}><option>yyyy-MM-dd</option><option>MM-dd-yyyy</option><option>dd-MM-yyyy</option></select><small>UTC time and a unique suffix prevent overwrites.</small></label>
                   <label>Keep last
                     <select value={settingsForm.backup_retention_count} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_retention_count: Number(e.target.value) }))}>
                       <option value={3}>3 backups</option>

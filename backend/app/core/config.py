@@ -62,6 +62,7 @@ class Settings(BaseSettings):
         alias="CORS_ORIGINS",
     )
     data_dir: str = Field(default="/app/data", alias="DATA_DIR")
+    backup_dir: str | None = Field(default=None, alias="BACKUP_DIR")
     event_retention_days: int = Field(default=7, alias="EVENT_RETENTION_DAYS")
     firewall_log_retention_days: int = Field(default=7, alias="FIREWALL_LOG_RETENTION_DAYS")
     syslog_enabled: bool = Field(default=True, alias="SYSLOG_ENABLED")

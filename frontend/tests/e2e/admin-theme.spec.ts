@@ -748,6 +748,29 @@ test("API keys stay masked after creation and clearly warn about one-time displa
   await expect(page.locator("body")).not.toContainText(plaintext);
 });
 
+for (const theme of ["light", "dark"]) {
+  test(`scheduled backup naming and destination in ${theme}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((theme) => localStorage.setItem("netmap.theme", theme), theme);
+    let saved: Record<string, unknown> | null = null;
+    await page.route("**/api/v1/exports/backup-location", (route) => route.fulfill({ json: { directory: "/mnt/netmap-backups", configuration: "BACKUP_DIR" } }));
+    await page.route("**/api/v1/admin/settings", async (route) => {
+      if (route.request().method() !== "GET") saved = route.request().postDataJSON();
+      await route.fulfill({ json: { ...settings, backup_schedule_enabled: true, ...saved } });
+    });
+    await page.goto("/admin");
+    await expect(page.getByText("/mnt/netmap-backups", { exact: true })).toBeVisible();
+    await page.getByLabel("Filename prefix").fill("office-backup");
+    await page.getByLabel("Date format").selectOption("dd-MM-yyyy");
+    await page.getByRole("button", { name: "Save schedule" }).click();
+    await expect.poll(() => saved?.backup_filename_prefix).toBe("office-backup");
+    expect(saved?.backup_date_format).toBe("dd-MM-yyyy");
+    await expect(page.getByRole("button", { name: "Save schedule" })).toBeEnabled();
+    await page.getByLabel("Filename prefix").fill("../unsafe");
+    expect(await page.getByLabel("Filename prefix").evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
+  });
+}
+
 test("system settings save never sends the two-factor requirement", async ({ page }) => {
   await setupAdminMocks(page);
   let saved: Record<string, unknown> | null = null;
