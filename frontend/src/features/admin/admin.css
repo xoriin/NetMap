@@ -1174,6 +1174,23 @@
   font-weight: 500;
 }
 
+/* Standalone notes in a System card (intro lines and empty states) read as helper text, not body copy. */
+.admin-layout .admin-system-card-body > .tool-note {
+  margin: 0 0 var(--nm-space-3);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.admin-layout .admin-system-card-body > .tool-note:has(+ .tool-note) {
+  margin-bottom: 4px;
+}
+
+.admin-layout .admin-system-card-body > :not(.tool-note) + .tool-note {
+  margin-top: var(--nm-space-3);
+}
+
 /* The taller copy header only needed its height for the oversized text it used to hold. */
 .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header--copy {
   min-height: 44px;

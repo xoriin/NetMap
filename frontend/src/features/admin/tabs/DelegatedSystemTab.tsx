@@ -37,7 +37,7 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
     {error && <div className="form-error">{error}</div>}
     {canManageBackups && <section className="panel admin-panel nm-app-panel admin-system-card">
       <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Database backups</h2></div>
-      <div className="admin-system-card-body"><p className="tool-note">Create and manage backups. Encrypted downloads are portable; scheduled files require encrypted host storage. Database restore remains restricted to SuperAdmin.</p>
+      <div className="admin-system-card-body"><p className="tool-note">Encrypted backups need their passphrase to restore. Only a SuperAdmin can restore.</p>
         <button className="nm-btn nm-btn--primary" type="button" disabled={backupBusy} onClick={() => setShowEncryptedBackupModal(true)}>Download encrypted backup</button>
         <button className="nm-btn nm-btn--secondary" type="button" disabled={backupBusy} onClick={() => void api.downloadBackup(accessToken).then(triggerDownload).catch((err) => setError(err instanceof Error ? err.message : "Download failed"))}>Download unencrypted .db</button>
         <div className="admin-schedule-card-list">{backups.map((backup) => <article className="admin-schedule-card" key={backup.filename}>

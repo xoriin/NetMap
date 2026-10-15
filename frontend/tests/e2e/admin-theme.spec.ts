@@ -812,3 +812,29 @@ for (const theme of ["light", "dark"]) {
     await expect.poll(() => saved?.idle_timeout_minutes).toBe(30);
   });
 }
+
+for (const theme of ["light", "dark"]) {
+  test(`system card notes use the helper-text scale with room before the controls in ${theme}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((theme) => localStorage.setItem("netmap.theme", theme), theme);
+    await page.goto("/admin");
+    const notes = page.locator(".admin-system-card-body > p.tool-note");
+    await expect(notes.first()).toBeVisible();
+    const metrics = await notes.evaluateAll((elements) => elements.map((el) => {
+      const next = el.nextElementSibling;
+      const gap = next ? next.getBoundingClientRect().top - el.getBoundingClientRect().bottom : null;
+      return { text: el.textContent, size: getComputedStyle(el).fontSize, gap };
+    }));
+    expect(metrics.length).toBeGreaterThan(2);
+    for (const note of metrics) {
+      expect(note.size, note.text ?? "").toBe("11px");
+      if (note.gap !== null) expect(note.gap, note.text ?? "").toBeGreaterThanOrEqual(4);
+    }
+    const intro = page.locator(".admin-system-card-body > p.tool-note", { hasText: "Encrypted backups" }).first();
+    const introGap = await intro.evaluate((el) => el.nextElementSibling!.getBoundingClientRect().top - el.getBoundingClientRect().bottom);
+    expect(introGap).toBeGreaterThanOrEqual(12);
+    const empty = page.getByText("No scheduled backups yet.");
+    const emptyGap = await empty.evaluate((el) => el.getBoundingClientRect().top - el.previousElementSibling!.getBoundingClientRect().bottom);
+    expect(emptyGap).toBeGreaterThanOrEqual(12);
+  });
+}

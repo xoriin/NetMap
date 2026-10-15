@@ -422,7 +422,7 @@ export function SystemTab({
               <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
             </div>
             <div className="admin-system-card-body">
-              <p className="tool-note">SuperAdmin only. Encrypted backups are portable and require the passphrase to restore.</p>
+              <p className="tool-note">SuperAdmin only. Encrypted backups need their passphrase to restore.</p>
               <div className="tool-form">
               <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy !== null} onClick={() => setShowEncryptedBackupModal(true)}>
                 Download encrypted backup
@@ -487,8 +487,8 @@ export function SystemTab({
               <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
             </div>
             <div className="admin-system-card-body">
-              <p className="tool-note">Automatically writes a signed, unencrypted backup to disk and prunes older copies. Protect the data directory with encrypted storage.</p>
-              <p className="tool-note">Server destination: <code>{backupDirectory ?? "Unable to read destination"}</code>. Set BACKUP_DIR to a mounted directory to change it.</p>
+              <p className="tool-note">Saves an unencrypted backup on a schedule and removes older copies.</p>
+              <p className="tool-note">Saved to <code>{backupDirectory ?? "unknown folder"}</code> · set <code>BACKUP_DIR</code> to change it.</p>
               <div className="tool-form">
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.backup_schedule_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, backup_schedule_enabled: e.target.checked }))} />
@@ -541,7 +541,7 @@ export function SystemTab({
                   ))}
                 </div>
               ) : (
-                <p className="tool-note" style={{ marginTop: 12 }}>No scheduled backups yet.</p>
+                <p className="tool-note">No scheduled backups yet.</p>
               )}
             </div>
           </section>
@@ -650,7 +650,7 @@ export function SystemTab({
                 <dd style={{ opacity: 0.7 }}>{new Date(diagnostics.generated_at).toLocaleString()}</dd>
                 </dl>
               ) : (
-                <p className="tool-note">Click Load to fetch current runtime diagnostics.</p>
+                <p className="tool-note">Choose Load to show current runtime diagnostics.</p>
               )}
             </div>
           </section>
