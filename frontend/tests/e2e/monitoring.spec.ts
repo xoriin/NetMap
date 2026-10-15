@@ -419,6 +419,19 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
+  test("keeps the favourite header cell above scrolled rows", async ({ page }) => {
+    const body = page.locator(".mon-table-body");
+    await body.evaluate((el) => { el.scrollTop = 300; });
+    const corner = page.locator(".mon-table--fleet thead th").first();
+    const box = await corner.boundingBox();
+    expect(box).not.toBeNull();
+    const coversCorner = await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit?.closest(".mon-table--fleet thead th:first-child");
+    }, { x: box!.x + box!.width / 2, y: box!.y + box!.height - 4 });
+    expect(coversCorner).toBe(true);
+  });
+
   test("keeps the pagination footer in view without scrolling", async ({ page }) => {
     const footer = page.locator(".inv-pagination");
     await expect(footer).toBeInViewport();

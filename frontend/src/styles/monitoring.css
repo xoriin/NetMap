@@ -1204,7 +1204,7 @@ body.route-monitoring .dash-alert {
 .mon-table--fleet th:first-child {
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: 3;
   background: var(--nm-table-header-bg);
 }
 
