@@ -21,7 +21,9 @@ def _split_range(text: str) -> tuple[str, str] | None:
     return start.strip(), end.strip()
 
 
-def _range_bounds(start_text: str, end_text: str) -> tuple[int, int, int]:
+def _range_bounds(
+    start_text: str, end_text: str
+) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, int]:
     try:
         start = ipaddress.ip_address(start_text)
         end = ipaddress.ip_address(end_text)
@@ -31,7 +33,7 @@ def _range_bounds(start_text: str, end_text: str) -> tuple[int, int, int]:
         raise AddressInputError("Start and end must be the same IP version")
     if int(end) < int(start):
         raise AddressInputError("End address must not be before the start address")
-    return int(start), int(end), int(end) - int(start) + 1
+    return start, int(end) - int(start) + 1
 
 
 def _network(text: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network:
@@ -48,7 +50,7 @@ def count_address_input(raw: str) -> int:
         raise AddressInputError("Enter an IP address or range")
     bounds = _split_range(text)
     if bounds is not None:
-        return _range_bounds(*bounds)[2]
+        return _range_bounds(*bounds)[1]
     network = _network(text)
     if network.version == 4 and network.prefixlen <= 30:
         return network.num_addresses - 2
@@ -71,9 +73,9 @@ def parse_address_input(raw: str) -> list[str]:
         raise AddressInputError("Enter an IP address or range")
     bounds = _split_range(text)
     if bounds is not None:
-        start, end, count = _range_bounds(*bounds)
+        start, count = _range_bounds(*bounds)
         _guard(count)
-        return [str(ipaddress.ip_address(value)) for value in range(start, end + 1)]
+        return [str(start + offset) for offset in range(count)]
     network = _network(text)
     _guard(count_address_input(text))
     return [str(host) for host in network.hosts()]

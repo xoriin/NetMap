@@ -50,6 +50,17 @@ def test_ipv6_single_address():
     assert parse_address_input("2001:db8::1") == ["2001:db8::1"]
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("::1-::2", ["::1", "::2"]),
+        ("2001:db8::fffe-2001:db8::1:0", ["2001:db8::fffe", "2001:db8::ffff", "2001:db8::1:0"]),
+    ],
+)
+def test_ipv6_start_end_range_stays_ipv6(raw, expected):
+    assert parse_address_input(raw) == expected
+
+
 def test_ipv6_oversize_prefix_is_rejected():
     """A v6 /24 is astronomically large; the count rule catches what /24 phrasing would not."""
     with pytest.raises(AddressInputError):
