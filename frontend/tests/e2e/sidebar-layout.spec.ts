@@ -87,6 +87,7 @@ for (const theme of ["light", "dark"] as const) {
       const actual = await styleOf(".sidebar-docs-link");
       expect({ ...actual, textDecorationLine: actual.textDecorationLine }).toEqual({ ...reference, textDecorationLine: "none" });
 
+      await page.addStyleTag({ content: ".sidebar-footer-actions * { transition: none !important; }" });
       await docs.hover();
       const hovered = await docs.evaluate((el) => getComputedStyle(el).color);
       await page.locator(".sidebar-theme-toggle").hover();
