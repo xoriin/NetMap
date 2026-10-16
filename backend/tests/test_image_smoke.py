@@ -61,9 +61,9 @@ def test_volume_cleanup_targets_only_its_own_unique_volume_even_on_failure(monke
     assert calls == [("volume", "create", name), ("volume", "rm", name)]
 
 
-def test_publication_requires_image_smoke_with_arm64_everywhere_except_test_pushes():
+def test_publication_requires_image_smoke_with_arm64_everywhere_except_test_pushes_unless_run_manually():
     workflow = (SCRIPT.parents[1] / ".github/workflows/docker-aio.yml").read_text()
-    assert """arch: ${{ fromJSON(github.ref == 'refs/heads/test' && '["amd64"]' || '["amd64", "arm64"]') }}""" in workflow
+    assert """arch: ${{ fromJSON(github.event_name == 'push' && github.ref == 'refs/heads/test' && '["amd64"]' || '["amd64", "arm64"]') }}""" in workflow
     assert "needs: [tests, image-smoke, release-guard]" in workflow
     assert "needs.image-smoke.result == 'success'" in workflow
     assert 'scripts/smoke-image.py netmap:compatibility --previous-image "$IMAGE_NAME:latest"' in workflow

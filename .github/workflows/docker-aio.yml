@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(github.ref == 'refs/heads/test' && '["amd64"]' || '["amd64", "arm64"]') }}
+        arch: ${{ fromJSON(github.event_name == 'push' && github.ref == 'refs/heads/test' && '["amd64"]' || '["amd64", "arm64"]') }}
     permissions:
       contents: read
     steps:
