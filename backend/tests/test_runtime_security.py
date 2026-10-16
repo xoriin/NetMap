@@ -64,3 +64,27 @@ def test_runtime_security_uses_effective_configuration(monkeypatch, https, env, 
     monkeypatch.setattr(settings, "secure_hsts_enabled", hsts)
     monkeypatch.setattr(settings, "secure_headers_enabled", headers)
     assert len(https_security_warnings()) == count
+
+
+def test_explicit_insecure_cookie_setting_is_told_to_remove_it(monkeypatch):
+    from app.core.config import settings
+    from app.core.runtime_security import https_security_warnings
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "app_url", "https://netmap.example.com")
+    monkeypatch.setattr(settings, "auth_cookie_secure", False)
+    monkeypatch.setattr(settings, "secure_hsts_enabled", True)
+    monkeypatch.setattr(settings, "secure_headers_enabled", True)
+    assert len(https_security_warnings()) == 1
+    assert "Remove AUTH_COOKIE_SECURE" in https_security_warnings()[0]
+
+
+def test_unset_cookie_setting_with_hsts_on_plain_http_names_app_url(monkeypatch):
+    from app.core.config import settings
+    from app.core.runtime_security import https_security_warnings
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "app_url", "http://netmap.lan")
+    monkeypatch.setattr(settings, "auth_cookie_secure", None)
+    monkeypatch.setattr(settings, "secure_hsts_enabled", True)
+    monkeypatch.setattr(settings, "secure_headers_enabled", True)
+    [warning] = https_security_warnings()
+    assert "APP_URL" in warning and "AUTH_COOKIE_SECURE=false" not in warning
