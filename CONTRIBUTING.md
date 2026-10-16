@@ -113,10 +113,11 @@ npm exec tsc -- --noEmit
 node node_modules/vite/bin/vite.js build
 ```
 
-**Backend (tests)**
+**Backend (lint + tests)**
 
 ```bash
 cd backend
+uv run --extra dev ruff check .
 uv run --extra dev python -m pytest tests
 ```
 
@@ -139,7 +140,7 @@ uv run --extra dev python -m pytest tests
 3. Open a pull request against `main` with a clear description of what changed and why.
 4. If your change is user-visible, add an entry to `CHANGELOG.md` under an `## [Unreleased]` section using [Keep a Changelog](https://keepachangelog.com/) format (`### Added`, `### Changed`, `### Fixed`).
 
-Pull requests that break the TypeScript check or backend tests won't be merged.
+Pull requests that break the TypeScript check, Ruff or backend tests won't be merged.
 
 ---
 
@@ -156,7 +157,7 @@ NetMap uses `CHANGELOG.md` as the single source of truth for release notes:
 | `test` branch | `xoriin/netmap:test` | No |
 | `v*` tag on `main` | `xoriin/netmap:vX.Y.Z` + `latest` | Yes (from `CHANGELOG.md`) |
 
-Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs the backend tests and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
+Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs Ruff and the backend tests, and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
 
 Publication also requires real AIO compatibility checks on **amd64 and arm64** (arm64 uses QEMU): fresh HTTP, HTTPS with omitted flags, legacy explicit false flags, disabled security headers, and compliant HTTPS. Each must start nginx/API successfully and report the expected cookie security and startup warnings. A disposable database is created by the published `latest` image, seeded with a user and setting, then upgraded and restarted on the candidate; integrity, persisted values and migration history must survive. This does not replace migration fixtures or a real-data release rehearsal.
 
