@@ -695,6 +695,8 @@ export type SystemSettings = {
   totp_required: "off" | "admins" | "all";
 };
 
+export type RuntimeSecurityStatus = { warnings: string[] };
+
 export type ScheduledBackup = {
   filename: string;
   size_bytes: number;
@@ -1938,6 +1940,8 @@ export const api = {
     request<SystemSettings>("/api/v1/admin/settings/public"),
   adminSettings: (token: string) =>
     request<SystemSettings>("/api/v1/admin/settings", { token }),
+  runtimeSecurityStatus: (token: string) =>
+    request<RuntimeSecurityStatus>("/api/v1/admin/runtime-security", { token }),
   updateAdminSettings: (token: string, payload: Partial<SystemSettings>) =>
     request<SystemSettings>("/api/v1/admin/settings", {
       method: "PUT",

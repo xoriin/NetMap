@@ -56,6 +56,7 @@ export function mockRelationship(overrides: Record<string, unknown> = {}) {
 // Sets up the auth bootstrap mocks so the app reaches the dashboard.
 // Route order matters: register before page.goto().
 export async function setupCoreMocks(page: Page, announcement: string | null = null) {
+  await page.route("**/api/v1/admin/runtime-security", (route) => route.fulfill({ json: { warnings: [] } }));
   await page.route("**/api/v1/ipam/external/accounts", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/ipam/external/locations", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/exports/backup-location", (route) => route.fulfill({ json: { directory: "/app/data/backups" } }));

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_device_catalog_manage, require_notification_manage, require_super_admin, require_user_manage
 from app.core.config import settings
+from app.core.runtime_security import https_security_warnings
+from app.schemas.runtime_security import RuntimeSecurityStatusRead
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.device_type import DeviceType
@@ -380,6 +382,13 @@ def delete_device_type(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Device type is in use")
     db.delete(row)
     db.commit()
+
+
+@router.get("/runtime-security", response_model=RuntimeSecurityStatusRead)
+def get_runtime_security(
+    _current_user: Annotated[User, Depends(require_super_admin)],
+) -> RuntimeSecurityStatusRead:
+    return RuntimeSecurityStatusRead(warnings=https_security_warnings())
 
 
 @router.get("/settings/public", response_model=SystemSettingsRead)

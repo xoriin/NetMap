@@ -20,6 +20,7 @@ import { ResetPasswordView } from "./features/auth/ResetPasswordView";
 import { Sidebar, AppTopbar, clearStickySidebarMenus } from "./Sidebar";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
+import { RuntimeSecurityAlert } from "./components/RuntimeSecurityAlert";
 import { userHasPermission } from "./utils/permissions";
 import { availableAdminTabs } from "./features/admin/adminNavigation";
 
@@ -414,6 +415,7 @@ export function App() {
         <TopbarNoteCtx.Provider value={setTopbarNote}>
         <section className="workspace">
           {error && <div className="error-banner">{error}</div>}
+          {user.role === "SuperAdmin" && accessToken && <RuntimeSecurityAlert accessToken={accessToken} />}
           {appSettings?.announcement && (
             <div className="dash-alert dash-alert--overview-bar dash-alert--announcement">
               <span className="dash-alert-dot dash-alert-dot--purple" aria-hidden="true" />

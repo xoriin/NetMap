@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from app.core.config import settings
+from app.core.runtime_security import https_security_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -121,17 +122,8 @@ def _check_app_url() -> None:
 
 
 def _enforce_https_security_settings() -> None:
-    https_expected = settings.app_uses_https or settings.secure_hsts_enabled
-    if https_expected and not settings.auth_cookies_secure:
-        logger.warning(
-            "AUTH_COOKIE_SECURE=false: sign-in cookies are not marked Secure although NetMap is "
-            "served over HTTPS. Remove the setting (it follows APP_URL) or set it to true."
-        )
-    if settings.app_uses_https and not settings.secure_hsts_enabled:
-        logger.warning(
-            "SECURE_HSTS_ENABLED is off. Once NetMap will only ever be served over HTTPS on this "
-            "hostname, set it to true so browsers refuse plain-HTTP connections."
-        )
+    for warning in https_security_warnings(settings):
+        logger.warning("%s", warning)
 
 
 def _check_cors_origins() -> None:

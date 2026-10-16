@@ -133,6 +133,7 @@ def test_startup_rejects_invalid_master_key() -> None:
 def _https_settings(monkeypatch, **env):
     from app.core.config import Settings
 
+    monkeypatch.setenv("APP_ENV", "production")
     for name in ("APP_URL", "AUTH_COOKIE_SECURE", "SECURE_HSTS_ENABLED"):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
