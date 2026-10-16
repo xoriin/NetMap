@@ -239,6 +239,9 @@ test("Topology announcement and map share the narrow full-bleed canvas gutter", 
   await page.route("**/api/v1/admin/public-settings", (route) => route.fulfill({
     json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement: "Planned maintenance" },
   }));
+  await page.route("**/api/v1/admin/settings/app", (route) => route.fulfill({
+    json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement: "Planned maintenance" },
+  }));
   await setupTopologyMocks(page, [mockDevice()], []);
   await page.goto("/topology");
 

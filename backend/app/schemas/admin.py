@@ -13,6 +13,14 @@ class AdminPasswordResetRequest(BaseModel):
     new_password: str = Field(min_length=12, max_length=256)
 
 
+class PublicSettingsRead(BaseModel):
+    app_name: str
+    login_message: str
+    announcement: str
+    support_email: str = ""
+    support_url: str = ""
+
+
 class SystemSettingsRead(BaseModel):
     app_name: str
     login_message: str

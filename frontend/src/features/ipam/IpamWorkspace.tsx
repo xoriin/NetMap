@@ -72,7 +72,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
       api.getIpamConflicts(accessToken),
       api.listDhcpLeases(accessToken),
       api.listReservations(accessToken),
-      api.adminPublicSettings(),
+      api.appSettings(accessToken),
     ]);
     return { summary, subnets, conflicts, dhcpLeases, reservations, settings };
   }, [accessToken]);

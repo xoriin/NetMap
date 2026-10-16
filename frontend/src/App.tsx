@@ -31,7 +31,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => readRouteFromLocation());
-  const [appSettings, setAppSettings] = useState<SystemSettings | null>(null);
+  const [appSettings, setAppSettings] = useState<Partial<SystemSettings> | null>(null);
   const [topbarNote, setTopbarNote] = useState<ReactNode>("");
   const idleTimeoutMs = (appSettings?.idle_timeout_minutes ?? 0) * 60 * 1000;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readBool(storageKeys.sidebarCollapsed));
@@ -67,7 +67,7 @@ export function App() {
   }, [currentRoute, screen]);
 
   useEffect(() => {
-    void api.adminPublicSettings().then(setAppSettings).catch(() => {});
+    void api.adminPublicSettings().then((settings) => setAppSettings((prev) => ({ ...prev, ...settings }))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function App() {
 
   useEffect(() => {
     if (!accessToken) return;
-    void api.adminPublicSettings().then(setAppSettings).catch(() => {});
+    void api.appSettings(accessToken).then((settings) => setAppSettings((prev) => ({ ...prev, ...settings }))).catch(() => {});
   }, [accessToken]);
 
   const refreshObservationCount = useMemo(() => {

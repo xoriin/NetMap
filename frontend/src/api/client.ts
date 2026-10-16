@@ -673,6 +673,8 @@ export type RestoreValidationResult = {
   subnets: number | null;
 };
 
+export type PublicSettings = Pick<SystemSettings, "app_name" | "login_message" | "announcement" | "support_email" | "support_url">;
+
 export type SystemSettings = {
   app_name: string;
   login_message: string;
@@ -1937,7 +1939,9 @@ export const api = {
   deleteScheduledBackup: (token: string, filename: string) =>
     request<void>(`/api/v1/exports/scheduled-backups/${encodeURIComponent(filename)}`, { method: "DELETE", token }),
   adminPublicSettings: () =>
-    request<SystemSettings>("/api/v1/admin/settings/public"),
+    request<PublicSettings>("/api/v1/admin/settings/public"),
+  appSettings: (token: string) =>
+    request<SystemSettings>("/api/v1/admin/settings/app", { token }),
   adminSettings: (token: string) =>
     request<SystemSettings>("/api/v1/admin/settings", { token }),
   runtimeSecurityStatus: (token: string) =>

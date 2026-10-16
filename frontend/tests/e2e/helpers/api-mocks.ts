@@ -65,6 +65,11 @@ export async function setupCoreMocks(page: Page, announcement: string | null = n
       json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement },
     })
   );
+  await page.route("**/api/v1/admin/settings/app", (route) =>
+    route.fulfill({
+      json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement },
+    })
+  );
   await page.route("**/api/v1/admin/public-settings", (route) =>
     route.fulfill({
       json: { app_name: "NetMap", idle_timeout_minutes: 15, announcement },

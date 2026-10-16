@@ -32,6 +32,7 @@ from app.schemas.admin import (
     RoleCreate,
     RolePermissionsResponse,
     RolePermissionsUpdate,
+    PublicSettingsRead,
     SystemSettingsRead,
     SystemSettingsUpdate,
     TestNotificationRequest,
@@ -390,8 +391,16 @@ def get_runtime_security(
     return RuntimeSecurityStatusRead(warnings=https_security_warnings())
 
 
-@router.get("/settings/public", response_model=SystemSettingsRead)
-def get_public_settings(db: Annotated[Session, Depends(get_db)]) -> SystemSettingsRead:
+@router.get("/settings/public", response_model=PublicSettingsRead)
+def get_public_settings(db: Annotated[Session, Depends(get_db)]) -> PublicSettingsRead:
+    return PublicSettingsRead(**load_settings(db))
+
+
+@router.get("/settings/app", response_model=SystemSettingsRead)
+def get_app_settings(
+    _current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> SystemSettingsRead:
     return SystemSettingsRead(**load_settings(db))
 
 

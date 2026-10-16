@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.admin import get_public_settings, update_settings
+from app.api.v1.admin import get_app_settings, update_settings
 from app.api.v1.monitoring import _build_device_summaries, _parse_port_results, device_analysis, get_device_summary, list_device_summaries
 from app.db.session import Base, _migrate_device_expected_status, _migrate_monitor_history_uptime_index
 from app.models.device import Device
@@ -377,7 +377,7 @@ def test_admin_settings_persist_monitor_interval_seconds():
     )
 
     assert updated.monitor_interval_seconds == 45
-    assert get_public_settings(db).monitor_interval_seconds == 45
+    assert get_app_settings(None, db).monitor_interval_seconds == 45
 
 
 def _uptime_aggregate_plans(db):

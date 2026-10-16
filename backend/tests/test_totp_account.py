@@ -69,6 +69,24 @@ def test_setup_is_refused_when_already_enabled(client_and_db):
     assert client.post("/api/v1/auth/me/totp/setup", headers=headers).status_code == 409
 
 
+def test_public_settings_expose_only_login_page_fields(client_and_db):
+    from app.api.v1 import admin as admin_api
+
+    client, db = client_and_db
+    client.app.include_router(admin_api.router, prefix="/api/v1")
+    db.add(SystemSetting(key="totp_required", value="admins"))
+    db.commit()
+    public = client.get("/api/v1/admin/settings/public")
+    assert public.status_code == 200
+    assert set(public.json()) == {"app_name", "login_message", "announcement", "support_email", "support_url"}
+
+    assert client.get("/api/v1/admin/settings/app").status_code == 401
+    _user, headers = _signed_in(db)
+    signed_in = client.get("/api/v1/admin/settings/app", headers=headers).json()
+    assert signed_in["totp_required"] == "admins"
+    assert "idle_timeout_minutes" in signed_in
+
+
 def test_disable_requires_password_and_code(client_and_db):
     client, db = client_and_db
     _user, headers = _signed_in(db)

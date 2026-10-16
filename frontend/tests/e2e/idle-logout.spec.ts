@@ -4,9 +4,8 @@ import { setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 async function openDashboard(page: Page, idleMinutes: number) {
   await setupCoreMocks(page);
   await setupTopologyMocks(page);
-  for (const path of ["**/api/v1/admin/settings/public", "**/api/v1/admin/public-settings"]) {
-    await page.route(path, (route) => route.fulfill({ json: { app_name: "NetMap", idle_timeout_minutes: idleMinutes, announcement: null } }));
-  }
+  await page.route("**/api/v1/admin/settings/public", (route) => route.fulfill({ json: { app_name: "NetMap", login_message: "", announcement: "" } }));
+  await page.route("**/api/v1/admin/settings/app", (route) => route.fulfill({ json: { app_name: "NetMap", idle_timeout_minutes: idleMinutes, announcement: "" } }));
   const logouts: string[] = [];
   await page.route("**/api/v1/auth/logout", async (route) => {
     logouts.push(route.request().url());
