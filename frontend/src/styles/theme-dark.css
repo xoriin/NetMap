@@ -1381,7 +1381,7 @@ body.theme-dark .topology-toolbar-right button:hover {
   }
 
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-main {
