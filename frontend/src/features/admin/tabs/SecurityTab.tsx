@@ -296,13 +296,10 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
 function TwoFactorPanel({ accessToken }: { accessToken: string }) {
   const toast = useToast();
   const query = useApiQuery(() => api.adminSettings(accessToken), [accessToken]);
-  const [value, setValue] = useState<SystemSettings["totp_required"]>("off");
+  const [choice, setChoice] = useState<SystemSettings["totp_required"] | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (query.data) setValue(query.data.totp_required ?? "off");
-  }, [query.data]);
+  const value = choice ?? query.data?.totp_required ?? "off";
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -311,6 +308,7 @@ function TwoFactorPanel({ accessToken }: { accessToken: string }) {
     try {
       const updated = await api.updateAdminSettings(accessToken, { totp_required: value });
       query.setData(updated);
+      setChoice(null);
       toast.success("Two-factor requirement saved");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to save the two-factor requirement";
@@ -330,7 +328,7 @@ function TwoFactorPanel({ accessToken }: { accessToken: string }) {
       <form className="tool-form" onSubmit={(e) => void save(e)}>
         <label className="nm-field">
           <span>Require two-factor authentication</span>
-          <select className="nm-select" value={value} onChange={(e) => setValue(e.target.value as SystemSettings["totp_required"])}>
+          <select className="nm-select" value={value} onChange={(e) => setChoice(e.target.value as SystemSettings["totp_required"])}>
             <option value="off">Off</option>
             <option value="admins">Administrators</option>
             <option value="all">All local users</option>

@@ -771,6 +771,32 @@ for (const theme of ["light", "dark"]) {
   });
 }
 
+test("a late settings response does not overwrite the chosen two-factor requirement", async ({ page }) => {
+  await setupAdminMocks(page);
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let saved: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/admin/settings", async (route) => {
+    if (route.request().method() === "PUT") {
+      saved = route.request().postDataJSON();
+      await route.fulfill({ json: { ...settings, ...saved } });
+      return;
+    }
+    await held;
+    await route.fulfill({ json: { ...settings, totp_required: "off" } });
+  });
+  await page.goto("/admin");
+  await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Security", exact: true }).click();
+  const panel = page.locator(".admin-panel", { hasText: "Two-factor authentication" });
+  const select = panel.getByLabel("Require two-factor authentication");
+  await select.selectOption("admins");
+  release();
+  await expect(panel.getByRole("button", { name: "Save" })).toBeEnabled();
+  await expect(select).toHaveValue("admins");
+  await panel.getByRole("button", { name: "Save" }).click();
+  await expect.poll(() => saved?.totp_required).toBe("admins");
+});
+
 test("system settings save never sends the two-factor requirement", async ({ page }) => {
   await setupAdminMocks(page);
   let saved: Record<string, unknown> | null = null;
