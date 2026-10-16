@@ -18,6 +18,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 env:
   IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE || 'xoriin/netmap' }}
 
