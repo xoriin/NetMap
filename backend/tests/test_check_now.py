@@ -1,4 +1,3 @@
-import json
 from types import SimpleNamespace
 
 import pytest
@@ -47,7 +46,8 @@ def test_scoped_checks_preserve_other_devices_and_repeat_alerts(monkeypatch, lea
         worker._known_ports[(2, 3)] = True
     for status in ['offline', 'online', 'offline', 'online']:
         state[0]=status
-        probes.clear(); ports.clear()
+        probes.clear()
+        ports.clear()
         assert worker._check(1)
         assert probes==[1]
         assert set(ports)=={('10.0.0.1',443),('10.0.0.1',22)}
@@ -73,7 +73,8 @@ def test_check_now_rejects_unavailable_devices_and_closes_session(monkeypatch):
         def get(self, *args): return self.device
         def close(self): calls.append('closed')
     for device, code in [(None,404),(SimpleNamespace(status='online', monitoring_paused=True, lifecycle='active'),409)]:
-        with pytest.raises(HTTPException) as exc: check_device_now(1,None,DB(device))
+        with pytest.raises(HTTPException) as exc:
+            check_device_now(1,None,DB(device))
         assert exc.value.status_code==code
     result=check_device_now(1,None,DB(SimpleNamespace(status='online',monitoring_paused=False,lifecycle='active')))
     assert result['checked']

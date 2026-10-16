@@ -64,7 +64,6 @@ from app.services.rbac.permissions import (
     BUILT_IN_ROLES,
     PERMISSION_KEYS,
     PERMISSION_META,
-    ROLE_DEFAULTS,
     add_role,
     delete_role,
     dump_to_json,

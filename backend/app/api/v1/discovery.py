@@ -28,7 +28,6 @@ from app.schemas.discovery import (
 from app.services.audit.service import write_audit
 from app.services.discovery.scanner import (
     deserialize_results,
-    serialize_results,
     validate_target,
 )
 from app.services.discovery.scheduled import (

@@ -1,6 +1,5 @@
 from fastapi import HTTPException
 import pytest
-from pydantic import ValidationError
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

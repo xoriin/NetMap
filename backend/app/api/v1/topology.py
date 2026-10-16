@@ -8,8 +8,6 @@ import socket
 import time
 from typing import Annotated
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.exc import DatabaseError as SQLAlchemyDatabaseError
@@ -70,6 +68,7 @@ from app.services.topology.service import device_to_dict, serialize_tags
 from app.services.snmp import OID_SYS_DESCR, OID_SYS_NAME, SnmpError, read_snmp_arp_table, SnmpClient, value_to_text
 from app.services.snmp_profiles import decrypt_profile_community
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["topology"])
 TOPOLOGY_AUTOSAVE_LAYOUT_NAME = "__autosave__"
 

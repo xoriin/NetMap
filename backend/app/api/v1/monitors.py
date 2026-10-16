@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_monitoring_write
+from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.user import User

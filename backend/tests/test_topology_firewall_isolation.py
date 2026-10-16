@@ -5,10 +5,10 @@ Tests confirming that:
   3. firewall_db DatabaseError in the per-device summary returns empty data, not HTTP 500.
 """
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.exc import DatabaseError as SQLAlchemyDatabaseError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

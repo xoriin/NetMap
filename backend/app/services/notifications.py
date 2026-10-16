@@ -84,8 +84,8 @@ def _validate_outbound_url(url: str) -> None:
         raise ValueError("Notification URL has no hostname")
     if app_settings.notification_block_private_targets and _is_private_hostname(parsed.hostname):
         raise ValueError(
-            f"Outbound requests to private/loopback addresses are blocked "
-            f"(NOTIFICATION_BLOCK_PRIVATE_TARGETS=true)"
+            "Outbound requests to private/loopback addresses are blocked "
+            "(NOTIFICATION_BLOCK_PRIVATE_TARGETS=true)"
         )
 
 
@@ -93,8 +93,8 @@ def _validate_smtp_host(host: str) -> None:
     from app.core.config import settings as app_settings
     if app_settings.notification_block_private_targets and _is_private_hostname(host):
         raise ValueError(
-            f"SMTP connections to private/loopback addresses are blocked "
-            f"(NOTIFICATION_BLOCK_PRIVATE_TARGETS=true)"
+            "SMTP connections to private/loopback addresses are blocked "
+            "(NOTIFICATION_BLOCK_PRIVATE_TARGETS=true)"
         )
 
 
@@ -352,7 +352,7 @@ def send_notification(channel: str, message: str, settings: dict[str, str]) -> s
     except urllib.error.HTTPError as exc:
         logger.warning("Notification delivery failed for channel %s with HTTP %s", channel, exc.code, exc_info=True)
         return f"HTTP {exc.code}: delivery failed"
-    except Exception as exc:
+    except Exception:
         logger.warning("Notification delivery failed for channel %s", channel, exc_info=True)
         return "Error: delivery failed"
 

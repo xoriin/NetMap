@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Iterable
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal

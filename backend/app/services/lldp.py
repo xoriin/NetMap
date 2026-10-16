@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.device import Device
 from app.models.lldp import LldpNeighbour
 from app.services.discovery.scheduled import normalize_mac
-from app.services.snmp import SnmpClient, SnmpError, oid_starts_with, value_to_text
+from app.services.snmp import SnmpClient, value_to_text
 
 # LLDP-MIB OID bases
 _REM_TABLE = (1, 0, 8802, 1, 1, 2, 1, 4, 1, 1)
