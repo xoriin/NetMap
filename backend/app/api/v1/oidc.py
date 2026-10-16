@@ -120,7 +120,7 @@ def oidc_login(
         key=TXN_COOKIE_NAME,
         value=state,
         httponly=True,
-        secure=settings.auth_cookie_secure,
+        secure=settings.auth_cookies_secure,
         samesite="lax",
         path=TXN_COOKIE_PATH,
         max_age=600,

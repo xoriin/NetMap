@@ -130,27 +130,74 @@ def test_startup_rejects_invalid_master_key() -> None:
             startup.ensure_secret_configuration()
 
 
-def test_production_hsts_requires_secure_cookies() -> None:
+def _https_settings(monkeypatch, **env):
+    from app.core.config import Settings
+
+    for name in ("APP_URL", "AUTH_COOKIE_SECURE", "SECURE_HSTS_ENABLED"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    return Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    ("env", "secure"),
+    [
+        ({"APP_URL": "https://netmap.example.com"}, True),
+        ({"APP_URL": "HTTPS://netmap.example.com"}, True),
+        ({"APP_URL": "http://netmap.example.com"}, False),
+        ({}, False),
+        ({"APP_URL": "https://netmap.example.com", "AUTH_COOKIE_SECURE": "false"}, False),
+        ({"APP_URL": "http://netmap.example.com", "AUTH_COOKIE_SECURE": "true"}, True),
+    ],
+)
+def test_cookie_secure_follows_app_url_unless_explicitly_configured(monkeypatch, env, secure) -> None:
+    assert _https_settings(monkeypatch, **env).auth_cookies_secure is secure
+
+
+@pytest.mark.parametrize(
+    ("env", "warning"),
+    [
+        ({"APP_URL": "https://netmap.example.com"}, "SECURE_HSTS_ENABLED"),
+        ({"APP_URL": "https://netmap.example.com", "AUTH_COOKIE_SECURE": "false"}, "AUTH_COOKIE_SECURE=false"),
+        ({"APP_URL": "https://netmap.example.com", "AUTH_COOKIE_SECURE": "false", "SECURE_HSTS_ENABLED": "true"}, "AUTH_COOKIE_SECURE=false"),
+        ({"APP_URL": "http://netmap.example.com", "AUTH_COOKIE_SECURE": "false", "SECURE_HSTS_ENABLED": "true"}, "AUTH_COOKIE_SECURE=false"),
+    ],
+)
+def test_upgraded_https_configurations_start_with_a_warning(monkeypatch, caplog, env, warning) -> None:
     from app.core import startup
 
-    fake_settings = SimpleNamespace(
-        app_url="https://netmap.example.com",
-        secure_hsts_enabled=True,
-        auth_cookie_secure=False,
-    )
-    with patch.object(startup, "settings", fake_settings):
-        with pytest.raises(RuntimeError, match="AUTH_COOKIE_SECURE"):
-            startup._enforce_https_security_settings()
+    with patch.object(startup, "settings", _https_settings(monkeypatch, **env)):
+        startup._enforce_https_security_settings()
+    assert warning in caplog.text
 
 
-def test_production_https_url_requires_hsts() -> None:
+def test_https_with_secure_cookies_and_hsts_starts_quietly(monkeypatch, caplog) -> None:
     from app.core import startup
 
-    fake_settings = SimpleNamespace(
-        app_url="https://netmap.example.com",
-        secure_hsts_enabled=False,
-        auth_cookie_secure=True,
-    )
-    with patch.object(startup, "settings", fake_settings):
-        with pytest.raises(RuntimeError, match="SECURE_HSTS_ENABLED"):
-            startup._enforce_https_security_settings()
+    configured = _https_settings(monkeypatch, APP_URL="https://netmap.example.com", SECURE_HSTS_ENABLED="true")
+    with patch.object(startup, "settings", configured):
+        startup._enforce_https_security_settings()
+    assert caplog.text == ""
+
+
+def test_plain_http_without_overrides_starts_quietly(monkeypatch, caplog) -> None:
+    from app.core import startup
+
+    with patch.object(startup, "settings", _https_settings(monkeypatch, APP_URL="http://netmap.local")):
+        startup._enforce_https_security_settings()
+    assert caplog.text == ""
+
+
+def test_auth_cookies_are_secure_for_an_https_app_url_by_default(monkeypatch) -> None:
+    from fastapi import Response
+
+    from app.api.v1 import auth as auth_api
+    from app.api.v1 import oidc as oidc_api
+
+    configured = _https_settings(monkeypatch, APP_URL="https://netmap.example.com")
+    response = Response()
+    with patch.object(auth_api, "settings", configured), patch.object(oidc_api, "settings", configured):
+        auth_api._set_auth_cookies(response, "access", "refresh")
+    cookies = response.headers.getlist("set-cookie")
+    assert cookies and all("Secure" in cookie for cookie in cookies)

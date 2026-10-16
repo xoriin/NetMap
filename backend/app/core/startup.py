@@ -121,15 +121,17 @@ def _check_app_url() -> None:
 
 
 def _enforce_https_security_settings() -> None:
-    app_uses_https = settings.app_url.lower().startswith("https://")
-    if settings.secure_hsts_enabled and not settings.auth_cookie_secure:
-        raise RuntimeError(
-            "AUTH_COOKIE_SECURE must be true when SECURE_HSTS_ENABLED is true"
+    https_expected = settings.app_uses_https or settings.secure_hsts_enabled
+    if https_expected and not settings.auth_cookies_secure:
+        logger.warning(
+            "AUTH_COOKIE_SECURE=false: sign-in cookies are not marked Secure although NetMap is "
+            "served over HTTPS. Remove the setting (it follows APP_URL) or set it to true."
         )
-    if app_uses_https and not settings.auth_cookie_secure:
-        raise RuntimeError("AUTH_COOKIE_SECURE must be true when APP_URL uses HTTPS")
-    if app_uses_https and not settings.secure_hsts_enabled:
-        raise RuntimeError("SECURE_HSTS_ENABLED must be true when APP_URL uses HTTPS")
+    if settings.app_uses_https and not settings.secure_hsts_enabled:
+        logger.warning(
+            "SECURE_HSTS_ENABLED is off. Once NetMap will only ever be served over HTTPS on this "
+            "hostname, set it to true so browsers refuse plain-HTTP connections."
+        )
 
 
 def _check_cors_origins() -> None:

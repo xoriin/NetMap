@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     trusted_hosts: list[str] = Field(default=[], alias="TRUSTED_HOSTS")
     secure_headers_enabled: bool = Field(default=True, alias="SECURE_HEADERS_ENABLED")
     secure_hsts_enabled: bool = Field(default=False, alias="SECURE_HSTS_ENABLED")
-    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_secure: bool | None = Field(default=None, alias="AUTH_COOKIE_SECURE")
     secure_hsts_max_age: int = Field(default=31536000, alias="SECURE_HSTS_MAX_AGE")
     secure_content_security_policy: str = Field(
         default=(
@@ -158,6 +158,16 @@ class Settings(BaseSettings):
         env_file=(".env", "/etc/netmap/netmap.env"),
         env_file_encoding="utf-8",
     )
+
+    @property
+    def app_uses_https(self) -> bool:
+        return self.app_url.strip().lower().startswith("https://")
+
+    @property
+    def auth_cookies_secure(self) -> bool:
+        if self.auth_cookie_secure is not None:
+            return self.auth_cookie_secure
+        return self.app_uses_https
 
 
 @lru_cache

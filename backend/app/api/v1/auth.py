@@ -164,7 +164,7 @@ def create_initial_admin(
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    secure = settings.auth_cookie_secure
+    secure = settings.auth_cookies_secure
     csrf_token = token_urlsafe(32)
     response.set_cookie(
         key="netmap_access",
