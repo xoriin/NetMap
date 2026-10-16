@@ -12,6 +12,7 @@ from app.models.user import User
 from app.services import totp
 
 NOW = 1_800_000_000.0
+STEP = totp.STEP_SECONDS
 
 
 @pytest.fixture()
@@ -152,3 +153,64 @@ def test_requirement_policy(db, setting, role, required):
         db.add(SystemSetting(key="totp_required", value=setting))
         db.commit()
     assert totp.is_required_for(db, _user(db, role)) is required
+
+
+@pytest.fixture()
+def two_sessions(tmp_path):
+    import_all_models()
+    engine = create_engine(f"sqlite:///{tmp_path / 'race.db'}", connect_args={"check_same_thread": False})
+    with engine.connect() as conn:
+        conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+    Base.metadata.create_all(engine, tables=[User.__table__, SystemSetting.__table__])
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    first, second = factory(), factory()
+    yield first, second
+    first.close()
+    second.close()
+    engine.dispose()
+
+
+def _racing_users(first, second):
+    user, secret, codes = _enrolled(first)
+    first.commit()
+    return user, second.get(User, user.id), secret, codes
+
+
+def test_one_code_cannot_be_used_by_two_concurrent_requests(two_sessions):
+    first, second = two_sessions
+    user_a, user_b, secret, _codes = _racing_users(first, second)
+    code = _code(secret, NOW + STEP)
+    assert totp.verify(first, user_a, code, now=NOW + STEP) == "totp"
+    first.commit()
+    assert totp.verify(second, user_b, code, now=NOW + STEP) is None
+
+
+def test_one_recovery_code_cannot_be_used_by_two_concurrent_requests(two_sessions):
+    first, second = two_sessions
+    user_a, user_b, _secret, codes = _racing_users(first, second)
+    assert totp.verify(first, user_a, codes[0], now=NOW) == "recovery"
+    first.commit()
+    assert totp.verify(second, user_b, codes[0], now=NOW) is None
+
+
+def test_a_concurrent_request_can_still_use_a_different_recovery_code(two_sessions):
+    first, second = two_sessions
+    user_a, user_b, _secret, codes = _racing_users(first, second)
+    assert totp.verify(first, user_a, codes[0], now=NOW) == "recovery"
+    first.commit()
+    assert totp.verify(second, user_b, codes[1], now=NOW) == "recovery"
+    second.commit()
+    first.expire_all()
+    assert first.get(User, user_a.id).recovery_codes_remaining == 8
+
+
+def test_enrolment_cannot_be_confirmed_twice_concurrently(two_sessions):
+    first, second = two_sessions
+    user_a = _user(first)
+    secret, _uri = totp.begin_enrolment(first, user_a)
+    first.commit()
+    user_b = second.get(User, user_a.id)
+    code = _code(secret, NOW)
+    assert totp.confirm_enrolment(first, user_a, code, now=NOW) is not None
+    first.commit()
+    assert totp.confirm_enrolment(second, user_b, code, now=NOW) is None

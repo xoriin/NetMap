@@ -9,6 +9,7 @@ from hmac import compare_digest
 from typing import Literal
 
 import pyotp
+from sqlalchemy import or_, update
 from sqlalchemy.orm import Session
 
 from app.core.secrets import decrypt_secret, encrypt_secret
@@ -19,6 +20,8 @@ STEP_SECONDS = 30
 RECOVERY_CODE_COUNT = 10
 _BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 _ADMIN_ROLES = {UserRole.SUPER_ADMIN, UserRole.NETWORK_ADMIN}
+_STATE = ["totp_secret", "totp_enabled_at", "totp_last_step", "totp_recovery_codes"]
+_CLAIM_ATTEMPTS = 3
 
 
 def begin_enrolment(db: Session, user: User) -> tuple[str, str]:
@@ -38,34 +41,40 @@ def confirm_enrolment(db: Session, user: User, code: str, *, now: float | None =
     step = _matching_step(decrypt_secret(user.totp_secret), code, now, last_step=None)
     if step is None:
         return None
-    user.totp_last_step = step
-    user.totp_enabled_at = datetime.now(timezone.utc)
-    codes = _new_recovery_codes(user)
-    db.flush()
-    return codes
+    codes, stored = _recovery_codes()
+    claimed = _claim(
+        db,
+        user,
+        User.totp_enabled_at.is_(None),
+        totp_last_step=step,
+        totp_enabled_at=datetime.now(timezone.utc),
+        totp_recovery_codes=stored,
+    )
+    return codes if claimed else None
 
 
 def verify(db: Session, user: User, code: str, *, now: float | None = None) -> Literal["totp", "recovery"] | None:
-    if not user.totp_secret or user.totp_enabled_at is None:
-        return None
-    step = _matching_step(decrypt_secret(user.totp_secret), code, now, last_step=user.totp_last_step)
-    if step is not None:
-        user.totp_last_step = step
-        db.flush()
-        return "totp"
-    hashes = json.loads(user.totp_recovery_codes or "[]")
-    candidate = _hash_recovery(code)
-    for stored in hashes:
-        if compare_digest(stored, candidate):
-            hashes.remove(stored)
-            user.totp_recovery_codes = json.dumps(hashes)
-            db.flush()
+    for _ in range(_CLAIM_ATTEMPTS):
+        if not user.totp_secret or user.totp_enabled_at is None:
+            return None
+        step = _matching_step(decrypt_secret(user.totp_secret), code, now, last_step=user.totp_last_step)
+        if step is not None:
+            if _claim(db, user, or_(User.totp_last_step.is_(None), User.totp_last_step < step), totp_last_step=step):
+                return "totp"
+            continue
+        hashes = json.loads(user.totp_recovery_codes or "[]")
+        candidate = _hash_recovery(code)
+        match = next((stored for stored in hashes if compare_digest(stored, candidate)), None)
+        if match is None:
+            return None
+        hashes.remove(match)
+        if _claim(db, user, User.totp_recovery_codes == user.totp_recovery_codes, totp_recovery_codes=json.dumps(hashes)):
             return "recovery"
     return None
 
 
 def regenerate_recovery_codes(db: Session, user: User) -> list[str]:
-    codes = _new_recovery_codes(user)
+    codes, user.totp_recovery_codes = _recovery_codes()
     db.flush()
     return codes
 
@@ -107,13 +116,23 @@ def _matching_step(secret: str, code: str, now: float | None, *, last_step: int 
     return None
 
 
-def _new_recovery_codes(user: User) -> list[str]:
+def _claim(db: Session, user: User, *conditions, **values) -> bool:
+    result = db.execute(
+        update(User)
+        .where(User.id == user.id, User.totp_secret == user.totp_secret, *conditions)
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    db.refresh(user, _STATE)
+    return result.rowcount == 1
+
+
+def _recovery_codes() -> tuple[list[str], str]:
     codes = []
     for _ in range(RECOVERY_CODE_COUNT):
         raw = "".join(secrets.choice(_BASE32) for _ in range(10))
         codes.append(f"{raw[:5]}-{raw[5:]}")
-    user.totp_recovery_codes = json.dumps([_hash_recovery(c) for c in codes])
-    return codes
+    return codes, json.dumps([_hash_recovery(c) for c in codes])
 
 
 def _hash_recovery(code: str) -> str:
