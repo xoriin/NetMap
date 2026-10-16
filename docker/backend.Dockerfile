@@ -18,7 +18,7 @@ WORKDIR /app
 COPY backend/pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip \
   && pip install --no-cache-dir \
-       "fastapi~=0.115.0" \
+       "fastapi>=0.115.0" \
        "uvicorn[standard]~=0.30.0" \
        "pydantic-settings~=2.4" \
        "sqlalchemy~=2.0" \
@@ -27,11 +27,13 @@ RUN pip install --no-cache-dir --upgrade pip \
        "cryptography>=50.0.0" \
        "defusedxml~=0.7.1" \
        "pillow>=11.0.0" \
-       "python-jose[cryptography]~=3.3" \
+       "PyJWT~=2.10" \
+       "starlette>=1.3.1" \
        "dnspython~=2.7" \
        "reportlab~=4.4" \
        "apprise~=1.9" \
-       "httpx>=0.27.0"
+       "httpx>=0.27.0" \
+       "pyotp~=2.9"
 
 COPY backend/app ./app
 
