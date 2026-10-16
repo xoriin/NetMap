@@ -52,13 +52,6 @@
   cursor: pointer;
 }
 
-/* Auth-source badge (Admin -> Users): linked single sign-on identity. */
-.nm-pill--sso {
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent-strong);
-  border-color: rgba(29, 154, 176, 0.25);
-}
-
 .admin-user-name .nm-pill {
   margin-left: 6px;
   vertical-align: middle;

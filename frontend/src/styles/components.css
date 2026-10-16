@@ -1177,6 +1177,12 @@ body.theme-dark .nm-status--warning { color: #e8b040; }
   border-color: rgba(212, 145, 44, 0.25);
 }
 
+.nm-pill--sso {
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+  border-color: rgba(29, 154, 176, 0.25);
+}
+
 /* ── Canonical popup window ────────────────────────────────────────────────
    Every shared Modal uses the same lifted navy hierarchy established by the
    Monitoring editor. Keep popup colour changes here rather than creating a

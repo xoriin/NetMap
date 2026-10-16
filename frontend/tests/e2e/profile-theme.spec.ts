@@ -110,6 +110,22 @@ test("two-factor row offers setup and completes enrolment in a modal", async ({ 
   await expect(dialog).toBeHidden();
 });
 
+test("the SSO pill is styled on Profile without visiting Admin first", async ({ page }) => {
+  await setupProfileMocks(page, { auth_source: "oidc" });
+  await page.goto("/profile");
+  const pill = page.locator(".nm-pill--sso").first();
+  await expect(pill).toBeVisible();
+  const [background, expected] = await pill.evaluate((el) => {
+    const probe = document.createElement("span");
+    probe.style.backgroundColor = "var(--nm-accent-soft)";
+    document.body.appendChild(probe);
+    const resolved = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return [getComputedStyle(el).backgroundColor, resolved];
+  });
+  expect(background).toBe(expected);
+});
+
 test("two-factor row warns on low recovery codes and hides Turn off when required", async ({ page }) => {
   await setupProfileMocks(page, { totp_enabled: true, totp_required: true, recovery_codes_remaining: 2 });
   await page.goto("/profile");
