@@ -156,8 +156,11 @@ NetMap uses `CHANGELOG.md` as the single source of truth for release notes:
 | `test` branch | `xoriin/netmap:test` | No |
 | `v*` tag on `main` | `xoriin/netmap:vX.Y.Z` + `latest` | Yes (from `CHANGELOG.md`) |
 
+Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs the backend tests and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
+
 Pushing a `v*` tag runs CI that:
 
+- refuses to publish unless the tag is release-ready: `VERSION` matches the tag, `CHANGELOG.md` has a non-empty `## [X.Y.Z]` section and nothing left under `## Unreleased`, and the email logo URL no longer points at the `test` branch (`scripts/check-release.py`),
 - builds and publishes the Docker Hub release image (`xoriin/netmap:vX.Y.Z` and `latest`), and
 - publishes a **GitHub Release** for the same tag using the matching `CHANGELOG.md` section (`scripts/release-notes-from-changelog.py`).
 
@@ -165,10 +168,11 @@ Pushing the **`test` branch does not create a GitHub Release** — it only build
 
 The in-app What's New modal reads the same baked `CHANGELOG.md`. It opens **after install/upgrade**, not when a newer tag is merely available. Do not hand-write GitHub release bodies — edit `CHANGELOG.md` only.
 
-Preview release notes locally:
+Preview release notes, and check the tag will pass, locally:
 
 ```bash
 python3 scripts/release-notes-from-changelog.py v1.3.1
+python3 scripts/check-release.py v1.3.1
 ```
 
 ---
