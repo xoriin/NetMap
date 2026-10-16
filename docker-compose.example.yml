@@ -39,7 +39,7 @@ services:
 
       # Set true only when served behind a TLS-terminating reverse proxy.
       SECURE_HSTS_ENABLED: "false"
-      AUTH_COOKIE_SECURE: "false"
+      # AUTH_COOKIE_SECURE: "false"  # unset = Secure cookies whenever APP_URL is https://
       AUTH_IP_LOCKOUT_ENABLED: "true"
       AUTH_IP_MAX_FAILED_ATTEMPTS: "50"
       TRUSTED_PROXY_IPS: '["127.0.0.1"]'

@@ -241,7 +241,7 @@ services:
 
       # Set true once TLS is terminating in front of this container.
       SECURE_HSTS_ENABLED: "false"
-      AUTH_COOKIE_SECURE: "false"
+      # AUTH_COOKIE_SECURE: "false"  # unset = Secure cookies whenever APP_URL is https://
 
       # IPs/CIDRs of your reverse proxy so forwarded headers are trusted.
       TRUSTED_PROXY_IPS: '["127.0.0.1"]'
@@ -329,8 +329,8 @@ All configuration is done via environment variables in your compose file. There 
 | `APP_URL` | *(derived)* | Public URL used in password-reset emails. Set this if you're behind a reverse proxy. |
 | `TRUSTED_HOSTS` | `["*"]` | JSON array of accepted `Host` header values. Use `["*"]` for LAN; lock down for internet-facing. |
 | `CORS_ORIGINS` | *(derived from APP_URL)* | JSON array of allowed CORS origins. |
-| `SECURE_HSTS_ENABLED` | `false` | Set `true` to send HSTS headers. Enable only when TLS is terminating upstream. |
-| `AUTH_COOKIE_SECURE` | `false` | Set `true` to mark auth cookies as `Secure`. Enable with HTTPS. |
+| `SECURE_HSTS_ENABLED` | `false` | Optional. Set `true` to send HSTS headers once NetMap will only ever be served over HTTPS on this hostname. A startup warning is logged while it is off for an HTTPS `APP_URL`. |
+| `AUTH_COOKIE_SECURE` | *(follows APP_URL)* | Auth cookies are marked `Secure` when `APP_URL` is `https://`. Set `true` or `false` only to override. |
 | `TRUSTED_PROXY_IPS` | `["127.0.0.1"]` | IPs/CIDRs of upstream proxies whose forwarded headers are trusted. |
 | `LOG_LEVEL` | `info` | Uvicorn log level: `debug`, `info`, `warning`, `error`, `critical`. |
 | `EVENT_RETENTION_DAYS` | `7` | Days to keep monitoring poll events. |
@@ -416,8 +416,7 @@ environment:
   APP_URL: "https://netmap.example.com"
   TRUSTED_HOSTS: '["netmap.example.com"]'
   CORS_ORIGINS: '["https://netmap.example.com"]'
-  SECURE_HSTS_ENABLED: "true"
-  AUTH_COOKIE_SECURE: "true"
+  SECURE_HSTS_ENABLED: "true"  # optional; only once HTTPS on this hostname is permanent
   TRUSTED_PROXY_IPS: '["127.0.0.1"]'  # add your proxy's IP if not localhost
 ```
 

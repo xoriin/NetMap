@@ -30,8 +30,8 @@ For safer deployments:
 - Set strong, stable `SECRET_KEY` and `MASTER_KEY` values before first start.
 - Set `APP_URL` to the exact external URL users will open in a browser.
 - Replace wildcard `TRUSTED_HOSTS` with exact hostnames before internet exposure.
-- Set `SECURE_HSTS_ENABLED=true` only after HTTPS is confirmed working.
-- Set `AUTH_COOKIE_SECURE=true` when the browser reaches NetMap over HTTPS.
+- Set `SECURE_HSTS_ENABLED=true` only once NetMap will only ever be served over HTTPS on this hostname.
+- Leave `AUTH_COOKIE_SECURE` unset so auth cookies are `Secure` whenever `APP_URL` is `https://`.
 - Restrict syslog ingestion with `SYSLOG_SENDER_ALLOWLIST`.
 - Prefer a reverse proxy with HTTPS, request-size limits, access logging, and
   network-level firewall rules.
