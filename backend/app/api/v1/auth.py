@@ -1,5 +1,7 @@
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
+from hmac import compare_digest
 from secrets import token_urlsafe
 from typing import Annotated
 
@@ -76,8 +78,12 @@ MFA_CHALLENGE_TTL = timedelta(minutes=5)
 _CHALLENGE_EXPIRED = "Sign-in expired. Enter your password again."
 
 
+def _password_fingerprint(user: User) -> str:
+    return hashlib.sha256(user.password_hash.encode()).hexdigest()
+
+
 def _issue_challenge(user: User, token_type: str) -> str:
-    return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL)
+    return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL, {"pwf": _password_fingerprint(user)})
 
 
 def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
@@ -88,6 +94,8 @@ def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
         user_id = None
     user = db.get(User, user_id) if user_id is not None else None
     if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
+    if not compare_digest(str(payload.get("pwf", "")), _password_fingerprint(user)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
     if (user.totp_enabled_at is not None) != (token_type == "mfa_challenge"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)

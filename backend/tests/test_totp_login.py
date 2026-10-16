@@ -246,6 +246,34 @@ def test_setup_challenge_cannot_wipe_an_active_enrolment(client_and_db):
     assert db.query(User).filter_by(username="alice").one().totp_enabled_at is not None
 
 
+def test_password_reset_invalidates_an_outstanding_setup_challenge(client_and_db):
+    client, db = client_and_db
+    challenge = _setup_challenge(client, db)
+    setup = client.post("/api/v1/auth/login/totp/setup", json={"challenge": challenge}).json()
+    user = db.query(User).filter_by(username="alice").one()
+    user.password_hash = hash_password("a brand new password")
+    db.commit()
+    for path, body in (
+        ("/api/v1/auth/login/totp/setup", {"challenge": challenge}),
+        ("/api/v1/auth/login/totp/setup/confirm", {"challenge": challenge, "code": pyotp.TOTP(setup["secret"]).now()}),
+    ):
+        response = client.post(path, json=body)
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Sign-in expired. Enter your password again."
+    db.expire_all()
+    assert db.query(User).filter_by(username="alice").one().totp_enabled_at is None
+
+
+def test_password_reset_invalidates_an_outstanding_code_challenge(client_and_db):
+    client, db = client_and_db
+    user, secret = _make_user(db, enrol=True)
+    challenge = _login(client).json()["challenge"]
+    user.password_hash = hash_password("a brand new password")
+    db.commit()
+    response = client.post("/api/v1/auth/login/totp", json={"challenge": challenge, "code": pyotp.TOTP(secret).now()})
+    assert response.status_code == 401
+
+
 def test_challenge_is_rejected_once_totp_is_removed_without_counting_a_failure(client_and_db):
     client, db = client_and_db
     user, secret = _make_user(db, enrol=True)
