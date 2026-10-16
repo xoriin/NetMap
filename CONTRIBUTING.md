@@ -159,7 +159,7 @@ NetMap uses `CHANGELOG.md` as the single source of truth for release notes:
 
 Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs Ruff and the backend tests, and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
 
-Publication also requires real AIO compatibility checks on **amd64 and arm64** (arm64 uses QEMU): fresh HTTP, HTTPS with omitted flags, legacy explicit false flags, disabled security headers, and compliant HTTPS. Each must start nginx/API successfully and report the expected cookie security and startup warnings. A disposable database is created by the published `latest` image, seeded with a user and setting, then upgraded and restarted on the candidate; integrity, persisted values and migration history must survive. This does not replace migration fixtures or a real-data release rehearsal.
+Publication also requires real AIO compatibility checks on **amd64 and arm64** (arm64 uses QEMU, so pushes to `test` check amd64 only; `main`, pull requests and `v*` tags check both): fresh HTTP, HTTPS with omitted flags, legacy explicit false flags, disabled security headers, and compliant HTTPS. Each must start nginx/API successfully and report the expected cookie security and startup warnings. A disposable database is created by the published `latest` image, seeded with a user and setting, then upgraded and restarted on the candidate; integrity, persisted values and migration history must survive. This does not replace migration fixtures or a real-data release rehearsal.
 
 Run the same check locally after building a candidate image:
 
