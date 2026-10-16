@@ -6,6 +6,7 @@ type Props = {
   start: () => Promise<TotpSetup>;
   confirm: (code: string) => Promise<string[]>;
   onDone: () => void;
+  onRecoveryCodes?: () => void;
   buttonClassName?: string;
   linkClassName?: string;
   doneLabel?: string;
@@ -48,7 +49,7 @@ export function RecoveryCodesView({ codes, onDone, buttonClassName, linkClassNam
   );
 }
 
-export function TotpEnrolment({ start, confirm, onDone, buttonClassName, linkClassName, doneLabel = "Continue" }: Props) {
+export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonClassName, linkClassName, doneLabel = "Continue" }: Props) {
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const [qr, setQr] = useState<string>("");
   const [code, setCode] = useState("");
@@ -77,6 +78,7 @@ export function TotpEnrolment({ start, confirm, onDone, buttonClassName, linkCla
     setError(null);
     try {
       setCodes(await confirm(code));
+      onRecoveryCodes?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "That code didn't work");
     } finally {

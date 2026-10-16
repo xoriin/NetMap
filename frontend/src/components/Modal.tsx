@@ -29,6 +29,7 @@ function modalSizeClass(size: ModalSize, wide: boolean) {
 export function Modal({
   bodyClassName,
   children,
+  dismissible = true,
   footer,
   headerActions,
   headerExtra,
@@ -44,6 +45,7 @@ export function Modal({
 }: {
   bodyClassName?: string;
   children: React.ReactNode;
+  dismissible?: boolean;
   footer?: React.ReactNode;
   headerActions?: React.ReactNode;
   headerExtra?: React.ReactNode;
@@ -62,7 +64,7 @@ export function Modal({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onCancel();
+        if (dismissible) onCancel();
         return;
       }
       if (event.key !== "Tab") return;
@@ -87,7 +89,7 @@ export function Modal({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
+  }, [dismissible, onCancel]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -116,7 +118,7 @@ export function Modal({
       aria-modal="true"
       aria-label={title}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
+        if (dismissible && event.target === event.currentTarget) onCancel();
       }}
     >
       <div
@@ -142,9 +144,11 @@ export function Modal({
               </button>
             )}
             {headerActions}
-            <button type="button" className="nm-btn nm-btn--icon modal-close-btn" onClick={onCancel} aria-label="Close">
-              <X size={18} />
-            </button>
+            {dismissible && (
+              <button type="button" className="nm-btn nm-btn--icon modal-close-btn" onClick={onCancel} aria-label="Close">
+                <X size={18} />
+              </button>
+            )}
           </div>
         </div>
         {bodyClassName ? <div className={bodyClassName}>{children}</div> : children}

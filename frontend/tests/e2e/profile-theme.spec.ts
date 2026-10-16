@@ -140,6 +140,45 @@ test("setting up two-factor asks for the current password before showing the QR 
   expect(bodies).toEqual([{ password: "wrong" }, { password: "correct horse battery" }]);
 });
 
+async function expectCodesCannotBeDismissed(page: Page, dialog: ReturnType<Page["getByRole"]>) {
+  await expect(dialog.locator(".totp-recovery-codes li").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(4, 4);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Close" })).toHaveCount(0);
+  await dialog.getByLabel("I've saved these recovery codes").check();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+test("fresh recovery codes from setup cannot be dismissed before they are saved", async ({ page }) => {
+  await setupProfileMocks(page, { totp_enabled: false, totp_required: false, recovery_codes_remaining: 0 });
+  await page.route("**/api/v1/auth/me/totp/setup", (route) => route.fulfill({ json: { secret: "JBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/NetMap:alice?secret=JBSWY3DPEHPK3PXP&issuer=NetMap" } }));
+  await page.route("**/api/v1/auth/me/totp/confirm", (route) => route.fulfill({ json: { recovery_codes: ["AAAAA-BBBBB"] } }));
+  await page.goto("/profile");
+  await page.locator(".profile-security-row", { hasText: "Two-factor authentication" }).getByRole("button", { name: "Set up" }).click();
+  const dialog = page.getByRole("dialog", { name: "Set up two-factor authentication" });
+  await dialog.getByLabel("Current password").fill("correct horse battery");
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByLabel("Authentication code").fill("123456");
+  await dialog.getByRole("button", { name: "Verify" }).click();
+  await expectCodesCannotBeDismissed(page, dialog);
+});
+
+test("regenerated recovery codes cannot be dismissed before they are saved", async ({ page }) => {
+  await setupProfileMocks(page, { totp_enabled: true, totp_required: false, recovery_codes_remaining: 10 });
+  await page.route("**/api/v1/auth/me/totp/recovery-codes", (route) => route.fulfill({ json: { recovery_codes: ["CCCCC-DDDDD"] } }));
+  await page.goto("/profile");
+  await page.locator(".profile-security-row", { hasText: "Two-factor authentication" }).getByRole("button", { name: "New recovery codes" }).click();
+  const dialog = page.getByRole("dialog", { name: "New recovery codes" });
+  await expect(dialog.getByRole("button", { name: "Close" })).toBeVisible();
+  await dialog.getByLabel("Current password").fill("correct horse battery");
+  await dialog.getByLabel("Authentication code").fill("123456");
+  await dialog.getByRole("button", { name: "Generate new codes" }).click();
+  await expectCodesCannotBeDismissed(page, dialog);
+});
+
 test("the SSO pill is styled on Profile without visiting Admin first", async ({ page }) => {
   await setupProfileMocks(page, { auth_source: "oidc" });
   await page.goto("/profile");

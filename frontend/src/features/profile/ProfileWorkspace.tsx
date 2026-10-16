@@ -303,6 +303,7 @@ export function ProfileWorkspace({
   const [totpError, setTotpError] = useState<string | null>(null);
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
   const [totpSetup, setTotpSetup] = useState<TotpSetup | null>(null);
+  const [setupCodesShown, setSetupCodesShown] = useState(false);
   const totpSession = useRef(0);
   const refreshUser = useCallback(() => {
     void api.me(accessToken).then(onUserUpdate).catch(() => undefined);
@@ -400,6 +401,7 @@ export function ProfileWorkspace({
     setTotpError(null);
     setNewCodes(null);
     setTotpSetup(null);
+    setSetupCodesShown(false);
   }
 
   function openTotpModal(kind: "setup" | "disable" | "regenerate") {
@@ -696,10 +698,10 @@ export function ProfileWorkspace({
       <ApiKeysPanel accessToken={accessToken} onActiveCountChange={setActiveKeyCount} />
 
       {totpModal === "setup" && (
-        <Modal title="Set up two-factor authentication" onCancel={closeTotpModal}>
+        <Modal title="Set up two-factor authentication" onCancel={closeTotpModal} dismissible={!setupCodesShown}>
           {totpSetup ? (
             <div className="modal-form">
-              <TotpEnrolment start={startTotp} confirm={confirmTotp} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
+              <TotpEnrolment start={startTotp} confirm={confirmTotp} onDone={closeTotpModal} onRecoveryCodes={() => setSetupCodesShown(true)} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
             </div>
           ) : (
             <form className="modal-form" onSubmit={(e) => void submitTotpSetupPassword(e)}>
@@ -716,7 +718,7 @@ export function ProfileWorkspace({
         </Modal>
       )}
       {(totpModal === "disable" || totpModal === "regenerate") && (
-        <Modal title={totpModal === "disable" ? "Turn off two-factor authentication" : "New recovery codes"} onCancel={closeTotpModal}>
+        <Modal title={totpModal === "disable" ? "Turn off two-factor authentication" : "New recovery codes"} onCancel={closeTotpModal} dismissible={!newCodes}>
           {newCodes ? (
             <div className="modal-form">
               <RecoveryCodesView codes={newCodes} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
