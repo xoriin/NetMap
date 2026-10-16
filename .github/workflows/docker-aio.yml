@@ -22,7 +22,11 @@ env:
   IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE || 'xoriin/netmap' }}
 
 jobs:
+  tests:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
