@@ -1461,8 +1461,8 @@ export const api = {
     request<TotpSetup>("/api/v1/auth/login/totp/setup", { method: "POST", body: JSON.stringify({ challenge }) }),
   loginTotpSetupConfirm: (challenge: string, code: string) =>
     request<TotpCodes>("/api/v1/auth/login/totp/setup/confirm", { method: "POST", body: JSON.stringify({ challenge, code }) }),
-  startMyTotp: (token: string) =>
-    request<TotpSetup>("/api/v1/auth/me/totp/setup", { method: "POST", token, body: JSON.stringify({}) }),
+  startMyTotp: (token: string, password: string) =>
+    request<TotpSetup>("/api/v1/auth/me/totp/setup", { method: "POST", token, body: JSON.stringify({ password }) }),
   confirmMyTotp: (token: string, code: string) =>
     request<TotpCodes>("/api/v1/auth/me/totp/confirm", { method: "POST", token, body: JSON.stringify({ code }) }),
   regenerateRecoveryCodes: (token: string, password: string, code: string) =>

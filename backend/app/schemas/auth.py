@@ -110,6 +110,10 @@ class TotpCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=32)
 
 
+class TotpPasswordRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+
+
 class TotpManageRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
     code: str = Field(min_length=1, max_length=32)

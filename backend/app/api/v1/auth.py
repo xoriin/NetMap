@@ -42,6 +42,7 @@ from app.schemas.auth import (
     TotpCodesResponse,
     TotpLoginRequest,
     TotpManageRequest,
+    TotpPasswordRequest,
     TotpSetupConfirmRequest,
     TotpSetupResponse,
     UserCreateRequest,
@@ -503,7 +504,7 @@ def change_password(
     db.commit()
 
 
-def _verify_password_and_code(db: Session, user: User, payload: TotpManageRequest, request: Request) -> None:
+def _verify_password_and_code(db: Session, user: User, request: Request, password: str, code: str | None = None) -> None:
     client_ip = client_ip_from_request(request)
     subjects = throttle_subjects(user.username, client_ip)
     locked, wait_seconds = is_locked(db, subjects)
@@ -513,7 +514,7 @@ def _verify_password_and_code(db: Session, user: User, payload: TotpManageReques
             detail=f"Too many attempts. Retry in {wait_seconds} seconds.",
             headers={"Retry-After": str(max(1, wait_seconds))},
         )
-    if verify_password(payload.password, user.password_hash) and totp_service.verify(db, user, payload.code) is not None:
+    if verify_password(password, user.password_hash) and (code is None or totp_service.verify(db, user, code) is not None):
         return
     db.rollback()
     attempts = record_login_failure(db, subjects)
@@ -526,16 +527,20 @@ def _verify_password_and_code(db: Session, user: User, payload: TotpManageReques
     )
     db.commit()
     apply_progressive_delay(attempts)
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password or authentication code is incorrect")
+    detail = "Current password is incorrect" if code is None else "Password or authentication code is incorrect"
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
 @router.post("/auth/me/totp/setup", response_model=TotpSetupResponse)
 def start_my_totp(
+    payload: TotpPasswordRequest,
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpSetupResponse:
     if current_user.totp_enabled:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Two-factor authentication is already on")
+    _verify_password_and_code(db, current_user, request, payload.password)
     secret, uri = totp_service.begin_enrolment(db, current_user)
     db.commit()
     return TotpSetupResponse(secret=secret, otpauth_uri=uri)
@@ -562,7 +567,7 @@ def regenerate_my_recovery_codes(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpCodesResponse:
-    _verify_password_and_code(db, current_user, payload, request)
+    _verify_password_and_code(db, current_user, request, payload.password, payload.code)
     codes = totp_service.regenerate_recovery_codes(db, current_user)
     write_audit(db, action="auth.mfa_recovery_regenerated", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
     db.commit()
@@ -578,7 +583,7 @@ def disable_my_totp(
 ) -> None:
     if totp_service.is_required_for(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor authentication is required for your role")
-    _verify_password_and_code(db, current_user, payload, request)
+    _verify_password_and_code(db, current_user, request, payload.password, payload.code)
     totp_service.disable(db, current_user)
     write_audit(db, action="auth.mfa_disabled", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
     db.commit()

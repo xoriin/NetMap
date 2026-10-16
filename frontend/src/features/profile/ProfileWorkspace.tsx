@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { EntityChip } from "../../components/EntityChip";
-import { api, type ApiKey, type ApiKeyExpiryDays, type User } from "../../api/client";
+import { api, type ApiKey, type ApiKeyExpiryDays, type TotpSetup, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
@@ -302,11 +302,15 @@ export function ProfileWorkspace({
   const [totpBusy, setTotpBusy] = useState(false);
   const [totpError, setTotpError] = useState<string | null>(null);
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
+  const [totpSetup, setTotpSetup] = useState<TotpSetup | null>(null);
   const totpSession = useRef(0);
   const refreshUser = useCallback(() => {
     void api.me(accessToken).then(onUserUpdate).catch(() => undefined);
   }, [accessToken, onUserUpdate]);
-  const startTotp = useCallback(() => api.startMyTotp(accessToken), [accessToken]);
+  const startTotp = useCallback(
+    () => (totpSetup ? Promise.resolve(totpSetup) : Promise.reject(new Error("Setup has not started"))),
+    [totpSetup],
+  );
   const confirmTotp = useCallback(async (code: string) => {
     const result = await api.confirmMyTotp(accessToken, code);
     refreshUser();
@@ -395,6 +399,7 @@ export function ProfileWorkspace({
     setTotpBusy(false);
     setTotpError(null);
     setNewCodes(null);
+    setTotpSetup(null);
   }
 
   function openTotpModal(kind: "setup" | "disable" | "regenerate") {
@@ -404,6 +409,24 @@ export function ProfileWorkspace({
   function closeTotpModal() {
     resetTotpModal(null);
     refreshUser();
+  }
+
+  async function submitTotpSetupPassword(event: FormEvent) {
+    event.preventDefault();
+    const session = totpSession.current;
+    setTotpBusy(true);
+    setTotpError(null);
+    try {
+      const setup = await api.startMyTotp(accessToken, totpPassword);
+      if (session === totpSession.current) {
+        setTotpPassword("");
+        setTotpSetup(setup);
+      }
+    } catch (err) {
+      if (session === totpSession.current) setTotpError(err instanceof Error ? err.message : "Unable to start setup");
+    } finally {
+      if (session === totpSession.current) setTotpBusy(false);
+    }
   }
 
   async function submitTotpManage(event: FormEvent) {
@@ -674,9 +697,22 @@ export function ProfileWorkspace({
 
       {totpModal === "setup" && (
         <Modal title="Set up two-factor authentication" onCancel={closeTotpModal}>
-          <div className="modal-form">
-            <TotpEnrolment start={startTotp} confirm={confirmTotp} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
-          </div>
+          {totpSetup ? (
+            <div className="modal-form">
+              <TotpEnrolment start={startTotp} confirm={confirmTotp} onDone={closeTotpModal} buttonClassName="nm-btn nm-btn--primary" linkClassName="nm-btn nm-btn--sm nm-btn--ghost" doneLabel="Done" />
+            </div>
+          ) : (
+            <form className="modal-form" onSubmit={(e) => void submitTotpSetupPassword(e)}>
+              <label className="nm-field">
+                Current password
+                <input className="nm-input" type="password" autoComplete="current-password" autoFocus required value={totpPassword} onChange={(e) => setTotpPassword(e.target.value)} />
+              </label>
+              {totpError && <div className="form-error">{totpError}</div>}
+              <div className="profile-form-actions">
+                <button type="submit" className="nm-btn nm-btn--primary" disabled={totpBusy}>Continue</button>
+              </div>
+            </form>
+          )}
         </Modal>
       )}
       {(totpModal === "disable" || totpModal === "regenerate") && (

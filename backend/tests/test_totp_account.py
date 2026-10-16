@@ -46,7 +46,7 @@ def _signed_in(db, role="Viewer"):
 
 
 def _enrol(client, headers):
-    secret = client.post("/api/v1/auth/me/totp/setup", headers=headers).json()["secret"]
+    secret = client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).json()["secret"]
     response = client.post("/api/v1/auth/me/totp/confirm", headers=headers, json={"code": pyotp.TOTP(secret).at(time.time() - 30)})
     assert response.status_code == 200
     return secret, response.json()["recovery_codes"]
@@ -66,7 +66,27 @@ def test_setup_is_refused_when_already_enabled(client_and_db):
     client, db = client_and_db
     _user, headers = _signed_in(db)
     _enrol(client, headers)
-    assert client.post("/api/v1/auth/me/totp/setup", headers=headers).status_code == 409
+    assert client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).status_code == 409
+
+
+def test_setup_requires_the_current_password_and_audits_failures(client_and_db):
+    client, db = client_and_db
+    user, headers = _signed_in(db)
+    assert client.post("/api/v1/auth/me/totp/setup", headers=headers).status_code == 422
+    assert client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": "wrong password!"}).status_code == 401
+    db.refresh(user)
+    assert user.totp_secret is None
+    db.expire_all()
+    assert db.query(AuditLog).filter(AuditLog.action == "auth.mfa_verify_failed").count() == 1
+    assert client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).status_code == 200
+
+
+def test_setup_password_failures_are_throttled(client_and_db, monkeypatch):
+    monkeypatch.setattr(auth_api, "is_locked", lambda _db, _subjects: (True, 30))
+    client, db = client_and_db
+    _user, headers = _signed_in(db)
+    response = client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD})
+    assert response.status_code == 429
 
 
 def test_public_settings_expose_only_login_page_fields(client_and_db):

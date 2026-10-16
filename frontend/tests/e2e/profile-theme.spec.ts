@@ -102,12 +102,42 @@ test("two-factor row offers setup and completes enrolment in a modal", async ({ 
   await expect(row.locator(".nm-pill")).toHaveText("Off");
   await row.getByRole("button", { name: "Set up" }).click();
   const dialog = page.getByRole("dialog", { name: "Set up two-factor authentication" });
+  await dialog.getByLabel("Current password").fill("correct horse battery");
+  await dialog.getByRole("button", { name: "Continue" }).click();
   await expect(dialog.getByRole("img", { name: "QR code for your authenticator app" })).toBeVisible();
   await dialog.getByLabel("Authentication code").fill("123456");
   await dialog.getByRole("button", { name: "Verify" }).click();
   await dialog.getByLabel("I've saved these recovery codes").check();
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(dialog).toBeHidden();
+});
+
+test("setting up two-factor asks for the current password before showing the QR code", async ({ page }) => {
+  await setupProfileMocks(page, { totp_enabled: false, totp_required: false, recovery_codes_remaining: 0 });
+  const bodies: unknown[] = [];
+  await page.route("**/api/v1/auth/me/totp/setup", (route) => {
+    const body = route.request().postDataJSON() as { password?: string };
+    bodies.push(body);
+    if (body.password !== "correct horse battery") return route.fulfill({ status: 401, json: { detail: "Current password is incorrect" } });
+    return route.fulfill({ json: { secret: "JBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/NetMap:alice?secret=JBSWY3DPEHPK3PXP&issuer=NetMap" } });
+  });
+  await page.goto("/profile");
+  await page.locator(".profile-security-row", { hasText: "Two-factor authentication" }).getByRole("button", { name: "Set up" }).click();
+  const dialog = page.getByRole("dialog", { name: "Set up two-factor authentication" });
+  const qr = dialog.getByRole("img", { name: "QR code for your authenticator app" });
+  await expect(dialog.getByLabel("Current password")).toBeVisible();
+  await expect(qr).toHaveCount(0);
+  expect(bodies).toHaveLength(0);
+
+  await dialog.getByLabel("Current password").fill("wrong");
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(dialog.locator(".form-error")).toContainText("Current password is incorrect");
+  await expect(qr).toHaveCount(0);
+
+  await dialog.getByLabel("Current password").fill("correct horse battery");
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(qr).toBeVisible();
+  expect(bodies).toEqual([{ password: "wrong" }, { password: "correct horse battery" }]);
 });
 
 test("the SSO pill is styled on Profile without visiting Admin first", async ({ page }) => {
@@ -202,6 +232,8 @@ for (const theme of ["light", "dark"] as const) {
 
     await row.getByRole("button", { name: "Set up" }).click();
     const dialog = page.getByRole("dialog", { name: "Set up two-factor authentication" });
+    await dialog.getByLabel("Current password").fill("correct horse battery");
+    await dialog.getByRole("button", { name: "Continue" }).click();
     const qr = dialog.getByRole("img", { name: "QR code for your authenticator app" });
     await expect(qr).toBeVisible();
     await expect(qr).toHaveCSS("border-radius", "8px");
