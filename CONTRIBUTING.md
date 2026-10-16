@@ -158,6 +158,16 @@ NetMap uses `CHANGELOG.md` as the single source of truth for release notes:
 
 Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs the backend tests and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
 
+Publication also requires real AIO compatibility checks on **amd64 and arm64** (arm64 uses QEMU): fresh HTTP, HTTPS with omitted flags, legacy explicit false flags, disabled security headers, and compliant HTTPS. Each must start nginx/API successfully and report the expected cookie security and startup warnings. A disposable database is created by the published `latest` image, seeded with a user and setting, then upgraded and restarted on the candidate; integrity, persisted values and migration history must survive. This does not replace migration fixtures or a real-data release rehearsal.
+
+Run the same check locally after building a candidate image:
+
+```bash
+python3 scripts/smoke-image.py netmap:local-aio --previous-image xoriin/netmap:latest --platform linux/amd64
+```
+
+The script creates and removes only uniquely named smoke containers and volumes; it never mounts live data or publishes host ports. It requires Docker and access to the previous stable image. A failed smoke check blocks registry publication, not just the subsequent release.
+
 Pushing a `v*` tag runs CI that:
 
 - refuses to publish unless the tag is release-ready: `VERSION` matches the tag, `CHANGELOG.md` has a non-empty `## [X.Y.Z]` section and nothing left under `## Unreleased`, and the email logo URL no longer points at the `test` branch (`scripts/check-release.py`),

@@ -41,9 +41,42 @@ jobs:
       - name: Check VERSION, CHANGELOG and release-only settings
         run: python3 scripts/check-release.py "${{ github.ref_name }}"
 
+  image-smoke:
+    name: Image compatibility (${{ matrix.arch }})
+    needs: tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Build candidate without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/aio.Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          tags: netmap:compatibility
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+            APP_CHANNEL=${{ github.ref_name == 'test' && 'Test' || '' }}
+          cache-from: |
+            type=gha,scope=smoke-${{ matrix.arch }}
+            type=gha
+          cache-to: type=gha,scope=smoke-${{ matrix.arch }},mode=max
+      - name: Boot fresh configurations and upgrade the published stable image
+        run: python3 scripts/smoke-image.py netmap:compatibility --previous-image "$IMAGE_NAME:latest" --platform "linux/${{ matrix.arch }}"
+
   build:
-    needs: [tests, release-guard]
-    if: ${{ !cancelled() && needs.tests.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.release-guard.result) }}
+    needs: [tests, image-smoke, release-guard]
+    if: ${{ !cancelled() && needs.tests.result == 'success' && needs.image-smoke.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.release-guard.result) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -89,7 +122,10 @@ jobs:
           build-args: |
             APP_VERSION=${{ github.ref_name }}
             APP_CHANNEL=${{ github.ref_name == 'test' && 'Test' || '' }}
-          cache-from: type=gha
+          cache-from: |
+            type=gha,scope=smoke-amd64
+            type=gha,scope=smoke-arm64
+            type=gha
           cache-to: type=gha,mode=max
 
   release:
