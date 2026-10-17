@@ -50,6 +50,12 @@ const DEFAULT_EDGE_LABEL_FONT_SIZE = 15;
 const DEFAULT_NODE_LABEL_FONT_SIZE = 13;
 const BASE_DEVICE_ICON_SIZE = 38;
 
+function wheelZoomFactor(event: WheelEvent): number {
+  const scale = event.deltaMode === 1 ? 0.05 : event.deltaMode === 2 ? 1 : 0.002;
+  const exponent = Math.max(-1, Math.min(1, -event.deltaY * scale * (event.ctrlKey ? 10 : 1)));
+  return 2 ** exponent;
+}
+
 export function TopologyWorkspace({
   accessToken,
   canViewSecurity,
@@ -870,6 +876,25 @@ export function TopologyWorkspace({
       cancelled = true;
     };
   }, [accessToken, canViewSecurity, correlationWindowHours, selectedDevice]);
+
+  useEffect(() => {
+    const canvas = containerRef.current;
+    const host = canvas?.parentElement;
+    if (!canvas || !host) return;
+    const onWheel = (event: WheelEvent) => {
+      const cy = cyRef.current;
+      if (!cy || !canvas.contains(event.target as Node)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = canvas.getBoundingClientRect();
+      cy.zoom({
+        level: cy.zoom() * wheelZoomFactor(event),
+        renderedPosition: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      });
+    };
+    host.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => host.removeEventListener("wheel", onWheel, { capture: true });
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) {

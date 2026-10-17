@@ -93,4 +93,18 @@ test.describe("Topology workspace", () => {
     await expect(page.locator(".empty-graph")).toBeVisible({ timeout: 8000 });
     await expect(page.locator(".topology-overlay-node")).toHaveCount(0);
   });
+  test("every scroll-wheel tick zooms the canvas by the same small step", async ({ page }) => {
+    const node = page.locator(".topology-overlay-node").first();
+    await expect(node).toBeVisible({ timeout: 8000 });
+    const zoom = () => node.evaluate((el) => Number((el as HTMLElement).style.getPropertyValue("--topology-device-zoom")));
+    const box = (await page.locator(".graph-canvas").boundingBox())!;
+    await page.mouse.move(box.x + 20, box.y + box.height - 20);
+
+    for (const deltaY of [-100, -100, -100, -100, -100, -100, -100, -100, -33.3333, -33.3333, -33.3333]) {
+      const before = await zoom();
+      await page.mouse.wheel(0, deltaY);
+      await expect.poll(zoom).not.toBe(before);
+      expect((await zoom()) / before).toBeCloseTo(2 ** (-deltaY * 0.002), 2);
+    }
+  });
 });
