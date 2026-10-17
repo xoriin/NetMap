@@ -355,6 +355,50 @@ test("a 304 keeps the held snapshot's deadline mapped through the server clock",
   await expect(unavailableAlert(page)).toBeVisible();
 });
 
+test("a snapshot that arrives already expired is marked unavailable within the grace", async ({ page }) => {
+  await page.clock.install();
+  await blockEverythingElse(page);
+  const serverNow = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const body = snapshot(serverNow, 30, 0);
+  let calls = 0;
+  await page.route(PUBLIC_URL, (route) => {
+    calls += 1;
+    return fulfillPayload(route, body, '"v1"', serverNow);
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toContainText("All systems operational");
+
+  for (let step = 0; step < 6; step += 1) {
+    const before = calls;
+    await page.clock.fastForward(1_000);
+    await expect.poll(() => calls).toBeGreaterThan(before);
+  }
+  await expect(unavailableAlert(page)).toBeVisible();
+});
+
+test("an expired 304 does not clear an earlier unavailable state", async ({ page }) => {
+  await page.clock.install();
+  await blockEverythingElse(page);
+  const serverNow = new Date(Math.floor(Date.now() / 1000) * 1000);
+  let calls = 0;
+  await page.route(PUBLIC_URL, (route) => {
+    calls += 1;
+    if (calls === 1) return fulfillPayload(route, snapshot(serverNow, 0, 30), '"v1"', serverNow);
+    if (calls === 2) return route.abort("connectionrefused");
+    return route.fulfill({ status: 304, headers: { ETag: '"v1"', Date: new Date(serverNow.getTime() + 62_000).toUTCString() } });
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toContainText("All systems operational");
+
+  await page.clock.fastForward(31_000);
+  await expect(unavailableAlert(page)).toBeVisible();
+  await page.clock.fastForward(31_000);
+  await expect.poll(() => calls).toBeGreaterThanOrEqual(3);
+  await page.clock.fastForward(1_500);
+  await expect(unavailableAlert(page)).toBeVisible();
+  await expect(page.locator("iframe.status-page-frame")).toBeHidden();
+});
+
 test("waking past the deadline shows unavailable at once", async ({ page }) => {
   await page.clock.install();
   await blockEverythingElse(page);

@@ -24,7 +24,7 @@ import { RuntimeSecurityAlert } from "./components/RuntimeSecurityAlert";
 import { userHasPermission } from "./utils/permissions";
 import { availableAdminTabs } from "./features/admin/adminNavigation";
 import { StatusPageRoute } from "./features/status-pages/StatusPageRoute";
-import { STATUS_SLUG_PATTERN } from "./features/status-pages/statusPagesApi";
+import { STATUS_SLUG_PATTERN } from "./utils/statusRoute";
 
 function pendingStatusPage(): string | null {
   const next = new URLSearchParams(window.location.search).get("next");

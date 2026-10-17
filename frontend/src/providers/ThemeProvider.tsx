@@ -1,7 +1,7 @@
 import {
   createContext, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
-import { STATUS_SLUG_PATTERN } from "../features/status-pages/statusPagesApi";
+import { STATUS_SLUG_PATTERN } from "../utils/statusRoute";
 import { storageKeys, readString, writeString } from "../utils/storage";
 
 export type Theme = "light" | "dark";

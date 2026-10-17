@@ -97,8 +97,6 @@ export type StatusFetchResult =
   | { kind: "unavailable"; retryAfterSeconds: number | null }
   | { kind: "error"; status: number };
 
-export const STATUS_SLUG_PATTERN = /^\/status\/([a-z0-9-]+)$/;
-
 export function statusPagePath(slug: string): string {
   return `/status/${slug}`;
 }

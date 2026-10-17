@@ -32,6 +32,7 @@ export function StatusPageRoute({ slug }: { slug: string }) {
     let retriedUnavailable = false;
     let heldValidUntil: number | null = null;
     let deadline: number | null = null;
+    let expiresAt: number | null = null;
 
     const schedule = (ms: number) => {
       window.clearTimeout(pollTimer);
@@ -46,12 +47,14 @@ export function StatusPageRoute({ slug }: { slug: string }) {
     const accept = (remainingMs: number) => {
       retriedUnavailable = false;
       refreshTried = false;
-      if (remainingMs > 0) {
-        deadline = Date.now() + remainingMs;
-        window.clearTimeout(expiryTimer);
-        expiryTimer = window.setTimeout(() => setUnavailable(true), remainingMs + EXPIRY_GRACE_MS);
-        setUnavailable(false);
-      }
+      const now = Date.now();
+      const expired = remainingMs <= 0;
+      deadline = expired && deadline !== null ? Math.min(deadline, now + remainingMs) : now + remainingMs;
+      const candidate = deadline + EXPIRY_GRACE_MS;
+      expiresAt = expired && expiresAt !== null ? Math.min(expiresAt, candidate) : candidate;
+      window.clearTimeout(expiryTimer);
+      expiryTimer = window.setTimeout(() => setUnavailable(true), Math.max(0, expiresAt - now));
+      if (!expired) setUnavailable(false);
       schedule(Math.max(MIN_POLL_MS, Math.min(POLL_MS, Math.max(0, remainingMs)) + POLL_AFTER_EXPIRY_MS));
     };
 
@@ -104,6 +107,8 @@ export function StatusPageRoute({ slug }: { slug: string }) {
       }
       if (result.status === 404) {
         window.clearTimeout(expiryTimer);
+        deadline = null;
+        expiresAt = null;
         setPayload(null);
         setUnavailable(false);
         setPhase("not-found");
