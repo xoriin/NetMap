@@ -35,6 +35,7 @@ PERMISSION_KEYS: list[str] = [
     "backup_manage",
     "automation_manage",
     "discovery_manage",
+    "status_page_manage",
 ]
 
 PERMISSION_META: dict[str, dict[str, str]] = {
@@ -58,6 +59,7 @@ PERMISSION_META: dict[str, dict[str, str]] = {
     "backup_manage": {"label": "Manage backups", "description": "Create, download and delete backups; restore remains SuperAdmin-only"},
     "automation_manage": {"label": "Manage automation", "description": "Create, edit, run and delete scheduled operations"},
     "discovery_manage": {"label": "Manage discovery", "description": "Run discovery, review observations and import scan results"},
+    "status_page_manage": {"label": "Manage status pages", "description": "Create and edit status pages, incidents, notices, maintenance and integration tokens"},
 }
 
 # Default permissions per role — mirrors the hardcoded behaviour that existed before
@@ -68,6 +70,7 @@ ROLE_DEFAULTS: dict[str, list[str]] = {
         "ipam_write", "ipam_reservation_claim", "monitoring_write", "alert_write",
         "user_manage", "notification_manage", "device_catalog_manage", "snmp_profile_manage",
         "audit_view", "diagnostics_view", "backup_manage", "automation_manage", "discovery_manage",
+        "status_page_manage",
     ],
     "SecurityAnalyst": [
         "security_view", "tools_passive", "firewall_export",

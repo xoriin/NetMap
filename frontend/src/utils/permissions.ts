@@ -7,6 +7,7 @@ const BUILT_IN_DEFAULTS: Record<string, readonly string[]> = {
     "ipam_reservation_claim", "monitoring_write", "alert_write",
     "user_manage", "notification_manage", "device_catalog_manage", "snmp_profile_manage",
     "audit_view", "diagnostics_view", "backup_manage", "automation_manage", "discovery_manage",
+    "status_page_manage",
   ],
   SecurityAnalyst: ["security_view", "tools_passive", "firewall_export"],
   Viewer: ["tools_passive"],

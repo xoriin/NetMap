@@ -57,7 +57,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def import_all_models() -> None:
-    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
+    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, status_page, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
 
 
 def init_db() -> None:
@@ -186,6 +186,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0078_external_ip_addresses", _migrate_external_ip_addresses)
         _run_migration(conn, inspector, "0079_user_totp", _migrate_user_totp)
         _run_migration(conn, inspector, "0080_idle_timeout_preserve", _migrate_idle_timeout_preserve)
+        _run_migration(conn, inspector, "0081_status_pages", _migrate_status_pages)
 
 
 
@@ -1423,6 +1424,45 @@ def _migrate_ipam_reservation_claim_permission(conn, inspector) -> None:
     if not isinstance(network_admin, list) or "ipam_reservation_claim" in network_admin:
         return
     network_admin.append("ipam_reservation_claim")
+    conn.execute(
+        text("UPDATE system_settings SET value = :value, updated_at = :now WHERE key = 'role_permissions'"),
+        {"value": json.dumps(roles), "now": datetime.now(timezone.utc).isoformat()},
+    )
+
+
+def _migrate_status_pages(conn, inspector) -> None:
+    from app.models.status_page import OPEN_INCIDENT_DEFAULT_EVENTS
+
+    if "alert_rules" in _live_tables(conn):
+        existing = _live_columns(conn, "alert_rules")
+        if "open_incident" not in existing:
+            conn.execute(text("ALTER TABLE alert_rules ADD COLUMN open_incident BOOLEAN NOT NULL DEFAULT 0"))
+            events = ", ".join(f"'{event}'" for event in sorted(OPEN_INCIDENT_DEFAULT_EVENTS))
+            conn.execute(text(f"UPDATE alert_rules SET open_incident = 1 WHERE event_type IN ({events})"))
+        if "incident_min_failures" not in existing:
+            conn.execute(text("ALTER TABLE alert_rules ADD COLUMN incident_min_failures INTEGER NOT NULL DEFAULT 3"))
+    if "status_incident_sources" in _live_tables(conn):
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_status_incident_sources_active "
+            "ON status_incident_sources (source_key, condition_family, page_id) WHERE active = 1"
+        ))
+    _append_network_admin_permission(conn, "status_page_manage")
+
+
+def _append_network_admin_permission(conn, permission: str) -> None:
+    if "system_settings" not in _live_tables(conn):
+        return
+    raw = conn.execute(text("SELECT value FROM system_settings WHERE key = 'role_permissions'")).scalar_one_or_none()
+    if not raw:
+        return
+    try:
+        roles = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    network_admin = roles.get("NetworkAdmin") if isinstance(roles, dict) else None
+    if not isinstance(network_admin, list) or permission in network_admin:
+        return
+    network_admin.append(permission)
     conn.execute(
         text("UPDATE system_settings SET value = :value, updated_at = :now WHERE key = 'role_permissions'"),
         {"value": json.dumps(roles), "now": datetime.now(timezone.utc).isoformat()},

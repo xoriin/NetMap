@@ -25,6 +25,8 @@ class AlertRule(Base):
     # trailing loss_window_minutes reaches loss_pct_threshold
     loss_pct_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
     loss_window_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    open_incident: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    incident_min_failures: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
