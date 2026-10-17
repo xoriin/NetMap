@@ -421,10 +421,10 @@ def send_password_reset_email(
     email: str,
     reset_link: str,
     app_name: str = "NetMap",
-) -> None:
+) -> bool:
     s = _load_account_email_settings(db)
     if not s.get("smtp_host") or not email:
-        return
+        return False
     name = display_name or username
     body = (
         f"Hi {name},\n\n"
@@ -454,6 +454,7 @@ def send_password_reset_email(
             note="If you did not expect this, contact your administrator.",
         ),
     )
+    return True
 
 
 def send_self_service_password_reset_email(

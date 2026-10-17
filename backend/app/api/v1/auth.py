@@ -63,7 +63,7 @@ from app.services.auth import (
     validate_refresh_token_state,
 )
 from app.services.auth.security import _check_reset_rate_limit
-from app.schemas.admin import AdminPasswordResetRequest
+from app.schemas.admin import AdminPasswordResetRequest, AdminPasswordResetResult
 from app.services import totp as totp_service
 from app.services.audit.service import write_audit
 from app.services.notifications import (
@@ -714,14 +714,14 @@ def unlock_user_login(
     db.commit()
 
 
-@router.post("/auth/users/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/auth/users/{user_id}/reset-password", response_model=AdminPasswordResetResult)
 def admin_reset_password(
     user_id: int,
     payload: AdminPasswordResetRequest,
     current_user: Annotated[User, Depends(require_user_manage)],
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-) -> None:
+) -> AdminPasswordResetResult:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -737,23 +737,27 @@ def admin_reset_password(
         target=f"user:{user.username}",
     )
     db.commit()
-    if user.email and not settings.app_url:
+    if not user.email:
+        return AdminPasswordResetResult(email_status="no_email")
+    if not settings.app_url:
         logger.warning("Password reset email not sent for user_id=%s: APP_URL is not configured", user.id)
-    if user.email and settings.app_url:
-        try:
-            token = create_password_reset_token(user.id)
-            _store_reset_token(db, token, user.id)
-            db.commit()
-            reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
-            send_password_reset_email(
-                db,
-                username=user.username,
-                display_name=user.display_name,
-                email=user.email,
-                reset_link=reset_link,
-            )
-        except Exception:
-            logger.exception("Password reset email delivery failed for user_id=%s", user.id)
+        return AdminPasswordResetResult(email_status="not_configured")
+    try:
+        token = create_password_reset_token(user.id)
+        _store_reset_token(db, token, user.id)
+        db.commit()
+        reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
+        sent = send_password_reset_email(
+            db,
+            username=user.username,
+            display_name=user.display_name,
+            email=user.email,
+            reset_link=reset_link,
+        )
+    except Exception:
+        logger.exception("Password reset email delivery failed for user_id=%s", user.id)
+        return AdminPasswordResetResult(email_status="failed")
+    return AdminPasswordResetResult(email_status="sent" if sent else "not_configured")
 
 
 @router.delete("/auth/users/{user_id}/sessions", status_code=status.HTTP_204_NO_CONTENT)

@@ -6,6 +6,7 @@ import { useApiQuery } from "../../../hooks/useApiQuery";
 import { userInitials } from "../../../utils/format";
 import { TableSkeleton } from "../../../components/Skeleton";
 import { useConfirm } from "../../../components/ConfirmDialog";
+import { useToast } from "../../../components/Toast";
 
 const BUILT_IN_ROLES = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"];
 
@@ -40,6 +41,7 @@ export function UsersTab({
   const [createForm, setCreateForm] = useState({ username: "", password: "", email: "", role: "Viewer", is_active: true });
 
   const confirmAction = useConfirm();
+  const toast = useToast();
   const rolesQuery = useApiQuery(() => api.getRolePermissions(accessToken), [accessToken]);
   const customRoles = Object.keys(rolesQuery.data?.roles ?? {}).filter((r) => !BUILT_IN_ROLES.includes(r)).sort();
 
@@ -73,16 +75,26 @@ export function UsersTab({
 
   async function resetPassword(event: FormEvent) {
     event.preventDefault();
-    if (resetPasswordForm.userId === null || !resetPasswordForm.password) return;
-    setBusyUserId(resetPasswordForm.userId);
+    const { userId, password } = resetPasswordForm;
+    if (userId === null || !password) return;
+    const username = users.find((u) => u.id === userId)?.username ?? "user";
+    setResetPasswordForm({ userId: null, password: "" });
+    setBusyUserId(userId);
     onError(null); onSuccess(null);
+    toast.info(`Resetting password for ${username}…`);
     try {
-      await api.resetUserPassword(accessToken, resetPasswordForm.userId, resetPasswordForm.password);
-      const user = users.find((u) => u.id === resetPasswordForm.userId);
-      onSuccess(`Password reset for ${user?.username ?? "user"}`);
-      setResetPasswordForm({ userId: null, password: "" });
+      const { email_status } = await api.resetUserPassword(accessToken, userId, password);
+      if (email_status === "sent") {
+        toast.success(`Password reset for ${username}`, { detail: "A reset email is on its way to them." });
+      } else if (email_status === "failed") {
+        toast.error(`Password reset for ${username}, but the email failed`, { detail: "Check the email notification profile, or share the new password another way." });
+      } else {
+        toast.success(`Password reset for ${username}`, {
+          detail: email_status === "no_email" ? "They have no email address, so no email was sent." : "No email was sent. Reset emails need APP_URL and an enabled email notification profile.",
+        });
+      }
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to reset password");
+      toast.error(`Could not reset the password for ${username}`, { detail: err instanceof Error ? err.message : undefined });
     } finally { setBusyUserId(null); }
   }
 

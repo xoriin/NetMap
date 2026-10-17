@@ -13,6 +13,10 @@ class AdminPasswordResetRequest(BaseModel):
     new_password: str = Field(min_length=12, max_length=256)
 
 
+class AdminPasswordResetResult(BaseModel):
+    email_status: Literal["sent", "failed", "not_configured", "no_email"]
+
+
 class PublicSettingsRead(BaseModel):
     app_name: str
     login_message: str

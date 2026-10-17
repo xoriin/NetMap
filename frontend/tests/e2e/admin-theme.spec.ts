@@ -676,6 +676,28 @@ for (const theme of ["light", "dark"] as const) {
     await expect(row.getByRole("button", { name: "Reset 2FA" })).toHaveCount(0);
   });
 
+  test(`Reset PW closes at once and reports the email result in a toast in ${theme} mode`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);
+    await page.route("**/api/v1/auth/users", (route) => route.fulfill({ json: [{ ...mockUser, id: 7, username: "bob", role: "Viewer", display_name: null, avatar_data: null, auth_source: "local" }] }));
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/api/v1/auth/users/7/reset-password", async (route) => {
+      await held;
+      await route.fulfill({ json: { email_status: "failed" } });
+    });
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Users", exact: true }).click();
+    await page.locator(".admin-users-row", { hasText: "bob" }).getByRole("button", { name: "Reset PW" }).click();
+    const form = page.locator(".admin-reset-form");
+    await form.locator("input[type=password]").fill("a-long-new-password");
+    await form.getByRole("button", { name: "Save" }).click();
+    await expect(form).toHaveCount(0);
+    await expect(page.locator(".nm-toast--info", { hasText: "Resetting password for bob" })).toBeVisible();
+    release();
+    await expect(page.locator(".nm-toast--error", { hasText: "Password reset for bob, but the email failed" })).toBeVisible();
+  });
+
   test(`Reset 2FA fits the Users actions column without covering the status in ${theme} mode`, async ({ page }) => {
     await setupAdminMocks(page);
     await page.addInitScript((selectedTheme) => window.localStorage.setItem("netmap.theme", selectedTheme), theme);

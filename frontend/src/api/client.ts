@@ -80,6 +80,7 @@ export type TokenPair = {
   token_type: "bearer";
 };
 
+export type AdminPasswordResetResult = { email_status: "sent" | "failed" | "not_configured" | "no_email" };
 export type MfaChallenge = { mfa_required: boolean; mfa_setup_required: boolean; challenge: string };
 export type LoginResult = TokenPair | MfaChallenge;
 export type TotpSetup = { secret: string; otpauth_uri: string };
@@ -2058,7 +2059,7 @@ export const api = {
   listNotificationDeliveries: (token: string, limit = 100) =>
     request<NotificationDelivery[]>(`/api/v1/alerts/deliveries?limit=${limit}`, { token }),
   resetUserPassword: (token: string, userId: number, newPassword: string) =>
-    request<void>(`/api/v1/auth/users/${userId}/reset-password`, {
+    request<AdminPasswordResetResult>(`/api/v1/auth/users/${userId}/reset-password`, {
       method: "POST",
       token,
       body: JSON.stringify({ new_password: newPassword }),

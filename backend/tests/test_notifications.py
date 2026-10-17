@@ -544,7 +544,7 @@ def test_email_branding_preview_falls_back_to_default_logo() -> None:
     assert "cid:" not in response["html"]
 
 
-def _admin_reset_fixture(monkeypatch, *, app_url: str, send):
+def _admin_reset_fixture(monkeypatch, *, app_url: str, send, email: str | None = "bob@example.com"):
     from app.api.v1 import auth
     from app.schemas.admin import AdminPasswordResetRequest
 
@@ -552,7 +552,7 @@ def _admin_reset_fixture(monkeypatch, *, app_url: str, send):
         id=7,
         username="bob",
         display_name="Bob",
-        email="bob@example.com",
+        email=email,
         role="Viewer",
         password_hash="old",
     )
@@ -588,7 +588,7 @@ def test_admin_password_reset_logs_email_delivery_failure(monkeypatch, caplog) -
     reset = _admin_reset_fixture(monkeypatch, app_url="https://netmap.example", send=fail)
     caplog.set_level("WARNING", logger="app.api.v1.auth")
 
-    assert reset() is None
+    assert reset().email_status == "failed"
     assert "Password reset email delivery failed for user_id=7" in caplog.text
 
 
@@ -597,10 +597,27 @@ def test_admin_password_reset_warns_when_app_url_is_missing(monkeypatch, caplog)
     reset = _admin_reset_fixture(monkeypatch, app_url="", send=lambda *_a, **_k: sent.append("sent"))
     caplog.set_level("WARNING", logger="app.api.v1.auth")
 
-    reset()
-
+    assert reset().email_status == "not_configured"
     assert sent == []
     assert "APP_URL is not configured" in caplog.text
+
+
+def test_admin_password_reset_reports_email_sent(monkeypatch) -> None:
+    reset = _admin_reset_fixture(monkeypatch, app_url="https://netmap.example", send=lambda *_a, **_k: True)
+
+    assert reset().email_status == "sent"
+
+
+def test_admin_password_reset_reports_smtp_not_configured(monkeypatch) -> None:
+    reset = _admin_reset_fixture(monkeypatch, app_url="https://netmap.example", send=lambda *_a, **_k: False)
+
+    assert reset().email_status == "not_configured"
+
+
+def test_admin_password_reset_reports_user_without_email(monkeypatch) -> None:
+    reset = _admin_reset_fixture(monkeypatch, app_url="https://netmap.example", send=lambda *_a, **_k: True, email=None)
+
+    assert reset().email_status == "no_email"
 
 
 def test_forgot_password_warns_when_app_url_is_missing(monkeypatch, caplog) -> None:
