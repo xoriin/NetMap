@@ -164,6 +164,10 @@ def require_alert_write(current_user: Annotated[User, Depends(get_current_user)]
     return _check(current_user, "alert_write", "Alert management is not permitted for your role")
 
 
+def require_status_page_manage(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return _check(current_user, "status_page_manage", "Managing status pages is not permitted for your role")
+
+
 def require_ipam_write(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     return _check(current_user, "ipam_write", "IPAM write access is not permitted for your role")
 
