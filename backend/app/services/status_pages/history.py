@@ -262,7 +262,7 @@ def _in_maintenance(at: datetime, windows: list[Interval]) -> bool:
     return any(a <= at < b for a, b in windows)
 
 
-def _window_samples(samples: Iterable[Sample], start: datetime, end: datetime, maintenance: Sequence[Interval]) -> list[Sample]:
+def window_samples(samples: Iterable[Sample], start: datetime, end: datetime, maintenance: Sequence[Interval]) -> list[Sample]:
     start, end = _utc(start), _utc(end)
     windows = _merge_intervals(maintenance, start, end)
     return [s for s in samples if start <= s.at < end and not _in_maintenance(s.at, windows)]
@@ -274,7 +274,7 @@ def response_slots(
 ) -> list[float | None]:
     bounds = _slot_bounds(start, end, slots)
     buckets: list[list[float]] = [[] for _ in bounds]
-    for sample in _window_samples(samples, start, end, maintenance):
+    for sample in window_samples(samples, start, end, maintenance):
         value = _valid_response(sample.response_ms)
         if not sample.ok or value is None:
             continue
@@ -293,7 +293,7 @@ def p95(values: Sequence[float]) -> float | None:
 
 
 def failure_rate(samples: Sequence[Sample], start: datetime, end: datetime, maintenance: Sequence[Interval]) -> float | None:
-    known = [s for s in _window_samples(samples, start, end, maintenance) if s.health != "unknown"]
+    known = [s for s in window_samples(samples, start, end, maintenance) if s.health != "unknown"]
     if not known:
         return None
     return sum(1 for s in known if not s.ok) / len(known)

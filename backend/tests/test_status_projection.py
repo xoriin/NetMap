@@ -1,0 +1,211 @@
+import json
+from datetime import datetime, timedelta, timezone
+
+from app.models.monitor import MonitorCheckHistory
+from app.models.monitor_history import DeviceMonitorHistory
+from app.models.status_page import StatusPageItem
+from app.services.status_pages.projection import build_page_payload, next_deadline, summarize
+from app.services.status_pages.sources import SourceRef, freshness_deadline, load_current_states
+from tests.status_page_helpers import make_session, seed_device, seed_monitor, seed_page, seed_service_check
+
+NOW = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+PAYLOAD_KEYS = {
+    "slug", "title", "accent", "logo", "heartbeat_window", "custom_css", "generated_at", "valid_until",
+    "summary", "notices", "incidents", "maintenance", "past", "groups",
+}
+GROUP_KEYS = {"id", "name", "state", "collapsed", "items"}
+ITEM_KEYS = {"id", "name", "state", "availability", "heartbeats", "response", "metrics", "incident_ids"}
+AVAILABILITY_KEYS = {"percent", "label", "coverage"}
+SUMMARY_KEYS = {"state", "label", "counts"}
+COUNT_KEYS = {"operational", "degraded", "down", "maintenance", "unknown"}
+
+
+def _device(db, **kw):
+    kw.setdefault("monitor_status", "online")
+    kw.setdefault("last_monitored_at", NOW - timedelta(seconds=10))
+    return seed_device(db, **kw)
+
+
+def _history(db, device, minutes_ago, rtt=10.0, healthy=True, port_results="[]"):
+    db.add(DeviceMonitorHistory(
+        device_id=device.id, checked_at=NOW - timedelta(minutes=minutes_ago),
+        status="online" if healthy else "offline", is_healthy=healthy, rtt_ms=rtt, port_results=port_results,
+    ))
+    db.commit()
+
+
+def _set_extras(db, page, **extras):
+    for item in db.query(StatusPageItem).filter_by(page_id=page.id):
+        item.extras = dict(extras)
+    db.commit()
+
+
+def test_summary_precedence_matches_spec():
+    assert summarize([], False) == ("empty", "No systems configured")
+    assert summarize(["down", "down", "operational"], False)[1] == "Major outage"
+    assert summarize(["down", "operational", "operational"], False)[1] == "Some systems are affected"
+    assert summarize(["operational"], True)[1] == "Some systems are affected"
+    assert summarize(["degraded", "operational"], False)[1] == "Some systems are affected"
+    assert summarize(["unknown", "operational"], False)[1] == "Status unavailable for some systems"
+    assert summarize(["maintenance", "operational"], False)[1] == "Maintenance in progress"
+    assert summarize(["operational", "operational"], False) == ("operational", "All systems operational")
+
+
+def test_all_unknown_is_never_operational():
+    state, label = summarize(["unknown", "unknown"], False)
+    assert state == "unknown" and label == "Status unavailable for some systems"
+    assert summarize(["maintenance"], False)[0] == "maintenance"
+
+
+def test_critical_notice_never_downgrades_major():
+    assert summarize(["down", "down", "operational"], True) == ("major", "Major outage")
+    assert summarize(["down", "operational"], False)[0] == "affected"
+
+
+def test_half_down_is_not_major():
+    assert summarize(["down", "operational"], False)[0] == "affected"
+
+
+def test_public_projection_never_contains_private_alias_or_internal_text():
+    db = make_session()
+    device = _device(db, hostname="media-01", ip_address="10.0.0.5")
+    monitor = seed_monitor(db, name="Secret monitor", url="https://internal.example.test/health")
+    check = seed_service_check(db, device.id, label="service_check HTTPS")
+    _history(db, device, 5, rtt=12.0, port_results=json.dumps(
+        [{"target_id": check.id, "open": True, "response_time_ms": 30, "error": "connection refused to 10.0.0.5"}]))
+    db.add(MonitorCheckHistory(monitor_id=monitor.id, checked_at=NOW - timedelta(minutes=5), status="online", response_time_ms=40))
+    db.commit()
+    refs = [SourceRef("device", device_id=device.id), SourceRef("monitor", monitor_id=monitor.id),
+            SourceRef("service_check", device_id=device.id, port_target_id=check.id)]
+    public = seed_page(db, "public", "public", [(refs[0], "Media"), (refs[1], "Website"), (refs[2], "Web")])
+    seed_page(db, "private", "private", [(refs[0], "media-01 (10.0.0.5)")])
+    for page in (public,):
+        _set_extras(db, page, rtt_graph=True, uptime_period="24h", avg_response=True, p95_response=True,
+                    failure_rate=True, last_check=True)
+    body = json.dumps(build_page_payload(db, public, "public", NOW))
+    for leaked in ("10.0.0.5", "media-01", "device:", "monitor:", "service:", "hostname", "service_check",
+                   "internal.example.test", "Secret monitor", "connection refused", "kind", "device_id",
+                   "monitor_id", "port_target_id", "source"):
+        assert leaked not in body, leaked
+    assert "Media" in body
+
+
+def test_payload_keys_are_exactly_the_allowlist_at_every_level():
+    db = make_session()
+    device = _device(db)
+    _history(db, device, 5)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    _set_extras(db, page, rtt_graph=True)
+    for audience in ("public", "private"):
+        payload = build_page_payload(db, page, audience, NOW)
+        assert set(payload) == PAYLOAD_KEYS
+        assert set(payload["summary"]) == SUMMARY_KEYS
+        assert set(payload["summary"]["counts"]) == COUNT_KEYS
+        (group,) = payload["groups"]
+        assert set(group) == GROUP_KEYS
+        (item,) = group["items"]
+        assert set(item) == ITEM_KEYS
+        assert set(item["availability"]) == AVAILABILITY_KEYS
+        assert len(item["heartbeats"]) == 60 and len(item["response"]) == 60
+        assert payload["notices"] == payload["incidents"] == payload["maintenance"] == payload["past"] == []
+        assert payload["custom_css"] is None and item["incident_ids"] == []
+        json.dumps(payload)
+
+
+def test_extras_absent_unless_enabled():
+    db = make_session()
+    device = _device(db)
+    _history(db, device, 5, rtt=20.0)
+    _history(db, device, 4, rtt=40.0)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    item = build_page_payload(db, page, "public", NOW)["groups"][0]["items"][0]
+    assert item["response"] is None and item["metrics"] is None
+
+    _set_extras(db, page, avg_response=True, p95_response=True, failure_rate=True, last_check=True, uptime_period="7d")
+    item = build_page_payload(db, page, "public", NOW)["groups"][0]["items"][0]
+    assert item["response"] is None
+    assert set(item["metrics"]) == {"avg_response", "p95_response", "failure_rate", "last_check", "uptime_period"}
+    assert item["metrics"]["avg_response"] == 30.0 and item["metrics"]["p95_response"] == 40.0
+    assert item["metrics"]["failure_rate"] == 0.0
+    assert item["metrics"]["uptime_period"]["period"] == "7d"
+
+    _set_extras(db, page, avg_response=True)
+    item = build_page_payload(db, page, "public", NOW)["groups"][0]["items"][0]
+    assert set(item["metrics"]) == {"avg_response"}
+
+
+def test_availability_is_straight_from_history_label():
+    db = make_session()
+    device = _device(db)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    item = build_page_payload(db, page, "public", NOW)["groups"][0]["items"][0]
+    assert item["availability"]["label"] == "no_data" and item["availability"]["percent"] is None
+
+
+def test_uptime_period_uses_its_own_window_and_history_loads_once_per_window():
+    db = make_session()
+    device = _device(db)
+    _history(db, device, 60 * 24 * 2, healthy=False)
+    _history(db, device, 5)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    _set_extras(db, page, uptime_period="7d")
+    from app.services.status_pages import projection
+
+    calls = []
+    real = projection.load_samples
+    projection.load_samples = lambda db_, refs, s, e: (calls.append((s, e)), real(db_, refs, s, e))[1]
+    try:
+        payload = build_page_payload(db, page, "public", NOW)
+    finally:
+        projection.load_samples = real
+    assert len(calls) == len({(s, e) for s, e in calls}) == 2
+    metric = payload["groups"][0]["items"][0]["metrics"]["uptime_period"]
+    assert metric["label"] != "ok" and metric["percent"] is None
+
+
+def test_summary_counts_and_group_state():
+    db = make_session()
+    up = _device(db)
+    down = _device(db, monitor_status="offline")
+    unknown = seed_device(db, monitoring_paused=True)
+    refs = [SourceRef("device", device_id=d.id) for d in (up, down, unknown)]
+    page = seed_page(db, "p", "public", [(r, f"N{i}") for i, r in enumerate(refs)])
+    payload = build_page_payload(db, page, "public", NOW)
+    assert payload["summary"]["counts"] == {"operational": 1, "degraded": 0, "down": 1, "maintenance": 0, "unknown": 1}
+    assert payload["summary"]["state"] == "affected"
+    assert payload["groups"][0]["state"] == "affected"
+    assert [i["state"] for i in payload["groups"][0]["items"]] == ["operational", "down", "unknown"]
+
+
+def test_valid_until_is_at_most_30_seconds_and_respects_freshness():
+    db = make_session()
+    device = _device(db)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    probe = load_current_states(db, [ref], NOW)[ref]
+    window = freshness_deadline(NOW, probe.interval_seconds) - NOW
+    device.last_monitored_at = NOW + timedelta(seconds=10) - window
+    db.commit()
+    states = list(load_current_states(db, [ref], NOW).values())
+    assert next_deadline(page, NOW, states) == NOW + timedelta(seconds=10)
+    assert next_deadline(page, NOW, []) == NOW + timedelta(seconds=30)
+    assert next_deadline(page, NOW, [], notice_expiries=[NOW + timedelta(seconds=5)]) == NOW + timedelta(seconds=5)
+    assert next_deadline(page, NOW, [], maintenance_edges=[NOW + timedelta(seconds=7)]) == NOW + timedelta(seconds=7)
+    assert next_deadline(page, NOW, [], notice_expiries=[NOW - timedelta(seconds=5)]) == NOW + timedelta(seconds=30)
+    payload = build_page_payload(db, page, "public", NOW)
+    assert payload["valid_until"] == (NOW + timedelta(seconds=10)).isoformat()
+    assert payload["generated_at"] == NOW.isoformat()
+
+
+def test_next_slot_boundary_bounds_deadline():
+    db = make_session()
+    page = seed_page(db, "p", "public")
+    page.heartbeat_window = "24h"
+    odd = NOW + timedelta(seconds=7)
+    assert next_deadline(page, odd, []) <= odd + timedelta(seconds=30)
+    assert next_deadline(page, odd, []) > odd
