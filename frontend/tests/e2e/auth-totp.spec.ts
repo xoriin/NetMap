@@ -53,6 +53,26 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page).toHaveURL(/\/overview$/);
   });
 
+  for (const width of [1280, 380]) {
+    test(`manual key uses an info callout in ${theme} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript((t) => localStorage.setItem("netmap.theme", t), theme);
+      await setupLogin(page, { mfa_setup_required: true, challenge: "setup-chal" });
+      await mockEnrolment(page);
+      await signInWithPassword(page);
+      const note = page.getByRole("note");
+      await expect(note).toHaveClass(/nm-alert--info/);
+      await expect(note.locator("code")).toHaveText("JBSWY3DPEHPK3PXP");
+      await expect(note).toHaveCSS("border-radius", "8px");
+      await expect(note).toHaveCSS("padding-left", "16px");
+      await expect(note).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(note.locator("svg")).toBeVisible();
+      await expect(note.locator("code")).toHaveCSS("overflow-wrap", "anywhere");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: `/tmp/netmap-key-${theme}-${width}.png`, fullPage: true });
+    });
+  }
+
   test(`recovery codes step keeps link buttons and the checkbox styled in ${theme}`, async ({ page }) => {
     await page.addInitScript((t) => localStorage.setItem("netmap.theme", t), theme);
     await setupLogin(page, { mfa_required: false, mfa_setup_required: true, challenge: "setup-chal" });

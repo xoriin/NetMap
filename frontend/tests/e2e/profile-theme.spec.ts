@@ -283,6 +283,12 @@ for (const theme of ["light", "dark"] as const) {
       return Math.abs((box.left - parent.left) - (parent.right - box.right));
     });
     expect(centring).toBeLessThan(2);
+    const keyNote = dialog.getByRole("note");
+    await expect(keyNote).toHaveClass(/nm-alert--info/);
+    await expect(keyNote).toHaveCSS("border-radius", "8px");
+    await expect(keyNote).toHaveCSS("padding-left", "16px");
+    await expect(keyNote.locator("code")).toHaveCSS("overflow-wrap", "anywhere");
+    await page.screenshot({ path: `/tmp/netmap-profile-key-${theme}.png` });
     const shell = await dialog.locator(".modal").evaluate((el) => getComputedStyle(el).backgroundColor);
     const input = dialog.getByLabel("Authentication code");
     await expect(input).toHaveCSS("min-height", "40px");

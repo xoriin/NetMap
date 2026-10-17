@@ -1138,6 +1138,27 @@ body.route-locations .topology-content {
   background: #ffffff;
 }
 
+/* Layout only; the shared info alert owns the callout surface. */
+.totp-key-note {
+  margin-top: var(--nm-space-4);
+}
+
+.totp-key-note > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.totp-key-note .totp-secret {
+  display: grid;
+  gap: var(--nm-space-1);
+  min-width: 0;
+}
+
+.totp-key-note code {
+  overflow-wrap: anywhere;
+  color: var(--nm-text);
+}
+
 .totp-secret code,
 .totp-recovery-codes {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1181,15 +1202,6 @@ body.route-locations .topology-content {
 
 .modal .totp-enrolment > .nm-btn--primary {
   justify-self: end;
-}
-
-.modal .totp-enrolment .totp-secret {
-  color: var(--nm-text-muted);
-  font-size: var(--nm-text-md);
-}
-
-.modal .totp-enrolment .totp-secret code {
-  color: var(--nm-text);
 }
 
 .modal .totp-enrolment .auth-reset-info,

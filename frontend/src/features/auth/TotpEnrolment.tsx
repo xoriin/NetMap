@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import QRCode from "qrcode";
+import { Info } from "lucide-react";
 import type { TotpSetup } from "../../api/client";
 
 type Props = {
@@ -96,7 +97,10 @@ export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonC
       {qr ? <img className="totp-qr" src={qr} width={176} height={176} alt="QR code for your authenticator app" /> : <div className="totp-qr" aria-busy="true" />}
       {setup && (
         <>
-          <p className="totp-secret">Can't scan? Enter this key: <code>{setup.secret}</code></p>
+          <div className="nm-alert nm-alert--info totp-key-note" role="note">
+            <Info size={17} aria-hidden="true" />
+            <div className="totp-secret"><strong>Can't scan? Enter this key:</strong><code>{setup.secret}</code></div>
+          </div>
           <button type="button" className={linkClassName} aria-label="Copy key" onClick={() => void navigator.clipboard.writeText(setup.secret)}>Copy</button>
         </>
       )}
