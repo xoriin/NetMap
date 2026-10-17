@@ -174,6 +174,7 @@ class AlertMonitorService:
         port_tasks: list[tuple[str, int, object]] = [
             (device.ip_address, device.id, target)
             for device in devices
+            if (device.ip_address or "").strip()
             for target in (global_ports + device_extra_ports.get(device.id, []))
         ]
         if port_tasks:
@@ -419,6 +420,8 @@ class AlertMonitorService:
         self._remember(current, current_health, known_ports_now, scoped_device_id)
 
     def _probe_device_status(self, device: Device) -> tuple[str, float | None]:
+        if not (device.ip_address or "").strip():
+            return "unknown", None
         try:
             result = ping_host(PingRequest(host=device.ip_address, count=3, timeout_seconds=3), allow_public_targets=True)
             if (result.received or 0) > 0:

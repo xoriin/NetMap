@@ -396,6 +396,8 @@ def list_live_device_status(
 
     def probe(device: Device) -> DeviceLiveStatus:
         checked_at = datetime.now(timezone.utc)
+        if not (device.ip_address or "").strip():
+            return DeviceLiveStatus(device_id=device.id, status="unknown", last_checked_at=checked_at, error="No IP address")
         ping_error: str | None = None
         try:
             result = ping_host(

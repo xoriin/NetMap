@@ -187,3 +187,21 @@ def test_deleting_device_clears_every_users_favourites_and_relationships():
             | (DeviceRelationship.target_device_id == target_id)
         )
     ).all() == []
+
+
+def test_live_status_reports_unknown_without_probing_a_device_with_no_ip(monkeypatch):
+    from app.api.v1 import topology
+    from app.schemas.topology import DeviceLiveStatusRequest
+
+    def fail_network(*_args, **_kwargs):
+        raise AssertionError("a device without an address must not be probed")
+
+    monkeypatch.setattr(topology, "ping_host", fail_network)
+    monkeypatch.setattr(topology.socket, "create_connection", fail_network)
+    db = _session()
+    db.add(Device(id=1, display_name="No address", ip_address="", status="online"))
+    db.commit()
+
+    result = topology.list_live_device_status(DeviceLiveStatusRequest(device_ids=[1]), object(), db)
+
+    assert [(s.device_id, s.status, s.error) for s in result.statuses] == [(1, "unknown", "No IP address")]

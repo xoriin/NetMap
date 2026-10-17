@@ -458,3 +458,44 @@ def test_uptime_rollups_are_covered_by_an_index():
     assert len(after) == 2
     for plan in after:
         assert "COVERING INDEX" in plan, plan
+
+
+def _fail_network(*_args, **_kwargs):
+    raise AssertionError("a device without an address must not be probed")
+
+
+def test_alert_monitor_does_not_probe_device_without_ip(monkeypatch):
+    monitor = alerting_service.AlertMonitorService()
+    monkeypatch.setattr(alerting_service, "ping_host", _fail_network)
+    monkeypatch.setattr(alerting_service.socket, "create_connection", _fail_network)
+
+    for blank in ("", "   "):
+        device = Device(id=1, display_name="No address", ip_address=blank, status="online")
+        assert monitor._probe_device_status(device) == ("unknown", None)
+
+
+def test_alert_monitor_skips_service_checks_for_device_without_ip(monkeypatch):
+    from app.db.session import import_all_models
+    from app.models.port_target import DevicePortTarget
+
+    import_all_models()
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    with factory() as db:
+        db.add(Device(id=1, display_name="No address", ip_address="", status="online", lifecycle="active"))
+        db.add(DevicePortTarget(id=1, device_id=None, port=443, label="HTTPS", check_type="tcp"))
+        db.commit()
+
+    calls: list[str] = []
+    record = lambda name: lambda *_a, **_k: calls.append(name)  # noqa: E731
+    monkeypatch.setattr(alerting_service, "SessionLocal", factory)
+    monkeypatch.setattr(alerting_service, "ping_host", record("ping"))
+    monkeypatch.setattr(alerting_service.socket, "create_connection", record("tcp"))
+    monkeypatch.setattr(alerting_service, "check_port", record("service"))
+
+    alerting_service.AlertMonitorService()._check_devices()
+
+    assert calls == []
+    with factory() as db:
+        assert db.get(Device, 1).monitor_status == "unknown"
