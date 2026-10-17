@@ -28,7 +28,7 @@ EMAIL_BRANDING_DEFAULTS: dict[str, str] = {
 # call back to it. A public, versioned asset on GitHub avoids both.
 # RELEASE: this points at the `test` branch while the PNG only exists there. When the version is
 # released to `main`, change `test` to `main` here (see docs/PROJECT_RULES.md § Release Process).
-DEFAULT_LOGO_URL = "https://raw.githubusercontent.com/xoriin/NetMap/test/frontend/public/brand/email-logo.png"
+DEFAULT_LOGO_URL = "https://raw.githubusercontent.com/xoriin/NetMap/main/frontend/public/brand/email-logo.png"
 # The same PNG, served by the app itself. The in-app preview uses this because the app's
 # Content-Security-Policy (img-src 'self') applies to the preview frame and blocks the GitHub URL.
 PREVIEW_DEFAULT_LOGO_URL = "/brand/email-logo.png"
