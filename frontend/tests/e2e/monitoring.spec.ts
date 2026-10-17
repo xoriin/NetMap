@@ -334,7 +334,8 @@ test.describe("Monitoring workspace", () => {
     await expect(monitoringToggle.locator(".sidebar-parent-chevron")).toBeVisible();
     await expect(page.getByRole("button", { name: /(Collapse|Expand) Admin sections/ })).toBeVisible();
     await expect(monitoringToggle).toHaveAttribute("aria-expanded", "true");
-    await expect(monitoringNav.getByRole("link")).toHaveCount(2);
+    await expect(monitoringNav.getByRole("link")).toHaveCount(3);
+    await expect(monitoringNav.getByRole("link", { name: "Status pages", exact: true })).toBeVisible();
     await expect(monitoringNav.getByRole("link", { name: "Devices", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("tablist", { name: "Monitoring view" })).toHaveCount(0);
 

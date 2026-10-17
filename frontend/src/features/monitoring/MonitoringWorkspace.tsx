@@ -1,5 +1,5 @@
 import { useToast } from "../../components/Toast";
-import { useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
+import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
 import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
@@ -36,6 +36,10 @@ import {
   readMonitoringViewFromLocation,
   type MonitoringViewId,
 } from "./monitoringNavigation";
+
+const StatusPagesPanel = lazy(() =>
+  import("../status-pages/StatusPagesPanel").then((m) => ({ default: m.StatusPagesPanel }))
+);
 
 type MonitoringSnapshot = {
   fleet: FleetSummary | null;
@@ -84,6 +88,7 @@ export function MonitoringWorkspace({
   canWrite,
   canManageAlerts,
   canManageMonitoring,
+  canManageStatusPages = false,
   favouriteIds,
   inventoryDevices,
   livePingEnabled,
@@ -94,6 +99,7 @@ export function MonitoringWorkspace({
   canWrite: boolean;
   canManageAlerts: boolean;
   canManageMonitoring: boolean;
+  canManageStatusPages?: boolean;
   favouriteIds: Set<number>;
   inventoryDevices: Device[];
   livePingEnabled: boolean;
@@ -102,7 +108,11 @@ export function MonitoringWorkspace({
 }) {
   const toast = useToast();
   const [checkingDevice, setCheckingDevice] = useState<number | null>(null);
-  const [viewTab, setViewTab] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
+  const readPermittedView = useCallback((): MonitoringViewId => {
+    const view = readMonitoringViewFromLocation();
+    return view === "status-pages" && !canManageStatusPages ? "devices" : view;
+  }, [canManageStatusPages]);
+  const [viewTab, setViewTab] = useState<MonitoringViewId>(readPermittedView);
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
   const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
@@ -246,7 +256,7 @@ export function MonitoringWorkspace({
   const deviceTypeOptions = useDeviceTypes(accessToken).options;
 
   useEffect(() => {
-    const syncMonitoringView = () => setViewTab(readMonitoringViewFromLocation());
+    const syncMonitoringView = () => setViewTab(readPermittedView());
     window.addEventListener("popstate", syncMonitoringView);
     window.addEventListener("hashchange", syncMonitoringView);
     window.addEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
@@ -255,7 +265,7 @@ export function MonitoringWorkspace({
       window.removeEventListener("hashchange", syncMonitoringView);
       window.removeEventListener(MONITORING_VIEW_CHANGE_EVENT, syncMonitoringView);
     };
-  }, []);
+  }, [readPermittedView]);
 
   useEffect(() => {
     if (cachedSnapshot) {
@@ -908,6 +918,18 @@ export function MonitoringWorkspace({
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  }
+
+  if (viewTab === "status-pages") {
+    return (
+      <section className="dash-layout">
+        <div className="mon-content">
+          <Suspense fallback={<PanelSkeleton />}>
+            <StatusPagesPanel accessToken={accessToken} />
+          </Suspense>
+        </div>
+      </section>
+    );
   }
 
   if (loading) return <WorkspaceSkeleton />;

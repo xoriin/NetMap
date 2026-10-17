@@ -95,6 +95,7 @@ export function DashboardView({
   const canClaimIpReservations = canWrite && userHasPermission(user, "ipam_reservation_claim");
   const canManageMonitoring = userHasPermission(user, "monitoring_write");
   const canManageAlerts = userHasPermission(user, "alert_write");
+  const canManageStatusPages = userHasPermission(user, "status_page_manage");
   const canManageDiscovery = userHasPermission(user, "discovery_manage");
   const canRunActiveTools = userHasPermission(user, "tools_active");
   const canAccessExports = ["inventory_export", "firewall_export", "report_export"]
@@ -191,7 +192,7 @@ export function DashboardView({
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
       )}
       {currentRoute === "/monitoring" && accessToken && (
-        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} canManageAlerts={canManageAlerts} canManageMonitoring={canManageMonitoring} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} />
+        <MonitoringWorkspace accessToken={accessToken} canWrite={canWrite} canManageAlerts={canManageAlerts} canManageMonitoring={canManageMonitoring} canManageStatusPages={canManageStatusPages} favouriteIds={favouriteIds} inventoryDevices={graph.devices} livePingEnabled={livePingEnabled} monitorIntervalSeconds={monitorIntervalSeconds} onToggleFavourite={onToggleFavourite} />
       )}
       {currentRoute === "/ipam" && accessToken && (
         <IpamWorkspace canManageProviders={userHasPermission(user, "device_catalog_manage")} accessToken={accessToken} canWrite={canWriteIpam} canCreateDevice={canWrite} canClaimReservation={canClaimIpReservations} onDeviceChange={onDeviceChange} />

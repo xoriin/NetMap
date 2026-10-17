@@ -67,7 +67,7 @@ import {
 } from "./features/admin/adminNavigation";
 import {
   MONITORING_VIEW_CHANGE_EVENT,
-  monitoringViews,
+  availableMonitoringViews,
   navigateToMonitoringView,
   readMonitoringViewFromLocation,
   type MonitoringViewId,
@@ -122,6 +122,8 @@ export function Sidebar({
   const [inventoryMenuExpanded, setInventoryMenuExpanded] = useStickyMenu("inventory", currentRoute === "/inventory");
   const [ipamMenuExpanded, setIpamMenuExpanded] = useStickyMenu("ipam", currentRoute === "/ipam");
   const [monitoringMenuExpanded, setMonitoringMenuExpanded] = useStickyMenu("monitoring", currentRoute === "/monitoring");
+  const visibleMonitoringViews = availableMonitoringViews(user);
+  const shownMonitoringView = visibleMonitoringViews.some((view) => view.id === activeMonitoringView) ? activeMonitoringView : "devices";
   const versionLabel = versionInfo
     ? `${versionInfo.channel ? `${versionInfo.channel}: ` : "v"}${versionInfo.current}`
     : "";
@@ -346,12 +348,12 @@ export function Sidebar({
                 )}
                 {route.href === "/monitoring" && !collapsed && monitoringMenuExpanded && (
                   <div className="sidebar-admin-subnav sidebar-monitoring-subnav" aria-label="Monitoring sections">
-                    {monitoringViews.map(({ id, label, Icon: MonitoringIcon }) => (
+                    {visibleMonitoringViews.map(({ id, label, Icon: MonitoringIcon }) => (
                       <SpaLink
                         key={id}
                         href={`/monitoring#${id}`}
-                        className={currentRoute === "/monitoring" && activeMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
-                        aria-current={currentRoute === "/monitoring" && activeMonitoringView === id ? "page" : undefined}
+                        className={currentRoute === "/monitoring" && shownMonitoringView === id ? "sidebar-admin-link active" : "sidebar-admin-link"}
+                        aria-current={currentRoute === "/monitoring" && shownMonitoringView === id ? "page" : undefined}
                         onNavigate={() => {
                           // The menu stays open off-route, so a sub-item may need to take
                           // you back to its section before selecting the view.
