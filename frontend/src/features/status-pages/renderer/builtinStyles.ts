@@ -1,7 +1,7 @@
 export const RENDERER_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";
 
-export const BUILTIN_STYLES = `
+const LIGHT_TOKENS = `
 :root {
   color-scheme: light;
   --sp-bg: #e8eef3;
@@ -29,32 +29,34 @@ export const BUILTIN_STYLES = `
   --sp-beat-unknown: #8a97a7;
   --sp-beat-maintenance: #7c5cbf;
 }
+`;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --sp-bg: #0c1118;
-    --sp-surface: #131e28;
-    --sp-surface-soft: #111a22;
-    --sp-row-hover: #111c28;
-    --sp-border: #1e2e3c;
-    --sp-text: #d7e2ea;
-    --sp-text-muted: #8ab0c8;
-    --sp-text-faint: #5a7a95;
-    --sp-accent: #22c0cf;
-    --sp-success-soft: rgba(45, 157, 120, 0.15);
-    --sp-warning-text: #e8b040;
-    --sp-warning-soft: rgba(212, 145, 44, 0.15);
-    --sp-danger-soft: rgba(217, 75, 75, 0.15);
-    --sp-maintenance: #a78bfa;
-    --sp-maintenance-soft: rgba(124, 92, 191, 0.12);
-    --sp-info-text: #55d6e1;
-    --sp-info-soft: rgba(34, 192, 207, 0.12);
-    --sp-beat-unknown: #4d6a82;
-    --sp-beat-maintenance: #a78bfa;
-  }
+const DARK_TOKENS = `
+:root {
+  color-scheme: dark;
+  --sp-bg: #0c1118;
+  --sp-surface: #131e28;
+  --sp-surface-soft: #111a22;
+  --sp-row-hover: #111c28;
+  --sp-border: #1e2e3c;
+  --sp-text: #d7e2ea;
+  --sp-text-muted: #8ab0c8;
+  --sp-text-faint: #5a7a95;
+  --sp-accent: #22c0cf;
+  --sp-success-soft: rgba(45, 157, 120, 0.15);
+  --sp-warning-text: #e8b040;
+  --sp-warning-soft: rgba(212, 145, 44, 0.15);
+  --sp-danger-soft: rgba(217, 75, 75, 0.15);
+  --sp-maintenance: #a78bfa;
+  --sp-maintenance-soft: rgba(124, 92, 191, 0.12);
+  --sp-info-text: #55d6e1;
+  --sp-info-soft: rgba(34, 192, 207, 0.12);
+  --sp-beat-unknown: #4d6a82;
+  --sp-beat-maintenance: #a78bfa;
 }
+`;
 
+const BASE_STYLES = `
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -203,3 +205,11 @@ details.sp-row[open] > summary .sp-axis { display: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 `;
+
+export type StatusColorScheme = "light" | "dark" | null;
+
+export function builtinStyles(scheme: StatusColorScheme): string {
+  if (scheme === "light") return LIGHT_TOKENS + BASE_STYLES;
+  if (scheme === "dark") return LIGHT_TOKENS + DARK_TOKENS + BASE_STYLES;
+  return `${LIGHT_TOKENS}@media (prefers-color-scheme: dark) {\n${DARK_TOKENS}}\n${BASE_STYLES}`;
+}

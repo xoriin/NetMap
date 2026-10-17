@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { api } from "../../api/client";
 import { PanelSkeleton } from "../../components/Skeleton";
+import { useTheme } from "../../providers/ThemeProvider";
 import { StatusPageFrame } from "./StatusPageFrame";
 import {
   type StatusFetchResult, type StatusPagePayload, fetchStatusPage, publicStatusUrl, signedInStatusUrl, statusPagePath,
@@ -8,27 +10,32 @@ import "./statusPages.css";
 
 const POLL_MS = 30_000;
 const MIN_POLL_MS = 1_000;
+const POLL_AFTER_EXPIRY_MS = 500;
+const EXPIRY_GRACE_MS = 5_000;
 const MAX_RETRY_AFTER_S = 10;
 
 type Phase = "loading" | "ready" | "not-found";
 
 export function StatusPageRoute({ slug }: { slug: string }) {
+  const { theme, themeSource } = useTheme();
   const [phase, setPhase] = useState<Phase>("loading");
   const [payload, setPayload] = useState<StatusPagePayload | null>(null);
   const [unavailable, setUnavailable] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    let timer: number | undefined;
+    let pollTimer: number | undefined;
+    let expiryTimer: number | undefined;
     let etag: string | null = null;
     let signedIn = false;
+    let refreshTried = false;
     let retriedUnavailable = false;
-    let freshUntil = 0;
+    let heldValidUntil: number | null = null;
+    let deadline: number | null = null;
 
     const schedule = (ms: number) => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => void poll(), ms);
+      window.clearTimeout(pollTimer);
+      pollTimer = window.setTimeout(() => void poll(), ms);
     };
 
     const fail = () => {
@@ -36,12 +43,16 @@ export function StatusPageRoute({ slug }: { slug: string }) {
       schedule(POLL_MS);
     };
 
-    const fresh = (validForMs: number) => {
+    const accept = (remainingMs: number) => {
       retriedUnavailable = false;
-      freshUntil = Date.now() + validForMs;
-      setUnavailable(false);
-      setLastUpdated(new Date());
-      schedule(Math.min(POLL_MS, Math.max(MIN_POLL_MS, validForMs)));
+      refreshTried = false;
+      if (remainingMs > 0) {
+        deadline = Date.now() + remainingMs;
+        window.clearTimeout(expiryTimer);
+        expiryTimer = window.setTimeout(() => setUnavailable(true), remainingMs + EXPIRY_GRACE_MS);
+        setUnavailable(false);
+      }
+      schedule(Math.max(MIN_POLL_MS, Math.min(POLL_MS, Math.max(0, remainingMs)) + POLL_AFTER_EXPIRY_MS));
     };
 
     async function poll() {
@@ -55,13 +66,18 @@ export function StatusPageRoute({ slug }: { slug: string }) {
       if (!result) return fail();
 
       if (result.kind === "ok") {
+        const validUntil = Date.parse(result.payload.valid_until);
+        const serverNow = result.serverDate ?? Date.parse(result.payload.generated_at);
         etag = result.etag;
-        const validFor = Date.parse(result.payload.valid_until) - Date.parse(result.payload.generated_at);
+        heldValidUntil = Number.isFinite(validUntil) ? validUntil : null;
         setPayload(result.payload);
         setPhase("ready");
-        return fresh(Number.isFinite(validFor) ? Math.min(POLL_MS, Math.max(0, validFor)) : 0);
+        return accept(heldValidUntil !== null && Number.isFinite(serverNow) ? heldValidUntil - serverNow : 0);
       }
-      if (result.kind === "not-modified") return fresh(POLL_MS);
+      if (result.kind === "not-modified") {
+        if (heldValidUntil !== null && result.serverDate !== null) return accept(heldValidUntil - result.serverDate);
+        return accept(deadline !== null ? deadline - Date.now() : 0);
+      }
       if (result.kind === "unavailable") {
         if (retriedUnavailable) return fail();
         retriedUnavailable = true;
@@ -73,10 +89,21 @@ export function StatusPageRoute({ slug }: { slug: string }) {
         return void poll();
       }
       if (result.status === 401 && signedIn) {
+        if (!refreshTried) {
+          refreshTried = true;
+          try {
+            await api.refresh();
+          } catch {
+            // The retried /view answers 401 again and sends the visitor to sign-in.
+          }
+          if (!cancelled) void poll();
+          return;
+        }
         window.location.assign(`/?next=${encodeURIComponent(statusPagePath(slug))}`);
         return;
       }
       if (result.status === 404) {
+        window.clearTimeout(expiryTimer);
         setPayload(null);
         setUnavailable(false);
         setPhase("not-found");
@@ -86,14 +113,18 @@ export function StatusPageRoute({ slug }: { slug: string }) {
     }
 
     const onVisible = () => {
-      if (document.visibilityState === "visible" && freshUntil && Date.now() > freshUntil) schedule(0);
+      if (document.visibilityState !== "visible" || deadline === null) return;
+      const now = Date.now();
+      if (now > deadline + EXPIRY_GRACE_MS) setUnavailable(true);
+      if (now > deadline) schedule(0);
     };
 
     document.addEventListener("visibilitychange", onVisible);
     void poll();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(pollTimer);
+      window.clearTimeout(expiryTimer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [slug]);
@@ -102,7 +133,10 @@ export function StatusPageRoute({ slug }: { slug: string }) {
     document.title = payload?.title || "Status";
   }, [payload?.title]);
 
-  const updatedAt = lastUpdated?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const generatedAt = payload ? new Date(payload.generated_at) : null;
+  const updatedAt = generatedAt && !Number.isNaN(generatedAt.getTime())
+    ? generatedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <main className="status-route">
@@ -111,6 +145,7 @@ export function StatusPageRoute({ slug }: { slug: string }) {
           payload={payload}
           css={payload.custom_css}
           title={payload.title || "Status page"}
+          colorScheme={themeSource === "stored" ? theme : null}
           className={unavailable ? "status-page-frame--hidden" : undefined}
         />
       )}
@@ -121,17 +156,25 @@ export function StatusPageRoute({ slug }: { slug: string }) {
       )}
       {phase === "not-found" && (
         <div className="status-route-message">
-          <div className="nm-alert nm-alert--info status-route-card" role="note">
-            <strong>Status page not found</strong>
-            <span>This status page does not exist, or you do not have access to it.</span>
+          <div className="status-route-card">
+            <div className="nm-alert nm-alert--info" role="note">
+              <span className="status-route-copy">
+                <strong>Status page not found</strong>
+                <span>This status page does not exist, or you do not have access to it.</span>
+              </span>
+            </div>
           </div>
         </div>
       )}
       {unavailable && phase !== "not-found" && (
         <div className="status-route-message">
-          <div className="nm-alert nm-alert--warning status-route-card" role="alert">
-            <strong>Status is temporarily unavailable</strong>
-            <span>{updatedAt ? `Last updated ${updatedAt}. Retrying automatically.` : "No status has been received yet. Retrying automatically."}</span>
+          <div className="status-route-card">
+            <div className="nm-alert nm-alert--warning" role="alert">
+              <span className="status-route-copy">
+                <strong>Status is temporarily unavailable</strong>
+                <span>{updatedAt ? `Last updated ${updatedAt}. Retrying automatically.` : "No status has been received yet. Retrying automatically."}</span>
+              </span>
+            </div>
           </div>
         </div>
       )}

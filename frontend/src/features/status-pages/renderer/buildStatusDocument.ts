@@ -2,9 +2,9 @@ import type {
   StatusAvailability, StatusBeat, StatusIncident, StatusItemState, StatusMaintenanceWindow, StatusNotice,
   StatusPageGroupPayload, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
 } from "../statusPagesApi";
-import { BUILTIN_STYLES, RENDERER_CSP } from "./builtinStyles";
+import { RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
-export type BuildStatusOptions = { css: string | null; now: Date };
+export type BuildStatusOptions = { css: string | null; now: Date; colorScheme?: StatusColorScheme };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const LOGO_PATTERN = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -386,7 +386,7 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   doc.head.prepend(csp);
   const titleNode = doc.head.querySelector("title");
   if (titleNode) titleNode.textContent = payload.title;
-  doc.head.append(b.el("style", null, BUILTIN_STYLES));
+  doc.head.append(b.el("style", null, builtinStyles(options.colorScheme ?? null)));
   if (options.css && !options.css.includes("<")) doc.head.append(b.el("style", null, options.css));
 
   const page = b.el("main", "sp-page");

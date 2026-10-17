@@ -92,8 +92,8 @@ export type StatusPagePayload = {
 };
 
 export type StatusFetchResult =
-  | { kind: "ok"; payload: StatusPagePayload; etag: string | null }
-  | { kind: "not-modified" }
+  | { kind: "ok"; payload: StatusPagePayload; etag: string | null; serverDate: number | null }
+  | { kind: "not-modified"; serverDate: number | null }
   | { kind: "unavailable"; retryAfterSeconds: number | null }
   | { kind: "error"; status: number };
 
@@ -120,13 +120,15 @@ export async function fetchStatusPage(url: string, etag: string | null, signedIn
     const headers = new Headers({ Accept: "application/json" });
     if (etag) headers.set("If-None-Match", etag);
     const response = await fetch(url, { headers, credentials: signedIn ? "same-origin" : "omit", cache: "no-store", signal: controller.signal });
-    if (response.status === 304) return { kind: "not-modified" };
+    const date = Date.parse(response.headers.get("Date") ?? "");
+    const serverDate = Number.isFinite(date) ? date : null;
+    if (response.status === 304) return { kind: "not-modified", serverDate };
     if (response.status === 503) {
       const retryAfter = Number(response.headers.get("Retry-After"));
       return { kind: "unavailable", retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null };
     }
     if (!response.ok) return { kind: "error", status: response.status };
-    return { kind: "ok", payload: (await response.json()) as StatusPagePayload, etag: response.headers.get("ETag") };
+    return { kind: "ok", payload: (await response.json()) as StatusPagePayload, etag: response.headers.get("ETag"), serverDate };
   } finally {
     window.clearTimeout(timer);
   }

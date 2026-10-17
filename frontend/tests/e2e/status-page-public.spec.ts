@@ -57,9 +57,20 @@ function payload(overrides: Record<string, unknown> = {}, validForSeconds = 30) 
   };
 }
 
-function fulfillPayload(route: Route, body: unknown, etag = '"v1"') {
-  return route.fulfill({ status: 200, json: body, headers: { ETag: etag } });
+function fulfillPayload(route: Route, body: unknown, etag = '"v1"', date?: Date) {
+  const headers: Record<string, string> = { ETag: etag };
+  if (date) headers.Date = date.toUTCString();
+  return route.fulfill({ status: 200, json: body, headers });
 }
+
+function snapshot(serverNow: Date, generatedAgoSeconds: number, validForSeconds: number) {
+  return payload({
+    generated_at: new Date(serverNow.getTime() - generatedAgoSeconds * 1000).toISOString(),
+    valid_until: new Date(serverNow.getTime() + validForSeconds * 1000).toISOString(),
+  });
+}
+
+const unavailableAlert = (page: Page) => page.getByRole("alert").filter({ hasText: "Status is temporarily unavailable" });
 
 async function blockEverythingElse(page: Page) {
   await page.route("**/api/v1/**", (route) => route.fulfill({ status: 401, json: { detail: "Authentication required" } }));
@@ -297,6 +308,145 @@ test("a logo that is not a data image is not rendered", async ({ page }) => {
   await expect(statusFrame(page).locator(".sp-title")).toHaveText("Acme Network");
   await expect(statusFrame(page).locator(".sp-logo")).toHaveCount(0);
 });
+
+test("an expired snapshot is marked unavailable on the server clock", async ({ page }) => {
+  await page.clock.install();
+  await blockEverythingElse(page);
+  const serverNow = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const body = snapshot(serverNow, 2 * 60 * 60, 2);
+  let calls = 0;
+  await page.route(PUBLIC_URL, (route) => {
+    calls += 1;
+    if (calls === 1) return fulfillPayload(route, body, '"v1"', serverNow);
+    return new Promise<void>(() => {});
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toContainText("All systems operational");
+
+  await page.clock.fastForward(1_000);
+  await expect(unavailableAlert(page)).toBeHidden();
+  await page.clock.fastForward(7_000);
+  await expect(unavailableAlert(page)).toBeVisible();
+  await expect(page.locator("iframe.status-page-frame")).toBeHidden();
+  const expected = await page.evaluate((iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }), body.generated_at);
+  await expect(unavailableAlert(page)).toContainText(`Last updated ${expected}`);
+});
+
+test("a 304 keeps the held snapshot's deadline mapped through the server clock", async ({ page }) => {
+  await page.clock.install();
+  await blockEverythingElse(page);
+  const serverNow = new Date(Math.floor(Date.now() / 1000) * 1000);
+  let calls = 0;
+  await page.route(PUBLIC_URL, (route) => {
+    calls += 1;
+    if (calls === 1) return fulfillPayload(route, snapshot(serverNow, 0, 30), '"v1"', serverNow);
+    if (calls === 2) {
+      return route.fulfill({ status: 304, headers: { ETag: '"v1"', Date: new Date(serverNow.getTime() + 28_000).toUTCString() } });
+    }
+    return new Promise<void>(() => {});
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toContainText("All systems operational");
+
+  await page.clock.fastForward(31_000);
+  await expect.poll(() => calls).toBe(2);
+  await expect(unavailableAlert(page)).toBeHidden();
+  await page.clock.fastForward(8_000);
+  await expect(unavailableAlert(page)).toBeVisible();
+});
+
+test("waking past the deadline shows unavailable at once", async ({ page }) => {
+  await page.clock.install();
+  await blockEverythingElse(page);
+  const serverNow = new Date(Math.floor(Date.now() / 1000) * 1000);
+  let calls = 0;
+  await page.route(PUBLIC_URL, (route) => {
+    calls += 1;
+    if (calls === 1) return fulfillPayload(route, snapshot(serverNow, 0, 30), '"v1"', serverNow);
+    return new Promise<void>(() => {});
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toContainText("All systems operational");
+
+  await page.clock.setSystemTime(Date.now() + 10 * 60 * 1000);
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(unavailableAlert(page)).toBeVisible();
+});
+
+test("a signed-in viewer whose session expired is refreshed once before sign-in", async ({ page }) => {
+  const order: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith("/api/")) order.push(path);
+  });
+  await blockEverythingElse(page);
+  let viewCalls = 0;
+  await page.route("**/api/v1/auth/refresh", (route) => route.fulfill({ json: { access_token: "fresh", token_type: "bearer" } }));
+  await page.route(PUBLIC_URL, (route) => route.fulfill({ status: 404, json: { detail: "Not found" } }));
+  await page.route(VIEW_URL, (route) => {
+    viewCalls += 1;
+    return viewCalls === 1
+      ? route.fulfill({ status: 401, json: { detail: "Invalid or expired token" } })
+      : fulfillPayload(route, payload({ title: "Private Lab" }));
+  });
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-title")).toHaveText("Private Lab");
+  await expect(page).toHaveURL(new RegExp(`/status/${SLUG}$`));
+  expect(order.indexOf("/api/v1/auth/refresh")).toBeGreaterThan(order.indexOf(`/api/v1/public/status-pages/${SLUG}`));
+  expect(viewCalls).toBe(2);
+});
+
+test("a signed-in viewer on an unknown slug sees not found without a redirect", async ({ page }) => {
+  await blockEverythingElse(page);
+  await page.route(PUBLIC_URL, (route) => route.fulfill({ status: 404, json: { detail: "Not found" } }));
+  await page.route(VIEW_URL, (route) => route.fulfill({ status: 404, json: { detail: "Not found" } }));
+  await page.goto(`/status/${SLUG}`);
+  await expect(page.getByText("Status page not found")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/status/${SLUG}$`));
+});
+
+test("an anonymous visitor on an unknown slug gets the same sign-in redirect as a private page", async ({ page }) => {
+  await blockEverythingElse(page);
+  await page.route(PUBLIC_URL, (route) => route.fulfill({ status: 404, json: { detail: "Not found" } }));
+  await page.goto(`/status/${SLUG}`);
+  await expect(page).toHaveURL(new RegExp(`/\\?next=%2Fstatus%2F${SLUG}$`));
+});
+
+async function frameBackground(page: Page) {
+  return statusFrame(page).locator("body").evaluate((body) => getComputedStyle(body).backgroundColor);
+}
+
+const LIGHT_BG = "rgb(232, 238, 243)";
+const DARK_BG = "rgb(12, 17, 24)";
+
+test("with no stored theme the shell and frame follow the OS scheme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await blockEverythingElse(page);
+  await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload()));
+  await page.goto(`/status/${SLUG}`);
+  await expect(statusFrame(page).locator(".sp-summary")).toBeVisible();
+  await expect(page.locator("body")).not.toHaveClass(/theme-dark/);
+  expect(await frameBackground(page)).toBe(LIGHT_BG);
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("body")).toHaveClass(/theme-dark/);
+  await expect.poll(() => frameBackground(page)).toBe(DARK_BG);
+  expect(await page.evaluate(() => window.localStorage.getItem("netmap.theme"))).toBeNull();
+});
+
+for (const [stored, os, background] of [["light", "dark", LIGHT_BG], ["dark", "light", DARK_BG]] as const) {
+  test(`a stored ${stored} theme drives both the shell and the frame on a ${os} OS`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: os });
+    await page.addInitScript((theme) => window.localStorage.setItem("netmap.theme", theme), stored);
+    await blockEverythingElse(page);
+    await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload()));
+    await page.goto(`/status/${SLUG}`);
+    await expect(statusFrame(page).locator(".sp-summary")).toBeVisible();
+    if (stored === "dark") await expect(page.locator("body")).toHaveClass(/theme-dark/);
+    else await expect(page.locator("body")).not.toHaveClass(/theme-dark/);
+    expect(await frameBackground(page)).toBe(background);
+  });
+}
 
 function largePayload() {
   const groups = Array.from({ length: 6 }, (_, g) => ({
