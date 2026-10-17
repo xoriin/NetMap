@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal, TypedDict
 
 from sqlalchemy import select
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.status_page import StatusPage, StatusPageGroup, StatusPageItem
 from app.services.status_pages.history import (
+    Sample,
     availability,
     build_spans,
     failure_rate,
@@ -84,6 +85,11 @@ def _slot_width(page: StatusPage) -> timedelta:
     return WINDOWS[page.heartbeat_window] / SLOTS
 
 
+def slot_end(page: StatusPage, now: datetime) -> datetime:
+    width = _slot_width(page).total_seconds()
+    return datetime.fromtimestamp((now.timestamp() // width + 1) * width, tz=timezone.utc)
+
+
 def next_deadline(
     page: StatusPage,
     now: datetime,
@@ -92,34 +98,38 @@ def next_deadline(
     maintenance_edges: Iterable[datetime] = (),
 ) -> datetime:
     now = _utc(now)
-    width = _slot_width(page).total_seconds()
-    elapsed = now.timestamp()
-    boundary = now + timedelta(seconds=width - elapsed % width)
-    candidates = [now + MAX_VALIDITY, boundary]
+    candidates = [now + MAX_VALIDITY, slot_end(page, now)]
     candidates += [s.fresh_until for s in states if s.fresh_until is not None]
     candidates += [_utc(d) for d in (*notice_expiries, *maintenance_edges)]
     return min(c for c in candidates if c > now)
 
 
-def _metrics(extras: dict, samples, start, now, state: CurrentState, period_samples) -> dict | None:
+def _round(value: float | None, digits: int | None = None) -> float | None:
+    return None if value is None else round(value, digits) if digits is not None else float(round(value))
+
+
+def _metrics(
+    extras: dict, samples: list[Sample], start: datetime, now: datetime, state: CurrentState,
+    period_samples: list[Sample], period_start: datetime | None,
+) -> dict | None:
     metrics: dict = {}
     window = window_samples(samples, start, now, [])
     values = [s.response_ms for s in window if s.ok and s.response_ms is not None]
     if extras.get("avg_response"):
-        metrics["avg_response"] = sum(values) / len(values) if values else None
+        metrics["avg_response"] = _round(sum(values) / len(values)) if values else None
     if extras.get("p95_response"):
-        metrics["p95_response"] = p95(values)
+        metrics["p95_response"] = _round(p95(values))
     if extras.get("failure_rate"):
-        metrics["failure_rate"] = failure_rate(samples, start, now, [])
+        metrics["failure_rate"] = _round(failure_rate(samples, start, now, []), 4)
     if extras.get("last_check"):
         metrics["last_check"] = state.observed_at.isoformat() if state.observed_at else None
     period = extras.get("uptime_period")
     if period in PERIODS:
-        p_start = now - PERIODS[period]
-        spans = build_spans(period_samples, p_start, now, state.interval_seconds, [])
-        found = availability(spans, p_start, now)
+        spans = build_spans(period_samples, period_start, now, state.interval_seconds, [])
+        found = availability(spans, period_start, now)
         metrics["uptime_period"] = {
-            "period": period, "percent": found.percent, "label": found.label, "coverage": found.coverage,
+            "period": period, "percent": _round(found.percent, 4), "label": found.label,
+            "coverage": _round(found.coverage, 4),
         }
     return metrics or None
 
@@ -127,7 +137,8 @@ def _metrics(extras: dict, samples, start, now, state: CurrentState, period_samp
 def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: datetime) -> PagePayload:
     now = _utc(now)
     window = WINDOWS[page.heartbeat_window]
-    start = now - window
+    end = slot_end(page, now)
+    start = end - window
     groups = list(db.scalars(
         select(StatusPageGroup).where(StatusPageGroup.page_id == page.id).order_by(StatusPageGroup.sort_order, StatusPageGroup.id)
     ))
@@ -144,7 +155,7 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
         period = (item.extras or {}).get("uptime_period")
         if period in PERIODS:
             lengths[PERIODS[period]].add(refs[item.id])
-    samples = {length: load_samples(db, group_refs, now - length, now) for length, group_refs in lengths.items()}
+    samples = {length: load_samples(db, group_refs, end - length, now) for length, group_refs in lengths.items()}
 
     by_group: dict[int, list[dict]] = defaultdict(list)
     item_states: dict[int, ItemState] = {}
@@ -155,15 +166,20 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
         found = availability(spans, start, now)
         period = extras.get("uptime_period")
         period_samples = samples[PERIODS[period]][ref] if period in PERIODS else []
+        period_start = end - PERIODS[period] if period in PERIODS else None
         item_states[item.id] = item_state(state, ref in degraded, False, now)
         by_group[item.group_id].append({
             "id": item.id,
             "name": item.display_name,
             "state": item_states[item.id],
-            "availability": {"percent": found.percent, "label": found.label, "coverage": found.coverage},
-            "heartbeats": heartbeat_slots(spans, start, now, SLOTS),
-            "response": response_slots(own, start, now, [], SLOTS) if extras.get("rtt_graph") else None,
-            "metrics": _metrics(extras, own, start, now, state, period_samples),
+            "availability": {
+                "percent": _round(found.percent, 4), "label": found.label, "coverage": _round(found.coverage, 4),
+            },
+            "heartbeats": heartbeat_slots(spans, start, end, SLOTS),
+            "response": (
+                [_round(v) for v in response_slots(own, start, end, [], SLOTS)] if extras.get("rtt_graph") else None
+            ),
+            "metrics": _metrics(extras, own, start, now, state, period_samples, period_start),
             "incident_ids": [],
         })
 

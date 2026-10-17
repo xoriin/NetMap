@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.monitor import MonitorCheckHistory
 from app.models.monitor_history import DeviceMonitorHistory
-from app.models.status_page import StatusPageItem
+from app.models.status_page import StatusPage, StatusPageItem
 from app.services.status_pages.projection import build_page_payload, next_deadline, summarize
 from app.services.status_pages.sources import SourceRef, freshness_deadline, load_current_states
 from tests.status_page_helpers import make_session, seed_device, seed_monitor, seed_page, seed_service_check
@@ -80,10 +80,13 @@ def test_public_projection_never_contains_private_alias_or_internal_text():
             SourceRef("service_check", device_id=device.id, port_target_id=check.id)]
     public = seed_page(db, "public", "public", [(refs[0], "Media"), (refs[1], "Website"), (refs[2], "Web")])
     seed_page(db, "private", "private", [(refs[0], "media-01 (10.0.0.5)")])
-    for page in (public,):
+    private = db.query(StatusPage).filter_by(slug="private").one()
+    for page in (public, private):
         _set_extras(db, page, rtt_graph=True, uptime_period="24h", avg_response=True, p95_response=True,
                     failure_rate=True, last_check=True)
     body = json.dumps(build_page_payload(db, public, "public", NOW))
+    private_body = json.dumps(build_page_payload(db, private, "private", NOW))
+    assert "media-01 (10.0.0.5)" in private_body
     for leaked in ("10.0.0.5", "media-01", "device:", "monitor:", "service:", "hostname", "service_check",
                    "internal.example.test", "Secret monitor", "connection refused", "kind", "device_id",
                    "monitor_id", "port_target_id", "source"):
@@ -209,3 +212,42 @@ def test_next_slot_boundary_bounds_deadline():
     odd = NOW + timedelta(seconds=7)
     assert next_deadline(page, odd, []) <= odd + timedelta(seconds=30)
     assert next_deadline(page, odd, []) > odd
+    quiet = NOW + timedelta(seconds=10)
+    assert next_deadline(page, quiet, []) == quiet + timedelta(seconds=30)
+    page.heartbeat_window = "1h"
+    cross = NOW + timedelta(seconds=45)
+    assert next_deadline(page, cross, []) == NOW + timedelta(seconds=60)
+
+
+def test_slots_are_stable_within_a_slot_and_shift_across_a_boundary():
+    db = make_session()
+    device = _device(db, last_monitored_at=NOW - timedelta(seconds=30))
+    _history(db, device, 30, rtt=20.0)
+    _history(db, device, 0.5, rtt=41.3)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    _set_extras(db, page, rtt_graph=True)
+
+    def slots(now):
+        item = build_page_payload(db, page, "public", now)["groups"][0]["items"][0]
+        return item["heartbeats"], item["response"]
+
+    base = NOW + timedelta(seconds=5)
+    assert slots(base) == slots(base + timedelta(seconds=30)) == slots(base + timedelta(seconds=54))
+    assert slots(base) != slots(base + timedelta(seconds=60))
+    assert all(v is None or v == round(v) for v in slots(base)[1])
+
+
+def test_payload_values_are_quantised():
+    db = make_session()
+    device = _device(db)
+    for minutes, rtt in ((50, 10.4), (40, 20.6), (30, 33.33)):
+        _history(db, device, minutes, rtt=rtt)
+    ref = SourceRef("device", device_id=device.id)
+    page = seed_page(db, "p", "public", [(ref, "Media")])
+    _set_extras(db, page, avg_response=True, p95_response=True, failure_rate=True)
+    item = build_page_payload(db, page, "public", NOW)["groups"][0]["items"][0]
+    for key in ("avg_response", "p95_response"):
+        assert item["metrics"][key] == round(item["metrics"][key])
+    for key in ("percent", "coverage"):
+        assert item["availability"][key] is None or item["availability"][key] == round(item["availability"][key], 4)
