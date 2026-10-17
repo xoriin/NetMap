@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockUser, setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 for (const theme of ["light", "dark"] as const) {
   test(`sidebar footer stays anchored while expanded menus scroll in ${theme}`, async ({ page }) => {
@@ -111,4 +111,69 @@ test("documentation link fits the mobile bottom bar", async ({ page }) => {
   const [d, t] = await Promise.all([docs.boundingBox(), toggle.boundingBox()]);
   expect(d && t && Math.round(d.width) === Math.round(t.width) && Math.round(d.height) === Math.round(t.height)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+const avatar = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aShoAAAAASUVORK5CYII=";
+for (const theme of ["light", "dark"] as const) {
+  for (const mode of ["expanded", "collapsed", "mobile"] as const) {
+    test(`Profile photo keeps sidebar geometry in ${theme} ${mode}`, async ({ page }) => {
+      await page.setViewportSize({ width: mode === "mobile" ? 390 : 1280, height: 900 });
+      await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);
+      await page.route("**/api/v1/api-keys", route => route.fulfill({json:[]}));
+      await page.route("**/api/v1/auth/me", route => route.fulfill({json: {...mockUser, avatar_data: avatar}}));
+      await page.addInitScript(t => localStorage.setItem("netmap.theme", t), theme);
+      await page.goto("/overview");
+      if (mode === "collapsed") await page.getByRole("button", {name:"Collapse sidebar"}).click();
+      const link = page.locator('.sidebar-link[href="/profile"]');
+      await link.scrollIntoViewIfNeeded();
+      const photo = link.locator("img");
+      await expect(photo).toHaveAttribute("src", avatar);
+      await expect.poll(() => photo.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+      await expect(photo).toHaveCSS("width", "18px");
+      await expect(photo).toHaveCSS("height", "18px");
+      await expect(photo).toHaveCSS("border-radius", "50%");
+      await expect(photo).toHaveCSS("object-fit", "cover");
+      await link.hover(); await link.focus();
+      await expect(link).toBeFocused();
+      await link.click();
+      await expect(page).toHaveURL(/\/profile$/);
+      await expect(link).toHaveClass(/active/);
+      await expect(page.getByRole("button", {name:"Save account details",exact:true})).toBeVisible();
+      await page.screenshot({path:`/tmp/sidebar-avatar-${theme}-${mode}.png`});
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(mode === "mobile" ? 390 : 1280);
+    });
+  }
+}
+
+test("Profile icon is retained for missing and broken photos", async ({page}) => {
+  await setupCoreMocks(page); await setupTopologyMocks(page);
+  await page.goto("/overview");
+  const link = page.locator('.sidebar-link[href="/profile"]');
+  await expect(link.locator("svg")).toBeVisible();
+  await expect(link.locator("img")).toHaveCount(0);
+  await page.route("**/api/v1/auth/me", route => route.fulfill({json:{...mockUser, avatar_data:"data:image/png;base64,broken"}}));
+  await page.reload();
+  await expect(link.locator("svg")).toBeVisible();
+  await expect(link.locator("img")).toHaveCount(0);
+});
+
+test("saving and removing a profile photo updates the sidebar immediately", async ({page}) => {
+  await setupCoreMocks(page); await setupTopologyMocks(page);
+  await page.route("**/api/v1/auth/me", async route => {
+    const payload = route.request().method() === "PATCH" ? route.request().postDataJSON() : {};
+    await route.fulfill({json:{...mockUser, auth_source:"local", avatar_data:avatar, ...payload}});
+  });
+  await page.goto("/profile");
+  const photo = page.locator('.sidebar-link[href="/profile"] img');
+  await expect(photo).toBeVisible();
+  await page.getByRole("button",{name:"Remove photo",exact:true}).click();
+  await expect(photo).toBeVisible();
+  await page.getByRole("button",{name:"Save account details",exact:true}).click();
+  await expect(photo).toHaveCount(0);
+  await page.locator('input[type="file"].profile-avatar-file').setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:Buffer.from(avatar.split(",")[1],"base64")});
+  await expect(page.getByRole("img",{name:"Profile avatar",exact:true})).toBeVisible();
+  await expect(photo).toHaveCount(0);
+  await page.getByRole("button",{name:"Save account details",exact:true}).click();
+  await expect(photo).toBeVisible();
+  await expect(photo).toHaveAttribute("src",avatar);
 });

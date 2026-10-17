@@ -113,6 +113,7 @@ export function Sidebar({
   user: User;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTabId>(() => readAdminTabFromLocation());
   const [adminMenuExpanded, setAdminMenuExpanded] = useStickyMenu("admin", currentRoute === "/admin");
   const [activeMonitoringView, setActiveMonitoringView] = useState<MonitoringViewId>(() => readMonitoringViewFromLocation());
@@ -247,7 +248,9 @@ export function Sidebar({
                   }}
 
                 >
-                  <Icon size={18} aria-hidden="true" />
+                  {route.href === "/profile" && user.avatar_data && user.avatar_data !== failedAvatar ? (
+                    <img className="sidebar-profile-photo" src={user.avatar_data} width={18} height={18} alt="" onError={() => setFailedAvatar(user.avatar_data ?? null)} />
+                  ) : <Icon size={18} aria-hidden="true" />}
                   {!collapsed && <span className="sidebar-link-label">{route.label}</span>}
                   {route.href === "/inventory" && openObservationCount && openObservationCount > 0 ? (
                     <span className="sidebar-badge" aria-label={`${openObservationCount} open network changes`}>

@@ -284,6 +284,14 @@
   font-weight: 650;
 }
 
+.sidebar-profile-photo {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .sidebar-link-label {
   min-width: 0;
   overflow: hidden;
