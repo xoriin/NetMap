@@ -23,8 +23,21 @@ import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 import { RuntimeSecurityAlert } from "./components/RuntimeSecurityAlert";
 import { userHasPermission } from "./utils/permissions";
 import { availableAdminTabs } from "./features/admin/adminNavigation";
+import { StatusPageRoute } from "./features/status-pages/StatusPageRoute";
+import { STATUS_SLUG_PATTERN } from "./features/status-pages/statusPagesApi";
+
+function pendingStatusPage(): string | null {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && STATUS_SLUG_PATTERN.test(next) ? next : null;
+}
 
 export function App() {
+  const statusMatch = STATUS_SLUG_PATTERN.exec(window.location.pathname);
+  if (statusMatch) return <StatusPageRoute slug={statusMatch[1]} />;
+  return <WorkspaceApp />;
+}
+
+function WorkspaceApp() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const [tokens, setTokens] = useState<TokenPair | null>(() => readStoredTokens());
   const [user, setUser] = useState<User | null>(null);
@@ -179,6 +192,11 @@ export function App() {
         if (cancelled) {
           return;
         }
+        const statusNext = pendingStatusPage();
+        if (statusNext) {
+          window.location.assign(statusNext);
+          return;
+        }
         setUser(currentUser);
         bootstrapDoneRef.current = true;
 
@@ -225,6 +243,11 @@ export function App() {
   }
 
   function completeLogin(newTokens: TokenPair) {
+    const statusNext = pendingStatusPage();
+    if (statusNext) {
+      window.location.assign(statusNext);
+      return;
+    }
     storeTokens(newTokens);
     setTokens(newTokens);
     navigateToRoute("/overview", true);

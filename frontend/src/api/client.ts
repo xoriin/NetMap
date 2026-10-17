@@ -2254,3 +2254,5 @@ export const api = {
       token,
     }),
 };
+
+export { request as apiRequest };
