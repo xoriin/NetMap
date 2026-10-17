@@ -138,6 +138,7 @@ export function ThemePreviewWorkspace() {
   const [activeTab, setActiveTab] = useState("General");
   const [secretVisible, setSecretVisible] = useState(false);
   const [toggleEnabled, setToggleEnabled] = useState(true);
+  const [previewAccent, setPreviewAccent] = useState("#1d9ab0");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [sortAscending, setSortAscending] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(true);
@@ -407,6 +408,7 @@ export function ThemePreviewWorkspace() {
             <label className="theme-lab-field theme-lab-field--error"><span>Host address</span><input defaultValue="not-an-address" aria-invalid="true" /><small>Enter a valid hostname or IP address.</small></label>
             <label className="theme-lab-field"><span>Generated identifier</span><input value="nm-core-01" readOnly /><small>Read-only values remain legible.</small></label>
             <label className="theme-lab-field"><span>Inherited setting</span><input value="Managed by administrator" disabled /></label>
+            <div className="theme-lab-field"><span>Accent colour</span><span className="theme-lab-color-row"><input type="color" className="nm-color-input" aria-label="Pick accent colour" value={previewAccent} onChange={(event) => setPreviewAccent(event.target.value)} /><input aria-label="Accent colour hex value" value={previewAccent} maxLength={7} onChange={(event) => setPreviewAccent(event.target.value)} /></span></div>
             <div className="theme-lab-field theme-lab-field--wide"><span>Import configuration</span><label className="theme-lab-file"><FileUp size={17} /><span><strong>Choose a JSON or CSV file</strong><small>Maximum file size 10 MB</small></span><input type="file" /></label></div>
             <fieldset className="theme-lab-options">
               <legend>Probe protocol</legend>

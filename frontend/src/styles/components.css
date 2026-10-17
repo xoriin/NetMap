@@ -837,6 +837,23 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
 .nm-file-copy strong { overflow: hidden; color: var(--nm-text); font-size: var(--nm-text-md); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nm-file-copy small { color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
 .nm-file[aria-disabled="true"] { cursor: not-allowed; opacity: 0.6; }
+
+/* Colour picker — the swatch half of a colour field; pair it with an `.nm-input` for the hex value.
+   Typed selector so it outranks the global `body.theme-dark input` rule without a dark twin. */
+input.nm-color-input[type="color"] {
+  width: 44px;
+  height: var(--nm-control-lg);
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  padding: 3px;
+  background: var(--nm-modal-input);
+  cursor: pointer;
+}
+input.nm-color-input[type="color"]:hover:not(:disabled) { border-color: var(--nm-accent); }
+input.nm-color-input[type="color"]:focus-visible { border-color: var(--nm-focus-border); outline: 1px solid var(--nm-focus-border); outline-offset: -1px; }
+input.nm-color-input[type="color"]:disabled { cursor: not-allowed; opacity: 0.6; }
 .nm-search-icon { position: absolute; left: 10px; color: var(--nm-text-faint); pointer-events: none; }
 .nm-search .nm-input { padding-left: 32px; border: 0; background: transparent; box-shadow: none; }
 .nm-search .nm-input:focus { border-color: transparent; outline: 0; box-shadow: none; }
