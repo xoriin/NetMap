@@ -295,3 +295,18 @@ def test_restore_succeeds_even_if_registry_reload_fails(env, monkeypatch):
 
     monkeypatch.setattr(env.cache, "load_registry", boom)
     assert env.post("/api/v1/exports/restore", content=BACKUP).status_code == 204
+
+
+def test_stopped_cache_answers_every_slug_identically(env):
+    env.ready(env.seed("open"), env.seed("secret", "private"))
+    env.cache.stop()
+    assert env.cache.lookup("secret") is not None
+    paths = [f"/api/v1/public/status-pages/{s}" for s in ("open", "secret", "nope")]
+    paths += [f"/api/v1/status-pages/{s}/view" for s in ("open", "secret", "nope")]
+    responses = [env.get(path) for path in paths]
+    for response in responses:
+        assert response.status_code == 503
+        assert response.headers["Retry-After"] == "5"
+        assert_headers(response)
+    assert len({r.content for r in responses}) == 1
+    assert len({tuple(sorted((k, v) for k, v in r.headers.items() if k != "date")) for r in responses}) == 1

@@ -1,7 +1,5 @@
-from typing import Annotated
-
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
@@ -9,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_status_page_manage
+from app.api.v1.status_public import resolve, serve_snapshot
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.monitor import Monitor
@@ -25,7 +24,6 @@ from app.schemas.status_pages import (
     StatusPageUpdate,
 )
 from app.services.audit.service import write_audit
-from app.api.v1.status_public import resolve, serve_snapshot
 from app.services.status_pages import events
 from app.services.status_pages.cache import RegistryEntry, status_cache
 from app.services.status_pages.projection import build_page_payload

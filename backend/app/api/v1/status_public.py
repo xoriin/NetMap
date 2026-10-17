@@ -38,10 +38,10 @@ def _etag_matches(header: str | None, etag: str) -> bool:
 
 
 def resolve(slug: str) -> RegistryEntry | Response:
+    if not status_cache.ready:
+        return error_response(503, "Status page is being prepared", RETRY_AFTER_BUILD)
     entry = status_cache.lookup(slug)
-    if entry is None:
-        return not_found() if status_cache.ready else error_response(503, "Status page is being prepared", RETRY_AFTER_BUILD)
-    return entry
+    return not_found() if entry is None else entry
 
 
 def serve_snapshot(request: Request, entry: RegistryEntry, audience: str) -> Response:
