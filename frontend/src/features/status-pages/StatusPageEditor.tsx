@@ -65,6 +65,11 @@ function settingsChanges(page: StatusPageDetail, draft: SettingsDraft): Partial<
   return changes;
 }
 
+function readAccentToken(): string {
+  const value = getComputedStyle(document.body).getPropertyValue("--nm-accent").trim();
+  return isValidAccent(value) ? value.toLowerCase() : "";
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -80,6 +85,7 @@ function SettingsForm({
   saving,
   dirty,
   slugError,
+  onSlugEdit,
   onSave,
   onReset,
 }: {
@@ -88,10 +94,18 @@ function SettingsForm({
   saving: boolean;
   dirty: boolean;
   slugError: string | null;
+  onSlugEdit: () => void;
   onSave: () => void;
   onReset: () => void;
 }) {
   const [logoError, setLogoError] = useState<string | null>(null);
+  const { theme } = useTheme();
+  const [themeAccent, setThemeAccent] = useState(readAccentToken);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setThemeAccent(readAccentToken()));
+    return () => window.cancelAnimationFrame(frame);
+  }, [theme]);
   const nameMissing = !draft.name.trim();
   const slugInvalid = !isValidSlug(draft.slug);
   const accentInvalid = draft.accent !== "" && !isValidAccent(draft.accent);
@@ -135,7 +149,7 @@ function SettingsForm({
             value={draft.slug}
             maxLength={48}
             aria-invalid={slugInvalid || Boolean(slugError) || undefined}
-            onChange={(event) => update("slug", event.target.value.toLowerCase())}
+            onChange={(event) => { onSlugEdit(); update("slug", event.target.value.toLowerCase()); }}
           />
           {slugInvalid ? <span className="status-editor-error">{SLUG_HINT}</span>
             : slugError ? <span className="status-editor-error">{slugError}</span>
@@ -158,9 +172,9 @@ function SettingsForm({
           <div className="status-editor-accent">
             <input
               type="color"
-              className="status-editor-swatch"
+              className="nm-color-input"
               aria-label="Pick accent colour"
-              value={isValidAccent(draft.accent) ? draft.accent : "#1d9ab0"}
+              value={isValidAccent(draft.accent) ? draft.accent : themeAccent}
               onChange={(event) => update("accent", event.target.value)}
             />
             <input
@@ -399,6 +413,7 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
               saving={savingSettings}
               dirty={settingsDirty}
               slugError={slugError}
+              onSlugEdit={() => setSlugError(null)}
               onSave={() => void saveSettings()}
               onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); }}
             />

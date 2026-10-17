@@ -116,7 +116,7 @@ export function StatusSourcePicker({
       ) : rows.length === 0 ? (
         <p className="dash-empty">No sources match.</p>
       ) : (
-        <div className="nm-table-wrap status-source-table-wrap">
+        <div className="nm-table-wrap mon-embedded-table status-source-table-wrap">
           <table className="nm-table status-source-table">
             <thead>
               <tr>

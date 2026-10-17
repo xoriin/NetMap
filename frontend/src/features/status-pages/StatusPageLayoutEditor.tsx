@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useRef, useState, type Dispatch, type DragEvent, type ReactNode, type SetStateAction } from "react";
-import { GripVertical, LayoutList, Plus, Rows3, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type ReactNode, type SetStateAction } from "react";
+import { ArrowDown, ArrowUp, GripVertical, LayoutList, Plus, Rows3, Trash2 } from "lucide-react";
 import { StatusSourcePicker, describeSource } from "./StatusSourcePicker";
 import {
   NO_EXTRAS, sourceKey,
@@ -109,6 +109,34 @@ function moveGroup(groups: DraftGroup[], draggedUid: string, targetUid: string, 
   return rest;
 }
 
+function shiftItem(groups: DraftGroup[], uid: string, step: -1 | 1): DraftGroup[] {
+  const gi = groups.findIndex((group) => group.items.some((item) => item.uid === uid));
+  if (gi < 0) return groups;
+  const items = groups[gi].items;
+  const ii = items.findIndex((item) => item.uid === uid);
+  const next = groups.map((group) => ({ ...group, items: [...group.items] }));
+  const target = ii + step;
+  if (target >= 0 && target < items.length) {
+    [next[gi].items[ii], next[gi].items[target]] = [next[gi].items[target], next[gi].items[ii]];
+    return next;
+  }
+  const neighbour = gi + step;
+  if (neighbour < 0 || neighbour >= groups.length) return groups;
+  const [moved] = next[gi].items.splice(ii, 1);
+  if (step < 0) next[neighbour].items.push(moved);
+  else next[neighbour].items.unshift(moved);
+  return next;
+}
+
+function shiftGroup(groups: DraftGroup[], uid: string, step: -1 | 1): DraftGroup[] {
+  const index = groups.findIndex((group) => group.uid === uid);
+  const target = index + step;
+  if (index < 0 || target < 0 || target >= groups.length) return groups;
+  const next = [...groups];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
 const sameOrder = (a: DraftGroup[], b: DraftGroup[]) =>
   a.length === b.length && a.every((group, gi) => group.uid === b[gi].uid
     && group.items.length === b[gi].items.length && group.items.every((item, ii) => item.uid === b[gi].items[ii].uid));
@@ -140,6 +168,26 @@ export function StatusPageLayoutEditor({
   const dragRef = useRef<DragState | null>(null);
   const originalRef = useRef<DraftGroup[] | null>(null);
   const committedRef = useRef(false);
+  const pendingMoveRef = useRef<{ groupUid: string; targetUid: string | null; placeAfter: boolean } | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<{ id: string; fallback: string } | null>(null);
+
+  useEffect(() => {
+    if (!pendingFocus) return;
+    const button = document.getElementById(pendingFocus.id) as HTMLButtonElement | null;
+    const target = button && !button.disabled ? button : document.getElementById(pendingFocus.fallback);
+    target?.focus();
+    setPendingFocus(null);
+  }, [groups, pendingFocus]);
+
+  function moveItemBy(uid: string, step: -1 | 1) {
+    setGroups((current) => shiftItem(current, uid, step));
+    setPendingFocus({ id: `${uid}-move-${step < 0 ? "up" : "down"}`, fallback: `${uid}-move-${step < 0 ? "down" : "up"}` });
+  }
+
+  function moveGroupBy(uid: string, step: -1 | 1) {
+    setGroups((current) => shiftGroup(current, uid, step));
+    setPendingFocus({ id: `${uid}-move-${step < 0 ? "up" : "down"}`, fallback: `${uid}-move-${step < 0 ? "down" : "up"}` });
+  }
 
   const problems = layoutProblems(groups);
   const itemCount = groups.reduce((sum, group) => sum + group.items.length, 0);
@@ -187,13 +235,20 @@ export function StatusPageLayoutEditor({
     if (state.uid === targetUid) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const pointerAfterMidpoint = event.clientY >= rect.top + rect.height / 2;
+    const sourceGroup = groups.find((g) => g.items.some((item) => item.uid === state.uid));
+    // Moving a row into another tbody remounts it and detaches the drag source, so its dragend
+    // would never fire; cross-group moves therefore wait for the drop.
+    if (sourceGroup?.uid !== groupUid) {
+      pendingMoveRef.current = { groupUid, targetUid, placeAfter: pointerAfterMidpoint };
+      return;
+    }
+    pendingMoveRef.current = null;
+    if (targetUid === null) return;
     setGroups((current) => {
       const group = current.find((g) => g.uid === groupUid);
       const sourceIndex = group ? group.items.findIndex((item) => item.uid === state.uid) : -1;
-      const targetIndex = group && targetUid ? group.items.findIndex((item) => item.uid === targetUid) : -1;
-      if (targetUid === null && sourceIndex >= 0) return current;
-      const placeAfter = (sourceIndex >= 0 && sourceIndex < targetIndex) || pointerAfterMidpoint;
-      const next = moveItem(current, state.uid, groupUid, targetUid, placeAfter);
+      const targetIndex = group ? group.items.findIndex((item) => item.uid === targetUid) : -1;
+      const next = moveItem(current, state.uid, groupUid, targetUid, sourceIndex < targetIndex || pointerAfterMidpoint);
       return sameOrder(next, current) ? current : next;
     });
   }
@@ -216,9 +271,15 @@ export function StatusPageLayoutEditor({
   }
 
   function commitDrop(event: DragEvent<HTMLElement>) {
-    if (!dragRef.current) return;
+    const state = dragRef.current;
+    if (!state) return;
     event.preventDefault();
     event.stopPropagation();
+    const pending = pendingMoveRef.current;
+    if (state.kind === "item" && pending) {
+      setGroups((current) => moveItem(current, state.uid, pending.groupUid, pending.targetUid, pending.placeAfter));
+    }
+    pendingMoveRef.current = null;
     committedRef.current = true;
     dragRef.current = null;
     setDragging(null);
@@ -227,6 +288,7 @@ export function StatusPageLayoutEditor({
 
   function endDrag() {
     if (!committedRef.current && originalRef.current) setGroups(originalRef.current);
+    pendingMoveRef.current = null;
     dragRef.current = null;
     originalRef.current = null;
     setDragging(null);
@@ -250,7 +312,7 @@ export function StatusPageLayoutEditor({
         </StatusEditorPanelHeader>
         <div className="status-layout-intro">
           {problems.map((problem) => <div key={problem} className="nm-alert nm-alert--warning" role="status">{problem}</div>)}
-          <small className="status-editor-hint">Visitors see only group names and display names. Drag the handles to change the order.</small>
+          <small className="status-editor-hint">Visitors see only group names and display names. Drag the handles or use the arrows to change the order.</small>
         </div>
       </section>
 
@@ -260,25 +322,27 @@ export function StatusPageLayoutEditor({
         </section>
       )}
 
-      {groups.map((group) => {
+      {groups.map((group, groupIndex) => {
         const groupLabel = group.name.trim() || "this group";
-        const groupClass = [
-          "nm-app-panel status-editor-panel status-layout-group",
+        const sortClass = [
+          "mon-port-sort-row",
           dragging?.kind === "group" && dragging.uid === group.uid ? "is-dragging" : "",
           dragging?.kind === "group" && dragOverUid === group.uid && dragging.uid !== group.uid ? "is-drag-over" : "",
         ].filter(Boolean).join(" ");
+        const lastGroup = groupIndex === groups.length - 1;
         return (
-          <section
+          <div
             key={group.uid}
-            className={groupClass}
+            className={sortClass}
             onDragOver={(event) => previewGroupDrop(event, group.uid)}
             onDrop={commitDrop}
           >
+          <section className="nm-app-panel status-editor-panel status-layout-group">
             <div className="nm-app-panel-header status-layout-group-header">
               <button
                 type="button"
                 draggable
-                className="status-layout-drag-handle"
+                className="mon-port-drag-handle"
                 aria-label={`Drag group ${groupLabel} to reorder`}
                 title="Drag to reorder"
                 onDragStart={(event) => beginDrag(event, { kind: "group", uid: group.uid })}
@@ -306,6 +370,28 @@ export function StatusPageLayoutEditor({
                 Collapsed by default
               </label>
               <div className="status-editor-header-actions">
+                <button
+                  type="button"
+                  id={`${group.uid}-move-up`}
+                  className="nm-btn nm-btn--sm nm-btn--secondary"
+                  aria-label={`Move group ${groupLabel} up`}
+                  title="Move up"
+                  disabled={groupIndex === 0}
+                  onClick={() => moveGroupBy(group.uid, -1)}
+                >
+                  <ArrowUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  id={`${group.uid}-move-down`}
+                  className="nm-btn nm-btn--sm nm-btn--secondary"
+                  aria-label={`Move group ${groupLabel} down`}
+                  title="Move down"
+                  disabled={lastGroup}
+                  onClick={() => moveGroupBy(group.uid, 1)}
+                >
+                  <ArrowDown size={14} />
+                </button>
                 <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" aria-label={`Add item to ${groupLabel}`} onClick={() => setPickerGroupUid(group.uid)}>
                   <Plus size={14} /> Add item
                 </button>
@@ -321,14 +407,14 @@ export function StatusPageLayoutEditor({
             </div>
             {group.items.length === 0 ? (
               <p
-                className={`dash-empty status-layout-empty${dragging?.kind === "item" && dragOverUid === group.uid ? " is-drag-over" : ""}`}
+                className={`dash-empty status-layout-empty mon-port-sort-row${dragging?.kind === "item" && dragOverUid === group.uid ? " is-drag-over" : ""}`}
                 onDragOver={(event) => previewItemDrop(event, group.uid, null)}
                 onDrop={commitDrop}
               >
                 No items in this group yet.
               </p>
             ) : (
-              <div className="nm-table-wrap status-layout-table-wrap">
+              <div className="nm-table-wrap mon-embedded-table status-layout-table-wrap">
                 <table className="nm-table status-layout-table">
                   <colgroup>
                     <col className="status-layout-col-handle" />
@@ -347,15 +433,17 @@ export function StatusPageLayoutEditor({
                     </tr>
                   </thead>
                   <tbody>
-                    {group.items.map((item) => {
+                    {group.items.map((item, itemIndex) => {
                       const description = describeSource(item.source, sources);
                       const label = item.display_name.trim() || description.internal;
                       const blank = !item.display_name.trim();
                       const count = extrasCount(item.extras);
                       const expanded = expandedUid === item.uid;
                       const errorId = `${item.uid}-name-error`;
+                      const atStart = groupIndex === 0 && itemIndex === 0;
+                      const atEnd = lastGroup && itemIndex === group.items.length - 1;
                       const rowClass = [
-                        "status-layout-item",
+                        "status-layout-item mon-port-sort-row",
                         dragging?.kind === "item" && dragging.uid === item.uid ? "is-dragging" : "",
                         dragging?.kind === "item" && dragOverUid === item.uid && dragging.uid !== item.uid ? "is-drag-over" : "",
                       ].filter(Boolean).join(" ");
@@ -366,7 +454,7 @@ export function StatusPageLayoutEditor({
                               <button
                                 type="button"
                                 draggable
-                                className="status-layout-drag-handle"
+                                className="mon-port-drag-handle"
                                 aria-label={`Drag ${label} to reorder`}
                                 title="Drag to reorder"
                                 onDragStart={(event) => beginDrag(event, { kind: "item", uid: item.uid })}
@@ -408,14 +496,38 @@ export function StatusPageLayoutEditor({
                               </button>
                             </td>
                             <td className="status-layout-actions">
-                              <button
-                                type="button"
-                                className="nm-btn nm-btn--sm nm-btn--ghost"
-                                aria-label={`Remove ${label}`}
-                                onClick={() => setGroups((current) => current.map((g) => ({ ...g, items: g.items.filter((i) => i.uid !== item.uid) })))}
-                              >
-                                Remove
-                              </button>
+                              <div className="nm-table-actions">
+                                <button
+                                  type="button"
+                                  id={`${item.uid}-move-up`}
+                                  className="nm-btn nm-btn--sm nm-btn--secondary"
+                                  aria-label={`Move ${label} up`}
+                                  title="Move up"
+                                  disabled={atStart}
+                                  onClick={() => moveItemBy(item.uid, -1)}
+                                >
+                                  <ArrowUp size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  id={`${item.uid}-move-down`}
+                                  className="nm-btn nm-btn--sm nm-btn--secondary"
+                                  aria-label={`Move ${label} down`}
+                                  title="Move down"
+                                  disabled={atEnd}
+                                  onClick={() => moveItemBy(item.uid, 1)}
+                                >
+                                  <ArrowDown size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="nm-btn nm-btn--sm nm-btn--ghost"
+                                  aria-label={`Remove ${label}`}
+                                  onClick={() => setGroups((current) => current.map((g) => ({ ...g, items: g.items.filter((i) => i.uid !== item.uid) })))}
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </td>
                           </tr>
                           {expanded && (
@@ -460,6 +572,7 @@ export function StatusPageLayoutEditor({
               </div>
             )}
           </section>
+          </div>
         );
       })}
 

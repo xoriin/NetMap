@@ -127,7 +127,9 @@ class StatusPagesApi {
     }
     if (method === "GET") return route.fulfill({ json: this.detail(target) });
     if (method === "PATCH") {
-      Object.assign(target, request.postDataJSON());
+      const body = request.postDataJSON();
+      if (body.slug === "taken") return route.fulfill({ status: 409, json: { detail: "That slug is already used by another status page" } });
+      Object.assign(target, body);
       return route.fulfill({ json: this.summary(target) });
     }
     if (method === "DELETE") {
@@ -361,11 +363,178 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".status-editor-settings label.nm-field .nm-input").first()).toBeVisible();
     await expect(page.locator(".status-editor-settings .nm-file")).toBeVisible();
     await expect(page.locator(".status-editor-settings .nm-file strong")).toHaveCSS("text-transform", "none");
+    const swatch = page.getByLabel("Pick accent colour");
+    await expect(swatch).toHaveClass(/\bnm-color-input\b/);
+    await expect(swatch).toHaveCSS("width", "44px");
+    await expect(swatch).toHaveCSS("height", "36px");
+    expect(await computed(swatch, "backgroundColor")).toBe(await resolveToken(swatch, "--nm-modal-input"));
+    await expect(swatch).toHaveValue(theme === "dark" ? "#22c0cf" : "#1d9ab0");
 
     await page.getByRole("tab", { name: "Layout" }).click();
     const layoutTh = page.locator(".status-layout-table thead th").first();
     await expect(page.locator(".nm-table-wrap > table.nm-table.status-layout-table")).toBeVisible();
     expect(await computed(layoutTh, "backgroundColor")).toBe(await resolveToken(layoutTh, "--nm-table-header-bg"));
     expect(await computed(layoutTh, "color")).toBe(await resolveToken(layoutTh, "--nm-table-header-text", "color"));
+    const layoutWrap = page.locator(".status-layout-table-wrap");
+    await expect(layoutWrap).toHaveClass(/\bmon-embedded-table\b/);
+    await expect(layoutWrap).toHaveCSS("border-top-width", "0px");
+    const layoutRow = page.locator(".status-layout-item").first();
+    await expect(layoutRow).toHaveClass(/\bmon-port-sort-row\b/);
+    const layoutCell = layoutRow.locator("td").nth(2);
+    await page.mouse.move(0, 0);
+    expect(await computed(layoutCell, "backgroundColor")).toBe(await resolveToken(layoutCell, "--nm-table-row-bg"));
+    await layoutCell.hover();
+    await expect.poll(() => computed(layoutCell, "backgroundColor")).toBe(await resolveToken(layoutCell, "--nm-row-hover"));
+    const handle = page.getByRole("button", { name: "Drag Alpha to reorder" });
+    await expect(handle).toHaveClass(/\bmon-port-drag-handle\b/);
+    await expect(handle).toHaveCSS("cursor", "grab");
+    await expect(handle).toHaveCSS("width", "24px");
+
+    await page.getByRole("button", { name: "Add item to Services" }).click();
+    const picker = page.getByRole("dialog", { name: "Add item" });
+    await expect(picker.locator(".nm-table-wrap > table.nm-table.status-source-table")).toBeVisible();
+    const pickerTh = picker.locator(".status-source-table thead th").first();
+    expect(await computed(pickerTh, "backgroundColor")).toBe(await resolveToken(pickerTh, "--nm-table-header-bg"));
+    expect(await computed(pickerTh, "color")).toBe(await resolveToken(pickerTh, "--nm-table-header-text", "color"));
+    const pickerCell = picker.locator(".status-source-table tbody tr").first().locator("td").nth(1);
+    expect(await computed(pickerCell, "backgroundColor")).toBe(await resolveToken(pickerCell, "--nm-table-row-bg"));
   });
 }
+
+async function layoutOrder(page: Page) {
+  return page.locator(".status-layout-group").evaluateAll((groups) => groups.map((group) => ({
+    group: (group.querySelector("input[aria-label='Group name']") as HTMLInputElement).value,
+    items: Array.from(group.querySelectorAll<HTMLInputElement>(".status-layout-item input[aria-label^='Display name']")).map((input) => input.value),
+  })));
+}
+
+function twoGroupPage() {
+  return newPage(1, {
+    name: "Ops", slug: "ops",
+    groups: [
+      { id: 1, name: "Services", collapsed_by_default: false, items: [
+        { id: 11, source: { device: 1 }, display_name: "Alpha" },
+        { id: 12, source: { device: 2 }, display_name: "Bravo" },
+      ] },
+      { id: 2, name: "Office", collapsed_by_default: false, items: [{ id: 13, source: { device: 3 }, display_name: "Charlie" }] },
+    ],
+  });
+}
+
+async function openLayout(page: Page, api: StatusPagesApi) {
+  await openApp(page);
+  await api.install(page);
+  await openStatusPages(page);
+  await openEditor(page, "Ops");
+  await page.getByRole("tab", { name: "Layout" }).click();
+}
+
+test("drag moves an item into another group and a cancelled drag reverts", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(twoGroupPage());
+  await openLayout(page, api);
+
+  const row = (name: string) => page.locator(".status-layout-item", { has: page.locator(`input[value='${name}']`) });
+  await page.getByRole("button", { name: "Drag Alpha to reorder" }).dragTo(row("Charlie"), { targetPosition: { x: 40, y: 30 } });
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Services", items: ["Bravo"] },
+    { group: "Office", items: ["Charlie", "Alpha"] },
+  ]);
+
+  const handle = page.getByRole("button", { name: "Drag Alpha to reorder" });
+  await handle.hover();
+  await page.mouse.down();
+  const charlieBox = (await row("Charlie").boundingBox())!;
+  await page.mouse.move(charlieBox.x + 8, charlieBox.y + 4, { steps: 6 });
+  await page.mouse.move(charlieBox.x + 10, charlieBox.y + 4);
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Services", items: ["Bravo"] },
+    { group: "Office", items: ["Alpha", "Charlie"] },
+  ]);
+  await expect(row("Alpha")).toHaveClass(/is-dragging/);
+  await expect(row("Alpha")).toHaveCSS("opacity", "0.28");
+  const bravoBox = (await row("Bravo").boundingBox())!;
+  await page.mouse.move(bravoBox.x + 8, bravoBox.y + bravoBox.height - 4, { steps: 6 });
+  await page.mouse.move(bravoBox.x + 10, bravoBox.y + bravoBox.height - 4);
+  const indicator = page.locator(".status-layout-item.is-drag-over");
+  await expect(indicator).toHaveCount(1);
+  await expect(indicator).toHaveClass(/\bmon-port-sort-row\b/);
+  expect(await indicator.evaluate((node) => getComputedStyle(node, "::before").content)).toBe("none");
+  const segments = await indicator.locator("td").evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell, "::before").height));
+  expect(segments).toEqual(segments.map(() => "2px"));
+  const columnsLine = async (selector: string) => page.locator(selector).first().evaluate((tr) =>
+    Array.from((tr as HTMLTableRowElement).cells).map((cell) => Math.round(cell.getBoundingClientRect().left)));
+  expect(await indicator.evaluate((tr) => Array.from((tr as HTMLTableRowElement).cells).map((cell) => Math.round(cell.getBoundingClientRect().left))))
+    .toEqual(await columnsLine(".status-layout-group:has(.status-layout-item.is-drag-over) thead tr"));
+  const intro = (await page.locator(".status-layout-intro").boundingBox())!;
+  await page.mouse.move(intro.x + 40, intro.y + 4, { steps: 6 });
+  await page.mouse.move(intro.x + 44, intro.y + 4);
+  await page.mouse.up();
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Services", items: ["Bravo"] },
+    { group: "Office", items: ["Charlie", "Alpha"] },
+  ]);
+  await expect(page.locator(".status-layout-item.is-dragging, .status-layout-item.is-drag-over")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Save layout" }).click();
+  await expect(page.getByText("Layout saved")).toBeVisible();
+  expect(api.layoutPuts.at(-1)?.map((group) => group.items.map((item) => item.id))).toEqual([[12], [13, 11]]);
+});
+
+test("move buttons reorder items and groups from the keyboard", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(twoGroupPage());
+  await openLayout(page, api);
+
+  await expect(page.getByRole("button", { name: "Move Alpha up" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Move Charlie down" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Move group Services up" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Move Bravo up" }).focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Services", items: ["Bravo", "Alpha"] },
+    { group: "Office", items: ["Charlie"] },
+  ]);
+  await expect(page.getByRole("button", { name: "Move Bravo down" })).toBeFocused();
+
+  await page.getByRole("button", { name: "Move Alpha down" }).focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Services", items: ["Bravo"] },
+    { group: "Office", items: ["Alpha", "Charlie"] },
+  ]);
+  await expect(page.getByRole("button", { name: "Move Alpha down" })).toBeFocused();
+
+  await page.getByRole("button", { name: "Move group Office up" }).focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => layoutOrder(page)).toEqual([
+    { group: "Office", items: ["Alpha", "Charlie"] },
+    { group: "Services", items: ["Bravo"] },
+  ]);
+  await expect(page.getByRole("button", { name: "Move group Office down" })).toBeFocused();
+
+  await page.getByRole("button", { name: "Save layout" }).click();
+  await expect(page.getByText("Layout saved")).toBeVisible();
+  expect(api.layoutPuts.at(-1)?.map((group) => [group.id, group.items.map((item) => item.id)])).toEqual([[2, [11, 13]], [1, [12]]]);
+});
+
+test("a slug conflict clears as soon as the slug is edited", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(twoGroupPage());
+  await openApp(page);
+  await api.install(page);
+  await openStatusPages(page);
+  await openEditor(page, "Ops");
+
+  const slug = page.locator(".status-editor-settings label.nm-field", { hasText: "Slug" }).locator("input");
+  await slug.fill("taken");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  const conflict = page.getByText("Another status page already uses this slug.");
+  await expect(conflict).toBeVisible();
+  await expect(slug).toHaveAttribute("aria-invalid", "true");
+  await slug.press("End");
+  await slug.press("Backspace");
+  await expect(conflict).toHaveCount(0);
+  await expect(slug).not.toHaveAttribute("aria-invalid", "true");
+});

@@ -1716,7 +1716,12 @@ body.theme-dark .mon-checks-group-label { color: #4a7a96; }
 .mon-port-drag-handle:active { cursor: grabbing; }
 .mon-port-sort-row { position: relative; transition: opacity 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
 .mon-port-sort-row.is-dragging { opacity: .28; background: color-mix(in srgb, var(--nm-accent) 8%, transparent); }
-.mon-port-sort-row.is-drag-over::before { content: ""; position: absolute; z-index: 2; top: -2px; left: 8px; right: 8px; height: 2px; border-radius: 999px; background: color-mix(in srgb, var(--nm-text-muted) 72%, transparent); }
+.mon-port-sort-row:not(tr).is-drag-over::before,
+tr.mon-port-sort-row.is-drag-over > td::before { content: ""; position: absolute; z-index: 2; top: -2px; left: 8px; right: 8px; height: 2px; border-radius: 999px; background: color-mix(in srgb, var(--nm-text-muted) 72%, transparent); }
+/* A pseudo-element on a <tr> becomes an extra cell, so table rows draw the same line across their cells. */
+tr.mon-port-sort-row > td { position: relative; }
+tr.mon-port-sort-row.is-drag-over > td:not(:first-child)::before { left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+tr.mon-port-sort-row.is-drag-over > td:not(:last-child)::before { right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .mon-port-drag-preview { position: fixed; top: -1000px; left: -1000px; z-index: 99999; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--nm-accent) 55%, var(--nm-border)); border-radius: 6px; color: var(--nm-text); background: color-mix(in srgb, var(--nm-surface) 78%, transparent); box-shadow: 0 12px 30px rgb(0 0 0 / 24%); opacity: .78; pointer-events: none; }
 .mon-port-chip-del:hover { color: var(--dash-red); }
 .btn-icon-sm {
@@ -3922,17 +3927,18 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   overflow: hidden;
 }
 
-.mon-view-window--endpoints .monitors-table-wrap {
+/* A canonical table set flush inside a Monitoring panel: Endpoints and the status page editor. */
+.nm-table-wrap.mon-embedded-table {
   border-radius: 0;
   border: 0;
   background: var(--nm-modal-section);
 }
 
-.mon-view-window--endpoints .nm-table td {
+.mon-embedded-table .nm-table td {
   background: var(--nm-table-row-bg);
 }
 
-.mon-view-window--endpoints .nm-table tbody tr:hover > td {
+.mon-embedded-table .nm-table tbody tr:hover > td {
   background: var(--nm-row-hover);
 }
 

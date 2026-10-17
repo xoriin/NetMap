@@ -74,27 +74,12 @@
   flex-direction: column;
 }
 
-.status-pages-alert {
-  margin: var(--nm-space-3) 18px 0;
-}
-
 .status-pages-table-wrap {
   flex: 1 1 auto;
-  border: 0;
-  border-radius: 0;
-  background: var(--nm-modal-section);
 }
 
-.status-pages-table td,
-.status-layout-table td,
-.status-source-table td {
-  background: var(--nm-table-row-bg);
-}
-
-.status-pages-table tbody tr:hover > td,
-.status-layout-table tbody tr:hover > td,
-.status-source-table tbody tr:hover > td {
-  background: var(--nm-row-hover);
+.status-pages-alert {
+  margin: var(--nm-space-3) 18px 0;
 }
 
 .status-pages-table th:first-child,
@@ -187,17 +172,6 @@
   max-width: 140px;
 }
 
-.status-editor-swatch {
-  width: var(--nm-control-md);
-  height: var(--nm-control-md);
-  flex: 0 0 auto;
-  padding: 2px;
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-sm);
-  background: var(--nm-surface-soft);
-  cursor: pointer;
-}
-
 .status-editor-logo-field {
   display: grid;
   gap: var(--nm-space-2);
@@ -233,16 +207,6 @@
   padding: var(--nm-space-3) 18px;
 }
 
-.status-layout-group.is-dragging {
-  opacity: 0.4;
-}
-
-.status-layout-group.is-drag-over,
-.status-layout-empty.is-drag-over {
-  outline: 2px dashed var(--nm-tab-active-border);
-  outline-offset: -2px;
-}
-
 .status-layout-group-header {
   gap: var(--nm-space-3);
   padding: 6px 18px 6px 10px;
@@ -267,30 +231,6 @@
   height: var(--nm-control-sm);
 }
 
-.status-layout-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--nm-text-muted);
-  cursor: grab;
-}
-
-.status-layout-drag-handle:active {
-  cursor: grabbing;
-}
-
-.status-layout-table-wrap {
-  border: 0;
-  border-radius: 0;
-  background: var(--nm-modal-section);
-}
-
 .status-layout-table {
   min-width: 760px;
   table-layout: fixed;
@@ -299,7 +239,7 @@
 .status-layout-col-handle { width: 44px; }
 .status-layout-col-name { width: 34%; }
 .status-layout-col-extras { width: 130px; }
-.status-layout-col-actions { width: 100px; }
+.status-layout-col-actions { width: 190px; }
 
 .status-layout-handle-cell {
   text-align: center;
@@ -310,14 +250,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.status-layout-item.is-dragging > td {
-  opacity: 0.35;
-}
-
-.status-layout-item.is-drag-over > td {
-  box-shadow: inset 0 2px 0 var(--nm-tab-active-border);
 }
 
 .status-layout-extras {

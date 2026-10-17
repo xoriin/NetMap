@@ -170,7 +170,7 @@ export function StatusPagesPanel({ accessToken }: { accessToken: string }) {
         ) : pages.length === 0 ? (
           <p className="dash-empty">No status pages yet. Create one to share the health of chosen devices and endpoints.</p>
         ) : (
-          <div className="nm-table-wrap status-pages-table-wrap">
+          <div className="nm-table-wrap mon-embedded-table status-pages-table-wrap">
             <table className="nm-table status-pages-table">
               <thead>
                 <tr>

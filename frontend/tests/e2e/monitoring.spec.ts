@@ -254,6 +254,37 @@ test.describe("Monitoring workspace", () => {
     }
   });
 
+  test("sits the endpoints table flush in its panel with row surfaces in light and dark", async ({ page }) => {
+    await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: [{
+      id: 7, name: "Public API", url: "https://api.example.com/health", enabled: true, last_status: "online",
+      last_checked_at: "2026-08-02T11:00:00Z", uptime_24h: 96.7, uptime_7d: 99.1, avg_response_time_24h: 42.3, heartbeat: ["online"],
+    }] }));
+    await page.getByLabel("Monitoring sections", { exact: true }).getByRole("link", { name: "Endpoints", exact: true }).click();
+    const wrap = page.locator(".monitors-table-wrap");
+    const cell = page.locator(".monitors-table tbody tr").first().locator("td").nth(2);
+    await expect(cell).toBeVisible();
+    const token = (name: string) => wrap.evaluate((node, tokenName) => {
+      const probe = document.createElement("div");
+      node.appendChild(probe);
+      probe.style.backgroundColor = getComputedStyle(node).getPropertyValue(tokenName).trim();
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    }, name);
+    const background = (locator: typeof wrap) => locator.evaluate((node) => getComputedStyle(node).backgroundColor);
+
+    for (const dark of [false, true]) {
+      await page.evaluate((useDarkTheme) => document.body.classList.toggle("theme-dark", useDarkTheme), dark);
+      await page.mouse.move(0, 0);
+      await expect(wrap).toHaveCSS("border-top-width", "0px");
+      await expect(wrap).toHaveCSS("border-top-left-radius", "0px");
+      expect(await background(wrap)).toBe(await token("--nm-modal-section"));
+      expect(await background(cell)).toBe(await token("--nm-table-row-bg"));
+      await cell.hover();
+      await expect.poll(() => background(cell)).toBe(await token("--nm-row-hover"));
+    }
+  });
+
   test("fills every fleet-table cell on row hover", async ({ page }) => {
     const row = page.locator(".mon-row", { hasText: "Core Router With A Longer Name" });
     for (const dark of [false, true]) {
