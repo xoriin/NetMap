@@ -17,6 +17,7 @@ from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.services.monitoring.port_checker import check_url
 from app.core.secrets import decrypt_secret
+from app.services.status_pages import events as status_page_events
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -262,6 +263,9 @@ class StandaloneMonitorService:
                 db.add(delivery)
             db.commit()
 
+        from app.services.status_pages.sources import SourceRef
+
+        status_page_events.notify_sources_checked(SourceRef("monitor", monitor_id=m) for m in monitor_states)
         self._prune_history()
 
     def _prune_history(self) -> None:

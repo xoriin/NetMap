@@ -80,6 +80,7 @@ def create_app() -> FastAPI:
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
         from app.services.rbac.permissions import load_from_db
+        from app.services.status_pages.cache import status_cache
 
         validate_runtime_configuration()
         init_db()
@@ -95,6 +96,10 @@ def create_app() -> FastAPI:
         ip_reservation_reminder_service.start()
         backup_schedule_service.start()
         standalone_monitor_service.start()
+        try:
+            status_cache.start()
+        except Exception:
+            logger.exception("Status page cache failed to start; status pages stay unavailable")
         _start_firewall_startup_maintenance()
 
     @app.on_event("shutdown")
@@ -104,6 +109,7 @@ def create_app() -> FastAPI:
         from app.services.exports.backup_schedule import backup_schedule_service
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
+        from app.services.status_pages.cache import status_cache
 
         syslog_service.stop()
         alert_monitor.stop()
@@ -111,6 +117,7 @@ def create_app() -> FastAPI:
         ip_reservation_reminder_service.stop()
         standalone_monitor_service.stop()
         backup_schedule_service.stop()
+        status_cache.stop()
 
     return app
 

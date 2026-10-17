@@ -23,6 +23,7 @@ from app.schemas.status_pages import (
 )
 from app.services.audit.service import write_audit
 from app.services.status_pages import events
+from app.services.status_pages.cache import RegistryEntry, status_cache
 from app.services.status_pages.sources import SourceRef
 
 router = APIRouter(prefix="/status-pages", tags=["status-pages"])
@@ -31,6 +32,10 @@ DEFAULT_CSS_KEY = "status_page_default_css"
 
 CurrentUser = Annotated[User, Depends(require_status_page_manage)]
 Db = Annotated[Session, Depends(get_db)]
+
+
+def _registry_entry(page: StatusPage) -> RegistryEntry:
+    return RegistryEntry(page.id, page.slug, page.visibility, page.generation)
 
 
 def _get_page(db: Session, page_id: int) -> StatusPage:
@@ -103,6 +108,7 @@ def create_page(payload: StatusPageCreate, current_user: CurrentUser, db: Db) ->
         raise _slug_conflict()
     write_audit(db, "status_page.created", current_user.id, f"status_page:{page.id}", f"slug={page.slug} visibility={page.visibility}")
     db.commit()
+    status_cache.register_page(_registry_entry(page))
     events.notify_pages_changed([page.id])
     return page
 
@@ -156,6 +162,8 @@ def update_page(page_id: int, payload: StatusPageUpdate, current_user: CurrentUs
     except IntegrityError:
         db.rollback()
         raise _slug_conflict()
+    if bump:
+        status_cache.remove_page_sync(page.id, replacement=_registry_entry(page))
     events.notify_pages_changed([page.id])
     return page
 
@@ -173,6 +181,7 @@ def delete_page(page_id: int, current_user: CurrentUser, db: Db) -> None:
     db.delete(page)
     write_audit(db, "status_page.deleted", current_user.id, f"status_page:{page_id}", f"slug={slug}")
     db.commit()
+    status_cache.remove_page_sync(page_id)
     events.notify_pages_changed([page_id])
 
 

@@ -23,6 +23,7 @@ from app.models.system_setting import SystemSetting
 from app.schemas.tools import PingRequest
 from app.services.monitoring.port_checker import check_port
 from app.services.monitoring.health import observed_health, observed_is_healthy
+from app.services.status_pages import events as status_page_events
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -245,6 +246,12 @@ class AlertMonitorService:
                 db.bulk_update_mappings(Device, device_updates)
             db.commit()
 
+        from app.services.status_pages.sources import SourceRef
+
+        status_page_events.notify_sources_checked([
+            *(SourceRef("device", device_id=device.id) for device in devices),
+            *(SourceRef("service_check", device_id=d, port_target_id=t) for d, t in current_ports),
+        ])
         self._prune_history()
 
         known_ports_now = {key: entry["open"] for key, entry in current_ports.items()}
