@@ -387,3 +387,57 @@ for (const theme of ["light", "dark"] as const) {
     }
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  for (const width of [1280, 390]) {
+    test(`photo saves independently with local feedback in ${theme} at ${width}px`, async ({page}) => {
+      await page.setViewportSize({width,height:900});
+      const avatar = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aShoAAAAASUVORK5CYII=";
+      await setupProfileMocks(page, {avatar_data:avatar}, theme);
+      const bodies: Record<string, unknown>[] = [];
+      let fail = true;
+      let release!: () => void;
+      let current = {...profileUser, avatar_data:avatar as string|null};
+      await page.route("**/api/v1/auth/me", async route => {
+        if (route.request().method() !== "PATCH") return route.fulfill({json:current});
+        const body = route.request().postDataJSON(); bodies.push(body);
+        if ("avatar_data" in body && fail) {
+          await new Promise<void>(resolve => { release = resolve; });
+          return route.fulfill({status:500,json:{detail:"Photo could not be saved"}});
+        }
+        current = {...current,...body};
+        await route.fulfill({json:current});
+      });
+      await page.goto("/profile");
+      const identity = page.locator(".profile-identity-panel");
+      const save = identity.getByRole("button",{name:"Save photo",exact:true});
+      await expect(save).toHaveCount(0);
+      await page.getByLabel(/^Display name/).fill("Unsaved name");
+      await identity.getByRole("button",{name:"Remove photo",exact:true}).click();
+      await expect(save).toHaveClass(/nm-btn--primary/);
+      await save.hover(); await save.focus(); await expect(save).toBeFocused();
+      await page.screenshot({path:`/tmp/profile-save-photo-${theme}-${width}.png`,fullPage:true});
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await save.click();
+      await expect(identity.getByRole("button",{name:"Saving…",exact:true})).toBeDisabled();
+      await expect.poll(()=>bodies.length).toBe(1);
+      release();
+      await expect(identity.getByRole("alert")).toContainText("Photo could not be saved");
+      await expect(save).toBeEnabled();
+      expect(bodies[0]).toEqual({avatar_data:null});
+      fail = false;
+      await save.click(); await expect(save).toHaveCount(0);
+      await expect(identity.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByLabel(/^Display name/)).toHaveValue("Unsaved name");
+      await identity.locator('input[type="file"]').setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:Buffer.from(avatar.split(",")[1],"base64")});
+      await expect(save).toBeVisible();
+      await page.getByRole("button",{name:"Save account details",exact:true}).click();
+      await expect.poll(()=>bodies.length).toBe(3);
+      expect(bodies[2]).toEqual({display_name:"Unsaved name",email:profileUser.email});
+      await expect(save).toBeVisible();
+      await save.click(); await expect(save).toHaveCount(0);
+      expect(bodies[3]).toEqual({avatar_data:avatar});
+      await expect(page.locator('.sidebar-link[href="/profile"] img')).toHaveAttribute("src",avatar);
+    });
+  }
+}

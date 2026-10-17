@@ -168,12 +168,12 @@ test("saving and removing a profile photo updates the sidebar immediately", asyn
   await expect(photo).toBeVisible();
   await page.getByRole("button",{name:"Remove photo",exact:true}).click();
   await expect(photo).toBeVisible();
-  await page.getByRole("button",{name:"Save account details",exact:true}).click();
+  await page.getByRole("button",{name:"Save photo",exact:true}).click();
   await expect(photo).toHaveCount(0);
   await page.locator('input[type="file"].profile-avatar-file').setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:Buffer.from(avatar.split(",")[1],"base64")});
   await expect(page.getByRole("img",{name:"Profile avatar",exact:true})).toBeVisible();
   await expect(photo).toHaveCount(0);
-  await page.getByRole("button",{name:"Save account details",exact:true}).click();
+  await page.getByRole("button",{name:"Save photo",exact:true}).click();
   await expect(photo).toBeVisible();
   await expect(photo).toHaveAttribute("src",avatar);
 });

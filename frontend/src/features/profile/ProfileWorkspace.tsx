@@ -284,6 +284,9 @@ export function ProfileWorkspace({
   const [displayName, setDisplayName] = useState(user.display_name ?? "");
   const [profileEmail, setProfileEmail] = useState(user.email ?? "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_data ?? null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarChanged = avatarPreview !== (user.avatar_data ?? null);
   const [colorPrefBusy, setColorPrefBusy] = useState(false);
   const entityColorsEnabled = user.entity_colors_enabled !== false;
   const [profileBusy, setProfileBusy] = useState(false);
@@ -320,20 +323,35 @@ export function ProfileWorkspace({
 
   function handleAvatarFile(file: File) {
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setProfileError("Please select a PNG, JPEG, or WebP image.");
+      setAvatarError("Please select a PNG, JPEG, or WebP image.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setProfileError("Image must be under 2 MB.");
+      setAvatarError("Image must be under 2 MB.");
       return;
     }
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
       setAvatarPreview(result);
-      setProfileError(null);
+      setAvatarError(null);
     };
+    reader.onerror = () => setAvatarError("Unable to read this image. Please try again.");
     reader.readAsDataURL(file);
+  }
+
+  async function saveAvatar() {
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const updated = await api.updateProfile(accessToken, { avatar_data: avatarPreview });
+      onUserUpdate(updated);
+      toast.success("Photo saved");
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Failed to save photo");
+    } finally {
+      setAvatarBusy(false);
+    }
   }
 
   async function saveProfile(event: FormEvent) {
@@ -343,7 +361,6 @@ export function ProfileWorkspace({
     try {
       const updated = await api.updateProfile(accessToken, {
         display_name: displayName.trim() || null,
-        avatar_data: avatarPreview,
         email: profileEmail.trim() || null,
       });
       onUserUpdate(updated);
@@ -488,18 +505,24 @@ export function ProfileWorkspace({
                 {avatarPreview ? "Change photo" : "Upload photo"}
                 <input
                   type="file"
+                  disabled={avatarBusy}
                   accept="image/png,image/jpeg,image/webp"
                   className="profile-avatar-file"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); e.target.value = ""; }}
                 />
               </label>
               {avatarPreview && (
-                <button type="button" className="nm-btn nm-btn--ghost nm-btn--sm" onClick={() => setAvatarPreview(null)}>
+                <button type="button" className="nm-btn nm-btn--ghost nm-btn--sm" disabled={avatarBusy} onClick={() => { setAvatarPreview(null); setAvatarError(null); }}>
                   Remove photo
                 </button>
               )}
+              {avatarChanged && (
+                <button type="button" className="nm-btn nm-btn--primary" disabled={avatarBusy || profileBusy || colorPrefBusy} onClick={() => void saveAvatar()}>
+                  {avatarBusy ? "Saving…" : "Save photo"}
+                </button>
+              )}
             </div>
-            <span className="profile-avatar-hint">Saved with account details</span>
+            {avatarError && <div className="form-error" role="alert">{avatarError}</div>}
           </div>
         </div>
       </section>
@@ -564,7 +587,7 @@ export function ProfileWorkspace({
                 {profileError && <div className="form-error">{profileError}</div>}
 
                 <div className="profile-form-actions">
-                  <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy}>
+                  <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy || avatarBusy}>
                     {profileBusy ? "Saving…" : "Save account details"}
                   </button>
                 </div>
@@ -640,7 +663,7 @@ export function ProfileWorkspace({
                   <button
                     type="button"
                     className={`nm-btn nm-btn--sm${entityColorsEnabled ? " nm-btn--active" : " nm-btn--secondary"}`}
-                    disabled={colorPrefBusy}
+                    disabled={colorPrefBusy || avatarBusy}
                     aria-pressed={entityColorsEnabled}
                     onClick={() => void saveColorPreference(!entityColorsEnabled)}
                   >

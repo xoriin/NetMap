@@ -120,6 +120,7 @@ body.route-profile .profile-avatar-actions {
 
 body.route-profile .profile-photo-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
