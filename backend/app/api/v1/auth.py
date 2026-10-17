@@ -5,7 +5,7 @@ from hmac import compare_digest
 from secrets import token_urlsafe
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.middleware.csrf import CSRF_COOKIE_NAME
 from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User, UserRole
@@ -839,49 +839,55 @@ def _invalidate_pending_reset_tokens(db: Session, user_id: int) -> None:
 def forgot_password(
     payload: ForgotPasswordRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     # Always return 204 regardless of outcome to prevent user enumeration and timing attacks.
-    client_ip = request_client_ip(request)
-    if _check_reset_rate_limit(db, client_ip):
+    if _check_reset_rate_limit(db, request_client_ip(request)):
         return
-    user = db.scalar(
-        select(User).where(
-            or_(
-                User.username == payload.username_or_email,
-                User.email == payload.username_or_email,
+    background_tasks.add_task(_deliver_self_service_reset, payload.username_or_email)
+
+
+def _deliver_self_service_reset(username_or_email: str) -> None:
+    with SessionLocal() as db:
+        user = db.scalar(
+            select(User).where(
+                or_(
+                    User.username == username_or_email,
+                    User.email == username_or_email,
+                )
             )
         )
-    )
-    if user is None or not user.is_active or not user.email:
-        return
-    if not settings.app_url:
-        # Server-side only: the response stays a generic 204 so this reveals nothing to the caller.
-        logger.warning("Password reset email not sent for user_id=%s: APP_URL is not configured", user.id)
-        return
+        if user is None or not user.is_active or not user.email:
+            return
+        if not settings.app_url:
+            # Server-side only: the response stays a generic 204 so this reveals nothing to the caller.
+            logger.warning("Password reset email not sent for user_id=%s: APP_URL is not configured", user.id)
+            return
 
-    _invalidate_pending_reset_tokens(db, user.id)
-    token = create_password_reset_token(user.id)
-    _store_reset_token(db, token, user.id)
-    reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
-
-    try:
-        send_self_service_password_reset_email(
-            db,
-            username=user.username,
-            display_name=user.display_name,
-            email=user.email,
-            reset_link=reset_link,
-        )
-        write_audit(
-            db,
-            action="auth.password_reset_requested",
-            actor_user_id=user.id,
-            target=f"user:{user.username}",
-        )
+        _invalidate_pending_reset_tokens(db, user.id)
+        token = create_password_reset_token(user.id)
+        _store_reset_token(db, token, user.id)
         db.commit()
-    except Exception:
-        logger.exception("Password reset email delivery failed for user_id=%s", user.id)
+        reset_link = f"{settings.app_url.rstrip('/')}?reset_token={token}"
+
+        try:
+            send_self_service_password_reset_email(
+                db,
+                username=user.username,
+                display_name=user.display_name,
+                email=user.email,
+                reset_link=reset_link,
+            )
+            write_audit(
+                db,
+                action="auth.password_reset_requested",
+                actor_user_id=user.id,
+                target=f"user:{user.username}",
+            )
+            db.commit()
+        except Exception:
+            logger.exception("Password reset email delivery failed for user_id=%s", user.id)
 
 
 @router.post("/auth/reset-password", status_code=status.HTTP_204_NO_CONTENT)

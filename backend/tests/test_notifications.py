@@ -263,23 +263,59 @@ def test_account_email_falls_back_to_legacy_smtp_settings(monkeypatch) -> None:
     assert sent[0]["smtp_to"] == "alice@example.com"
 
 
-def test_forgot_password_logs_delivery_failure_without_exposing_it(monkeypatch, caplog) -> None:
+class _ForgotSession:
+    def __init__(self, user):
+        self.user = user
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def scalar(self, _statement):
+        return self.user
+
+    def commit(self):
+        return None
+
+
+def _forgot_user():
+    return SimpleNamespace(id=42, username="alice", display_name="Alice", email="alice@example.com", is_active=True)
+
+
+def test_forgot_password_responds_before_looking_up_or_emailing(monkeypatch) -> None:
+    from fastapi import BackgroundTasks
+
     from app.api.v1 import auth
-
-    user = SimpleNamespace(
-        id=42,
-        username="alice",
-        display_name="Alice",
-        email="alice@example.com",
-        is_active=True,
-    )
-
-    class FakeSession:
-        def scalar(self, _statement):
-            return user
 
     monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
     monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: False)
+    monkeypatch.setattr(auth, "SessionLocal", lambda: (_ for _ in ()).throw(AssertionError("looked up during request")))
+    tasks = BackgroundTasks()
+
+    assert auth.forgot_password(ForgotPasswordRequest(username_or_email="alice"), object(), tasks, object()) is None
+    assert [(t.func, t.args) for t in tasks.tasks] == [(auth._deliver_self_service_reset, ("alice",))]
+
+
+def test_forgot_password_schedules_nothing_when_rate_limited(monkeypatch) -> None:
+    from fastapi import BackgroundTasks
+
+    from app.api.v1 import auth
+
+    monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
+    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: True)
+    tasks = BackgroundTasks()
+
+    auth.forgot_password(ForgotPasswordRequest(username_or_email="alice"), object(), tasks, object())
+
+    assert tasks.tasks == []
+
+
+def test_forgot_password_logs_delivery_failure_without_exposing_it(monkeypatch, caplog) -> None:
+    from app.api.v1 import auth
+
+    monkeypatch.setattr(auth, "SessionLocal", lambda: _ForgotSession(_forgot_user()))
     monkeypatch.setattr(auth, "_invalidate_pending_reset_tokens", lambda _db, _user_id: None)
     monkeypatch.setattr(auth, "create_password_reset_token", lambda _user_id: "reset-token")
     monkeypatch.setattr(auth, "_store_reset_token", lambda _db, _token, _user_id: None)
@@ -291,13 +327,7 @@ def test_forgot_password_logs_delivery_failure_without_exposing_it(monkeypatch, 
     )
     caplog.set_level("ERROR", logger="app.api.v1.auth")
 
-    result = auth.forgot_password(
-        ForgotPasswordRequest(username_or_email="alice"),
-        object(),
-        FakeSession(),
-    )
-
-    assert result is None
+    assert auth._deliver_self_service_reset("alice") is None
     assert "Password reset email delivery failed for user_id=42" in caplog.text
 
 
@@ -576,18 +606,11 @@ def test_admin_password_reset_warns_when_app_url_is_missing(monkeypatch, caplog)
 def test_forgot_password_warns_when_app_url_is_missing(monkeypatch, caplog) -> None:
     from app.api.v1 import auth
 
-    user = SimpleNamespace(id=42, username="alice", display_name="Alice", email="alice@example.com", is_active=True)
-
-    class FakeSession:
-        def scalar(self, _statement):
-            return user
-
-    monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
-    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: False)
+    monkeypatch.setattr(auth, "SessionLocal", lambda: _ForgotSession(_forgot_user()))
     monkeypatch.setattr(auth.settings, "app_url", "")
     caplog.set_level("WARNING", logger="app.api.v1.auth")
 
-    assert auth.forgot_password(ForgotPasswordRequest(username_or_email="alice"), object(), FakeSession()) is None
+    assert auth._deliver_self_service_reset("alice") is None
     assert "APP_URL is not configured" in caplog.text
 
 
