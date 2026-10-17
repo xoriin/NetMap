@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
@@ -38,6 +39,8 @@ from app.services.exports.backup_schedule import (
 )
 from app.services.rbac.permissions import has_permission
 from app.services.syslog.storage import count_events
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
@@ -332,6 +335,15 @@ async def validate_database_restore(
     return RestoreValidationResult(**result)
 
 
+def _reload_status_cache() -> None:
+    from app.services.status_pages.cache import status_cache
+
+    try:
+        status_cache.load_registry()
+    except Exception:
+        logger.exception("Could not reload the status page registry after restore")
+
+
 @router.post("/restore", status_code=status.HTTP_204_NO_CONTENT)
 async def restore_database_backup(
     request: Request,
@@ -359,6 +371,7 @@ async def restore_database_backup(
         detail=f"bytes={len(payload)}",
     )
     db.commit()
+    _reload_status_cache()
 
 
 @router.get("/backup-location")

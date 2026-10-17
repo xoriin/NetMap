@@ -1,11 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_status_page_manage
+from app.api.deps import get_current_user, require_status_page_manage
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.monitor import Monitor
@@ -22,8 +25,10 @@ from app.schemas.status_pages import (
     StatusPageUpdate,
 )
 from app.services.audit.service import write_audit
+from app.api.v1.status_public import resolve, serve_snapshot
 from app.services.status_pages import events
 from app.services.status_pages.cache import RegistryEntry, status_cache
+from app.services.status_pages.projection import build_page_payload
 from app.services.status_pages.sources import SourceRef
 
 router = APIRouter(prefix="/status-pages", tags=["status-pages"])
@@ -137,6 +142,17 @@ def list_sources(_: CurrentUser, db: Db) -> dict:
         ],
         "monitors": [{"id": m.id, "name": m.name, "url": m.url} for m in monitors],
     }
+
+
+@router.get("/{slug}/view")
+def view_page(slug: str, request: Request, _: Annotated[User, Depends(get_current_user)]) -> Response:
+    entry = resolve(slug)
+    return entry if isinstance(entry, Response) else serve_snapshot(request, entry, entry.visibility)
+
+
+@router.get("/{page_id}/preview")
+def preview_page(page_id: int, _: CurrentUser, db: Db, audience: Literal["public", "private"] = "public") -> dict:
+    return build_page_payload(db, _get_page(db, page_id), audience, datetime.now(timezone.utc))
 
 
 @router.get("/{page_id}", response_model=StatusPageDetail)
