@@ -87,6 +87,16 @@ def test_migration_creates_active_source_index_on_existing_table():
     assert "WHERE active = 1" in sql
 
 
+def test_migration_creates_monitor_history_index():
+    db = make_session()
+    with db.get_bind().begin() as conn:
+        conn.execute(text("DROP INDEX IF EXISTS ix_monitor_check_history_monitor_checked"))
+        _migrate_status_pages(conn, None)
+        _migrate_status_pages(conn, None)
+        columns = [row[2] for row in conn.execute(text("PRAGMA index_info(ix_monitor_check_history_monitor_checked)"))]
+    assert columns == ["monitor_id", "checked_at", "status", "response_time_ms"]
+
+
 def test_network_admin_gets_permission_in_stored_role_matrix():
     engine = _legacy_engine()
     stored = {"NetworkAdmin": ["alert_write"], "Viewer": ["tools_passive"]}

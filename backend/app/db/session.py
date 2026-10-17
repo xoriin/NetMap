@@ -1446,6 +1446,11 @@ def _migrate_status_pages(conn, inspector) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_status_incident_sources_active "
             "ON status_incident_sources (source_key, condition_family, page_id) WHERE active = 1"
         ))
+    if "monitor_check_history" in _live_tables(conn):
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_monitor_check_history_monitor_checked "
+            "ON monitor_check_history (monitor_id, checked_at, status, response_time_ms)"
+        ))
     _append_network_admin_permission(conn, "status_page_manage")
 
 
