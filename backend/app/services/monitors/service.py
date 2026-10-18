@@ -99,14 +99,16 @@ class StandaloneMonitorService:
             app_name = self._get_app_name(db)
         suppressed: set[str] = set()
         exits: set[str] = set()
+        existing: set[str] = set()
         try:
             with SessionLocal() as db:
                 suppressed = maintenance.globally_suppressed(db, now)
                 exits = maintenance.take_exit_reevaluations(db, now, ("monitor",))
+                existing = {SourceRef("monitor", monitor_id=i).key for i in db.scalars(select(Monitor.id))}
                 db.commit()
         except Exception:
             logger.exception("Could not read maintenance windows; monitor alerts are not suppressed this tick")
-        evaluated = exits - {SourceRef("monitor", monitor_id=m.id).key for m in monitors}
+        evaluated = exits - existing
         exit_fired: set[int] = set()
 
         # Phase 2 — probe and notify with no session open. `due` and `rules` are
@@ -254,7 +256,7 @@ class StandaloneMonitorService:
                         ))
 
             ref = SourceRef("monitor", monitor_id=monitor.id)
-            if ref.key in exits:
+            if ref.key in exits and ref.key not in suppressed:
                 evaluated.add(ref.key)
                 observation = evaluator.Observation(
                     at=now, status=new_status, health={"online": "healthy", "offline": "unhealthy"}.get(new_status, "unknown"),
@@ -300,7 +302,7 @@ class StandaloneMonitorService:
                 db.add(event)
             for delivery in new_deliveries:
                 db.add(delivery)
-            maintenance.clear_exits(db, evaluated)
+            maintenance.clear_exits(db, evaluated, now)
             db.commit()
 
         status_page_events.notify_sources_checked(SourceRef("monitor", monitor_id=m) for m in monitor_states)

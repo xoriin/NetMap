@@ -384,14 +384,14 @@ def test_overlapping_windows_suppress_until_last_ends(db):
     assert maintenance.take_exit_reevaluations(db, middle) == {_ref(switch).key}
     db.commit()
     assert maintenance.take_exit_reevaluations(db, middle) == {_ref(switch).key}
-    maintenance.clear_exits(db, {_ref(switch).key})
+    maintenance.clear_exits(db, {_ref(switch).key}, middle)
     db.commit()
     assert maintenance.take_exit_reevaluations(db, middle) == set()
 
     after = T0 + timedelta(hours=2)
     assert maintenance.globally_suppressed(db, after) == set()
     assert maintenance.take_exit_reevaluations(db, after) == {_ref(router).key}
-    maintenance.clear_exits(db, {_ref(router).key})
+    maintenance.clear_exits(db, {_ref(router).key}, after)
     db.commit()
     assert maintenance.take_exit_reevaluations(db, after + STEP) == set()
     assert all(w.exit_processed for w in db.scalars(select(StatusMaintenance).where(StatusMaintenance.suppress_alerts == True)))  # noqa: E712
@@ -692,3 +692,81 @@ def test_listing_and_page_history_are_bounded(api, db):
     keys = [_ref(api.device).key]
     bounded = maintenance.page_windows(db, api.page.id, keys, ending_after=now - timedelta(days=30))
     assert old.id not in [w.window.id for w in bounded]
+
+
+def test_finished_window_times_and_suppression_are_fixed(api, db):
+    client = _as(api, api.admin)
+    now = datetime.now(timezone.utc)
+    done = _window(db, PersonActor(api.admin), [_ref(api.device)], now - timedelta(days=2), now - timedelta(days=1),
+                   pages=[api.page.id], now=now - timedelta(days=3), title="Done")
+    path = f"/api/v1/status-pages/maintenance/{done.id}"
+    detail = {"detail": "This window has finished; only its title and description can change"}
+    for body in (
+        {"ends_at": (now - timedelta(hours=1)).isoformat()},
+        {"ends_at": (now + timedelta(hours=1)).isoformat()},
+        {"suppress_alerts": True},
+    ):
+        response = client.patch(path, json=body)
+        assert response.status_code == 422 and response.json() == detail, body
+    db.expire_all()
+    stored = db.get(StatusMaintenance, done.id)
+    assert stored.ends_at.replace(tzinfo=timezone.utc) == done.ends_at.replace(tzinfo=timezone.utc)
+    assert client.patch(path, json={"title": "Done and dusted"}).status_code == 200
+
+
+def test_turning_suppression_off_revalidates_the_audience(api, db):
+    client = _as(api, api.admin)
+    hidden = _device(db)
+    created = client.post("/api/v1/status-pages/maintenance", json=_body(
+        api, items=[{"device": hidden.id}], page_ids=None, suppress_alerts=True,
+    ))
+    assert created.status_code == 201, created.text
+    assert created.json()["page_ids"] == []
+    response = client.patch(f"/api/v1/status-pages/maintenance/{created.json()['id']}", json={"suppress_alerts": False})
+    assert response.status_code == 422
+    db.expire_all()
+    assert db.get(StatusMaintenance, created.json()["id"]).suppress_alerts is True
+
+
+def test_clearing_keeps_a_key_queued_again_after_it_was_read(db):
+    router = _device(db)
+    actor = _admin(db)
+    t0 = datetime.now(timezone.utc)
+    _window(db, actor, [_ref(router)], t0 - timedelta(hours=2), t0 - timedelta(minutes=1), suppress=True,
+            now=t0 - timedelta(hours=3))
+    assert maintenance.take_exit_reevaluations(db, t0) == {_ref(router).key}
+    db.commit()
+    second = _window(db, actor, [_ref(router)], t0, t0 + timedelta(hours=1), suppress=True, now=t0)
+    maintenance.delete_window(db, actor, second.id, now=t0 + timedelta(seconds=30))
+    maintenance.clear_exits(db, {_ref(router).key}, t0)
+    db.commit()
+    assert _pending(db) == {_ref(router).key}
+    maintenance.clear_exits(db, {_ref(router).key}, t0 + timedelta(minutes=1))
+    db.commit()
+    assert _pending(db) == set()
+
+
+def test_pending_exit_waits_while_suppressed_again_or_unobserved(factory, db, monkeypatch):
+    now = datetime.now(timezone.utc)
+    router = _device(db, status="offline", at=now - STEP)
+    paused = _device(db, status="offline", at=now - STEP)
+    rule = _rule(db, cooldown_minutes=30)
+    _ended_window(db, [_ref(router), _ref(paused)], now)
+    assert maintenance.take_exit_reevaluations(db, now) == {_ref(router).key, _ref(paused).key}
+    db.commit()
+    _window(db, _admin_again(db), [_ref(router)], now - STEP, now + timedelta(hours=1), suppress=True, now=now - STEP)
+    paused.monitoring_paused = True
+    db.commit()
+
+    worker, sent = _worker_env(factory, monkeypatch)
+    worker._known, worker._known_health, worker._initialized = {router.id: "offline"}, {router.id: "unhealthy"}, True
+    assert worker._check()
+    assert sent == []
+    assert _pending(db) == {_ref(router).key, _ref(paused).key}
+    db.expire_all()
+    assert db.get(AlertRule, rule.id).last_triggered_at is None
+
+    db.delete(db.get(Device, paused.id))
+    db.commit()
+    assert worker._check()
+    assert _pending(db) == {_ref(router).key}

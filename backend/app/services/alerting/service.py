@@ -280,7 +280,7 @@ class AlertMonitorService:
             return
 
         if not rules:
-            self._clear_exits(exits)
+            self._clear_exits(exits, checked_at)
             self._remember(current, current_health, known_ports_now, scoped_device_id)
             return
 
@@ -292,10 +292,10 @@ class AlertMonitorService:
         new_deliveries: list[NotificationDelivery] = []
         fired: set[tuple[int, str]] = set()
 
-        def fire(rule: AlertRule, device_id: int, message: str, key: str | None = None) -> None:
+        def fire(rule: AlertRule, device_id: int, message: str, key: str | None = None) -> bool:
             key = key or SourceRef("device", device_id=device_id).key
             if key in suppressed:
-                return
+                return False
             fired.add((rule.id, key))
             channels = json.loads(rule.channels) if isinstance(rule.channels, str) else rule.channels
             for channel in channels:
@@ -318,6 +318,7 @@ class AlertMonitorService:
                 fired_at=now,
                 message=message,
             ))
+            return True
 
         for device_id, new_status in current.items():
             old_status = self._known.get(device_id, "unknown")
@@ -430,14 +431,14 @@ class AlertMonitorService:
                     app_name, flap_count=flap_count,
                 ))
 
-        for rule, ref, message in self._exit_breaches(exits, rules, device_map, current, current_ports, app_name):
-            if (rule.id, ref.key) not in fired and self._cooldown_ok(rule, now):
-                fire(rule, ref.device_id, message, ref.key)
+        breaches, evaluated = self._exit_breaches(exits, suppressed, rules, device_map, current, current_ports, app_name)
+        for rule, ref, message in breaches:
+            if (rule.id, ref.key) not in fired and self._cooldown_ok(rule, now) and fire(rule, ref.device_id, message, ref.key):
                 rule.last_triggered_at = now
 
-        if rule_updates or new_events or new_deliveries or exits:
+        if rule_updates or new_events or new_deliveries or evaluated:
             with SessionLocal() as db:
-                maintenance.clear_exits(db, exits)
+                maintenance.clear_exits(db, evaluated, checked_at)
                 for rule_id, triggered_at in rule_updates:
                     db_rule = db.get(AlertRule, rule_id)
                     if db_rule:
@@ -611,33 +612,47 @@ class AlertMonitorService:
         return breaches
 
     @staticmethod
-    def _clear_exits(keys: set[str]) -> None:
+    def _clear_exits(keys: set[str], taken_at: datetime) -> None:
         if not keys:
             return
         from app.services.status_pages import maintenance
 
         with SessionLocal() as db:
-            maintenance.clear_exits(db, keys)
+            maintenance.clear_exits(db, keys, taken_at)
             db.commit()
 
-    def _exit_breaches(self, exits, rules, device_map, current, current_ports, app_name) -> list[tuple]:
-        """Rules still breaching on the fresh observation of sources whose alert suppression just ended."""
+    @staticmethod
+    def _source_deleted(db, ref) -> bool:  # type: ignore[no-untyped-def]
+        if db.get(Device, ref.device_id) is None:
+            return True
+        return ref.port_target_id is not None and db.get(DevicePortTarget, ref.port_target_id) is None
+
+    def _exit_breaches(self, exits, suppressed, rules, device_map, current, current_ports, app_name) -> tuple[list[tuple], set[str]]:
+        """Rules still breaching on the fresh observation of sources whose alert suppression ended, plus the keys settled.
+
+        A key stays pending while it is suppressed again or its source exists but has no fresh observation this cycle.
+        """
         from app.services.status_pages import evaluator
         from app.services.status_pages.sources import SourceRef
 
         found: list[tuple] = []
+        evaluated: set[str] = set()
         if not exits or not rules:
-            return found
+            return found, evaluated
         with SessionLocal() as db:
-            for key in sorted(exits):
+            for key in sorted(exits - suppressed):
                 ref = SourceRef.from_key(key)
                 device = device_map.get(ref.device_id)
                 ref_rules = [r for r in rules if r.event_type in evaluator.CONDITION_FAMILY and evaluator.applies(r, ref)]
-                if device is None or not ref_rules:
+                observation = evaluator.latest_observation(db, ref, ref_rules) if device is not None and ref_rules else None
+                if device is not None and not ref_rules:
+                    evaluated.add(key)
                     continue
-                observation = evaluator.latest_observation(db, ref, ref_rules)
                 if observation is None:
+                    if self._source_deleted(db, ref):
+                        evaluated.add(key)
                     continue
+                evaluated.add(key)
                 label = device.display_name or device.hostname or device.ip_address
                 entry = current_ports.get((ref.device_id, ref.port_target_id), {})
                 for rule in ref_rules:
@@ -651,7 +666,7 @@ class AlertMonitorService:
                         loss_pct_threshold=rule.loss_pct_threshold, service_label=entry.get("label"),
                         expected_status=device.expected_status or "online",
                     )))
-        return found
+        return found, evaluated
 
     _cooldown_ok = staticmethod(cooldown_ok)
 
