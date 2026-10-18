@@ -450,7 +450,8 @@ def test_rule_version_tracks_only_breach_defining_fields(db):
     rule.name, rule.channels, rule.cooldown_minutes, rule.last_triggered_at = "x", '["smtp"]', 9, T0
     assert evaluator.rule_version(rule) == version
     for field, value in (("threshold_ms", 200), ("device_id", 5), ("enabled", False), ("open_incident", False),
-                         ("incident_min_failures", 4), ("event_type", "service_slow")):
+                         ("incident_min_failures", 4), ("event_type", "service_slow"), ("port_target_id", 3),
+                         ("monitor_id", 4), ("loss_pct_threshold", 25.0), ("loss_window_minutes", 30)):
         before = getattr(rule, field)
         setattr(rule, field, value)
         assert evaluator.rule_version(rule) != version, field
@@ -574,7 +575,8 @@ def test_truncation_is_decided_per_streak_row(db):
     page = seed_page(db, "main", items=[(_ref(router), "Router")])
     for i in range(60):
         _check(db, router, T0 + i * STEP)
-    for rule, last, streak in ((behind, T0 - timedelta(hours=1), 0), (current, T0 + 57 * STEP, 2)):
+    behind_last = T0 + 9 * STEP - timedelta(seconds=30)
+    for rule, last, streak in ((behind, behind_last, 7), (current, T0 + 57 * STEP, 2)):
         db.add(StatusBreachStreak(rule_id=rule.id, source_key=_ref(router).key, page_id=page.id, streak=streak,
                                   last_observed_at=last, rule_version=evaluator.rule_version(rule)))
     db.commit()
@@ -596,7 +598,44 @@ def test_disabled_rule_still_lets_its_incident_recover(db):
     _cycle(db, last + 2 * STEP, [(router, "online")])
     assert incident.status == "monitoring"
     assert _events(db, incident) == ["opened", "recovered"]
+    assert len(_incidents(db)) == 1
+
+
+def test_disabled_rule_breach_returns_monitoring_incident_to_investigating(db):
+    rule = _rule(db)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    last = _fail(db, router, 3)
+    _cycle(db, last + STEP, [(router, "online")])
+    [incident] = _incidents(db)
+    assert incident.status == "monitoring"
+    rule.enabled = False
+    db.commit()
+    assert _cycle(db, last + 2 * STEP, [(router, "offline")]) == {page.id}
+    assert incident.status == "investigating"
+    assert _events(db, incident) == ["opened", "recovered", "rebreached"]
     _fail(db, router, 4, start=last + 3 * STEP)
+    assert len(_incidents(db)) == 1
+    assert _events(db, incident) == ["opened", "recovered", "rebreached"]
+    assert _streak(db, rule, _ref(router), page).streak == 0
+
+
+def test_published_automatic_incident_still_recovers(db):
+    _rule(db)
+    router = _device(db)
+    seed_page(db, "one", items=[(_ref(router), "Router")])
+    user = User(username="ops", password_hash="x", role=UserRole.SUPER_ADMIN, is_active=True)
+    db.add(user)
+    db.commit()
+    last = _fail(db, router, 3)
+    [incident] = _incidents(db)
+    other = seed_page(db, "other", items=[(_ref(router), "Core")])
+    incidents.publish_to_pages(db, PersonActor(user), incident.id, [other.id], now=last)
+    families = {s.condition_family for s in db.scalars(
+        select(StatusIncidentSource).where(StatusIncidentSource.incident_id == incident.id)
+    )}
+    assert families == {"availability", "manual"}
+    _cycle(db, last + STEP, [(router, "online")])
     assert incident.status == "monitoring"
     assert len(_incidents(db)) == 1
 

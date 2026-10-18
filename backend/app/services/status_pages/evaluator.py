@@ -397,7 +397,7 @@ class _Evaluation:
         return state.observed_at is not None and state.fresh_until is not None and self.now <= state.fresh_until
 
     def clear_orphaned_rules(self, ref, pages, ref_rules, by_id, state, monitor) -> None:
-        """Clear detection only, for associations whose rule no longer opens incidents for this source."""
+        """Clear and re-breach detection for associations whose rule no longer opens incidents for this source."""
         families = {CONDITION_FAMILY[r.event_type] for r in ref_rules}
         latest: list[Observation] | None = None
         for (key, family, page_id), assoc in self.associations.items():
@@ -412,6 +412,8 @@ class _Evaluation:
             assoc.cleared = result is False
             if result is False:
                 self.cleared.add(assoc.incident_id)
+            elif result is True:
+                self.rebreached[assoc.incident_id].add(key)
 
     def evaluate_ref(self, ref, rules, pages, state, monitor, streaks) -> None:
         db = self.db
@@ -606,6 +608,7 @@ class _Evaluation:
                 continue
             rows = list(db.execute(select(StatusIncidentSource.active, StatusIncidentSource.cleared).where(
                 StatusIncidentSource.incident_id == incident_id,
+                StatusIncidentSource.condition_family != incidents.MANUAL_FAMILY,
             )))
             if any(row.active for row in rows) and all(row.cleared for row in rows):
                 incident.status = "monitoring"
