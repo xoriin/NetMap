@@ -182,6 +182,7 @@ details.sp-row[open] > summary .sp-axis { display: none; }
 .sp-section-title::before { content: "\\25B8"; width: 12px; flex: none; color: var(--sp-text-muted); font-size: 12px; }
 details[open] > .sp-section-title::before { content: "\\25BE"; }
 details[open] > .sp-section-title { border-bottom: 1px solid var(--sp-border); }
+.sp-section-heading { font: inherit; }
 .sp-section-count { margin-left: auto; color: var(--sp-text-muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .sp-incident { padding: 12px 20px; overflow-wrap: anywhere; }
 .sp-incident + .sp-incident { border-top: 1px solid var(--sp-border); }

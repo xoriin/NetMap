@@ -116,13 +116,22 @@ def test_public_human_author_is_status_team():
     assert [u["author"] for u in public_body["incidents"][0]["updates"]] == ["Status team"]
     dumped = json.dumps(public_body)
     assert "Jane Smith" not in dumped and "jsmith" not in dumped
-    assert [u["author"] for u in _payload(db, private)["incidents"][0]["updates"]] == ["Jane Smith"]
+    private_body = _payload(db, private)
+    assert [u["author"] for u in private_body["incidents"][0]["updates"]] == ["Status team"]
+    assert "Jane Smith" not in json.dumps(private_body) and "jsmith" not in json.dumps(private_body)
 
     token = _token(db)
     incident = _open(db, TokenActor(token), [public], title="Backups late")
     incidents.add_update(db, NetmapActor(), incident.id, "Checking", True, None, None, None, now=NOW)
     authors = {u["author"] for i in _payload(db, public)["incidents"] for u in i["updates"]}
     assert authors == {"Status team", "backup-server", "NetMap"}
+
+
+def test_token_author_label_is_public():
+    db = make_session()
+    public = seed_page(db, "public", "public")
+    _open(db, TokenActor(_token(db)), [public])
+    assert [u["author"] for u in _payload(db, public)["incidents"][0]["updates"]] == ["backup-server"]
 
 
 def test_publishing_to_new_page_does_not_expose_earlier_updates():
@@ -378,11 +387,21 @@ def test_status_changes_and_resolution():
     assert incident.status == "identified"
     (projected,) = _payload(db, page)["incidents"]
     assert projected["status"] == "identified" and projected["updates"][-1]["status"] == "identified"
-    incidents.add_update(db, PersonActor(user), incident.id, None, True, None, "resolved", None, now=NOW)
+    incidents.add_update(db, PersonActor(user), incident.id, "All clear", True, None, "resolved", None, now=NOW)
     assert incident.status == "resolved" and incident.resolved_at is not None
+    assert incident.resolution_reason == "manual"
     with pytest.raises(incidents.IncidentError):
         incidents.add_update(db, PersonActor(user), incident.id, None, True, None, "monitoring", None, now=NOW)
-    assert _payload(db, page)["past"][0]["updates"][-1]["status"] == "resolved"
+    (past,) = _payload(db, page)["past"]
+    assert [(u["message"], u["status"]) for u in past["updates"]][-2:] == [("All clear", None), ("Resolved.", "resolved")]
+    events_written = db.scalars(select(StatusIncidentUpdate.event_code).where(
+        StatusIncidentUpdate.incident_id == incident.id, StatusIncidentUpdate.event_code == "resolved_manual",
+    )).all()
+    assert events_written == ["resolved_manual"]
+    other = seed_page(db, "other", "public")
+    with pytest.raises(incidents.IncidentError):
+        incidents.publish_to_pages(db, PersonActor(user), incident.id, [other.id], now=NOW)
+    assert _payload(db, other)["past"] == []
 
 
 def test_public_payload_never_leaks_actor_or_source_metadata():
@@ -401,18 +420,17 @@ def test_public_payload_never_leaks_actor_or_source_metadata():
         assert leaked not in body, leaked
 
 
-def test_deleting_page_removes_its_notices_and_incident_audience():
+def test_notice_slot_race_updates_the_existing_row(monkeypatch):
     db = make_session()
     user = _user(db)
     page = seed_page(db, "public", "public")
-    _open(db, PersonActor(user), [page])
-    notices.set_notice(db, PersonActor(user), page.id, "info", "FYI", None, None, None, now=NOW)
-    from app.services.status_pages.incidents import delete_page_records
-
-    delete_page_records(db, page.id)
-    db.commit()
-    assert db.scalar(select(StatusNotice)) is None
-    assert incidents.audience_page_ids(db, 1) == set()
+    first = notices.set_notice(db, PersonActor(user), page.id, "info", "First", None, None, None, now=NOW)
+    real = notices._find_slot
+    misses = iter([None])
+    monkeypatch.setattr(notices, "_find_slot", lambda *a: next(misses, None) or real(*a))
+    again = notices.set_notice(db, PersonActor(user), page.id, "critical", "Second", None, None, None, now=NOW)
+    assert again.id == first.id
+    assert [(n.title, n.level) for n in db.scalars(select(StatusNotice))] == [("Second", "critical")]
 
 
 # API
@@ -467,7 +485,9 @@ def test_incident_routes_audit_and_notify_audience(api):
     assert [i["id"] for i in listed] == [incident_id] and listed[0]["page_ids"] == [a]
     assert listed[0]["updates"][0]["author"] == "Ada Admin"
 
-    assert api.post(f"/api/v1/status-pages/incidents/{incident_id}/publish", json={"page_ids": [b]}).status_code == 200
+    published = api.post(f"/api/v1/status-pages/incidents/{incident_id}/publish", json={"page_ids": [b]})
+    assert published.status_code == 200
+    assert [u["event_code"] for u in published.json()["updates"]] == [None]
     assert api.calls[-1] == [b]
     update = api.post(f"/api/v1/status-pages/incidents/{incident_id}/updates", json={
         "message": "Internal detail", "is_public": False, "status_change": "identified",
@@ -521,6 +541,21 @@ def test_notice_routes_own_slot_and_manager_clear(api):
     assert actions == [
         "status_notice.set", "status_notice.set", "status_notice.cleared", "status_notice.set", "status_notice.cleared",
     ]
+
+
+def test_deleting_page_removes_its_notices_and_incident_audience(api):
+    a, b = _api_page(api, "a"), _api_page(api, "b")
+    incident_id = api.post("/api/v1/status-pages/incidents", json={
+        "title": "T", "severity": "partial", "message": "m", "page_ids": [a, b],
+    }).json()["id"]
+    api.post(f"/api/v1/status-pages/incidents/{incident_id}/updates", json={"message": "only a", "page_id": a})
+    assert api.put(f"/api/v1/status-pages/{a}/notice", json={"level": "info", "title": "FYI"}).status_code == 200
+    assert api.delete(f"/api/v1/status-pages/{a}").status_code == 204
+    with api.Session() as db:
+        assert db.scalar(select(StatusNotice)) is None
+        assert incidents.audience_page_ids(db, incident_id) == {b}
+        assert db.scalar(select(StatusIncidentUpdate).where(StatusIncidentUpdate.page_id == a)) is None
+    assert api.get("/api/v1/status-pages/incidents").json()[0]["page_ids"] == [b]
 
 
 def test_static_incident_routes_are_not_swallowed_by_page_routes(api):

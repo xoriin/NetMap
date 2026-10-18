@@ -386,7 +386,7 @@ function incidentEntry(b: Builder, incident: StatusIncident): HTMLElement {
 function incidentSection(b: Builder, className: string, title: string, incidents: StatusIncident[]): HTMLElement {
   const section = b.el("details", className);
   const summary = b.el("summary", "sp-section-title");
-  summary.append(b.el("span", null, title), b.el("span", "sp-section-count", String(incidents.length)));
+  summary.append(b.el("h2", "sp-section-heading", title), b.el("span", "sp-section-count", String(incidents.length)));
   section.append(summary);
   incidents.forEach((incident) => section.append(incidentEntry(b, incident)));
   return section;

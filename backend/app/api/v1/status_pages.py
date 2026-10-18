@@ -41,7 +41,14 @@ from app.schemas.status_pages import (
 from app.services.audit.service import write_audit
 from app.services.status_pages import events, incidents, notices
 from app.services.status_pages.cache import RegistryEntry, status_cache
-from app.services.status_pages.incidents import IncidentConflict, IncidentError, IncidentNotFound, PersonActor, Ticket
+from app.services.status_pages.incidents import (
+    PUBLISHED_EVENT,
+    IncidentConflict,
+    IncidentError,
+    IncidentNotFound,
+    PersonActor,
+    Ticket,
+)
 from app.services.status_pages.projection import build_page_payload
 from app.services.status_pages.sources import SourceRef
 
@@ -192,7 +199,9 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
         ):
             items[row.incident_id].append({"page_id": row.page_id, "source_key": row.source_key, "display_name": row.display_name})
         for row in db.scalars(
-            select(StatusIncidentUpdate).where(StatusIncidentUpdate.incident_id.in_(ids)).order_by(StatusIncidentUpdate.id)
+            select(StatusIncidentUpdate).where(
+                StatusIncidentUpdate.incident_id.in_(ids), StatusIncidentUpdate.event_code.is_distinct_from(PUBLISHED_EVENT),
+            ).order_by(StatusIncidentUpdate.id)
         ):
             updates[row.incident_id].append({
                 "id": row.id, "at": _iso(row.created_at), "page_id": row.page_id, "author": row.author_label,

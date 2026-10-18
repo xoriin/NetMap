@@ -261,17 +261,28 @@ def add_update(
         raise IncidentError("Add a message, a status change or a ticket link")
     if ticket is not None:
         incident.ticket_url, incident.ticket_label = ticket.url, ticket.label
-    if status_change is not None:
+    resolving = status_change == "resolved"
+    if status_change is not None and not resolving:
         incident.status = status_change
-        if status_change == "resolved":
-            incident.resolved_at, incident.resolution_reason = now, "manual"
     update = _update_row(incident.id, actor, now, message=message, is_public=is_public, page_id=page_id,
-                         status_change=status_change)
-    db.add(update)
+                         status_change=None if resolving else status_change)
+    if message is not None or not resolving:
+        db.add(update)
+    if resolving:
+        resolved = _mark_resolved(db, incident, actor, now)
+        if message is None:
+            update = resolved
     audit(db, actor, "status_incident.updated", f"status_incident:{incident.id}",
           f"public={is_public} page={page_id or 'all'} status={status_change or '-'} ticket={ticket is not None}")
     commit_and_notify(db, audience)
     return update
+
+
+def _mark_resolved(db: Session, incident: StatusIncident, actor: Actor, now: datetime) -> StatusIncidentUpdate:
+    incident.status, incident.resolved_at, incident.resolution_reason = "resolved", now, "manual"
+    event = _update_row(incident.id, actor, now, status_change="resolved", event_code="resolved_manual", event_data={})
+    db.add(event)
+    return event
 
 
 def resolve(db: Session, actor: Actor, incident_id: int, reason: str | None, *, now: datetime | None = None) -> None:
@@ -280,8 +291,7 @@ def resolve(db: Session, actor: Actor, incident_id: int, reason: str | None, *, 
     reason = clean_text(reason, "Reason", REASON_MAX)
     if incident.status == "resolved":
         raise IncidentConflict("This incident is already resolved")
-    incident.status, incident.resolved_at, incident.resolution_reason = "resolved", now, "manual"
-    db.add(_update_row(incident.id, actor, now, status_change="resolved", event_code="resolved_manual", event_data={}))
+    _mark_resolved(db, incident, actor, now)
     if reason:
         db.add(_update_row(incident.id, actor, now, message=reason, is_public=False))
     audit(db, actor, "status_incident.resolved", f"status_incident:{incident.id}", f"reason={'yes' if reason else 'no'}")
@@ -293,6 +303,8 @@ def publish_to_pages(
 ) -> None:
     now = now_or_utc(now)
     incident = get_incident(db, incident_id)
+    if incident.status == "resolved":
+        raise IncidentError("A resolved incident cannot be published to more pages")
     pages = _existing_pages(db, page_ids)
     audience = audience_page_ids(db, incident.id)
     added = [p for p in pages if p not in audience]
@@ -393,9 +405,9 @@ def _severity(incident: StatusIncident, keys: list[str], local: PageLocal | None
     return "major" if local and local.item_count and down * 2 > local.item_count else "partial"
 
 
-def _author(update: StatusIncidentUpdate, audience: Audience) -> str:
+def _author(update: StatusIncidentUpdate) -> str:
     if update.author_kind == "person":
-        return PUBLIC_PERSON_LABEL if audience == "public" else (update.author_label or PUBLIC_PERSON_LABEL)
+        return PUBLIC_PERSON_LABEL
     if update.author_kind == "token":
         return update.author_label or "Integration"
     return NETMAP_LABEL
@@ -440,7 +452,7 @@ def project_incident(
             "at": _iso(update.created_at),
             "status": update.status_change,
             "message": message,
-            "author": _author(update, audience),
+            "author": _author(update),
             "internal": not update.is_public,
         })
     ticket = {"url": incident.ticket_url, "label": incident.ticket_label} if incident.ticket_url else None

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.status_page import StatusNotice, StatusPage
@@ -34,6 +35,12 @@ def _slot(owner: Actor) -> tuple[str, int]:
     raise IncidentError("Only a person or an integration token can own a notice")
 
 
+def _find_slot(db: Session, page_id: int, kind: str, owner_id: int) -> StatusNotice | None:
+    return db.scalar(select(StatusNotice).where(
+        StatusNotice.page_id == page_id, StatusNotice.owner_kind == kind, StatusNotice.owner_id == owner_id,
+    ))
+
+
 def live_notices(db: Session, page_id: int, now: datetime) -> list[StatusNotice]:
     now = _utc(now)
     rows = db.scalars(select(StatusNotice).where(StatusNotice.page_id == page_id).order_by(StatusNotice.id))
@@ -56,12 +63,19 @@ def set_notice(
     expires_at = _utc(expires_at)
     if expires_at is not None and expires_at <= now:
         raise IncidentError("Expiry must be in the future")
-    notice = db.scalar(select(StatusNotice).where(
-        StatusNotice.page_id == page_id, StatusNotice.owner_kind == kind, StatusNotice.owner_id == owner_id,
-    ))
+    notice = _find_slot(db, page_id, kind, owner_id)
     if notice is None:
-        notice = StatusNotice(page_id=page_id, owner_kind=kind, owner_id=owner_id, created_at=now)
-        db.add(notice)
+        try:
+            with db.begin_nested():
+                notice = StatusNotice(
+                    page_id=page_id, owner_kind=kind, owner_id=owner_id, created_at=now, level=level, title=title,
+                )
+                db.add(notice)
+                db.flush()
+        except IntegrityError:
+            notice = _find_slot(db, page_id, kind, owner_id)
+            if notice is None:
+                raise
     notice.level, notice.title, notice.body, notice.link = level, title, body, link
     notice.expires_at, notice.author = expires_at, actor_label(owner)
     db.flush()
@@ -86,9 +100,7 @@ def clear_notice(db: Session, actor: Actor, notice_id: int) -> None:
 
 def clear_own_notice(db: Session, owner: Actor, page_id: int) -> None:
     kind, owner_id = _slot(owner)
-    notice = db.scalar(select(StatusNotice).where(
-        StatusNotice.page_id == page_id, StatusNotice.owner_kind == kind, StatusNotice.owner_id == owner_id,
-    ))
+    notice = _find_slot(db, page_id, kind, owner_id)
     if notice is None:
         raise IncidentNotFound("Notice not found")
     _delete(db, owner, notice)

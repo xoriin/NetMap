@@ -169,6 +169,8 @@ test("notices, open incidents and past incidents render in their places as text"
   const log = frame.locator("details.sp-log");
   await expect(log).not.toHaveAttribute("open", "");
   await expect(log.locator(".sp-section-title")).toContainText("Incident log");
+  await expect(log.locator("summary").getByRole("heading", { level: 2, name: "Incident log" })).toBeVisible();
+  await expect(frame.locator("details.sp-past summary").getByRole("heading", { level: 2, name: "Past incidents" })).toBeVisible();
   await log.locator("summary").click();
   const updates = log.locator(".sp-update");
   await expect(updates).toHaveCount(2);
