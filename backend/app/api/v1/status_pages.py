@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import AwareDatetime
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -383,9 +384,14 @@ def _maintenance_error(exc: Exception) -> HTTPException:
 MaintenanceFailure = (IncidentError, IncidentNotFound, maintenance.MaintenanceForbidden)
 
 
+MAINTENANCE_LIST_DAYS = 30
+
+
 @router.get("/maintenance")
-def list_maintenance(_: CurrentUser, db: Db) -> list[dict]:
-    return _window_reads(db, maintenance.load_windows(db))
+def list_maintenance(_: CurrentUser, db: Db, since: AwareDatetime | None = None) -> list[dict]:
+    """Upcoming and active windows plus those that ended after `since` (default: the last 30 days)."""
+    since = since or datetime.now(timezone.utc) - timedelta(days=MAINTENANCE_LIST_DAYS)
+    return _window_reads(db, maintenance.load_windows(db, ending_after=since))
 
 
 @router.post("/maintenance", status_code=status.HTTP_201_CREATED)

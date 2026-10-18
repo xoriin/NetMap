@@ -36,7 +36,6 @@ class StandaloneMonitorService:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._last_pruned_at: datetime | None = None
-        self._exit_pending: set[str] = set()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -99,14 +98,16 @@ class StandaloneMonitorService:
             }
             app_name = self._get_app_name(db)
         suppressed: set[str] = set()
+        exits: set[str] = set()
         try:
             with SessionLocal() as db:
                 suppressed = maintenance.globally_suppressed(db, now)
-                self._exit_pending |= maintenance.take_exit_reevaluations(db, now, ("monitor",))
+                exits = maintenance.take_exit_reevaluations(db, now, ("monitor",))
                 db.commit()
         except Exception:
             logger.exception("Could not read maintenance windows; monitor alerts are not suppressed this tick")
-        self._exit_pending &= {SourceRef("monitor", monitor_id=m.id).key for m in monitors}
+        evaluated = exits - {SourceRef("monitor", monitor_id=m.id).key for m in monitors}
+        exit_fired: set[int] = set()
 
         # Phase 2 — probe and notify with no session open. `due` and `rules` are
         # detached but still fully loaded, so reading their attributes is safe.
@@ -253,15 +254,15 @@ class StandaloneMonitorService:
                         ))
 
             ref = SourceRef("monitor", monitor_id=monitor.id)
-            if ref.key in self._exit_pending:
-                self._exit_pending.discard(ref.key)
+            if ref.key in exits:
+                evaluated.add(ref.key)
                 observation = evaluator.Observation(
                     at=now, status=new_status, health={"online": "healthy", "offline": "unhealthy"}.get(new_status, "unknown"),
                     response_ms=result.response_time_ms if result.open else None, cert_expires_at=result.cert_expires_at,
                     cert_days=monitor.certificate_expiry_days if monitor.certificate_expiry_alert else None,
                 )
                 for rule in rules:
-                    if (rule.id, monitor.id) in fired or not self._cooldown_ok(rule, now):
+                    if (rule.id, monitor.id) in fired or rule.id in exit_fired or not self._cooldown_ok(rule, now):
                         continue
                     if evaluator.predicate(rule, ref, observation) is not True:
                         continue
@@ -271,6 +272,7 @@ class StandaloneMonitorService:
                         response_time_ms=result.response_time_ms, threshold_ms=rule.threshold_ms,
                         certificate_days_remaining=max(0, int((expires_at - now).total_seconds() // 86400)) if expires_at else None,
                     ))
+                    exit_fired.add(rule.id)
 
         # Phase 3 — one short write transaction for everything the tick produced.
         with SessionLocal() as db:
@@ -298,6 +300,7 @@ class StandaloneMonitorService:
                 db.add(event)
             for delivery in new_deliveries:
                 db.add(delivery)
+            maintenance.clear_exits(db, evaluated)
             db.commit()
 
         status_page_events.notify_sources_checked(SourceRef("monitor", monitor_id=m) for m in monitor_states)

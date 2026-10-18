@@ -381,7 +381,7 @@ class MaintenanceUpdate(BaseModel):
     page_ids: list[int] | None = Field(default=None, max_length=100)
     suppress_alerts: bool | None = None
 
-    @field_validator("title", "starts_at", "ends_at", "items", "suppress_alerts")
+    @field_validator("title", "starts_at", "ends_at", "items", "page_ids", "suppress_alerts")
     @classmethod
     def _not_null(cls, value):
         if value is None:

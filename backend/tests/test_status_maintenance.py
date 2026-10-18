@@ -17,7 +17,7 @@ from app.models.alert_rule import AlertRule
 from app.models.device import Device
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.monitor_history import DeviceMonitorHistory
-from app.models.status_page import StatusIncident, StatusMaintenance
+from app.models.status_page import StatusIncident, StatusMaintenance, StatusMaintenanceExit
 from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
 from app.services.alerting import service as alerting_service
@@ -59,9 +59,7 @@ def db(factory):
 def quiet(monkeypatch):
     changed: list[list[int]] = []
     monkeypatch.setattr(events, "notify_pages_changed", lambda ids: changed.append(sorted(set(ids))))
-    maintenance.reset_pending_exits()
     yield changed
-    maintenance.reset_pending_exits()
     permissions._cache.pop("PageManager", None)
 
 
@@ -309,7 +307,9 @@ def _monitor(db, **kw):
 def test_suppressed_notification_does_not_advance_cooldown(factory, db, monkeypatch):
     now = datetime.now(timezone.utc)
     router = _device(db, at=now - STEP)
-    rule = _rule(db, cooldown_minutes=30)
+    other = _device(db, at=now - STEP)
+    rule = _rule(db, cooldown_minutes=30, device_id=router.id)
+    other_rule = _rule(db, name="other", cooldown_minutes=30, device_id=other.id)
     site = _monitor(db, last_status="online")
     monitor_rule = _rule(db, "monitor_down", cooldown_minutes=30)
     _window(
@@ -317,16 +317,19 @@ def test_suppressed_notification_does_not_advance_cooldown(factory, db, monkeypa
         suppress=True, now=now - STEP,
     )
     worker, sent = _worker_env(factory, monkeypatch)
-    worker._known, worker._known_health, worker._initialized = {router.id: "online"}, {router.id: "healthy"}, True
+    worker._known = {router.id: "online", other.id: "online"}
+    worker._known_health = {router.id: "healthy", other.id: "healthy"}
+    worker._initialized = True
     assert worker._check()
     service, monitor_sent = _monitor_env(factory, monkeypatch)
     service._tick()
 
-    assert sent == [] and monitor_sent == []
+    assert len(sent) == 1 and other.hostname in sent[0][1] and monitor_sent == []
     db.expire_all()
     assert db.get(AlertRule, rule.id).last_triggered_at is None
+    assert db.get(AlertRule, other_rule.id).last_triggered_at is not None
     assert db.get(AlertRule, monitor_rule.id).last_triggered_at is None
-    assert db.scalars(select(AlertEvent)).all() == []
+    assert [e.alert_rule_id for e in db.scalars(select(AlertEvent))] == [other_rule.id]
     assert db.get(Monitor, site.id).last_status == "offline"
 
 
@@ -380,11 +383,15 @@ def test_overlapping_windows_suppress_until_last_ends(db):
     assert maintenance.take_exit_reevaluations(db, middle, kinds={"monitor"}) == set()
     assert maintenance.take_exit_reevaluations(db, middle) == {_ref(switch).key}
     db.commit()
+    assert maintenance.take_exit_reevaluations(db, middle) == {_ref(switch).key}
+    maintenance.clear_exits(db, {_ref(switch).key})
+    db.commit()
     assert maintenance.take_exit_reevaluations(db, middle) == set()
 
     after = T0 + timedelta(hours=2)
     assert maintenance.globally_suppressed(db, after) == set()
     assert maintenance.take_exit_reevaluations(db, after) == {_ref(router).key}
+    maintenance.clear_exits(db, {_ref(router).key})
     db.commit()
     assert maintenance.take_exit_reevaluations(db, after + STEP) == set()
     assert all(w.exit_processed for w in db.scalars(select(StatusMaintenance).where(StatusMaintenance.suppress_alerts == True)))  # noqa: E712
@@ -544,3 +551,144 @@ def test_monitor_history_rows_are_unaffected_by_suppression(factory, db, monkeyp
     service._tick()
     assert sent == []
     assert len(db.scalars(select(MonitorCheckHistory)).all()) == 1
+
+
+def _pending(db):
+    db.expire_all()
+    return {row.source_key for row in db.scalars(select(StatusMaintenanceExit))}
+
+
+def _ended_window(db, items, now):
+    return _window(db, _admin(db), items, now - timedelta(hours=2), now - timedelta(seconds=5), suppress=True,
+                   now=now - timedelta(hours=3))
+
+
+def test_exit_alert_survives_a_restart_and_a_failed_cycle(factory, db, monkeypatch):
+    now = datetime.now(timezone.utc)
+    router = _device(db, status="offline", at=now - STEP)
+    rule = _rule(db, cooldown_minutes=30)
+    site = _monitor(db, last_status="offline", consecutive_failures=3, last_checked_at=now - timedelta(minutes=5))
+    _rule(db, "monitor_down", cooldown_minutes=30)
+    _ended_window(db, [_ref(router), SourceRef("monitor", monitor_id=site.id)], now)
+
+    taken = maintenance.take_exit_reevaluations(db, now)
+    db.commit()
+    assert taken == {_ref(router).key, f"monitor:{site.id}"}
+
+    crashing, sent = _worker_env(factory, monkeypatch)
+    crashing._known, crashing._known_health, crashing._initialized = {router.id: "offline"}, {router.id: "unhealthy"}, True
+    monkeypatch.setattr(crashing, "_exit_breaches", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(RuntimeError):
+        crashing._check()
+    assert sent == [] and _pending(db) == taken
+
+    restarted, sent = _worker_env(factory, monkeypatch)
+    restarted._known, restarted._known_health, restarted._initialized = {router.id: "offline"}, {router.id: "unhealthy"}, True
+    assert restarted._check()
+    assert len(sent) == 1 and "OFFLINE" in sent[0][1]
+    assert _pending(db) == {f"monitor:{site.id}"}
+    db.expire_all()
+    assert db.get(AlertRule, rule.id).last_triggered_at is not None
+
+    service, monitor_sent = _monitor_env(factory, monkeypatch)
+    service._tick()
+    assert len(monitor_sent) == 1 and _pending(db) == set()
+
+
+def test_deleting_an_active_suppressing_window_records_its_exit(factory, db, monkeypatch):
+    now = datetime.now(timezone.utc)
+    router = _device(db, status="offline", at=now - STEP)
+    _rule(db, cooldown_minutes=30)
+    window = _window(db, _admin(db), [_ref(router)], now - STEP, now + timedelta(hours=1), suppress=True, now=now - STEP)
+    maintenance.delete_window(db, _admin_again(db), window.id, now=now)
+    assert _pending(db) == {_ref(router).key}
+
+    worker, sent = _worker_env(factory, monkeypatch)
+    worker._known, worker._known_health, worker._initialized = {router.id: "offline"}, {router.id: "unhealthy"}, True
+    assert worker._check()
+    assert len(sent) == 1 and _pending(db) == set()
+
+
+def _admin_again(db):
+    return PersonActor(db.scalar(select(User).where(User.username == "admin")))
+
+
+def test_one_exit_cycle_notifies_a_rule_once_per_cooldown(factory, db, monkeypatch):
+    now = datetime.now(timezone.utc)
+    first, second = _device(db, status="offline", at=now - STEP), _device(db, status="offline", at=now - STEP)
+    _rule(db, cooldown_minutes=30)
+    _ended_window(db, [_ref(first), _ref(second)], now)
+    worker, sent = _worker_env(factory, monkeypatch)
+    worker._known = {first.id: "offline", second.id: "offline"}
+    worker._known_health = {first.id: "unhealthy", second.id: "unhealthy"}
+    worker._initialized = True
+    assert worker._check()
+    assert len(sent) == 1 and _pending(db) == set()
+
+
+def test_window_cannot_start_more_than_five_minutes_ago(api, db):
+    client = _as(api, api.admin)
+    now = datetime.now(timezone.utc)
+    stale = client.post("/api/v1/status-pages/maintenance", json=_body(
+        api, starts_at=(now - timedelta(minutes=10)).isoformat(), ends_at=(now + timedelta(minutes=30)).isoformat(),
+    ))
+    assert stale.status_code == 422 and stale.json() == {"detail": "Start cannot be more than 5 minutes in the past"}
+    recent = client.post("/api/v1/status-pages/maintenance", json=_body(
+        api, starts_at=(now - timedelta(minutes=2)).isoformat(), ends_at=(now + timedelta(minutes=30)).isoformat(),
+    ))
+    assert recent.status_code == 201, recent.text
+
+
+def test_started_window_keeps_its_recorded_scope_and_can_end_early(api, db):
+    client = _as(api, api.admin)
+    now = datetime.now(timezone.utc)
+    other = _device(db)
+    seed_page(db, "second", items=[(_ref(other), "Switch"), (_ref(api.device), "Router")])
+    created = client.post("/api/v1/status-pages/maintenance", json=_body(
+        api, starts_at=(now - timedelta(minutes=1)).isoformat(), ends_at=(now + timedelta(hours=1)).isoformat(),
+    )).json()
+    path = f"/api/v1/status-pages/maintenance/{created['id']}"
+    detail = {"detail": "This window has started; only its title, description and end can change"}
+    for body in (
+        {"starts_at": (now - timedelta(minutes=30)).isoformat()},
+        {"items": [{"device": other.id}]},
+        {"page_ids": [api.page.id]},
+    ):
+        response = client.patch(path, json=body)
+        assert response.status_code == 422 and response.json() == detail, body
+    assert client.patch(path, json={"page_ids": None}).status_code == 422
+    assert client.patch(path, json={"title": "Renamed", "description": "Longer"}).status_code == 200
+
+    ended = client.patch(path, json={"ends_at": (now - timedelta(hours=1)).isoformat()})
+    assert ended.status_code == 200, ended.text
+    body = ended.json()
+    assert body["state"] == "finished"
+    assert now <= datetime.fromisoformat(body["ends_at"]) <= datetime.now(timezone.utc)
+    later = datetime.now(timezone.utc) + timedelta(minutes=1)
+    payload = build_page_payload(db, api.page, "public", later)
+    assert [(p["kind"], p["title"]) for p in payload["past"]] == [("maintenance", "Renamed")]
+    keys = [_ref(api.device).key]
+    spans = maintenance.spans_for_page(maintenance.page_windows(db, api.page.id, keys), api.page.id, keys)
+    assert [(a, b.isoformat()) for a, b in spans[keys[0]]][0][1] == body["ends_at"]
+    assert _item(payload)["state"] != "maintenance"
+
+    future = client.post("/api/v1/status-pages/maintenance", json=_body(api)).json()
+    too_early = client.patch(f"/api/v1/status-pages/maintenance/{future['id']}", json={"ends_at": now.isoformat()})
+    assert too_early.status_code == 422
+
+
+def test_listing_and_page_history_are_bounded(api, db):
+    client = _as(api, api.admin)
+    now = datetime.now(timezone.utc)
+    old = _window(db, PersonActor(api.admin), [_ref(api.device)], now - timedelta(days=45), now - timedelta(days=44),
+                  pages=[api.page.id], now=now - timedelta(days=46), title="Old")
+    recent = _window(db, PersonActor(api.admin), [_ref(api.device)], now - timedelta(days=2), now - timedelta(days=1),
+                     pages=[api.page.id], now=now - timedelta(days=3), title="Recent")
+    upcoming = client.post("/api/v1/status-pages/maintenance", json=_body(api)).json()
+    listed = [w["id"] for w in client.get("/api/v1/status-pages/maintenance").json()]
+    assert listed == [recent.id, upcoming["id"]]
+    since = (now - timedelta(days=60)).isoformat()
+    assert old.id in [w["id"] for w in client.get("/api/v1/status-pages/maintenance", params={"since": since}).json()]
+    keys = [_ref(api.device).key]
+    bounded = maintenance.page_windows(db, api.page.id, keys, ending_after=now - timedelta(days=30))
+    assert old.id not in [w.window.id for w in bounded]

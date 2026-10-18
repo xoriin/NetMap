@@ -272,6 +272,17 @@ class StatusMaintenancePage(Base):
     page_id: Mapped[int] = mapped_column(ForeignKey("status_pages.id", ondelete="CASCADE"), primary_key=True)
 
 
+class StatusMaintenanceExit(Base):
+    """A source whose alert suppression ended and still needs its one fresh re-evaluation."""
+
+    __tablename__ = "status_maintenance_exits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source_key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    maintenance_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class StatusIdempotencyKey(Base):
     __tablename__ = "status_idempotency_keys"
     __table_args__ = (UniqueConstraint("token_id", "operation", "key", name="uq_status_idempotency_keys"),)

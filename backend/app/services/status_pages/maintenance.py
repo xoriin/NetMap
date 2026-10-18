@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-import threading
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from sqlalchemy import delete, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.status_page import StatusMaintenance, StatusMaintenanceItem, StatusMaintenancePage, StatusPage, StatusPageItem
+from app.models.status_page import (
+    StatusMaintenance,
+    StatusMaintenanceExit,
+    StatusMaintenanceItem,
+    StatusMaintenancePage,
+    StatusPage,
+    StatusPageItem,
+)
 from app.models.user import UserRole
 from app.services.rbac.permissions import has_permission
 from app.services.status_pages.incidents import (
@@ -30,12 +37,11 @@ TITLE_MAX = 200
 DESCRIPTION_MAX = 5000
 SUPPRESS_DETAIL = "Suppressing monitoring alerts also requires Manage alert rules"
 TOKEN_SUPPRESS_DETAIL = "Integration tokens cannot suppress monitoring alerts"
+START_GRACE = timedelta(minutes=5)
+STARTED_DETAIL = "This window has started; only its title, description and end can change"
 
 Span = tuple[datetime, datetime]
 _KIND_PREFIX = {"device": "device:", "service_check": "service:", "monitor": "monitor:"}
-
-_pending_lock = threading.Lock()
-_pending_exits: set[str] = set()
 
 
 class MaintenanceForbidden(PermissionError):
@@ -62,22 +68,30 @@ class LoadedWindow:
         return self.start <= now < self.end
 
 
-def reset_pending_exits() -> None:
-    with _pending_lock:
-        _pending_exits.clear()
+def _queue_exits(db: Session, keys: Iterable[str], window_id: int | None = None) -> None:
+    keys = set(keys)
+    if not keys:
+        return
+    existing = set(db.scalars(select(StatusMaintenanceExit.source_key).where(StatusMaintenanceExit.source_key.in_(keys))))
+    for key in sorted(keys - existing):
+        try:
+            with db.begin_nested():
+                db.add(StatusMaintenanceExit(source_key=key, maintenance_id=window_id))
+                db.flush()
+        except IntegrityError:
+            continue
 
 
-def _queue_exits(keys: Iterable[str]) -> None:
-    with _pending_lock:
-        _pending_exits.update(keys)
-
-
-def _take_pending(kinds: Iterable[str] | None) -> set[str]:
+def pending_exits(db: Session, kinds: Iterable[str] | None = None) -> set[str]:
     prefixes = tuple(_KIND_PREFIX[k] for k in kinds) if kinds is not None else tuple(_KIND_PREFIX.values())
-    with _pending_lock:
-        taken = {key for key in _pending_exits if key.startswith(prefixes)}
-        _pending_exits.difference_update(taken)
-    return taken
+    return {key for key in db.scalars(select(StatusMaintenanceExit.source_key)) if key.startswith(prefixes)}
+
+
+def clear_exits(db: Session, keys: Iterable[str]) -> None:
+    """Drop keys a worker has re-evaluated (fired or found clear); the caller commits."""
+    keys = set(keys)
+    if keys:
+        db.execute(delete(StatusMaintenanceExit).where(StatusMaintenanceExit.source_key.in_(keys)))
 
 
 def may_suppress(actor: Actor) -> bool:
@@ -165,8 +179,12 @@ def _keys(items: Iterable[SourceRef]) -> list[str]:
     return keys
 
 
-def load_windows(db: Session, ids: Iterable[int] | None = None) -> list[LoadedWindow]:
+def load_windows(
+    db: Session, ids: Iterable[int] | None = None, *, ending_after: datetime | None = None,
+) -> list[LoadedWindow]:
     query = select(StatusMaintenance).order_by(StatusMaintenance.starts_at, StatusMaintenance.id)
+    if ending_after is not None:
+        query = query.where(StatusMaintenance.ends_at > ending_after)
     if ids is not None:
         ids = list(set(ids))
         if not ids:
@@ -218,6 +236,8 @@ def create_window(
     title, description, starts_at, ends_at = _validated(title, description, starts_at, ends_at)
     if ends_at <= now:
         raise IncidentError("End must be in the future")
+    if starts_at < now - START_GRACE:
+        raise IncidentError("Start cannot be more than 5 minutes in the past")
     keys = _keys(items)
     pages = _audience(db, keys, page_ids, suppress_alerts)
     window = StatusMaintenance(
@@ -241,34 +261,36 @@ def update_window(db: Session, actor: Actor, window_id: int, changes: dict, *, n
     window = loaded.window
     if window.suppress_alerts or changes.get("suppress_alerts"):
         _require_suppress(actor)
+    if loaded.start <= now and {"starts_at", "items", "page_ids"} & set(changes):
+        raise IncidentError(STARTED_DETAIL)
     before_pages = _touched_pages(db, loaded)
     before_suppressed = globally_suppressed(db, now)
-    was_active = loaded.active(now)
 
+    ends_at = changes["ends_at"] if "ends_at" in changes else _utc(window.ends_at)
+    if "ends_at" in changes and isinstance(ends_at, datetime) and ends_at.tzinfo is not None and _utc(ends_at) < now:
+        ends_at = now
     title, description, starts_at, ends_at = _validated(
         changes.get("title", window.title),
         changes["description"] if "description" in changes else window.description,
         changes["starts_at"] if "starts_at" in changes else _utc(window.starts_at),
-        changes["ends_at"] if "ends_at" in changes else _utc(window.ends_at),
+        ends_at,
     )
-    if "ends_at" in changes and ends_at <= now:
-        raise IncidentError("End must be in the future")
     suppress = bool(changes.get("suppress_alerts", window.suppress_alerts))
     keys = _keys(changes["items"]) if "items" in changes else loaded.keys
-    if {"page_ids", "items", "suppress_alerts"} & set(changes):
+    if {"page_ids", "items"} & set(changes):
         pages = _audience(db, keys, changes["page_ids"] if "page_ids" in changes else sorted(loaded.page_ids), suppress)
     else:
         pages = sorted(loaded.page_ids)
+        if not pages and not suppress:
+            raise IncidentError("Choose at least one status page")
 
     window.title, window.description, window.starts_at, window.ends_at = title, description, starts_at, ends_at
     window.suppress_alerts = suppress
     _store_links(db, window.id, keys, pages)
     if ends_at > now:
         window.exit_processed = False
-    elif was_active:
-        window.exit_processed = True
     db.flush()
-    _queue_exits(before_suppressed - globally_suppressed(db, now))
+    _queue_exits(db, before_suppressed - globally_suppressed(db, now), window.id)
     fields = ",".join(sorted(changes)) or "none"
     audit(db, actor, "status_maintenance.updated", f"status_maintenance:{window.id}", f"fields={fields} suppress={suppress}")
     commit_and_notify(db, before_pages | _touched_pages(db, get_window(db, window.id)))
@@ -285,7 +307,7 @@ def delete_window(db: Session, actor: Actor, window_id: int, *, now: datetime | 
     _store_links(db, window_id, [], [])
     db.delete(loaded.window)
     db.flush()
-    _queue_exits(before - globally_suppressed(db, now))
+    _queue_exits(db, before - globally_suppressed(db, now), window_id)
     audit(db, actor, "status_maintenance.deleted", f"status_maintenance:{window_id}", f"suppress={loaded.window.suppress_alerts}")
     commit_and_notify(db, pages)
 
@@ -303,7 +325,10 @@ def globally_suppressed(db: Session, now: datetime) -> set[str]:
 
 
 def take_exit_reevaluations(db: Session, now: datetime, kinds: Iterable[str] | None = None) -> set[str]:
-    """Queue keys whose last suppressing window has ended and mark those windows processed; the caller commits."""
+    """Record keys whose last suppressing window ended (marking it processed) and return every pending key of these kinds.
+
+    Keys stay recorded until the worker calls clear_exits after evaluating them; the caller commits.
+    """
     now = _utc(now)
     ended = list(db.scalars(select(StatusMaintenance.id).where(
         StatusMaintenance.suppress_alerts == True, StatusMaintenance.exit_processed == False,  # noqa: E712
@@ -314,12 +339,12 @@ def take_exit_reevaluations(db: Session, now: datetime, kinds: Iterable[str] | N
         still = globally_suppressed(db, now)
         for loaded in windows:
             loaded.window.exit_processed = True
+            _queue_exits(db, set(loaded.keys) - still, loaded.window.id)
         db.flush()
-        _queue_exits({key for w in windows for key in w.keys} - still)
-    return _take_pending(kinds)
+    return pending_exits(db, kinds)
 
 
-def page_windows(db: Session, page_id: int, keys: Iterable[str]) -> list[LoadedWindow]:
+def page_windows(db: Session, page_id: int, keys: Iterable[str], ending_after: datetime | None = None) -> list[LoadedWindow]:
     """Windows announced on this page plus globally suppressing windows covering one of its items."""
     keys = set(keys)
     announced = set(db.scalars(select(StatusMaintenancePage.maintenance_id).where(StatusMaintenancePage.page_id == page_id)))
@@ -337,7 +362,7 @@ def page_windows(db: Session, page_id: int, keys: Iterable[str]) -> list[LoadedW
         ):
             if _key(row[0]) in keys:
                 covering.add(row[0].maintenance_id)
-    return load_windows(db, announced | covering)
+    return load_windows(db, announced | covering, ending_after=ending_after)
 
 
 def covers(loaded: LoadedWindow, page_id: int, key: str) -> bool:
@@ -356,7 +381,7 @@ def spans_for_page(windows: list[LoadedWindow], page_id: int, keys: Iterable[str
 def active_page_maintenance(db: Session, page_id: int, now: datetime) -> dict[str, list[Span]]:
     now = _utc(now)
     keys = {SourceRef.from_item(i).key for i in db.scalars(select(StatusPageItem).where(StatusPageItem.page_id == page_id))}
-    windows = [w for w in page_windows(db, page_id, keys) if w.active(now)]
+    windows = [w for w in page_windows(db, page_id, keys, ending_after=now) if w.active(now)]
     return spans_for_page(windows, page_id, keys)
 
 

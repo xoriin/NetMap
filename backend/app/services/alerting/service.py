@@ -280,6 +280,7 @@ class AlertMonitorService:
             return
 
         if not rules:
+            self._clear_exits(exits)
             self._remember(current, current_health, known_ports_now, scoped_device_id)
             return
 
@@ -432,9 +433,11 @@ class AlertMonitorService:
         for rule, ref, message in self._exit_breaches(exits, rules, device_map, current, current_ports, app_name):
             if (rule.id, ref.key) not in fired and self._cooldown_ok(rule, now):
                 fire(rule, ref.device_id, message, ref.key)
+                rule.last_triggered_at = now
 
-        if rule_updates or new_events or new_deliveries:
+        if rule_updates or new_events or new_deliveries or exits:
             with SessionLocal() as db:
+                maintenance.clear_exits(db, exits)
                 for rule_id, triggered_at in rule_updates:
                     db_rule = db.get(AlertRule, rule_id)
                     if db_rule:
@@ -606,6 +609,16 @@ class AlertMonitorService:
                     continue
                 breaches.append((rule, device_id, target_id, response_ms, entry["label"]))
         return breaches
+
+    @staticmethod
+    def _clear_exits(keys: set[str]) -> None:
+        if not keys:
+            return
+        from app.services.status_pages import maintenance
+
+        with SessionLocal() as db:
+            maintenance.clear_exits(db, keys)
+            db.commit()
 
     def _exit_breaches(self, exits, rules, device_map, current, current_ports, app_name) -> list[tuple]:
         """Rules still breaching on the fresh observation of sources whose alert suppression just ended."""

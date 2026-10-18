@@ -176,7 +176,7 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
             lengths[PERIODS[period]].add(refs[item.id])
     samples = {length: load_samples(db, group_refs, end - length, now) for length, group_refs in lengths.items()}
     keys = [ref.key for ref in refs.values()]
-    windows = maintenance.page_windows(db, page.id, keys)
+    windows = maintenance.page_windows(db, page.id, keys, ending_after=now - max(*PERIODS.values(), PAST_WINDOW))
     excluded = maintenance.spans_for_page(windows, page.id, keys)
 
     by_group: dict[int, list[dict]] = defaultdict(list)
