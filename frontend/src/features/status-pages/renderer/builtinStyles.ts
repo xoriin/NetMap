@@ -178,7 +178,11 @@ details.sp-row[open] > summary .sp-axis { display: none; }
 .sp-stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .sp-log, .sp-past { margin-top: 16px; overflow: hidden; border: 1px solid var(--sp-border); border-radius: 10px; background: var(--sp-surface); }
-.sp-section-title { padding: 12px 20px; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--sp-border); }
+.sp-section-title { display: flex; align-items: center; gap: 10px; padding: 12px 20px; font-size: 14px; font-weight: 600; }
+.sp-section-title::before { content: "\\25B8"; width: 12px; flex: none; color: var(--sp-text-muted); font-size: 12px; }
+details[open] > .sp-section-title::before { content: "\\25BE"; }
+details[open] > .sp-section-title { border-bottom: 1px solid var(--sp-border); }
+.sp-section-count { margin-left: auto; color: var(--sp-text-muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .sp-incident { padding: 12px 20px; overflow-wrap: anywhere; }
 .sp-incident + .sp-incident { border-top: 1px solid var(--sp-border); }
 .sp-incident-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
@@ -187,6 +191,9 @@ details.sp-row[open] > summary .sp-axis { display: none; }
 .sp-update { padding: 0 0 8px 10px; }
 .sp-update-time { margin-right: 6px; color: var(--sp-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .sp-update-author { margin-right: 6px; font-size: 11px; font-weight: 600; color: var(--sp-text-muted); }
+.sp-update-internal, .sp-update-status { margin-right: 6px; }
+.sp-update-status { font-size: 12px; font-weight: 600; }
+.sp-update[data-internal="true"] .sp-update-text { color: var(--sp-text-muted); }
 
 @media (max-width: 640px) {
   .sp-page { padding: 16px 12px 32px; }

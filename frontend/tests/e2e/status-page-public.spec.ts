@@ -131,6 +131,62 @@ test("payload text is rendered as text", async ({ page }) => {
   await expect(frame.locator("img, b")).toHaveCount(0);
 });
 
+test("notices, open incidents and past incidents render in their places as text", async ({ page }) => {
+  const hostile = "<img src=x onerror=alert(1)>";
+  const opened = new Date(Date.now() - 3_600_000).toISOString();
+  await blockEverythingElse(page);
+  await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({
+    summary: { state: "affected", label: "Some systems are affected", counts: { operational: 3, degraded: 0, down: 0, maintenance: 0, unknown: 0 } },
+    notices: [{ id: 4, level: "critical", title: "Datacentre power", body: "On generators", link: null, expires_at: null }],
+    incidents: [{
+      id: 7, title: "Mail delays", severity: "partial", status: "identified", opened_at: opened, resolved_at: null,
+      ticket: { url: "https://tickets.example.com/INC-1042", label: "Ticket INC-1042" },
+      updates: [
+        { id: 1, at: opened, status: null, message: `Looking ${hostile}`, author: "Status team", internal: false },
+        { id: 2, at: opened, status: "identified", message: "Queue host restarted", author: "Jane Smith", internal: true },
+      ],
+    }],
+    past: [{
+      id: 3, title: "Website outage", severity: "major", status: "resolved", opened_at: opened, resolved_at: opened,
+      ticket: { url: "javascript:alert(1)", label: "Bad" },
+      updates: [{ id: 9, at: opened, status: "resolved", message: "Resolved.", author: "NetMap", internal: false }],
+    }],
+  })));
+  await page.goto(`/status/${SLUG}`);
+  const frame = statusFrame(page);
+
+  await expect(frame.locator(".sp-summary + .sp-strip")).toContainText("Mail delays");
+  const strip = frame.locator('.sp-strip[data-kind="incident"]');
+  await expect(strip).toContainText("Partial outage");
+  await expect(strip).toContainText("Identified");
+  const ticket = strip.locator("a");
+  await expect(ticket).toHaveText("Ticket INC-1042");
+  await expect(ticket).toHaveAttribute("href", "https://tickets.example.com/INC-1042");
+  await expect(ticket).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(frame.locator('.sp-notice[data-level="critical"]')).toContainText("Datacentre power");
+  await expect(frame.locator(".sp-summary-counts")).toContainText("1 incident · 1 notice");
+
+  const log = frame.locator("details.sp-log");
+  await expect(log).not.toHaveAttribute("open", "");
+  await expect(log.locator(".sp-section-title")).toContainText("Incident log");
+  await log.locator("summary").click();
+  const updates = log.locator(".sp-update");
+  await expect(updates).toHaveCount(2);
+  await expect(updates.nth(0)).toContainText(`Looking ${hostile}`);
+  await expect(updates.nth(0).locator(".sp-update-internal")).toHaveCount(0);
+  await expect(updates.nth(1)).toHaveAttribute("data-internal", "true");
+  await expect(updates.nth(1).locator(".sp-update-internal")).toHaveText("Internal");
+  await expect(frame.locator(".sp-update img")).toHaveCount(0);
+
+  const past = frame.locator("details.sp-past");
+  await expect(past).not.toHaveAttribute("open", "");
+  await past.locator("summary").click();
+  await expect(past.locator(".sp-incident")).toContainText("Website outage");
+  await expect(past.locator("a")).toHaveCount(0);
+  const order = await frame.locator(".sp-page > *").evaluateAll((nodes) => nodes.map((node) => node.className));
+  expect(order).toEqual(["sp-header", "sp-summary", "sp-strip", "sp-strip sp-notice", "sp-groups", "sp-log", "sp-past"]);
+});
+
 test("status page marks itself unavailable when the server stops answering", async ({ page }) => {
   await page.clock.install();
   await blockEverythingElse(page);

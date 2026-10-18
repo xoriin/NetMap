@@ -213,3 +213,74 @@ class LayoutGroupRead(BaseModel):
 
 class StatusPageDetail(StatusPageRead):
     groups: list[LayoutGroupRead]
+
+
+IncidentSeverity = Literal["performance", "partial", "major"]
+IncidentStatus = Literal["investigating", "identified", "monitoring", "resolved"]
+NoticeLevel = Literal["info", "warning", "critical"]
+
+
+class TicketInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(max_length=2048)
+    label: str | None = Field(default=None, max_length=120)
+
+
+class IncidentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(max_length=200)
+    severity: IncidentSeverity
+    message: str = Field(max_length=5000)
+    is_public: bool = True
+    page_ids: list[int] = Field(min_length=1, max_length=100)
+    items: list[ItemSource] = Field(default_factory=list, max_length=500)
+    ticket: TicketInput | None = None
+
+
+class IncidentUpdateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str | None = Field(default=None, max_length=5000)
+    is_public: bool = True
+    page_id: int | None = None
+    status_change: IncidentStatus | None = None
+    ticket: TicketInput | None = None
+
+
+class IncidentResolve(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class IncidentPublish(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page_ids: list[int] = Field(min_length=1, max_length=100)
+
+
+class NoticeSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    level: NoticeLevel = "info"
+    title: str = Field(max_length=200)
+    body: str | None = Field(default=None, max_length=2000)
+    link: str | None = Field(default=None, max_length=2048)
+    expires_at: datetime | None = None
+
+
+class NoticeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    page_id: int
+    owner_kind: str
+    level: NoticeLevel
+    title: str
+    body: str | None
+    link: str | None
+    author: str | None
+    created_at: datetime
+    expires_at: datetime | None

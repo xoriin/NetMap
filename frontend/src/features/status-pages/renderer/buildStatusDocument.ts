@@ -366,13 +366,30 @@ function incidentEntry(b: Builder, incident: StatusIncident): HTMLElement {
       const entry = b.el("li", "sp-update");
       entry.append(b.el("span", "sp-update-time", formatStatusTime(update.at, b.now) ?? ""));
       if (update.author) entry.append(b.el("span", "sp-update-author", update.author));
-      const text = update.message ?? (update.status ? INCIDENT_STATUS_LABELS[update.status] : "");
-      entry.append(b.el("span", null, text));
+      if (update.internal) {
+        entry.dataset.internal = "true";
+        const internal = b.el("span", "sp-pill sp-update-internal", "Internal");
+        internal.dataset.tone = "neutral";
+        entry.append(internal);
+      }
+      const statusLabel = update.status ? INCIDENT_STATUS_LABELS[update.status] : null;
+      if (statusLabel && update.message && !update.message.startsWith(statusLabel)) entry.append(b.el("span", "sp-update-status", statusLabel));
+      const text = update.message ?? statusLabel ?? "";
+      entry.append(b.el("span", "sp-update-text", text));
       list.append(entry);
     });
     article.append(list);
   }
   return article;
+}
+
+function incidentSection(b: Builder, className: string, title: string, incidents: StatusIncident[]): HTMLElement {
+  const section = b.el("details", className);
+  const summary = b.el("summary", "sp-section-title");
+  summary.append(b.el("span", null, title), b.el("span", "sp-section-count", String(incidents.length)));
+  section.append(summary);
+  incidents.forEach((incident) => section.append(incidentEntry(b, incident)));
+  return section;
 }
 
 export function buildStatusDocument(payload: StatusPagePayload, options: BuildStatusOptions): string {
@@ -419,18 +436,8 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   payload.groups.forEach((group) => groups.append(groupSection(b, group, payload.heartbeat_window)));
   page.append(groups);
 
-  if (payload.incidents.length) {
-    const log = b.el("section", "sp-log");
-    log.append(b.el("h2", "sp-section-title", "Incidents"));
-    payload.incidents.forEach((incident) => log.append(incidentEntry(b, incident)));
-    page.append(log);
-  }
-  if (payload.past.length) {
-    const past = b.el("section", "sp-past");
-    past.append(b.el("h2", "sp-section-title", "Past incidents"));
-    payload.past.forEach((incident) => past.append(incidentEntry(b, incident)));
-    page.append(past);
-  }
+  if (payload.incidents.length) page.append(incidentSection(b, "sp-log", "Incident log", payload.incidents));
+  if (payload.past.length) page.append(incidentSection(b, "sp-past", "Past incidents", payload.past));
 
   doc.body.append(page);
   return "<!doctype html>" + doc.documentElement.outerHTML;

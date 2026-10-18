@@ -19,6 +19,10 @@ ITEM_KEYS = {"id", "name", "state", "availability", "heartbeats", "response", "m
 AVAILABILITY_KEYS = {"percent", "label", "coverage"}
 SUMMARY_KEYS = {"state", "label", "counts"}
 COUNT_KEYS = {"operational", "degraded", "down", "maintenance", "unknown"}
+NOTICE_KEYS = {"id", "level", "title", "body", "link", "expires_at"}
+INCIDENT_KEYS = {"id", "title", "severity", "status", "opened_at", "resolved_at", "ticket", "updates"}
+UPDATE_KEYS = {"id", "at", "status", "message", "author", "internal"}
+TICKET_KEYS = {"url", "label"}
 
 
 def _device(db, **kw):
@@ -115,6 +119,35 @@ def test_payload_keys_are_exactly_the_allowlist_at_every_level():
         assert payload["notices"] == payload["incidents"] == payload["maintenance"] == payload["past"] == []
         assert payload["custom_css"] is None and item["incident_ids"] == []
         json.dumps(payload)
+
+    from app.models.user import User
+    from app.services.status_pages import incidents, notices
+    from app.services.status_pages.incidents import PersonActor, Ticket
+
+    user = User(username="u", password_hash="x", role="NetworkAdmin", is_active=True)
+    db.add(user)
+    db.commit()
+    actor = PersonActor(user)
+    open_one = incidents.open_manual_incident(
+        db, actor, "Open", "partial", "m", True, [page.id], [ref], Ticket("https://t.test/1", "T-1"), now=NOW,
+    )
+    incidents.add_update(db, actor, open_one.id, "internal", False, None, None, None, now=NOW)
+    done = incidents.open_manual_incident(db, actor, "Done", "partial", "m", True, [page.id], [], None, now=NOW)
+    incidents.resolve(db, actor, done.id, None, now=NOW)
+    notices.set_notice(db, actor, page.id, "info", "N", "b", "https://n.test/", NOW + timedelta(hours=1), now=NOW)
+    for audience in ("public", "private"):
+        payload = build_page_payload(db, page, audience, NOW)
+        assert set(payload) == PAYLOAD_KEYS
+        (notice,) = payload["notices"]
+        assert set(notice) == NOTICE_KEYS
+        (incident,) = payload["incidents"]
+        (past,) = payload["past"]
+        for entry in (incident, past):
+            assert set(entry) == INCIDENT_KEYS
+            assert all(set(update) == UPDATE_KEYS for update in entry["updates"])
+        assert set(incident["ticket"]) == TICKET_KEYS
+        assert len(incident["updates"]) == (2 if audience == "private" else 1)
+        assert payload["groups"][0]["items"][0]["incident_ids"] == [open_one.id]
 
 
 def test_extras_absent_unless_enabled():

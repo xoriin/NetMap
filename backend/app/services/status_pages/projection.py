@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.status_page import StatusPage, StatusPageGroup, StatusPageItem
+from app.services.status_pages.incidents import PAST_WINDOW, PageLocal, load_page_incidents, project_incident
+from app.services.status_pages.notices import live_notices
 from app.services.status_pages.history import (
     Sample,
     availability,
@@ -183,10 +185,31 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
             "incident_ids": [],
         })
 
+    local = PageLocal({refs[item.id].key: item_states[item.id] for item in items}, len(items))
+    open_incidents, past = [], []
+    by_source: dict[str, list[int]] = defaultdict(list)
+    for loaded in load_page_incidents(db, page.id, now):
+        projected = project_incident(loaded, page, audience, local)
+        if projected is None:
+            continue
+        if projected["status"] == "resolved":
+            past.append(projected)
+            continue
+        open_incidents.append(projected)
+        for key in loaded.sources.get(page.id, []):
+            by_source[key].append(projected["id"])
+    past.sort(key=lambda p: p["resolved_at"], reverse=True)
+    for group_items in by_group.values():
+        for entry in group_items:
+            entry["incident_ids"] = sorted(by_source.get(refs[entry["id"]].key, []))
+    notices = live_notices(db, page.id, now)
+    critical = any(n.level == "critical" for n in notices)
+    age_outs = [datetime.fromisoformat(p["resolved_at"]) + PAST_WINDOW for p in past]
+
     counts = {"operational": 0, "degraded": 0, "down": 0, "maintenance": 0, "unknown": 0}
     for value in item_states.values():
         counts[value] += 1
-    state, label = summarize(list(item_states.values()), False)
+    state, label = summarize(list(item_states.values()), critical)
     return {
         "slug": page.slug,
         "title": page.title or page.name,
@@ -195,12 +218,20 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
         "heartbeat_window": page.heartbeat_window,
         "custom_css": None,
         "generated_at": now.isoformat(),
-        "valid_until": next_deadline(page, now, states.values()).isoformat(),
+        "valid_until": next_deadline(
+            page, now, states.values(), [*(n.expires_at for n in notices if n.expires_at), *age_outs],
+        ).isoformat(),
         "summary": {"state": state, "label": label, "counts": counts},
-        "notices": [],
-        "incidents": [],
+        "notices": [
+            {
+                "id": n.id, "level": n.level, "title": n.title, "body": n.body, "link": n.link,
+                "expires_at": _utc(n.expires_at).isoformat() if n.expires_at else None,
+            }
+            for n in notices
+        ],
+        "incidents": open_incidents,
         "maintenance": [],
-        "past": [],
+        "past": past,
         "groups": [
             {
                 "id": group.id,

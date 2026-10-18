@@ -51,7 +51,7 @@ export type StatusIncidentUpdate = {
   status: "investigating" | "identified" | "monitoring" | "resolved" | null;
   message: string | null;
   author: string;
-  internal?: boolean;
+  internal: boolean;
 };
 
 export type StatusIncident = {

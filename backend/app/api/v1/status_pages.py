@@ -12,20 +12,36 @@ from app.db.session import get_db
 from app.models.device import Device
 from app.models.monitor import Monitor
 from app.models.port_target import DevicePortTarget
-from app.models.status_page import StatusPage, StatusPageGroup, StatusPageItem
+from app.models.status_page import (
+    StatusIncident,
+    StatusIncidentAlias,
+    StatusIncidentPage,
+    StatusIncidentUpdate,
+    StatusNotice,
+    StatusPage,
+    StatusPageGroup,
+    StatusPageItem,
+)
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.status_pages import (
+    IncidentCreate,
+    IncidentPublish,
+    IncidentResolve,
+    IncidentUpdateCreate,
     ItemExtras,
     LayoutUpdate,
+    NoticeRead,
+    NoticeSet,
     StatusPageCreate,
     StatusPageDetail,
     StatusPageRead,
     StatusPageUpdate,
 )
 from app.services.audit.service import write_audit
-from app.services.status_pages import events
+from app.services.status_pages import events, incidents, notices
 from app.services.status_pages.cache import RegistryEntry, status_cache
+from app.services.status_pages.incidents import IncidentConflict, IncidentError, IncidentNotFound, PersonActor, Ticket
 from app.services.status_pages.projection import build_page_payload
 from app.services.status_pages.sources import SourceRef
 
@@ -142,6 +158,152 @@ def list_sources(_: CurrentUser, db: Db) -> dict:
     }
 
 
+INCIDENT_LIST_LIMIT = 200
+
+
+def _service_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, IncidentNotFound):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, IncidentConflict):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+
+def _ticket(payload) -> Ticket | None:
+    return Ticket(payload.url, payload.label) if payload is not None else None
+
+
+def _iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return (value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value).isoformat()
+
+
+def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
+    ids = [row.id for row in rows]
+    pages: dict[int, list[int]] = {i: [] for i in ids}
+    items: dict[int, list[dict]] = {i: [] for i in ids}
+    updates: dict[int, list[dict]] = {i: [] for i in ids}
+    if ids:
+        for row in db.scalars(select(StatusIncidentPage).where(StatusIncidentPage.incident_id.in_(ids))):
+            pages[row.incident_id].append(row.page_id)
+        for row in db.scalars(
+            select(StatusIncidentAlias).where(StatusIncidentAlias.incident_id.in_(ids)).order_by(StatusIncidentAlias.id)
+        ):
+            items[row.incident_id].append({"page_id": row.page_id, "source_key": row.source_key, "display_name": row.display_name})
+        for row in db.scalars(
+            select(StatusIncidentUpdate).where(StatusIncidentUpdate.incident_id.in_(ids)).order_by(StatusIncidentUpdate.id)
+        ):
+            updates[row.incident_id].append({
+                "id": row.id, "at": _iso(row.created_at), "page_id": row.page_id, "author": row.author_label,
+                "author_kind": row.author_kind, "is_public": row.is_public, "status": row.status_change,
+                "message": row.message, "event_code": row.event_code,
+            })
+    return [
+        {
+            "id": row.id, "title": row.title, "severity": row.severity, "status": row.status, "source": row.source,
+            "opened_at": _iso(row.opened_at), "resolved_at": _iso(row.resolved_at),
+            "ticket": {"url": row.ticket_url, "label": row.ticket_label} if row.ticket_url else None,
+            "page_ids": sorted(pages[row.id]), "items": items[row.id], "updates": updates[row.id],
+        }
+        for row in rows
+    ]
+
+
+def _one_incident(db: Session, incident_id: int) -> dict:
+    return _incident_detail(db, [incidents.get_incident(db, incident_id)])[0]
+
+
+@router.get("/incidents")
+def list_incidents(_: CurrentUser, db: Db) -> list[dict]:
+    rows = list(db.scalars(
+        select(StatusIncident).order_by(StatusIncident.opened_at.desc(), StatusIncident.id.desc()).limit(INCIDENT_LIST_LIMIT)
+    ))
+    return _incident_detail(db, rows)
+
+
+@router.post("/incidents", status_code=status.HTTP_201_CREATED)
+def open_incident(payload: IncidentCreate, current_user: CurrentUser, db: Db) -> dict:
+    try:
+        incident = incidents.open_manual_incident(
+            db, PersonActor(current_user), payload.title, payload.severity, payload.message, payload.is_public,
+            payload.page_ids, [item.to_ref() for item in payload.items], _ticket(payload.ticket),
+        )
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return _one_incident(db, incident.id)
+
+
+@router.post("/incidents/{incident_id}/updates", status_code=status.HTTP_201_CREATED)
+def add_incident_update(incident_id: int, payload: IncidentUpdateCreate, current_user: CurrentUser, db: Db) -> dict:
+    try:
+        incidents.add_update(
+            db, PersonActor(current_user), incident_id, payload.message, payload.is_public, payload.page_id,
+            payload.status_change, _ticket(payload.ticket),
+        )
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return _one_incident(db, incident_id)
+
+
+@router.post("/incidents/{incident_id}/resolve")
+def resolve_incident(incident_id: int, payload: IncidentResolve, current_user: CurrentUser, db: Db) -> dict:
+    try:
+        incidents.resolve(db, PersonActor(current_user), incident_id, payload.reason)
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return _one_incident(db, incident_id)
+
+
+@router.post("/incidents/{incident_id}/publish")
+def publish_incident(incident_id: int, payload: IncidentPublish, current_user: CurrentUser, db: Db) -> dict:
+    try:
+        incidents.publish_to_pages(db, PersonActor(current_user), incident_id, payload.page_ids)
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return _one_incident(db, incident_id)
+
+
+@router.delete("/notices/{notice_id}", status_code=status.HTTP_204_NO_CONTENT)
+def clear_any_notice(notice_id: int, current_user: CurrentUser, db: Db) -> None:
+    try:
+        notices.clear_notice(db, PersonActor(current_user), notice_id)
+    except IncidentNotFound as exc:
+        db.rollback()
+        raise _service_error(exc)
+
+
+@router.get("/{page_id}/notices", response_model=list[NoticeRead])
+def list_page_notices(page_id: int, _: CurrentUser, db: Db) -> list[StatusNotice]:
+    _get_page(db, page_id)
+    return list(db.scalars(select(StatusNotice).where(StatusNotice.page_id == page_id).order_by(StatusNotice.id)))
+
+
+@router.put("/{page_id}/notice", response_model=NoticeRead)
+def set_own_notice(page_id: int, payload: NoticeSet, current_user: CurrentUser, db: Db) -> StatusNotice:
+    try:
+        return notices.set_notice(
+            db, PersonActor(current_user), page_id, payload.level, payload.title, payload.body, payload.link,
+            payload.expires_at,
+        )
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+
+
+@router.delete("/{page_id}/notice", status_code=status.HTTP_204_NO_CONTENT)
+def clear_own_notice(page_id: int, current_user: CurrentUser, db: Db) -> None:
+    try:
+        notices.clear_own_notice(db, PersonActor(current_user), page_id)
+    except IncidentNotFound as exc:
+        db.rollback()
+        raise _service_error(exc)
+
+
 @router.get("/{slug}/view")
 def view_page(slug: str, request: Request, _: Annotated[User, Depends(get_current_user)]) -> Response:
     entry = resolve(slug)
@@ -190,6 +352,7 @@ def delete_page(page_id: int, current_user: CurrentUser, db: Db) -> None:
     for model in (StatusPageItem, StatusPageGroup):
         for row in db.scalars(select(model).where(model.page_id == page.id)):
             db.delete(row)
+    incidents.delete_page_records(db, page.id)
     db.flush()
     slug = page.slug
     db.delete(page)
