@@ -74,6 +74,19 @@ export type StatusMaintenanceWindow = {
   active: boolean;
 };
 
+export type StatusPastIncident = StatusIncident & { kind: "incident" };
+
+export type StatusPastMaintenance = {
+  kind: "maintenance";
+  id: number;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+};
+
+export type StatusPastEntry = StatusPastIncident | StatusPastMaintenance;
+
 export type StatusPagePayload = {
   slug: string;
   title: string;
@@ -87,7 +100,7 @@ export type StatusPagePayload = {
   notices: StatusNotice[];
   incidents: StatusIncident[];
   maintenance: StatusMaintenanceWindow[];
-  past: StatusIncident[];
+  past: StatusPastEntry[];
   groups: StatusPageGroupPayload[];
 };
 

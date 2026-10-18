@@ -23,6 +23,7 @@ from app.models.status_page import (
     StatusIncidentUpdate,
     StatusIntegrationToken,
     StatusIntegrationTokenPage,
+    StatusMaintenance,
     StatusNotice,
 )
 from app.models.user import User, UserRole
@@ -626,3 +627,97 @@ def test_token_validation_raises_token_error_and_api_key_format_is_unchanged(env
     full, prefix, digest = api_key_service.generate_api_key()
     assert (full, prefix) == (f"nm_{'P' * 12}_{'S' * 43}", "P" * 12)
     assert digest == api_key_service.hash_key(full)
+
+
+def _window_body(device_id, **kw):
+    start = datetime.now(timezone.utc) + timedelta(days=1)
+    body = {
+        "title": "Backup appliance firmware", "description": "Reboots twice",
+        "starts_at": start.isoformat(), "ends_at": (start + timedelta(minutes=30)).isoformat(),
+        "items": [{"device": device_id}],
+    }
+    body.update(kw)
+    return body
+
+
+def test_token_cannot_enable_alert_suppression_or_edit_suppressing_window(env):
+    host = _device(env)
+    a, b = _pages(env, "a", "b", items={"a": [(SourceRef("device", device_id=host), "Backups")],
+                                       "b": [(SourceRef("device", device_id=host), "Backups")]})
+    secret = _new_token(env, [a])["secret"]
+
+    refused = _call(env, "POST", "/maintenance", secret, _window_body(host, suppress_alerts=True))
+    assert refused.status_code == 403
+    assert refused.json() == {"detail": "Integration tokens cannot suppress monitoring alerts"}
+    assert _count(env, StatusMaintenance) == 0
+
+    created = _call(env, "POST", "/maintenance", secret, _window_body(host))
+    assert created.status_code == 201, created.text
+    window = created.json()
+    assert (window["pages"], window["suppress_alerts"]) == (["a"], False)
+    assert window["starts_at"].endswith("+00:00")
+
+    escalate = _call(env, "PATCH", f"/maintenance/{window['id']}", secret, {"suppress_alerts": True})
+    assert escalate.status_code == 403
+    assert _call(env, "PATCH", f"/maintenance/{window['id']}", secret, {"title": "Moved"}).status_code == 200
+
+    flipped = _admin(env, "PATCH", f"/maintenance/{window['id']}", json={"suppress_alerts": True})
+    assert flipped.status_code == 200, flipped.text
+    for method, body in (("PATCH", {"title": "Again"}), ("PATCH", {"suppress_alerts": False}), ("DELETE", None)):
+        response = _call(env, method, f"/maintenance/{window['id']}", secret, body)
+        assert response.status_code == 403, (method, response.text)
+        assert response.json() == {"detail": "Integration tokens cannot change a window that suppresses monitoring alerts"}
+    with env.Session() as db:
+        stored = db.get(StatusMaintenance, window["id"])
+        assert (stored.title, stored.suppress_alerts) == ("Moved", True)
+
+    person = _admin(env, "POST", "/maintenance", json={**_window_body(host), "page_ids": [a], "suppress_alerts": True})
+    assert person.status_code == 201, person.text
+    assert _call(env, "PATCH", f"/maintenance/{person.json()['id']}", secret, {"title": "x"}).status_code == 404
+    assert _call(env, "DELETE", f"/maintenance/{person.json()['id']}", secret).status_code == 404
+
+    with env.Session() as db:
+        refusals = [row.detail for row in db.scalars(select(AuditLog).where(AuditLog.action.like("status_integration.maintenance_%")))]
+    assert any("refused=403" in d and "token_id=" in d for d in refusals)
+    assert any("refused=404" in d for d in refusals)
+
+
+def test_token_maintenance_scope_ownership_and_idempotency(env):
+    host, hidden = _device(env), _device(env)
+    a, b = _pages(env, "a", "b", items={"a": [(SourceRef("device", device_id=host), "Backups")],
+                                       "b": [(SourceRef("device", device_id=host), "Backups"),
+                                             (SourceRef("device", device_id=hidden), "Hidden")]})
+    secret = _new_token(env, [a])["secret"]
+    other = _new_token(env, [a, b], name="other")["secret"]
+
+    assert _call(env, "POST", "/maintenance", secret, _window_body(hidden)).status_code == 404
+    assert _call(env, "POST", "/maintenance", secret, _window_body(host, pages=["b"])).status_code == 403
+    assert _count(env, StatusMaintenance) == 0
+
+    body = _window_body(host)
+    first = _call(env, "POST", "/maintenance", secret, body, key="same")
+    again = _call(env, "POST", "/maintenance", secret, body, key="same")
+    assert first.status_code == again.status_code == 201
+    assert again.headers["Idempotent-Replayed"] == "true" and again.json() == first.json()
+    assert _count(env, StatusMaintenance) == 1
+    window_id = first.json()["id"]
+    assert first.json()["pages"] == ["a"]
+
+    assert _call(env, "PATCH", f"/maintenance/{window_id}", other, {"title": "x"}).status_code == 404
+    assert _call(env, "DELETE", f"/maintenance/{window_id}", other).status_code == 404
+    assert _call(env, "PATCH", f"/maintenance/{window_id}", secret, {"items": [{"device": hidden}]}).status_code == 404
+    assert _call(env, "PATCH", f"/maintenance/{window_id}", secret, {"pages": ["b"]}).status_code == 403
+
+    wide = _call(env, "POST", "/maintenance", other, _window_body(host))
+    assert wide.json()["pages"] == ["a", "b"]
+    with env.Session() as db:
+        db.execute(StatusIntegrationTokenPage.__table__.delete().where(StatusIntegrationTokenPage.page_id == b))
+        db.commit()
+    assert _call(env, "PATCH", f"/maintenance/{wide.json()['id']}", other, {"title": "x"}).status_code == 404
+
+    assert _call(env, "DELETE", f"/maintenance/{window_id}", secret).status_code == 204
+    assert _count(env, StatusMaintenance) == 1
+    with env.Session() as db:
+        actions = [row.action for row in db.scalars(select(AuditLog).where(AuditLog.target == "token:backup-server"))]
+    assert {"status_integration.maintenance_created", "status_integration.maintenance_updated",
+            "status_integration.maintenance_deleted"} <= set(actions)

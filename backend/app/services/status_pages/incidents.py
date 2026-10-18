@@ -18,6 +18,7 @@ from app.models.status_page import (
     StatusIncidentUpdate,
     StatusIntegrationToken,
     StatusIntegrationTokenPage,
+    StatusMaintenancePage,
     StatusNotice,
     StatusPage,
     StatusPageItem,
@@ -329,7 +330,7 @@ def publish_to_pages(
 def delete_page_records(db: Session, page_id: int) -> None:
     for model in (
         StatusNotice, StatusIncidentAlias, StatusIncidentSource, StatusIncidentUpdate, StatusIncidentPage,
-        StatusIntegrationTokenPage,
+        StatusIntegrationTokenPage, StatusMaintenancePage,
     ):
         db.execute(delete(model).where(model.page_id == page_id))
 

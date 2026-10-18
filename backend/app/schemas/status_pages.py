@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.image_validation import validate_email_logo_data_uri
 from app.services.status_pages.sources import SourceRef
@@ -352,3 +352,69 @@ class IntegrationIncidentUpdate(BaseModel):
         if self.ticket_label is not None and self.ticket_url is None:
             raise ValueError("A ticket label needs a ticket_url")
         return self
+
+
+class MaintenanceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    items: list[ItemSource] = Field(min_length=1, max_length=500)
+    page_ids: list[int] | None = Field(
+        default=None, max_length=100, description="Pages that announce the window; omit for every page showing an affected item.",
+    )
+    suppress_alerts: bool = Field(
+        default=False, description="Also suppress monitoring alerts for these items throughout NetMap. Requires Manage alert rules.",
+    )
+
+
+class MaintenanceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    starts_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
+    items: list[ItemSource] | None = Field(default=None, min_length=1, max_length=500)
+    page_ids: list[int] | None = Field(default=None, max_length=100)
+    suppress_alerts: bool | None = None
+
+    @field_validator("title", "starts_at", "ends_at", "items", "suppress_alerts")
+    @classmethod
+    def _not_null(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be cleared")
+        return value
+
+
+class IntegrationMaintenanceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    items: list[ItemSource] = Field(min_length=1, max_length=500)
+    pages: list[str] | None = Field(default=None, max_length=100)
+    suppress_alerts: bool = False
+
+
+class IntegrationMaintenanceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    starts_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
+    items: list[ItemSource] | None = Field(default=None, min_length=1, max_length=500)
+    pages: list[str] | None = Field(default=None, max_length=100)
+    suppress_alerts: bool | None = None
+
+    @field_validator("title", "starts_at", "ends_at", "items", "suppress_alerts")
+    @classmethod
+    def _not_null(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be cleared")
+        return value

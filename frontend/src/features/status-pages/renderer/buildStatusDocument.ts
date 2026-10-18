@@ -1,6 +1,6 @@
 import type {
   StatusAvailability, StatusBeat, StatusIncident, StatusItemState, StatusMaintenanceWindow, StatusNotice,
-  StatusPageGroupPayload, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
+  StatusPageGroupPayload, StatusPastEntry, StatusPastMaintenance, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
 } from "../statusPagesApi";
 import { RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
@@ -116,6 +116,33 @@ export function formatStatusTime(iso: string | null | undefined, now: Date): str
   const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   if (sameDay(date, now)) return time;
   return `${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
+}
+
+export function visitorTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "local time";
+  } catch {
+    return "local time";
+  }
+}
+
+export function formatWindowStart(iso: string, now: Date): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
+  if (Math.abs(date.getTime() - now.getTime()) < 6 * 86_400_000) return `${weekday} ${time}`;
+  return `${weekday} ${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${time}`;
+}
+
+export function formatDuration(startIso: string, endIso: string): string | null {
+  const minutes = Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+  const parts = [days ? `${days} d` : null, hours ? `${hours} h` : null, mins ? `${mins} min` : null].filter(Boolean);
+  return parts.join(" ");
 }
 
 function formatPercent(fraction: number): string {
@@ -337,13 +364,40 @@ function noticeStrip(b: Builder, notice: StatusNotice): HTMLElement {
 }
 
 function maintenanceStrip(b: Builder, window: StatusMaintenanceWindow): HTMLElement {
-  const range = [formatStatusTime(window.starts_at, b.now), formatStatusTime(window.ends_at, b.now)].filter(Boolean).join(" – ");
+  const zone = visitorTimeZone();
+  const start = formatWindowStart(window.starts_at, b.now);
+  const end = formatWindowStart(window.ends_at, b.now);
+  const duration = formatDuration(window.starts_at, window.ends_at);
+  const when = window.active
+    ? end ? `until ${end} (${zone})` : null
+    : start ? `${start}${duration ? ` for ${duration}` : ""} (${zone})` : null;
   const node = strip(b, window.active ? "Maintenance" : "Planned maintenance", "maintenance", window.title, [
+    when ? b.el("span", "sp-strip-meta", when) : null,
     window.description ? b.el("span", "sp-strip-body", window.description) : null,
-    range ? b.el("span", "sp-strip-meta", range) : null,
   ]);
   node.dataset.kind = "maintenance";
+  node.dataset.active = String(window.active);
   return node;
+}
+
+function pastMaintenanceEntry(b: Builder, window: StatusPastMaintenance): HTMLElement {
+  const article = b.el("article", "sp-incident");
+  article.dataset.kind = "maintenance";
+  const title = b.el("h3", "sp-incident-title");
+  const pill = b.el("span", "sp-pill", "Planned maintenance");
+  pill.dataset.tone = "maintenance";
+  title.append(pill, b.el("span", null, window.title));
+  article.append(title);
+  const range = [formatStatusTime(window.starts_at, b.now), formatStatusTime(window.ends_at, b.now)].filter(Boolean).join(" – ");
+  article.append(b.el("p", "sp-incident-meta", range ? `${range} (${visitorTimeZone()})` : ""));
+  if (window.description) {
+    const list = b.el("ol", "sp-updates");
+    const entry = b.el("li", "sp-update");
+    entry.append(b.el("span", "sp-update-text", window.description));
+    list.append(entry);
+    article.append(list);
+  }
+  return article;
 }
 
 function incidentEntry(b: Builder, incident: StatusIncident): HTMLElement {
@@ -383,12 +437,14 @@ function incidentEntry(b: Builder, incident: StatusIncident): HTMLElement {
   return article;
 }
 
-function incidentSection(b: Builder, className: string, title: string, incidents: StatusIncident[]): HTMLElement {
+function incidentSection(b: Builder, className: string, title: string, incidents: Array<StatusIncident | StatusPastEntry>): HTMLElement {
   const section = b.el("details", className);
   const summary = b.el("summary", "sp-section-title");
   summary.append(b.el("h2", "sp-section-heading", title), b.el("span", "sp-section-count", String(incidents.length)));
   section.append(summary);
-  incidents.forEach((incident) => section.append(incidentEntry(b, incident)));
+  incidents.forEach((entry) => section.append(
+    "kind" in entry && entry.kind === "maintenance" ? pastMaintenanceEntry(b, entry) : incidentEntry(b, entry as StatusIncident),
+  ));
   return section;
 }
 

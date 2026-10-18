@@ -243,7 +243,8 @@ def test_resolved_within_30_days_listed_in_past():
     assert "Fixed upstream" not in json.dumps(body)
     private = _payload(db, page, "private")
     assert [u["message"] for u in private["past"][0]["updates"]][-1] == "Fixed upstream"
-    for incident in body["incidents"] + body["past"]:
+    assert past["kind"] == "incident"
+    for incident in body["incidents"] + [{k: v for k, v in p.items() if k != "kind"} for p in body["past"]]:
         assert set(incident) == INCIDENT_KEYS
         assert all(set(u) == UPDATE_KEYS for u in incident["updates"])
     assert still_open.status == "investigating"

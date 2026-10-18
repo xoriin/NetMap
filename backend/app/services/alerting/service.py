@@ -220,6 +220,9 @@ class AlertMonitorService:
         for results in port_map.values():
             results.sort(key=lambda item: (target_order.get(item["target_id"], 0), item["label"].casefold(), item["port"], item["target_id"]))
 
+        from app.services.status_pages import maintenance
+        from app.services.status_pages.sources import SourceRef
+
         # Persist history and update device monitor_status
         with SessionLocal() as db:
             history_rows = []
@@ -246,7 +249,16 @@ class AlertMonitorService:
                 db.bulk_update_mappings(Device, device_updates)
             db.commit()
 
-        from app.services.status_pages.sources import SourceRef
+        suppressed: set[str] = set()
+        exits: set[str] = set()
+        try:
+            with SessionLocal() as db:
+                suppressed = maintenance.globally_suppressed(db, checked_at)
+                if self._initialized and scoped_device_id is None:
+                    exits = maintenance.take_exit_reevaluations(db, checked_at, ("device", "service_check"))
+                db.commit()
+        except Exception:
+            logger.exception("Could not read maintenance windows; device alerts are not suppressed this cycle")
 
         status_page_events.notify_sources_checked([
             *(SourceRef("device", device_id=device.id) for device in devices),
@@ -277,8 +289,13 @@ class AlertMonitorService:
         rule_updates: list[tuple[int, datetime]] = []
         new_events: list[AlertEvent] = []
         new_deliveries: list[NotificationDelivery] = []
+        fired: set[tuple[int, str]] = set()
 
-        def fire(rule: AlertRule, device_id: int, message: str) -> None:
+        def fire(rule: AlertRule, device_id: int, message: str, key: str | None = None) -> None:
+            key = key or SourceRef("device", device_id=device_id).key
+            if key in suppressed:
+                return
+            fired.add((rule.id, key))
             channels = json.loads(rule.channels) if isinstance(rule.channels, str) else rule.channels
             for channel in channels:
                 result = send_notification_target(channel, message, notif_settings, profiles)
@@ -365,7 +382,7 @@ class AlertMonitorService:
             ))
 
         # Service checks (port/service targets): edge-triggered down, threshold-based slow response
-        for rule, device_id, service_label in self._service_down_breaches(rules, self._known_ports, current_ports, now):
+        for rule, device_id, target_id, service_label in self._service_down_breaches(rules, self._known_ports, current_ports, now):
             device = device_map.get(device_id)
             if device is None:
                 continue
@@ -373,9 +390,9 @@ class AlertMonitorService:
             fire(rule, device_id, self._build_message(
                 "service_down", label, device.ip_address, "offline", app_name,
                 service_label=service_label,
-            ))
+            ), SourceRef("service_check", device_id=device_id, port_target_id=target_id).key)
 
-        for rule, device_id, response_ms, service_label in self._service_slow_breaches(rules, current_ports, now):
+        for rule, device_id, target_id, response_ms, service_label in self._service_slow_breaches(rules, current_ports, now):
             device = device_map.get(device_id)
             if device is None:
                 continue
@@ -383,7 +400,7 @@ class AlertMonitorService:
             fire(rule, device_id, self._build_message(
                 "service_slow", label, device.ip_address, "online", app_name,
                 rtt_ms=response_ms, threshold_ms=rule.threshold_ms, service_label=service_label,
-            ))
+            ), SourceRef("service_check", device_id=device_id, port_target_id=target_id).key)
 
         # Flapping: devices with too many status transitions inside the window
         cutoff = now - timedelta(seconds=FLAP_WINDOW_SECONDS)
@@ -411,6 +428,10 @@ class AlertMonitorService:
                     "device_flapping", label, device.ip_address, current.get(device_id, "unknown"),
                     app_name, flap_count=flap_count,
                 ))
+
+        for rule, ref, message in self._exit_breaches(exits, rules, device_map, current, current_ports, app_name):
+            if (rule.id, ref.key) not in fired and self._cooldown_ok(rule, now):
+                fire(rule, ref.device_id, message, ref.key)
 
         if rule_updates or new_events or new_deliveries:
             with SessionLocal() as db:
@@ -543,12 +564,12 @@ class AlertMonitorService:
         known_ports: dict[tuple[int, int], bool],
         current_ports: dict[tuple[int, int], dict],
         now: datetime,
-    ) -> list[tuple[AlertRule, int, str]]:
-        """Return (rule, device_id, service_label) for every up->down service transition this cycle."""
+    ) -> list[tuple[AlertRule, int, int, str]]:
+        """Return (rule, device_id, target_id, service_label) for every up->down service transition this cycle."""
         down_rules = [r for r in rules if r.event_type == "service_down"]
         if not down_rules:
             return []
-        breaches: list[tuple[AlertRule, int, str]] = []
+        breaches: list[tuple[AlertRule, int, int, str]] = []
         for (device_id, target_id), entry in current_ports.items():
             was_open = known_ports.get((device_id, target_id))
             # was_open is None the first time this target is seen — nothing to compare yet
@@ -559,7 +580,7 @@ class AlertMonitorService:
                     continue
                 if not cls._cooldown_ok(rule, now):
                     continue
-                breaches.append((rule, device_id, entry["label"]))
+                breaches.append((rule, device_id, target_id, entry["label"]))
         return breaches
 
     @classmethod
@@ -568,12 +589,12 @@ class AlertMonitorService:
         rules: list[AlertRule],
         current_ports: dict[tuple[int, int], dict],
         now: datetime,
-    ) -> list[tuple[AlertRule, int, float, str]]:
-        """Return (rule, device_id, response_time_ms, service_label) for every service_slow breach this cycle."""
+    ) -> list[tuple[AlertRule, int, int, float, str]]:
+        """Return (rule, device_id, target_id, response_time_ms, service_label) for every service_slow breach this cycle."""
         slow_rules = [r for r in rules if r.event_type == "service_slow" and r.threshold_ms is not None]
         if not slow_rules:
             return []
-        breaches: list[tuple[AlertRule, int, float, str]] = []
+        breaches: list[tuple[AlertRule, int, int, float, str]] = []
         for rule in slow_rules:
             if not cls._cooldown_ok(rule, now):
                 continue
@@ -583,8 +604,41 @@ class AlertMonitorService:
                 response_ms = entry.get("response_time_ms")
                 if response_ms is None or response_ms <= rule.threshold_ms:
                     continue
-                breaches.append((rule, device_id, response_ms, entry["label"]))
+                breaches.append((rule, device_id, target_id, response_ms, entry["label"]))
         return breaches
+
+    def _exit_breaches(self, exits, rules, device_map, current, current_ports, app_name) -> list[tuple]:
+        """Rules still breaching on the fresh observation of sources whose alert suppression just ended."""
+        from app.services.status_pages import evaluator
+        from app.services.status_pages.sources import SourceRef
+
+        found: list[tuple] = []
+        if not exits or not rules:
+            return found
+        with SessionLocal() as db:
+            for key in sorted(exits):
+                ref = SourceRef.from_key(key)
+                device = device_map.get(ref.device_id)
+                ref_rules = [r for r in rules if r.event_type in evaluator.CONDITION_FAMILY and evaluator.applies(r, ref)]
+                if device is None or not ref_rules:
+                    continue
+                observation = evaluator.latest_observation(db, ref, ref_rules)
+                if observation is None:
+                    continue
+                label = device.display_name or device.hostname or device.ip_address
+                entry = current_ports.get((ref.device_id, ref.port_target_id), {})
+                for rule in ref_rules:
+                    if evaluator.predicate(rule, ref, observation) is not True:
+                        continue
+                    counts = observation.loss.get(rule.loss_window_minutes or DEFAULT_LOSS_WINDOW_MINUTES)
+                    found.append((rule, ref, self._build_message(
+                        rule.event_type, label, device.ip_address, current.get(ref.device_id, "unknown"), app_name,
+                        rtt_ms=observation.response_ms, threshold_ms=rule.threshold_ms, flap_count=observation.flaps,
+                        loss_pct=counts[1] / counts[0] * 100 if counts and counts[0] else None,
+                        loss_pct_threshold=rule.loss_pct_threshold, service_label=entry.get("label"),
+                        expected_status=device.expected_status or "online",
+                    )))
+        return found
 
     _cooldown_ok = staticmethod(cooldown_ok)
 

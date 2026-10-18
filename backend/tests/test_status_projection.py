@@ -142,8 +142,9 @@ def test_payload_keys_are_exactly_the_allowlist_at_every_level():
         assert set(notice) == NOTICE_KEYS
         (incident,) = payload["incidents"]
         (past,) = payload["past"]
+        assert set(incident) == INCIDENT_KEYS
+        assert set(past) == INCIDENT_KEYS | {"kind"} and past["kind"] == "incident"
         for entry in (incident, past):
-            assert set(entry) == INCIDENT_KEYS
             assert all(set(update) == UPDATE_KEYS for update in entry["updates"])
         assert set(incident["ticket"]) == TICKET_KEYS
         assert len(incident["updates"]) == (2 if audience == "private" else 1)

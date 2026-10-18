@@ -236,7 +236,7 @@ def test_service_down_breaches_fires_only_on_up_to_down_transition():
     # was up, now down — fires
     known = {(1, 1): True}
     breaches = AlertMonitorService._service_down_breaches([rule], known, current, now)
-    assert [(device_id, label) for _, device_id, label in breaches] == [(1, "HTTPS")]
+    assert [(device_id, label) for _, device_id, _, label in breaches] == [(1, "HTTPS")]
 
     # was already down — edge already fired, no repeat
     known_down = {(1, 1): False}
@@ -254,7 +254,7 @@ def test_service_down_breaches_respects_target_scope_and_cooldown():
 
     scoped = _service_down_rule(port_target_id=2)
     breaches = AlertMonitorService._service_down_breaches([scoped], known, current, now)
-    assert [(device_id, label) for _, device_id, label in breaches] == [(1, "DNS")]
+    assert [(device_id, label) for _, device_id, _, label in breaches] == [(1, "DNS")]
 
     cooling = _service_down_rule(last_triggered_at=now - timedelta(minutes=5))
     assert AlertMonitorService._service_down_breaches([cooling], known, current, now) == []
@@ -268,7 +268,7 @@ def test_service_slow_breaches_computes_threshold_and_scope():
     }
     rule = _service_slow_rule()
     breaches = AlertMonitorService._service_slow_breaches([rule], current, now)
-    assert [(device_id, response_ms) for _, device_id, response_ms, _ in breaches] == [(1, 1500.0)]
+    assert [(device_id, response_ms) for _, device_id, _, response_ms, _ in breaches] == [(1, 1500.0)]
 
     # missing threshold rule never breaches
     no_threshold = _service_slow_rule(threshold_ms=None)

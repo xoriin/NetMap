@@ -36,6 +36,7 @@ class StandaloneMonitorService:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._last_pruned_at: datetime | None = None
+        self._exit_pending: set[str] = set()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -62,6 +63,9 @@ class StandaloneMonitorService:
                 break
 
     def _tick(self) -> None:
+        from app.services.status_pages import evaluator, maintenance
+        from app.services.status_pages.sources import SourceRef
+
         now = datetime.now(timezone.utc)
 
         # Phase 1 — read what the checks need, then release the connection.
@@ -94,6 +98,15 @@ class StandaloneMonitorService:
                 for profile in list_notification_profiles(db, redacted=False)
             }
             app_name = self._get_app_name(db)
+        suppressed: set[str] = set()
+        try:
+            with SessionLocal() as db:
+                suppressed = maintenance.globally_suppressed(db, now)
+                self._exit_pending |= maintenance.take_exit_reevaluations(db, now, ("monitor",))
+                db.commit()
+        except Exception:
+            logger.exception("Could not read maintenance windows; monitor alerts are not suppressed this tick")
+        self._exit_pending &= {SourceRef("monitor", monitor_id=m.id).key for m in monitors}
 
         # Phase 2 — probe and notify with no session open. `due` and `rules` are
         # detached but still fully loaded, so reading their attributes is safe.
@@ -140,8 +153,12 @@ class StandaloneMonitorService:
         new_events: list[AlertEvent] = []
         new_deliveries: list[NotificationDelivery] = []
         rule_updates: list[tuple[int, datetime]] = []
+        fired: set[tuple[int, int]] = set()
 
         def fire(rule: AlertRule, monitor: Monitor, message: str) -> None:
+            if SourceRef("monitor", monitor_id=monitor.id).key in suppressed:
+                return
+            fired.add((rule.id, monitor.id))
             channels = json.loads(rule.channels) if isinstance(rule.channels, str) else rule.channels
             for channel in channels:
                 result = send_notification_target(channel, message, notif_settings, profiles)
@@ -235,6 +252,26 @@ class StandaloneMonitorService:
                             "online", app_name, certificate_days_remaining=days_remaining,
                         ))
 
+            ref = SourceRef("monitor", monitor_id=monitor.id)
+            if ref.key in self._exit_pending:
+                self._exit_pending.discard(ref.key)
+                observation = evaluator.Observation(
+                    at=now, status=new_status, health={"online": "healthy", "offline": "unhealthy"}.get(new_status, "unknown"),
+                    response_ms=result.response_time_ms if result.open else None, cert_expires_at=result.cert_expires_at,
+                    cert_days=monitor.certificate_expiry_days if monitor.certificate_expiry_alert else None,
+                )
+                for rule in rules:
+                    if (rule.id, monitor.id) in fired or not self._cooldown_ok(rule, now):
+                        continue
+                    if evaluator.predicate(rule, ref, observation) is not True:
+                        continue
+                    expires_at = self._as_aware(result.cert_expires_at) if result.cert_expires_at is not None else None
+                    fire(rule, monitor, self._build_message(
+                        rule.event_type, monitor.name, monitor.url, new_status or "unknown", app_name,
+                        response_time_ms=result.response_time_ms, threshold_ms=rule.threshold_ms,
+                        certificate_days_remaining=max(0, int((expires_at - now).total_seconds() // 86400)) if expires_at else None,
+                    ))
+
         # Phase 3 — one short write transaction for everything the tick produced.
         with SessionLocal() as db:
             live_ids: set[int] = set()
@@ -262,8 +299,6 @@ class StandaloneMonitorService:
             for delivery in new_deliveries:
                 db.add(delivery)
             db.commit()
-
-        from app.services.status_pages.sources import SourceRef
 
         status_page_events.notify_sources_checked(SourceRef("monitor", monitor_id=m) for m in monitor_states)
         self._prune_history()

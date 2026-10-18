@@ -24,7 +24,7 @@ from app.models.status_page import (
 )
 from app.services.alerting.service import DEFAULT_LOSS_WINDOW_MINUTES, FLAP_MIN_TRANSITIONS, FLAP_WINDOW_SECONDS
 from app.services.monitoring.health import observed_health
-from app.services.status_pages import copy, incidents, sources
+from app.services.status_pages import copy, incidents, maintenance, sources
 from app.services.status_pages.sources import Health, SourceRef, _utc, freshness_deadline, load_current_states
 
 CONDITION_FAMILY: dict[str, str] = {
@@ -137,7 +137,7 @@ def rule_version(rule: AlertRule) -> str:
 
 
 def pages_in_maintenance(db: Session, refs: Iterable[SourceRef], now: datetime) -> set[tuple[str, int]]:
-    return set()
+    return maintenance.pages_in_maintenance(db, refs, now)
 
 
 def _history(db: Session, model, column, value, since: datetime | None, limit: int) -> list:
@@ -218,6 +218,11 @@ def _observations(
             flaps=_flap_count(db, ref.device_id, at) if flapping else None,
         ))
     return found
+
+
+def latest_observation(db: Session, ref: SourceRef, rules: list[AlertRule], monitor: Monitor | None = None) -> Observation | None:
+    found = _observations(db, ref, rules, monitor, None, 1)
+    return found[-1] if found else None
 
 
 def _pages_showing(db: Session, refs: list[SourceRef]) -> dict[str, set[int]]:
@@ -365,7 +370,7 @@ class _Evaluation:
                 StatusIncidentSource.active == True, StatusIncidentSource.source_key.in_(keys),  # noqa: E712
             ))
         }
-        maintenance = pages_in_maintenance(db, refs, now)
+        in_maintenance = pages_in_maintenance(db, refs, now)
         states = load_current_states(db, refs, now)
         monitor_ids = {r.monitor_id for r in refs if r.kind == "monitor"}
         monitors = {m.id: m for m in db.scalars(select(Monitor).where(Monitor.id.in_(monitor_ids)))} if monitor_ids else {}
@@ -374,16 +379,16 @@ class _Evaluation:
         for ref in refs:
             pages = showing.get(ref.key, set())
             ref_rules = [r for r in active if applies(r, ref)]
-            self.clear_orphaned_rules(ref, pages - {p for k, p in maintenance if k == ref.key}, ref_rules, by_id,
+            self.clear_orphaned_rules(ref, pages - {p for k, p in in_maintenance if k == ref.key}, ref_rules, by_id,
                                       states[ref], monitors.get(ref.monitor_id))
             if not pages or not ref_rules:
                 continue
             for page_id in pages:
-                if (ref.key, page_id) in maintenance:
+                if (ref.key, page_id) in in_maintenance:
                     for rule in ref_rules:
                         if (row := streaks.get((rule.id, ref.key, page_id))) is not None:
-                            row.streak = 0
-            eligible = sorted(p for p in pages if (ref.key, p) not in maintenance)
+                            row.streak, row.last_observed_at = 0, now
+            eligible = sorted(p for p in pages if (ref.key, p) not in in_maintenance)
             if eligible:
                 self.evaluate_ref(ref, ref_rules, eligible, states[ref], monitors.get(ref.monitor_id), streaks)
 
@@ -597,6 +602,7 @@ class _Evaluation:
 
     def apply_status_changes(self) -> None:
         db = self.db
+        db.flush()
         for incident_id, keys in sorted(self.rebreached.items()):
             incident = db.get(StatusIncident, incident_id)
             if incident is not None and incident.status == "monitoring":

@@ -33,6 +33,8 @@ from app.schemas.status_pages import (
     IncidentUpdateCreate,
     ItemExtras,
     LayoutUpdate,
+    MaintenanceCreate,
+    MaintenanceUpdate,
     NoticeRead,
     NoticeSet,
     StatusPageCreate,
@@ -44,7 +46,7 @@ from app.schemas.status_pages import (
     TokenRead,
 )
 from app.services.audit.service import write_audit
-from app.services.status_pages import events, incidents, notices, tokens
+from app.services.status_pages import events, incidents, maintenance, notices, tokens
 from app.services.status_pages.cache import RegistryEntry, status_cache
 from app.services.status_pages.incidents import (
     PUBLISHED_EVENT,
@@ -338,6 +340,90 @@ def revoke_token(token_id: int, current_user: CurrentUser, db: Db) -> None:
     if token is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration token not found")
     tokens.revoke_token(db, current_user, token)
+
+
+def _source_from_key(key: str) -> dict[str, int]:
+    ref = SourceRef.from_key(key)
+    if ref.kind == "monitor":
+        return {"monitor": ref.monitor_id}
+    if ref.kind == "service_check":
+        return {"device": ref.device_id, "service_check": ref.port_target_id}
+    return {"device": ref.device_id}
+
+
+def _window_reads(db: Session, rows: list[maintenance.LoadedWindow]) -> list[dict]:
+    users = {u.id: u.username for u in db.scalars(select(User).where(
+        User.id.in_({w.window.created_by_user_id for w in rows if w.window.created_by_user_id is not None})
+    ))}
+    token_names = {t.id: t.name for t in db.scalars(select(StatusIntegrationToken).where(
+        StatusIntegrationToken.id.in_({w.window.created_by_token_id for w in rows if w.window.created_by_token_id is not None})
+    ))}
+    now = datetime.now(timezone.utc)
+    return [
+        {
+            "id": w.window.id, "title": w.window.title, "description": w.window.description,
+            "starts_at": w.start.isoformat(), "ends_at": w.end.isoformat(), "suppress_alerts": w.window.suppress_alerts,
+            "state": "active" if w.active(now) else "finished" if w.end <= now else "upcoming",
+            "items": [{"source": _source_from_key(key), "source_key": key} for key in w.keys],
+            "page_ids": sorted(w.page_ids),
+            "created_by": users.get(w.window.created_by_user_id),
+            "created_by_token": token_names.get(w.window.created_by_token_id),
+            "created_at": _iso(w.window.created_at),
+        }
+        for w in rows
+    ]
+
+
+def _maintenance_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, maintenance.MaintenanceForbidden):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail)
+    return _service_error(exc)
+
+
+MaintenanceFailure = (IncidentError, IncidentNotFound, maintenance.MaintenanceForbidden)
+
+
+@router.get("/maintenance")
+def list_maintenance(_: CurrentUser, db: Db) -> list[dict]:
+    return _window_reads(db, maintenance.load_windows(db))
+
+
+@router.post("/maintenance", status_code=status.HTTP_201_CREATED)
+def create_maintenance(payload: MaintenanceCreate, current_user: CurrentUser, db: Db) -> dict:
+    refs = [item.to_ref() for item in payload.items]
+    _validate_sources(db, refs)
+    try:
+        window = maintenance.create_window(
+            db, PersonActor(current_user), payload.title, payload.description, payload.starts_at, payload.ends_at,
+            refs, payload.page_ids, payload.suppress_alerts,
+        )
+    except MaintenanceFailure as exc:
+        db.rollback()
+        raise _maintenance_error(exc)
+    return _window_reads(db, [maintenance.get_window(db, window.id)])[0]
+
+
+@router.patch("/maintenance/{window_id}")
+def update_maintenance(window_id: int, payload: MaintenanceUpdate, current_user: CurrentUser, db: Db) -> dict:
+    changes = {name: getattr(payload, name) for name in payload.model_fields_set}
+    if "items" in changes:
+        changes["items"] = [item.to_ref() for item in payload.items]
+        _validate_sources(db, changes["items"])
+    try:
+        maintenance.update_window(db, PersonActor(current_user), window_id, changes)
+    except MaintenanceFailure as exc:
+        db.rollback()
+        raise _maintenance_error(exc)
+    return _window_reads(db, [maintenance.get_window(db, window_id)])[0]
+
+
+@router.delete("/maintenance/{window_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_maintenance(window_id: int, current_user: CurrentUser, db: Db) -> None:
+    try:
+        maintenance.delete_window(db, PersonActor(current_user), window_id)
+    except MaintenanceFailure as exc:
+        db.rollback()
+        raise _maintenance_error(exc)
 
 
 @router.get("/{page_id}/notices", response_model=list[NoticeRead])

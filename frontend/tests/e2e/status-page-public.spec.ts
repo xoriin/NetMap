@@ -147,7 +147,7 @@ test("notices, open incidents and past incidents render in their places as text"
       ],
     }],
     past: [{
-      id: 3, title: "Website outage", severity: "major", status: "resolved", opened_at: opened, resolved_at: opened,
+      kind: "incident", id: 3, title: "Website outage", severity: "major", status: "resolved", opened_at: opened, resolved_at: opened,
       ticket: { url: "javascript:alert(1)", label: "Bad" },
       updates: [{ id: 9, at: opened, status: "resolved", message: "Resolved.", author: "NetMap", internal: false }],
     }],
@@ -187,6 +187,52 @@ test("notices, open incidents and past incidents render in their places as text"
   await expect(past.locator("a")).toHaveCount(0);
   const order = await frame.locator(".sp-page > *").evaluateAll((nodes) => nodes.map((node) => node.className));
   expect(order).toEqual(["sp-header", "sp-summary", "sp-strip", "sp-strip sp-notice", "sp-groups", "sp-log", "sp-past"]);
+});
+
+test.describe("scheduled maintenance", () => {
+  test.use({ timezoneId: "Australia/Brisbane" });
+
+  test("upcoming and active windows render under the summary and finished ones in Past", async ({ page }) => {
+    const hostile = "<img src=x onerror=alert(1)>";
+    const now = Date.now();
+    const iso = (offsetMinutes: number) => new Date(now + offsetMinutes * 60_000).toISOString();
+    await blockEverythingElse(page);
+    await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({
+      summary: { state: "maintenance", label: "Maintenance in progress", counts: { operational: 2, degraded: 0, down: 0, maintenance: 1, unknown: 0 } },
+      maintenance: [
+        { id: 1, title: "Core switch firmware upgrade", description: null, starts_at: iso(-10), ends_at: iso(20), active: true },
+        { id: 2, title: `Router swap ${hostile}`, description: `Expect ${hostile} blips`, starts_at: iso(48 * 60), ends_at: iso(48 * 60 + 30), active: false },
+      ],
+      past: [{ kind: "maintenance", id: 3, title: "UPS battery test", description: "Done", starts_at: iso(-3000), ends_at: iso(-2940) }],
+      groups: [{
+        id: 1, name: "Core network", state: "maintenance", collapsed: false,
+        items: [item(1, "Edge router", false, { state: "maintenance", heartbeats: Array(60).fill("maintenance") }), item(2, "Core switch")],
+      }],
+    })));
+    await page.goto(`/status/${SLUG}`);
+    const frame = statusFrame(page);
+
+    const active = frame.locator('.sp-strip[data-kind="maintenance"][data-active="true"]');
+    await expect(active).toContainText("Maintenance");
+    await expect(active).toContainText("Core switch firmware upgrade");
+    await expect(active.locator(".sp-strip-meta")).toContainText("until");
+    await expect(active.locator(".sp-strip-meta")).toContainText("(Australia/Brisbane)");
+    const upcoming = frame.locator('.sp-strip[data-kind="maintenance"][data-active="false"]');
+    await expect(upcoming.locator(".sp-pill")).toHaveText("Planned maintenance");
+    await expect(upcoming.locator(".sp-strip-title")).toHaveText(`Router swap ${hostile}`);
+    await expect(upcoming.locator(".sp-strip-meta")).toHaveText(/^\w{3} .+ for 30 min \(Australia\/Brisbane\)$/);
+    await expect(frame.locator(".sp-strip img")).toHaveCount(0);
+    await expect(frame.locator(".sp-row").first()).toContainText("Under maintenance");
+
+    const past = frame.locator("details.sp-past");
+    await past.locator("summary").click();
+    const entry = past.locator('.sp-incident[data-kind="maintenance"]');
+    await expect(entry.locator(".sp-pill")).toHaveText("Planned maintenance");
+    await expect(entry).toContainText("UPS battery test");
+    await expect(entry.locator(".sp-incident-meta")).toContainText("(Australia/Brisbane)");
+    const order = await frame.locator(".sp-page > *").evaluateAll((nodes) => nodes.map((node) => node.className));
+    expect(order).toEqual(["sp-header", "sp-summary", "sp-strip", "sp-strip", "sp-groups", "sp-past"]);
+  });
 });
 
 test("status page marks itself unavailable when the server stops answering", async ({ page }) => {

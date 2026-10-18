@@ -26,10 +26,17 @@ from app.models.status_page import (
     StatusPage,
     StatusPageItem,
 )
-from app.schemas.status_pages import IncidentResolve, IntegrationIncidentCreate, IntegrationIncidentUpdate, NoticeSet
+from app.schemas.status_pages import (
+    IncidentResolve,
+    IntegrationIncidentCreate,
+    IntegrationIncidentUpdate,
+    IntegrationMaintenanceCreate,
+    IntegrationMaintenanceUpdate,
+    NoticeSet,
+)
 from app.services.api_keys.throttle import clear_lookup_failures, is_lookup_locked, record_lookup_failure
 from app.services.audit.service import write_audit
-from app.services.status_pages import incidents, notices, tokens
+from app.services.status_pages import incidents, maintenance, notices, tokens
 from app.services.status_pages.incidents import IncidentConflict, IncidentError, IncidentNotFound, Ticket, TokenActor
 from app.services.status_pages.sources import SourceRef
 
@@ -39,6 +46,9 @@ _OPS = {
     "open_incident": "incident_opened",
     "add_incident_update": "incident_updated",
     "resolve_incident": "incident_resolved",
+    "create_maintenance": "maintenance_created",
+    "update_maintenance": "maintenance_updated",
+    "delete_maintenance": "maintenance_deleted",
 }
 
 
@@ -71,6 +81,7 @@ INVALID_TOKEN = "Invalid or inactive status integration token"
 NOT_FOUND = "Not found"
 OUT_OF_SCOPE = "This token may not post to that page"
 LOCKED_OUT = "Too many failed status integration token attempts; try again later"
+SUPPRESSING_WINDOW = "Integration tokens cannot change a window that suppresses monitoring alerts"
 
 Db = Annotated[Session, Depends(get_db)]
 
@@ -102,7 +113,8 @@ def current_token(
     db.commit()
     token_id, token_name = token.id, token.name
     op = _OPS.get(getattr(request.scope.get("route"), "name", ""), "call")
-    target = request.path_params.get("slug") or request.path_params.get("incident_id") or "-"
+    params = request.path_params
+    target = params.get("slug") or params.get("incident_id") or params.get("window_id") or "-"
 
     def refuse(code: int) -> None:
         db.rollback()
@@ -348,3 +360,93 @@ def resolve_incident(
         return status.HTTP_200_OK, _incident_body(db, incident_id)
 
     return _write(db, token, "incident_resolved", str(incident_id), idempotency_key, payload, action)
+
+
+def _forbidden(detail: str) -> HTTPException:
+    return HTTPException(status.HTTP_403_FORBIDDEN, detail)
+
+
+def _window_body(db: Session, window_id: int) -> dict:
+    loaded = maintenance.get_window(db, window_id)
+    slugs = db.scalars(select(StatusPage.slug).where(StatusPage.id.in_(loaded.page_ids)).order_by(StatusPage.slug)).all()
+    items = []
+    for key in loaded.keys:
+        ref = SourceRef.from_key(key)
+        items.append(
+            {"monitor": ref.monitor_id} if ref.kind == "monitor"
+            else {"device": ref.device_id, "service_check": ref.port_target_id} if ref.kind == "service_check"
+            else {"device": ref.device_id}
+        )
+    return {
+        "id": loaded.window.id, "title": loaded.window.title, "description": loaded.window.description,
+        "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(),
+        "suppress_alerts": loaded.window.suppress_alerts, "items": items, "pages": list(slugs),
+    }
+
+
+def _window_pages(db: Session, refs: list[SourceRef], slugs: list[str] | None, scope: set[int]) -> list[int]:
+    shown = _item_audience(db, refs, scope)
+    if slugs is None:
+        return shown
+    return sorted({_page_by_slug(db, slug, scope).id for slug in slugs})
+
+
+def _owned_window(db: Session, token_id: int, window_id: int, scope: set[int]) -> maintenance.LoadedWindow:
+    try:
+        loaded = maintenance.get_window(db, window_id)
+    except IncidentNotFound:
+        raise _not_found() from None
+    if loaded.window.created_by_token_id != token_id or not loaded.page_ids or not loaded.page_ids <= scope:
+        raise _not_found()
+    if loaded.window.suppress_alerts:
+        raise _forbidden(SUPPRESSING_WINDOW)
+    return loaded
+
+
+@router.post("/maintenance", status_code=status.HTTP_201_CREATED)
+def create_maintenance(
+    payload: IntegrationMaintenanceCreate, token: Token, db: Db, idempotency_key: IdempotencyKey = None,
+) -> Response:
+    def action():
+        if payload.suppress_alerts:
+            raise _forbidden(maintenance.TOKEN_SUPPRESS_DETAIL)
+        refs = [item.to_ref() for item in payload.items]
+        page_ids = _window_pages(db, refs, payload.pages, tokens.scope_page_ids(db, token.id))
+        window = maintenance.create_window(
+            db, TokenActor(token), payload.title, payload.description, payload.starts_at, payload.ends_at, refs,
+            page_ids, False,
+        )
+        return status.HTTP_201_CREATED, _window_body(db, window.id)
+
+    return _write(db, token, "maintenance_created", "-", idempotency_key, payload, action)
+
+
+@router.patch("/maintenance/{window_id}")
+def update_maintenance(window_id: int, payload: IntegrationMaintenanceUpdate, token: Token, db: Db) -> Response:
+    def action():
+        scope = tokens.scope_page_ids(db, token.id)
+        loaded = _owned_window(db, token.id, window_id, scope)
+        if payload.suppress_alerts:
+            raise _forbidden(maintenance.TOKEN_SUPPRESS_DETAIL)
+        changes = {name: getattr(payload, name) for name in payload.model_fields_set if name not in ("pages", "suppress_alerts")}
+        refs = [item.to_ref() for item in payload.items] if "items" in changes else [SourceRef.from_key(k) for k in loaded.keys]
+        if "items" in changes:
+            changes["items"] = refs
+        if "pages" in payload.model_fields_set:
+            changes["page_ids"] = _window_pages(db, refs, payload.pages, scope)
+        elif "items" in changes:
+            _item_audience(db, refs, scope)
+        maintenance.update_window(db, TokenActor(token), window_id, changes)
+        return status.HTTP_200_OK, _window_body(db, window_id)
+
+    return _write(db, token, "maintenance_updated", str(window_id), None, payload, action, idempotent=False)
+
+
+@router.delete("/maintenance/{window_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_maintenance(window_id: int, token: Token, db: Db) -> Response:
+    def action():
+        _owned_window(db, token.id, window_id, tokens.scope_page_ids(db, token.id))
+        maintenance.delete_window(db, TokenActor(token), window_id)
+        return status.HTTP_204_NO_CONTENT, None
+
+    return _write(db, token, "maintenance_deleted", str(window_id), None, None, action, idempotent=False)
