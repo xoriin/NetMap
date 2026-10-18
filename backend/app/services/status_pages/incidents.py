@@ -279,7 +279,10 @@ def add_update(
 
 
 def _mark_resolved(db: Session, incident: StatusIncident, actor: Actor, now: datetime) -> StatusIncidentUpdate:
+    from app.services.status_pages import evaluator
+
     incident.status, incident.resolved_at, incident.resolution_reason = "resolved", now, "manual"
+    evaluator.release_resolved(db, incident)
     event = _update_row(incident.id, actor, now, status_change="resolved", event_code="resolved_manual", event_data={})
     db.add(event)
     return event

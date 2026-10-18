@@ -17,6 +17,7 @@ from app.models.monitor_history import DeviceMonitorHistory
 from app.models.port_target import DevicePortTarget
 from app.models.site import Site
 from app.models.system_setting import SystemSetting
+from app.models.status_page import StatusPageItem
 from app.models.topology_group import TopologyGroup
 from app.models.user import User
 from app.schemas.monitoring import (
@@ -31,6 +32,8 @@ from app.schemas.monitoring import (
     PortTargetOrderConfig,
 )
 from app.services.monitoring.health import observed_health, observed_is_healthy
+from app.services.status_pages import evaluator as status_evaluator
+from app.services.status_pages import events as status_page_events
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 SERVICE_CHECK_ORDER_MODE_KEY = "service_check_order_mode"
@@ -649,7 +652,13 @@ def update_port_target(
     target.enabled = payload.enabled
     if _service_check_order_mode(db) == "alphabetical":
         _reindex_service_checks(db, "alphabetical")
+    pages: set[int] = set()
+    if target.device_id is not None:
+        pages = status_evaluator.remove_items_where(
+            db, StatusPageItem.port_target_id == target.id, StatusPageItem.device_id != target.device_id,
+        )
     db.commit()
+    status_page_events.notify_pages_changed(pages)
     db.refresh(target)
     return target
 
@@ -664,8 +673,10 @@ def delete_port_target(
     target = db.get(DevicePortTarget, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Port target not found")
+    pages = status_evaluator.remove_items_where(db, StatusPageItem.port_target_id == target_id)
     db.delete(target)
     db.commit()
+    status_page_events.notify_pages_changed(pages)
 
 
 @router.post("/devices/{device_id}/check", status_code=200)

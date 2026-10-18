@@ -2,7 +2,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_alert_write
@@ -13,7 +13,9 @@ from app.models.device import Device
 from app.models.monitor import Monitor
 from app.models.notification_delivery import NotificationDelivery
 from app.models.port_target import DevicePortTarget
+from app.models.status_page import OPEN_INCIDENT_DEFAULT_EVENTS, StatusBreachStreak
 from app.schemas.alert import (
+    INCIDENT_NEVER_EVENTS,
     AlertEventRead,
     AlertRuleCreate,
     AlertRuleRead,
@@ -30,6 +32,10 @@ from app.services.notifications import (
 )
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+
+
+def _open_incident(event_type: str, wanted: bool) -> bool:
+    return bool(wanted) and event_type not in INCIDENT_NEVER_EVENTS
 
 
 def _to_read(rule: AlertRule) -> AlertRuleRead:
@@ -72,6 +78,11 @@ def create_rule(
         threshold_ms=payload.threshold_ms,
         loss_pct_threshold=payload.loss_pct_threshold,
         loss_window_minutes=payload.loss_window_minutes,
+        open_incident=_open_incident(
+            payload.event_type,
+            payload.event_type in OPEN_INCIDENT_DEFAULT_EVENTS if payload.open_incident is None else payload.open_incident,
+        ),
+        incident_min_failures=payload.incident_min_failures,
     )
     db.add(rule)
     db.commit()
@@ -92,6 +103,9 @@ def update_rule(
     updates = payload.model_dump(exclude_unset=True)
     if "channels" in updates:
         updates["channels"] = json.dumps(updates["channels"])
+    for key in ("open_incident", "incident_min_failures"):
+        if key in updates and updates[key] is None:
+            del updates[key]
     if "device_id" in updates and updates["device_id"] is not None:
         if not db.get(Device, updates["device_id"]):
             raise HTTPException(status_code=404, detail="Device not found")
@@ -103,6 +117,7 @@ def update_rule(
             raise HTTPException(status_code=404, detail="Monitor not found")
     for key, value in updates.items():
         setattr(rule, key, value)
+    rule.open_incident = _open_incident(rule.event_type, rule.open_incident)
     if rule.event_type == "rtt_above" and rule.threshold_ms is None:
         raise HTTPException(status_code=422, detail="threshold_ms is required for rtt_above rules")
     if rule.event_type == "ping_loss_above" and rule.loss_pct_threshold is None:
@@ -125,6 +140,7 @@ def delete_rule(
     rule = db.get(AlertRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Alert rule not found")
+    db.execute(delete(StatusBreachStreak).where(StatusBreachStreak.rule_id == rule.id))
     db.delete(rule)
     db.commit()
 

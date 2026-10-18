@@ -26,6 +26,7 @@ from app.models.topology_group import TopologyGroup
 from app.models.topology_layout import TopologyLayout
 from app.models.user import User
 from app.models.user_device_favourite import UserDeviceFavourite
+from app.models.status_page import StatusPageItem
 from app.schemas.group import (
     DeviceBulkUpdateRequest,
     DeviceBulkUpdateResult,
@@ -62,6 +63,8 @@ from app.schemas.topology import (
 from app.schemas.tools import PingRequest
 from app.services.search import build_device_event_counts, correlation_window_start, list_recent_device_events
 from app.services.audit.service import write_audit
+from app.services.status_pages import evaluator as status_evaluator
+from app.services.status_pages import events as status_page_events
 from app.services.rbac.permissions import has_permission
 from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
@@ -1195,8 +1198,10 @@ def delete_device(
         target=f"device:{device.id}",
         detail=device.ip_address,
     )
+    pages = status_evaluator.remove_items_where(db, StatusPageItem.device_id == device_id)
     db.delete(device)
     db.commit()
+    status_page_events.notify_pages_changed(pages)
 
 
 def ensure_device_exists(db: Session, device_id: int) -> None:

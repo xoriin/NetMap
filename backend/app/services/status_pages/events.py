@@ -23,6 +23,6 @@ def notify_sources_checked(refs: Iterable[SourceRef]) -> None:
     from app.services.status_pages import cache
 
     try:
-        cache.status_cache.invalidate_sources(ref.key for ref in refs)
+        cache.status_cache.sources_checked(refs)
     except Exception:
         logger.exception("Could not schedule status page rebuilds for checked sources")

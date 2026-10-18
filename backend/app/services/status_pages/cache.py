@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.status_page import StatusPage, StatusPageItem
-from app.services.status_pages import worker_lock
+from app.services.status_pages import evaluator, worker_lock
 from app.services.status_pages.projection import build_page_payload
 from app.services.status_pages.sources import SourceRef
 
@@ -72,6 +72,7 @@ class StatusSnapshotCache:
         self._sources: dict[str, set[int]] = defaultdict(set)
         self._page_sources: dict[int, set[str]] = {}
         self._queue: dict[int, None] = {}
+        self._checked: dict[SourceRef, None] = {}
         self._building: int | None = None
         self._dirty: set[int] = set()
         self._retry_at: dict[int, datetime] = {}
@@ -194,6 +195,18 @@ class StatusSnapshotCache:
             for page_id in pages:
                 self._enqueue(page_id, dirty=True)
 
+    def sources_checked(self, refs: Iterable[SourceRef]) -> None:
+        with self._lock:
+            if not self.ready:
+                return
+            for ref in refs:
+                pages = self._sources.get(ref.key, ())
+                if not pages:
+                    continue
+                self._checked[ref] = None
+                for page_id in pages:
+                    self._enqueue(page_id, dirty=True)
+
     def pending(self) -> list[int]:
         with self._lock:
             return list(self._queue)
@@ -210,6 +223,7 @@ class StatusSnapshotCache:
     def drain(self, now: datetime | None = None) -> None:
         while (page_id := self._take(block=False)) is not None:
             try:
+                self._evaluate_checked(now or _now(), page_id)
                 self._build(page_id, now or _now())
             finally:
                 self._finish(page_id)
@@ -354,9 +368,23 @@ class StatusSnapshotCache:
             if self._by_id.get(entry.page_id) == entry:
                 self._retry_at[entry.page_id] = now + timedelta(seconds=TIMER_SECONDS)
 
+    def _evaluate_checked(self, now: datetime, building: int) -> None:
+        with self._lock:
+            refs, self._checked = list(self._checked), {}
+        if not refs:
+            return
+        try:
+            with SessionLocal() as db:
+                affected = evaluator.evaluate(db, refs, now)
+        except Exception:
+            logger.exception("Status page incident evaluation failed")
+            return
+        self.invalidate_pages(affected - {building})
+
     def _run_builder(self) -> None:
         while (page_id := self._take(block=True)) is not None:
             try:
+                self._evaluate_checked(_now(), page_id)
                 self._build(page_id, _now())
             finally:
                 self._finish(page_id)

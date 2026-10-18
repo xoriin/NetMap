@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.user import User
+from app.models.status_page import StatusPageItem
 from app.models.user_monitor_favourite import UserMonitorFavourite
 from app.schemas.monitor import (
     MonitorCheckHistoryRead,
@@ -18,6 +19,8 @@ from app.schemas.monitor import (
     MonitorUpdate,
 )
 from app.services.audit.service import write_audit
+from app.services.status_pages import evaluator as status_evaluator
+from app.services.status_pages import events as status_page_events
 from app.core.secrets import encrypt_secret
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
@@ -313,8 +316,10 @@ def delete_monitor(
         target=f"monitor:{monitor.id}",
         detail=monitor.name,
     )
+    pages = status_evaluator.remove_items_where(db, StatusPageItem.monitor_id == monitor_id)
     db.delete(monitor)
     db.commit()
+    status_page_events.notify_pages_changed(pages)
 
 
 @router.get("/{monitor_id}/history", response_model=list[MonitorCheckHistoryRead])

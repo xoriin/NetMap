@@ -14,6 +14,7 @@ from app.models.device import Device
 from app.models.ip_reservation import IpReservation
 from app.models.relationship import DeviceRelationship
 from app.models.site import Site
+from app.models.status_page import StatusPageItem
 from app.models.topology_group import TopologyGroup
 from app.models.user import User, UserRole
 from app.models.user_device_favourite import UserDeviceFavourite
@@ -38,6 +39,7 @@ def _session():
             DeviceRelationship.__table__,
             UserDeviceFavourite.__table__,
             AuditLog.__table__,
+            StatusPageItem.__table__,
         ],
     )
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)()

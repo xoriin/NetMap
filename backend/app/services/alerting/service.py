@@ -14,7 +14,7 @@ from app.db.retention import delete_rows_before
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
-from app.services.alerting.cooldown import cooldown_ok
+from app.services.alerting.cooldown import cooldown_ok, stamp_triggered
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.notification_delivery import NotificationDelivery
@@ -415,9 +415,7 @@ class AlertMonitorService:
         if rule_updates or new_events or new_deliveries:
             with SessionLocal() as db:
                 for rule_id, triggered_at in rule_updates:
-                    db_rule = db.get(AlertRule, rule_id)
-                    if db_rule:
-                        db_rule.last_triggered_at = triggered_at
+                    stamp_triggered(db, rule_id, triggered_at)
                 for event in new_events:
                     db.add(event)
                 for delivery in new_deliveries:

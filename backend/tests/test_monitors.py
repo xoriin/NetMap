@@ -28,6 +28,7 @@ from app.models.audit_log import AuditLog
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_profile import NotificationProfile
+from app.models.status_page import StatusPageItem
 from app.models.system_setting import SystemSetting
 from app.models.user_monitor_favourite import UserMonitorFavourite
 from app.schemas.monitor import MonitorCreate, MonitorUpdate
@@ -44,7 +45,7 @@ def _session():
             Monitor.__table__, MonitorCheckHistory.__table__, AlertRule.__table__,
             AlertEvent.__table__, NotificationDelivery.__table__, SystemSetting.__table__,
             NotificationProfile.__table__, AuditLog.__table__,
-            UserMonitorFavourite.__table__,
+            UserMonitorFavourite.__table__, StatusPageItem.__table__,
         ],
     )
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)()

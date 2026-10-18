@@ -9,6 +9,7 @@ VALID_EVENT_TYPES = {
     "rtt_above", "device_flapping", "ping_loss_above", "service_down", "service_slow",
     "monitor_down", "monitor_slow", "monitor_certificate_expiry",
 }
+INCIDENT_NEVER_EVENTS = {"device_online", "any_status_change", "device_expected_state_restored"}
 VALID_CHANNELS = {"smtp", "ntfy", "telegram", "signal"}
 PROFILE_TARGET_RE = re.compile(r"^profile:[1-9][0-9]*$")
 
@@ -25,6 +26,8 @@ class AlertRuleCreate(BaseModel):
     threshold_ms: int | None = Field(default=None, ge=1, le=60000)
     loss_pct_threshold: float | None = Field(default=None, ge=1, le=100)
     loss_window_minutes: int | None = Field(default=60, ge=5, le=1440)
+    open_incident: bool | None = None
+    incident_min_failures: int = Field(default=3, ge=1, le=20)
 
     @field_validator("event_type")
     @classmethod
@@ -66,6 +69,8 @@ class AlertRuleUpdate(BaseModel):
     threshold_ms: int | None = Field(None, ge=1, le=60000)
     loss_pct_threshold: float | None = Field(None, ge=1, le=100)
     loss_window_minutes: int | None = Field(None, ge=5, le=1440)
+    open_incident: bool | None = None
+    incident_min_failures: int | None = Field(None, ge=1, le=20)
 
     @field_validator("event_type")
     @classmethod
@@ -98,6 +103,8 @@ class AlertRuleRead(BaseModel):
     threshold_ms: int | None
     loss_pct_threshold: float | None
     loss_window_minutes: int | None
+    open_incident: bool
+    incident_min_failures: int
     last_triggered_at: datetime | None
     created_at: datetime
     updated_at: datetime
