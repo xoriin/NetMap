@@ -17,6 +17,8 @@ from app.models.status_page import (
     StatusIncidentAlias,
     StatusIncidentPage,
     StatusIncidentUpdate,
+    StatusIntegrationToken,
+    StatusIntegrationTokenPage,
     StatusNotice,
     StatusPage,
     StatusPageGroup,
@@ -37,9 +39,12 @@ from app.schemas.status_pages import (
     StatusPageDetail,
     StatusPageRead,
     StatusPageUpdate,
+    TokenCreate,
+    TokenCreated,
+    TokenRead,
 )
 from app.services.audit.service import write_audit
-from app.services.status_pages import events, incidents, notices
+from app.services.status_pages import events, incidents, notices, tokens
 from app.services.status_pages.cache import RegistryEntry, status_cache
 from app.services.status_pages.incidents import (
     PUBLISHED_EVENT,
@@ -284,6 +289,55 @@ def clear_any_notice(notice_id: int, current_user: CurrentUser, db: Db) -> None:
     except IncidentNotFound as exc:
         db.rollback()
         raise _service_error(exc)
+
+
+def _token_reads(db: Session, rows: list[StatusIntegrationToken]) -> list[dict]:
+    ids = [row.id for row in rows]
+    pages: dict[int, list[int]] = {i: [] for i in ids}
+    if ids:
+        for link in db.scalars(
+            select(StatusIntegrationTokenPage).where(StatusIntegrationTokenPage.token_id.in_(ids))
+            .order_by(StatusIntegrationTokenPage.page_id)
+        ):
+            pages[link.token_id].append(link.page_id)
+    creators = {u.id: u for u in db.scalars(select(User).where(
+        User.id.in_({row.created_by_user_id for row in rows if row.created_by_user_id is not None})
+    ))}
+    now = datetime.now(timezone.utc)
+    return [
+        {
+            "id": row.id, "name": row.name, "prefix": row.prefix, "page_ids": pages[row.id],
+            "created_by": creator.username if (creator := creators.get(row.created_by_user_id)) else None,
+            "created_at": row.created_at, "expires_at": row.expires_at, "revoked_at": row.revoked_at,
+            "last_used_at": row.last_used_at,
+            "active": tokens.is_active(row, now) and tokens.creator_may_manage(creator),
+        }
+        for row in rows
+    ]
+
+
+@router.get("/tokens", response_model=list[TokenRead])
+def list_tokens(_: CurrentUser, db: Db) -> list[dict]:
+    rows = list(db.scalars(select(StatusIntegrationToken).order_by(StatusIntegrationToken.created_at.desc(), StatusIntegrationToken.id.desc())))
+    return _token_reads(db, rows)
+
+
+@router.post("/tokens", response_model=TokenCreated, status_code=status.HTTP_201_CREATED)
+def create_token(payload: TokenCreate, current_user: CurrentUser, db: Db) -> dict:
+    try:
+        token, secret = tokens.create_token(db, current_user, payload.name, payload.page_ids, payload.expires_at)
+    except IncidentError as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return {**_token_reads(db, [token])[0], "secret": secret, "name_is_public": True}
+
+
+@router.delete("/tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_token(token_id: int, current_user: CurrentUser, db: Db) -> None:
+    token = db.get(StatusIntegrationToken, token_id)
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration token not found")
+    tokens.revoke_token(db, current_user, token)
 
 
 @router.get("/{page_id}/notices", response_model=list[NoticeRead])

@@ -284,3 +284,71 @@ class NoticeRead(BaseModel):
     author: str | None
     created_at: datetime
     expires_at: datetime | None
+
+
+class TokenCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        max_length=120,
+        description="Shown publicly as the author of this token's notices and incident updates, e.g. 'backup-server'.",
+    )
+    page_ids: list[int] = Field(min_length=1, max_length=100)
+    expires_at: datetime | None = None
+
+
+class TokenRead(BaseModel):
+    id: int
+    name: str
+    prefix: str
+    page_ids: list[int]
+    created_by: str | None
+    created_at: datetime
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    last_used_at: datetime | None
+    active: bool
+
+
+class TokenCreated(TokenRead):
+    secret: str = Field(description="Shown once. Send it as 'Authorization: Bearer <secret>'.")
+    name_is_public: bool = Field(
+        default=True, description="The token name is shown publicly as the author label on status pages.",
+    )
+
+
+class IntegrationIncidentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(max_length=200)
+    severity: IncidentSeverity
+    message: str = Field(max_length=5000)
+    items: list[ItemSource] = Field(default_factory=list, max_length=500)
+    pages: list[str] = Field(default_factory=list, max_length=100)
+    ticket_url: str | None = Field(default=None, max_length=2048)
+    ticket_label: str | None = Field(default=None, max_length=120)
+    is_public: bool = True
+
+    @model_validator(mode="after")
+    def _audience(self):
+        if bool(self.items) == bool(self.pages):
+            raise ValueError("Give either items or pages")
+        if self.ticket_label is not None and self.ticket_url is None:
+            raise ValueError("A ticket label needs a ticket_url")
+        return self
+
+
+class IntegrationIncidentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str | None = Field(default=None, max_length=5000)
+    status: IncidentStatus | None = None
+    ticket_url: str | None = Field(default=None, max_length=2048)
+    ticket_label: str | None = Field(default=None, max_length=120)
+    is_public: bool = True
+
+    @model_validator(mode="after")
+    def _ticket(self):
+        if self.ticket_label is not None and self.ticket_url is None:
+            raise ValueError("A ticket label needs a ticket_url")
+        return self
