@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -78,9 +80,18 @@ def _loss_window(rule: AlertRule) -> int:
     return rule.loss_window_minutes or DEFAULT_LOSS_WINDOW_MINUTES
 
 
+def _same_kind(rule: AlertRule, ref: SourceRef) -> bool:
+    kinds = {"device": DEVICE_EVENTS, "service_check": SERVICE_EVENTS, "monitor": MONITOR_EVENTS}
+    return rule.event_type in kinds.get(ref.kind, set())
+
+
 def predicate(rule: AlertRule, ref: SourceRef, observation: Observation) -> bool | None:
     if not applies(rule, ref):
         return None
+    return _condition(rule, ref, observation)
+
+
+def _condition(rule: AlertRule, ref: SourceRef, observation: Observation) -> bool | None:
     event, obs = rule.event_type, observation
     known_status = obs.status not in (None, "unknown")
     if event in ("device_offline", "device_unexpected_state", "service_down"):
@@ -114,8 +125,15 @@ def threshold(rule: AlertRule, monitor: Monitor | None = None) -> int:
     return base
 
 
+VERSION_FIELDS = (
+    "event_type", "enabled", "open_incident", "incident_min_failures", "device_id", "port_target_id", "monitor_id",
+    "threshold_ms", "loss_pct_threshold", "loss_window_minutes",
+)
+
+
 def rule_version(rule: AlertRule) -> str:
-    return _utc(rule.updated_at).isoformat() if rule.updated_at else ""
+    fields = [getattr(rule, name) for name in VERSION_FIELDS]
+    return hashlib.sha256(json.dumps(fields, default=str).encode()).hexdigest()[:40]
 
 
 def pages_in_maintenance(db: Session, refs: Iterable[SourceRef], now: datetime) -> set[tuple[str, int]]:
@@ -352,9 +370,12 @@ class _Evaluation:
         monitor_ids = {r.monitor_id for r in refs if r.kind == "monitor"}
         monitors = {m.id: m for m in db.scalars(select(Monitor).where(Monitor.id.in_(monitor_ids)))} if monitor_ids else {}
 
+        by_id = {r.id: r for r in rules}
         for ref in refs:
             pages = showing.get(ref.key, set())
             ref_rules = [r for r in active if applies(r, ref)]
+            self.clear_orphaned_rules(ref, pages - {p for k, p in maintenance if k == ref.key}, ref_rules, by_id,
+                                      states[ref], monitors.get(ref.monitor_id))
             if not pages or not ref_rules:
                 continue
             for page_id in pages:
@@ -372,10 +393,29 @@ class _Evaluation:
             affected |= pages
         return affected
 
+    def usable(self, state) -> bool:
+        return state.observed_at is not None and state.fresh_until is not None and self.now <= state.fresh_until
+
+    def clear_orphaned_rules(self, ref, pages, ref_rules, by_id, state, monitor) -> None:
+        """Clear detection only, for associations whose rule no longer opens incidents for this source."""
+        families = {CONDITION_FAMILY[r.event_type] for r in ref_rules}
+        latest: list[Observation] | None = None
+        for (key, family, page_id), assoc in self.associations.items():
+            if key != ref.key or page_id not in pages or family in families:
+                continue
+            rule = by_id.get(assoc.rule_id)
+            if rule is None or CONDITION_FAMILY.get(rule.event_type) != family or not _same_kind(rule, ref):
+                continue
+            if latest is None:
+                latest = _observations(self.db, ref, [rule], monitor, None, 1) if self.usable(state) else []
+            result = _condition(rule, ref, latest[-1]) if latest else None
+            assoc.cleared = result is False
+            if result is False:
+                self.cleared.add(assoc.incident_id)
+
     def evaluate_ref(self, ref, rules, pages, state, monitor, streaks) -> None:
-        db, now = self.db, self.now
-        usable = state.observed_at is not None and state.fresh_until is not None and now <= state.fresh_until
-        if not usable:
+        db = self.db
+        if not self.usable(state):
             for rule in rules:
                 for page_id in pages:
                     if (row := streaks.get((rule.id, ref.key, page_id))) is not None:
@@ -401,7 +441,6 @@ class _Evaluation:
         seen = [_utc(row.last_observed_at) for _, _, row in rows if row.last_observed_at is not None]
         since = min(seen) if seen else None
         samples = _observations(db, ref, rules, monitor, since, SCAN_ROWS if since else 1)
-        truncated = since is not None and len(samples) == SCAN_ROWS
 
         outcomes: dict[tuple[str, int], list[bool | None]] = defaultdict(list)
         for rule, page_id, row in rows:
@@ -414,7 +453,7 @@ class _Evaluation:
                 new = new[-1:]
             if not new:
                 continue
-            if truncated:
+            if last is not None and len(samples) == SCAN_ROWS and samples[0].at > last:
                 row.streak = 0
             result = None
             for sample in new:
@@ -464,21 +503,16 @@ class _Evaluation:
         for (rule_id, key), (rule, pages, streak) in sorted(wanted.items(), key=lambda kv: kv[0]):
             family = CONDITION_FAMILY[rule.event_type]
             rules[rule_id] = rule
-            existing = next(
-                (a for (k, f, _), a in sorted(self.associations.items(), key=lambda kv: kv[1].id) if k == key and f == family),
-                None,
-            )
-            if existing is not None:
-                self.grow(existing.incident_id, key, family, rule_id, sorted(pages), streak)
-            else:
-                groups[(rule_id, family, frozenset(pages))].append((key, streak))
+            groups[(rule_id, family, frozenset(pages))].append((key, streak))
 
         for (rule_id, family, pages), members in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1], sorted(kv[0][2]))):
             incident = self.group_target(rule_id, family, pages)
             keys = [key for key, _ in members]
             if incident is not None:
-                if self.attach(incident.id, keys, sorted(pages), rule_id, family):
-                    self.add_event(incident.id, "source_added", keys)
+                attached = self.attach(incident.id, keys, sorted(pages), rule_id, family)
+                if attached:
+                    self.add_event(incident.id, "source_added", attached)
+                    self.rebreached[incident.id].update(attached)
             else:
                 self.create(rules[rule_id], family, sorted(pages), keys, max(s for _, s in members))
 
@@ -548,19 +582,6 @@ class _Evaluation:
         savepoint.commit()
         self.add_event(incident.id, "opened", attached, count=streak)
 
-    def grow(self, incident_id: int, key: str, family: str, rule_id: int, pages: list[int], streak: int) -> None:
-        db = self.db
-        audience = incidents.audience_page_ids(db, incident_id)
-        for page_id in pages:
-            if page_id not in audience:
-                db.add(StatusIncidentPage(incident_id=incident_id, page_id=page_id))
-                db.add(incidents._update_row(
-                    incident_id, NETMAP, self.now, is_public=False, page_id=page_id, event_code=incidents.PUBLISHED_EVENT,
-                ))
-                db.flush()
-            if self.attach(incident_id, [key], [page_id], rule_id, family):
-                self.add_event(incident_id, "opened", [key], count=streak, page_id=page_id)
-
     def add_event(
         self, incident_id: int, code: str, keys: list[str], *, count: int | None = None, page_id: int | None = None,
         status: str | None = None,
@@ -583,10 +604,10 @@ class _Evaluation:
             incident = db.get(StatusIncident, incident_id)
             if incident is None or incident.status not in ("investigating", "identified"):
                 continue
-            flags = list(db.scalars(select(StatusIncidentSource.cleared).where(
-                StatusIncidentSource.incident_id == incident_id, StatusIncidentSource.active == True,  # noqa: E712
+            rows = list(db.execute(select(StatusIncidentSource.active, StatusIncidentSource.cleared).where(
+                StatusIncidentSource.incident_id == incident_id,
             )))
-            if flags and all(flags):
+            if any(row.active for row in rows) and all(row.cleared for row in rows):
                 incident.status = "monitoring"
                 db.add(incidents._update_row(
                     incident_id, NETMAP, self.now, status_change="monitoring", event_code="recovered", event_data={},

@@ -12,7 +12,7 @@ from app.db.retention import delete_rows_before
 from app.db.session import SessionLocal
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
-from app.services.alerting.cooldown import cooldown_ok, stamp_triggered
+from app.services.alerting.cooldown import cooldown_ok
 from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.notification_delivery import NotificationDelivery
 from app.services.monitoring.port_checker import check_url
@@ -254,7 +254,9 @@ class StandaloneMonitorService:
             if history_rows:
                 db.bulk_insert_mappings(MonitorCheckHistory, history_rows)
             for rule_id, triggered_at in rule_updates:
-                stamp_triggered(db, rule_id, triggered_at)
+                db_rule = db.get(AlertRule, rule_id)
+                if db_rule:
+                    db_rule.last_triggered_at = triggered_at
             for event in new_events:
                 db.add(event)
             for delivery in new_deliveries:

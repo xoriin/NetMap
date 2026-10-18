@@ -23,12 +23,12 @@ from app.models.status_page import (
     StatusIncidentPage,
     StatusIncidentSource,
     StatusIncidentUpdate,
+    StatusPage,
     StatusPageGroup,
     StatusPageItem,
 )
 from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
-from app.services.alerting.cooldown import stamp_triggered
 from app.services.monitoring.health import observed_is_healthy
 from app.services.status_pages import cache as cache_module
 from app.services.status_pages import evaluator, events, incidents, sources
@@ -190,9 +190,8 @@ def test_cooldown_and_failed_delivery_do_not_block_incident(db):
         rule_name=rule.name, device_id=router.id, target="profile:1", status="failed", detail="smtp down", sent_at=T0,
     ))
     db.commit()
-    version = rule.updated_at
     _cycle(db, T0, [(router, "offline")])
-    stamp_triggered(db, rule.id, T0 + timedelta(seconds=1))
+    rule.last_triggered_at = T0 + timedelta(seconds=1)
     db.commit()
     _cycle(db, T0 + STEP, [(router, "offline")])
     _cycle(db, T0 + 2 * STEP, [(router, "offline")])
@@ -201,7 +200,6 @@ def test_cooldown_and_failed_delivery_do_not_block_incident(db):
     assert _audience(db, incident) == {page.id}
     db.refresh(rule)
     assert rule.last_triggered_at.replace(tzinfo=timezone.utc) == T0 + timedelta(seconds=1)
-    assert rule.updated_at.replace(tzinfo=timezone.utc) == version
     assert db.scalar(select(NotificationDelivery.status)) == "failed"
 
 
@@ -418,23 +416,46 @@ def test_rule_edit_resets_streak(db):
     router = _device(db)
     page = seed_page(db, "main", items=[(_ref(router), "Router")])
     last = _fail(db, router, 2)
-    rule.name = "Router down"
+    rule.name, rule.channels, rule.cooldown_minutes = "Router down", '["profile:2"]', 5
     db.commit()
-    _cycle(db, last + STEP, [(router, "offline")])
-    assert _streak(db, rule, _ref(router), page).streak == 1
-    assert _incidents(db) == []
+    last = _fail(db, router, 1, start=last + STEP)
+    [incident] = _incidents(db)
+    assert _streak(db, rule, _ref(router), page).streak == 3
+
+    other = _device(db)
+    seed_page(db, "other", items=[(_ref(other), "Other")])
+    other_page = db.scalar(select(StatusPage).where(StatusPage.slug == "other"))
+    last = _fail(db, other, 2, start=last + STEP)
+    rule.incident_min_failures = 4
+    db.commit()
+    _cycle(db, last + STEP, [(other, "offline")])
+    assert _streak(db, rule, _ref(other), other_page).streak == 1
+    assert len(_incidents(db)) == 1
 
     rule.enabled = False
     db.commit()
     last = _fail(db, router, 4, start=last + 2 * STEP)
     assert _streak(db, rule, _ref(router), page).streak == 0
-    assert _incidents(db) == []
 
     rule.enabled, rule.open_incident = True, False
     db.commit()
-    _fail(db, router, 4, start=last + STEP)
-    assert _streak(db, rule, _ref(router), page).streak == 0
-    assert _incidents(db) == []
+    _fail(db, other, 4, start=last + STEP)
+    assert _streak(db, rule, _ref(other), other_page).streak == 0
+    assert len(_incidents(db)) == 1
+
+
+def test_rule_version_tracks_only_breach_defining_fields(db):
+    rule = _rule(db, "rtt_above", threshold_ms=100)
+    version = evaluator.rule_version(rule)
+    rule.name, rule.channels, rule.cooldown_minutes, rule.last_triggered_at = "x", '["smtp"]', 9, T0
+    assert evaluator.rule_version(rule) == version
+    for field, value in (("threshold_ms", 200), ("device_id", 5), ("enabled", False), ("open_incident", False),
+                         ("incident_min_failures", 4), ("event_type", "service_slow")):
+        before = getattr(rule, field)
+        setattr(rule, field, value)
+        assert evaluator.rule_version(rule) != version, field
+        setattr(rule, field, before)
+    assert evaluator.rule_version(rule) == version
 
 
 def test_threshold_predicates_reuse_the_source_functions(db, monkeypatch):
@@ -475,31 +496,121 @@ def test_service_and_latency_rules_open_their_own_families(db):
     }
 
 
-def test_audience_growth_writes_published_marker(db):
+def test_later_page_gets_its_own_incident_not_audience_growth(db):
     _rule(db)
     router = _device(db)
     one = seed_page(db, "one", visibility="private", items=[(_ref(router), "Router")])
     last = _fail(db, router, 3)
-    [incident] = _incidents(db)
-    db.add(incidents._update_row(incident.id, incidents.NetmapActor(), last, message="Internal note", is_public=False))
-    db.commit()
+    [first] = _incidents(db)
 
     two = seed_page(db, "two", visibility="private")
     group = db.scalar(select(StatusPageGroup).where(StatusPageGroup.page_id == two.id))
     db.add(StatusPageItem(page_id=two.id, group_id=group.id, kind="device", device_id=router.id, display_name="Core"))
     db.commit()
     last = _fail(db, router, 3, start=last + STEP)
+    old, new = _incidents(db)
+    assert old.id == first.id
+    assert (_audience(db, old), _audience(db, new)) == ({one.id}, {two.id})
+    assert _events(db, old) == ["opened"]
+    assert _sources(db, old) == [(_ref(router).key, one.id)]
+    assert _sources(db, new) == [(_ref(router).key, two.id)]
+    assert [t for t, _ in _shown(db, one, last)] == ["Router unavailable"]
+    assert _shown(db, two, last) == [("Core unavailable", ["Core failing (3 consecutive checks).", ])]
+
+
+def test_source_joining_a_monitoring_incident_returns_it_to_investigating(db):
+    _rule(db)
+    a, b = _device(db), _device(db)
+    page = seed_page(db, "main", items=[(_ref(a), "A"), (_ref(b), "B")])
+    for i in range(3):
+        _cycle(db, T0 + i * STEP, [(a, "offline"), (b, "online")])
+    _cycle(db, T0 + 3 * STEP, [(a, "online"), (b, "offline")])
+    [incident] = _incidents(db)
+    assert incident.status == "monitoring"
+    _cycle(db, T0 + 4 * STEP, [(a, "online"), (b, "offline")])
+    assert _cycle(db, T0 + 5 * STEP, [(a, "online"), (b, "offline")]) == {page.id}
     assert len(_incidents(db)) == 1
-    assert _audience(db, incident) == {one.id, two.id}
-    markers = db.scalars(select(StatusIncidentUpdate).where(
-        StatusIncidentUpdate.incident_id == incident.id, StatusIncidentUpdate.event_code == "published",
-    )).all()
-    assert [m.page_id for m in markers] == [two.id]
-    [(title, messages)] = _shown(db, two, last)
-    assert title == "Core unavailable"
-    assert "Internal note" not in messages
-    assert messages == ["Core failing (3 consecutive checks)."]
-    assert "Internal note" in _shown(db, one, last)[0][1]
+    assert incident.status == "investigating"
+    assert _events(db, incident) == ["opened", "recovered", "source_added", "rebreached"]
+    [(_, messages)] = _shown(db, page, T0 + 5 * STEP)
+    assert messages[-2:] == ["B is also affected.", "B is failing again."]
+
+
+def test_removed_breaching_source_blocks_automatic_recovery(db):
+    _rule(db)
+    a, b = _device(db), _device(db)
+    page = seed_page(db, "main", items=[(_ref(a), "A"), (_ref(b), "B")])
+    for i in range(3):
+        _cycle(db, T0 + i * STEP, [(a, "offline"), (b, "offline")])
+    _cycle(db, T0 + 3 * STEP, [(a, "online"), (b, "offline")])
+    [incident] = _incidents(db)
+    evaluator.remove_items_where(db, StatusPageItem.device_id == b.id)
+    db.commit()
+    _cycle(db, T0 + 4 * STEP, [(a, "online")])
+    _cycle(db, T0 + 5 * STEP, [(a, "online")])
+    assert incident.status == "investigating"
+    assert _events(db, incident) == ["opened", "source_removed"]
+    assert page.id in _audience(db, incident)
+
+
+def test_removed_cleared_source_does_not_block_recovery(db):
+    _rule(db)
+    a, b = _device(db), _device(db)
+    seed_page(db, "main", items=[(_ref(a), "A"), (_ref(b), "B")])
+    for i in range(3):
+        _cycle(db, T0 + i * STEP, [(a, "offline"), (b, "offline")])
+    _cycle(db, T0 + 3 * STEP, [(a, "offline"), (b, "online")])
+    evaluator.remove_items_where(db, StatusPageItem.device_id == b.id)
+    db.commit()
+    _cycle(db, T0 + 4 * STEP, [(a, "online")])
+    [incident] = _incidents(db)
+    assert incident.status == "monitoring"
+
+
+def test_truncation_is_decided_per_streak_row(db):
+    behind = _rule(db, incident_min_failures=20)
+    current = _rule(db, incident_min_failures=20)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    for i in range(60):
+        _check(db, router, T0 + i * STEP)
+    for rule, last, streak in ((behind, T0 - timedelta(hours=1), 0), (current, T0 + 57 * STEP, 2)):
+        db.add(StatusBreachStreak(rule_id=rule.id, source_key=_ref(router).key, page_id=page.id, streak=streak,
+                                  last_observed_at=last, rule_version=evaluator.rule_version(rule)))
+    db.commit()
+    evaluator.evaluate(db, [_ref(router)], T0 + 59 * STEP)
+    assert _streak(db, current, _ref(router), page).streak == 4
+    assert _streak(db, behind, _ref(router), page).streak == 50
+
+
+def test_disabled_rule_still_lets_its_incident_recover(db):
+    rule = _rule(db)
+    router = _device(db)
+    seed_page(db, "main", items=[(_ref(router), "Router")])
+    last = _fail(db, router, 3)
+    [incident] = _incidents(db)
+    rule.enabled = False
+    db.commit()
+    _fail(db, router, 1, start=last + STEP)
+    assert incident.status == "investigating"
+    _cycle(db, last + 2 * STEP, [(router, "online")])
+    assert incident.status == "monitoring"
+    assert _events(db, incident) == ["opened", "recovered"]
+    _fail(db, router, 4, start=last + 3 * STEP)
+    assert incident.status == "monitoring"
+    assert len(_incidents(db)) == 1
+
+
+def test_deleted_rule_leaves_its_incident_for_a_person(db):
+    rule = _rule(db)
+    router = _device(db)
+    seed_page(db, "main", items=[(_ref(router), "Router")])
+    last = _fail(db, router, 3)
+    [incident] = _incidents(db)
+    db.delete(rule)
+    db.commit()
+    _cycle(db, last + STEP, [(router, "online")])
+    assert incident.status == "investigating"
 
 
 def test_maintenance_seam_resets_only_that_page(db, monkeypatch):
@@ -724,50 +835,3 @@ def test_deleting_a_rule_removes_its_streaks(api, db):
     assert api.delete(f"/api/v1/alerts/rules/{rule.id}").status_code == 204
     db.expire_all()
     assert db.query(StatusBreachStreak).count() == 0
-
-
-def test_notification_stamps_keep_the_rule_version(monkeypatch):
-    from types import SimpleNamespace
-
-    from app.models.device import Device
-    from app.models.monitor import Monitor
-    from app.services.alerting import service as alerting_service
-    from app.services.monitoring.port_checker import CheckResult
-    from app.services.monitors import service as monitors_service
-
-    db = make_session()
-    factory = sessionmaker(bind=db.get_bind(), autoflush=False, expire_on_commit=False)
-    db.add(Device(id=1, ip_address="10.0.0.1", status="online", lifecycle="active", monitoring_paused=False))
-    db.add(Monitor(
-        id=7, name="Site", url="https://example.test/", http_method="GET", expected_status_min=200,
-        expected_status_max=399, timeout_seconds=5.0, check_interval_seconds=30, max_retries=0, enabled=True,
-        consecutive_failures=0,
-    ))
-    device_rule = _rule(db, "rtt_above", threshold_ms=1)
-    monitor_rule = _rule(db, "monitor_slow", threshold_ms=1)
-    versions = {device_rule.id: device_rule.updated_at, monitor_rule.id: monitor_rule.updated_at}
-
-    for module in (alerting_service, monitors_service):
-        monkeypatch.setattr(module, "SessionLocal", factory)
-        monkeypatch.setattr(module, "load_notification_settings", lambda db: {})
-        monkeypatch.setattr(module, "list_notification_profiles", lambda *a, **kw: [])
-    monkeypatch.setattr(events, "notify_sources_checked", lambda refs: None)
-    monkeypatch.setattr(alerting_service, "check_port", lambda *a, **kw: SimpleNamespace(
-        open=True, response_time_ms=1, status_code=None, error=None,
-    ))
-    monkeypatch.setattr(monitors_service, "check_url", lambda *a, **k: CheckResult(open=True, response_time_ms=5.0, status_code=200))
-    worker = alerting_service.AlertMonitorService()
-    monkeypatch.setattr(worker, "_prune_history", lambda: None)
-    monkeypatch.setattr(worker, "_get_app_name", lambda db: "NetMap")
-    monkeypatch.setattr(worker, "_probe_device_status", lambda d: ("online", 5.0))
-    worker._check()
-    worker._check()
-    monitor_worker = monitors_service.StandaloneMonitorService()
-    monkeypatch.setattr(monitor_worker, "_prune_history", lambda: None)
-    monitor_worker._tick()
-
-    with factory() as check:
-        for rule in check.scalars(select(AlertRule)):
-            assert rule.last_triggered_at is not None
-            assert rule.updated_at.replace(tzinfo=timezone.utc) == versions[rule.id]
-    db.close()
