@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.status_page import StatusPage, StatusPageItem
-from app.services.status_pages import evaluator, worker_lock
+from app.services.status_pages import evaluator, retention, worker_lock
 from app.services.status_pages.projection import build_page_payload
 from app.services.status_pages.sources import SourceRef
 
@@ -24,6 +24,7 @@ TIMER_SECONDS = 15
 REFRESH_LEAD = timedelta(seconds=2)
 MIN_TIMER_WAIT = 0.05
 JOIN_TIMEOUT = 10
+PRUNE_INTERVAL = timedelta(hours=24)
 
 _ITEM_SOURCE = (
     StatusPageItem.page_id, StatusPageItem.kind, StatusPageItem.device_id,
@@ -80,6 +81,7 @@ class StatusSnapshotCache:
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._locked = False
+        self._last_prune: datetime | None = None
         self.ready = False
 
     def start(self, data_dir: str | None = None, timer: bool = True) -> None:
@@ -245,6 +247,15 @@ class StatusSnapshotCache:
                 self._enqueue(page_id, dirty=False)
             return due
 
+    def maybe_prune(self, now: datetime) -> None:
+        if self._last_prune is not None and now - self._last_prune < PRUNE_INTERVAL:
+            return
+        self._last_prune = now
+        try:
+            retention.prune(SessionLocal, now)
+        except Exception:
+            logger.exception("Status page retention prune failed")
+
     def timer_delay(self, now: datetime) -> float:
         with self._lock:
             times = []
@@ -395,6 +406,7 @@ class StatusSnapshotCache:
             now = _now()
             try:
                 self.run_timer_once(now)
+                self.maybe_prune(now)
                 delay = self.timer_delay(now)
             except Exception:
                 logger.exception("Status page timer run failed")
