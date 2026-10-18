@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { FileUp, Settings } from "lucide-react";
+import { FileUp, Palette, Settings } from "lucide-react";
 import {
   IconCloud, IconDatabase,
   IconServer,
@@ -15,6 +15,73 @@ import { triggerDownload } from "../../../utils/download";
 import { fmtBytes, legacyChannelLabels, notificationProfileMethodLabel } from "../notificationProfiles";
 import { EncryptedBackupModal } from "../EncryptedBackupModal";
 import { PanelSkeleton } from "../../../components/Skeleton";
+import { StatusCssErrors } from "../../status-pages/StatusCssErrors";
+import { cssErrors, statusPageDefaultCssApi } from "../../status-pages/statusPagesEditorApi";
+
+function StatusPageDefaultCssCard({ accessToken, onError, onSuccess }: {
+  accessToken: string;
+  onError: (message: string | null) => void;
+  onSuccess: (message: string | null) => void;
+}) {
+  const [css, setCss] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    statusPageDefaultCssApi.get(accessToken)
+      .then((result) => { if (!cancelled) setCss(result.css ?? ""); })
+      .catch((err) => { if (!cancelled) { setCss(""); onError(err instanceof Error ? err.message : "Unable to load the default status page CSS"); } });
+    return () => { cancelled = true; };
+  }, [accessToken, onError]);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (css === null) return;
+    setBusy(true);
+    setProblems([]);
+    try {
+      const result = await statusPageDefaultCssApi.save(accessToken, css.trim() ? css : null);
+      setCss(result.css ?? "");
+      onSuccess("Default status page CSS saved");
+    } catch (err) {
+      const found = cssErrors(err);
+      if (found) setProblems(found);
+      else onError(err instanceof Error ? err.message : "Unable to save the default status page CSS");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel admin-panel nm-app-panel admin-system-card">
+      <div className="admin-system-card-header nm-app-panel-header">
+        <h2 className="admin-section-title"><Palette size={16} />Status page default CSS</h2>
+      </div>
+      {css === null ? <div className="admin-system-card-body"><PanelSkeleton lines={4} /></div> : (
+        <form className="tool-form admin-system-card-body" onSubmit={(event) => void save(event)}>
+          <label>
+            Default CSS for new status pages
+            <textarea
+              rows={8}
+              spellCheck={false}
+              value={css}
+              placeholder=".sp-row { … }"
+              aria-invalid={problems.length > 0 || undefined}
+              aria-describedby={problems.length > 0 ? "status-default-css-errors" : undefined}
+              onChange={(event) => { setProblems([]); setCss(event.target.value); }}
+            />
+            <span className="tool-note tool-note--hint">Copied into each new status page when it is created. Existing pages keep their own CSS.</span>
+          </label>
+          {problems.length > 0 && <StatusCssErrors id="status-default-css-errors" errors={problems} />}
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy}>
+            {busy ? "Saving…" : "Save default CSS"}
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
 
 export function SystemTab({
   accessToken,
@@ -553,6 +620,7 @@ export function SystemTab({
               )}
             </div>
           </section>
+          <StatusPageDefaultCssCard accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
         </div>
         <div className="system-tab-col">
           {versionInfo && (

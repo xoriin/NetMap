@@ -2,7 +2,7 @@ import type {
   StatusAvailability, StatusBeat, StatusIncident, StatusItemState, StatusMaintenanceWindow, StatusNotice,
   StatusPageGroupPayload, StatusPastEntry, StatusPastMaintenance, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
 } from "../statusPagesApi";
-import { RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
+import { REDUCED_MOTION_OVERRIDE, RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
 export type BuildStatusOptions = { css: string | null; now: Date; colorScheme?: StatusColorScheme };
 
@@ -460,7 +460,12 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   const titleNode = doc.head.querySelector("title");
   if (titleNode) titleNode.textContent = payload.title;
   doc.head.append(b.el("style", null, builtinStyles(options.colorScheme ?? null)));
-  if (options.css && !options.css.includes("<")) doc.head.append(b.el("style", null, options.css));
+  if (options.css && !options.css.includes("<")) {
+    const custom = b.el("style", null, options.css);
+    custom.dataset.spCustom = "";
+    doc.head.append(custom);
+  }
+  doc.head.append(b.el("style", null, REDUCED_MOTION_OVERRIDE));
 
   const page = b.el("main", "sp-page");
   if (payload.accent && ACCENT_PATTERN.test(payload.accent)) page.style.setProperty("--sp-page-accent", payload.accent);

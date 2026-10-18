@@ -23,6 +23,7 @@ dependencies = [
   "apprise>=1.9.0",
   "httpx>=0.27.0",
   "pyotp>=2.9.0",
+  "tinycss2>=1.4.0",
 ]
 
 [project.optional-dependencies]

@@ -16,6 +16,7 @@ from app.models.device_type import DeviceType
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.services.audit.service import write_audit
+from app.api.v1.status_pages import DEFAULT_CSS_KEY, checked_css
 from app.schemas.admin import (
     CloudProviderCreate,
     CloudProviderRead,
@@ -33,6 +34,7 @@ from app.schemas.admin import (
     RolePermissionsResponse,
     RolePermissionsUpdate,
     PublicSettingsRead,
+    StatusPageDefaultCss,
     SystemSettingsRead,
     SystemSettingsUpdate,
     TestNotificationRequest,
@@ -432,6 +434,36 @@ def update_settings(
             )
     _save(db, DEFAULTS, updates)
     return SystemSettingsRead(**load_settings(db))
+
+
+@router.get("/status-page-default-css", response_model=StatusPageDefaultCss)
+def get_status_page_default_css(
+    _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StatusPageDefaultCss:
+    row = db.get(SystemSetting, DEFAULT_CSS_KEY)
+    return StatusPageDefaultCss(css=row.value if row and row.value else None)
+
+
+@router.put("/status-page-default-css", response_model=StatusPageDefaultCss)
+def update_status_page_default_css(
+    payload: StatusPageDefaultCss,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> StatusPageDefaultCss:
+    css = checked_css(payload.css)
+    row = db.get(SystemSetting, DEFAULT_CSS_KEY)
+    if css is None:
+        if row is not None:
+            db.delete(row)
+    elif row is not None:
+        row.value = css
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(SystemSetting(key=DEFAULT_CSS_KEY, value=css, updated_at=datetime.now(timezone.utc)))
+    write_audit(db, "admin.status_page_default_css_changed", current_user.id, detail=f"bytes={len(css or '')}")
+    db.commit()
+    return StatusPageDefaultCss(css=css)
 
 
 @router.get("/notification-settings", response_model=NotificationSettings)

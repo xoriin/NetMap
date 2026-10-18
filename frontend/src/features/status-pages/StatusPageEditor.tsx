@@ -10,8 +10,9 @@ import {
   StatusEditorPanelHeader, StatusPageLayoutEditor, draftFromDetail, layoutPayload, layoutProblems, type DraftGroup,
 } from "./StatusPageLayoutEditor";
 import { statusPagePath, type StatusPagePayload } from "./statusPagesApi";
+import { StatusCssErrors } from "./StatusCssErrors";
 import {
-  SLUG_HINT, isValidAccent, isValidSlug, statusPagesEditorApi,
+  SLUG_HINT, cssErrors, isValidAccent, isValidSlug, statusPagesEditorApi,
   type StatusPageDetail, type StatusPageSettings, type StatusPreviewAudience, type StatusSources,
 } from "./statusPagesEditorApi";
 
@@ -34,6 +35,7 @@ type SettingsDraft = {
   accent: string;
   heartbeat_window: StatusPageSettings["heartbeat_window"];
   logo: string | null;
+  custom_css: string;
 };
 
 function settingsDraft(page: StatusPageDetail): SettingsDraft {
@@ -45,6 +47,7 @@ function settingsDraft(page: StatusPageDetail): SettingsDraft {
     accent: page.accent ?? "",
     heartbeat_window: page.heartbeat_window,
     logo: page.logo,
+    custom_css: page.custom_css ?? "",
   };
 }
 
@@ -57,6 +60,7 @@ function settingsChanges(page: StatusPageDetail, draft: SettingsDraft): Partial<
     accent: draft.accent ? draft.accent.toLowerCase() : null,
     heartbeat_window: draft.heartbeat_window,
     logo: draft.logo,
+    custom_css: draft.custom_css.trim() ? draft.custom_css : null,
   };
   const changes: Partial<StatusPageSettings> = {};
   (Object.keys(next) as (keyof StatusPageSettings)[]).forEach((key) => {
@@ -86,6 +90,8 @@ function SettingsForm({
   dirty,
   slugError,
   onSlugEdit,
+  cssErrors: cssProblems,
+  onCssEdit,
   onSave,
   onReset,
 }: {
@@ -95,6 +101,8 @@ function SettingsForm({
   dirty: boolean;
   slugError: string | null;
   onSlugEdit: () => void;
+  cssErrors: string[];
+  onCssEdit: () => void;
   onSave: () => void;
   onReset: () => void;
 }) {
@@ -218,6 +226,23 @@ function SettingsForm({
           </select>
           <small className="status-editor-hint">The span covered by each row's heartbeat bar.</small>
         </label>
+        <div className="nm-field">
+          <label className="nm-field-label" htmlFor="status-page-css">Custom CSS</label>
+          <textarea
+            id="status-page-css"
+            className="nm-textarea"
+            rows={10}
+            spellCheck={false}
+            value={draft.custom_css}
+            placeholder=".sp-row { … }"
+            aria-invalid={cssProblems.length > 0 || undefined}
+            aria-describedby={cssProblems.length > 0 ? "status-page-css-errors" : "status-page-css-hint"}
+            onChange={(event) => { onCssEdit(); update("custom_css", event.target.value); }}
+          />
+          {cssProblems.length > 0
+            ? <StatusCssErrors id="status-page-css-errors" className="status-editor-css-errors" errors={cssProblems} />
+            : <small id="status-page-css-hint" className="status-editor-hint">Applies only to this status page, using the .sp-* classes. Links, images, fonts and imports are not allowed.</small>}
+        </div>
         <div className="status-editor-actions">
           <button type="button" className="nm-btn nm-btn--secondary" disabled={!dirty || saving} onClick={onReset}>Discard changes</button>
           <button type="submit" className="nm-btn nm-btn--primary" disabled={!dirty || invalid || saving}>
@@ -289,6 +314,7 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [slugError, setSlugError] = useState<string | null>(null);
+  const [cssProblems, setCssProblems] = useState<string[]>([]);
   const [groups, setGroups] = useState<DraftGroup[]>([]);
   const [savedLayout, setSavedLayout] = useState("[]");
   const [savingLayout, setSavingLayout] = useState(false);
@@ -323,6 +349,7 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
     if (!page || !draft) return;
     setSavingSettings(true);
     setSlugError(null);
+    setCssProblems([]);
     try {
       const saved = await statusPagesEditorApi.update(accessToken, page.id, settingsChanges(page, draft));
       const next = { ...page, ...saved };
@@ -330,7 +357,9 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
       setDraft(settingsDraft(next));
       toast.success("Settings saved");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setSlugError("Another status page already uses this slug.");
+      const problems = cssErrors(err);
+      if (problems) setCssProblems(problems);
+      else if (err instanceof ApiError && err.status === 409) setSlugError("Another status page already uses this slug.");
       else toast.error(err instanceof Error ? err.message : "Unable to save settings");
     } finally {
       setSavingSettings(false);
@@ -414,8 +443,10 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
               dirty={settingsDirty}
               slugError={slugError}
               onSlugEdit={() => setSlugError(null)}
+              cssErrors={cssProblems}
+              onCssEdit={() => setCssProblems([])}
               onSave={() => void saveSettings()}
-              onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); }}
+              onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); setCssProblems([]); }}
             />
           </div>
         )}

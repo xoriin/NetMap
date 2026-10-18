@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.status_page import StatusPage, StatusPageGroup, StatusPageItem
 from app.services.status_pages import maintenance
+from app.services.status_pages.css import validate_css
 from app.services.status_pages.incidents import PAST_WINDOW, PageLocal, load_page_incidents, project_incident
 from app.services.status_pages.notices import live_notices
 from app.services.status_pages.history import (
@@ -243,7 +244,7 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
         "accent": page.accent,
         "logo": page.logo,
         "heartbeat_window": page.heartbeat_window,
-        "custom_css": None,
+        "custom_css": (validate_css(page.custom_css).css or None) if page.custom_css else None,
         "generated_at": now.isoformat(),
         "valid_until": next_deadline(
             page, now, states.values(), [*(n.expires_at for n in notices if n.expires_at), *age_outs], edges,

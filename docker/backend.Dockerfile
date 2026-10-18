@@ -33,7 +33,8 @@ RUN pip install --no-cache-dir --upgrade pip \
        "reportlab~=4.4" \
        "apprise~=1.9" \
        "httpx>=0.27.0" \
-       "pyotp~=2.9"
+       "pyotp~=2.9" \
+       "tinycss2~=1.4"
 
 COPY backend/app ./app
 

@@ -1,4 +1,4 @@
-import { apiRequest } from "../../api/client";
+import { ApiError, apiRequest } from "../../api/client";
 import type { StatusHeartbeatWindow, StatusPagePayload } from "./statusPagesApi";
 
 export type StatusPageVisibility = "public" | "private";
@@ -59,7 +59,14 @@ export type StatusPageSettings = {
   accent: string | null;
   heartbeat_window: StatusHeartbeatWindow;
   logo: string | null;
+  custom_css: string | null;
 };
+
+export function cssErrors(err: unknown): string[] | null {
+  if (!(err instanceof ApiError) || err.status !== 422 || !err.detail || typeof err.detail !== "object") return null;
+  const errors = (err.detail as { css_errors?: unknown }).css_errors;
+  return Array.isArray(errors) ? errors.map(String) : null;
+}
 
 export type StatusServiceCheckSource = { id: number; label: string; port: number; check_type: string; enabled: boolean; global: boolean };
 export type StatusDeviceSource = { id: number; name: string; ip_address: string | null; service_checks: StatusServiceCheckSource[] };
@@ -68,6 +75,12 @@ export type StatusSources = { devices: StatusDeviceSource[]; monitors: StatusMon
 
 const BASE = "/api/v1/status-pages";
 const json = (body: unknown) => JSON.stringify(body);
+
+export const statusPageDefaultCssApi = {
+  get: (token: string) => apiRequest<{ css: string | null }>("/api/v1/admin/status-page-default-css", { token }),
+  save: (token: string, css: string | null) =>
+    apiRequest<{ css: string | null }>("/api/v1/admin/status-page-default-css", { method: "PUT", token, body: json({ css }) }),
+};
 
 export const statusPagesEditorApi = {
   list: (token: string) => apiRequest<StatusPageSummary[]>(BASE, { token }),

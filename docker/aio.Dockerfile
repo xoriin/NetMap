@@ -67,6 +67,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "apprise~=1.9" \
        "httpx>=0.27.0" \
        "pyotp~=2.9" \
+       "tinycss2~=1.4" \
   && python -m pip uninstall -y pip setuptools
 
 COPY backend/app ./app

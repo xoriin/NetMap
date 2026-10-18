@@ -214,6 +214,12 @@ details[open] > .sp-section-title { border-bottom: 1px solid var(--sp-border); }
 }
 `;
 
+export const REDUCED_MOTION_OVERRIDE = `@layer sp-reduced-motion {
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, *::marker { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+}`;
+
 export type StatusColorScheme = "light" | "dark" | null;
 
 export function builtinStyles(scheme: StatusColorScheme): string {

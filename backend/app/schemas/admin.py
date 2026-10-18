@@ -119,6 +119,10 @@ class SystemSettingsUpdate(BaseModel):
         return v
 
 
+class StatusPageDefaultCss(BaseModel):
+    css: str | None = Field(default=None, max_length=200_000)
+
+
 class NotificationSettings(BaseModel):
     ntfy_url: str = ""
     ntfy_token: str = ""

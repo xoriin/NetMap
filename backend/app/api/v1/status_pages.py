@@ -49,6 +49,7 @@ from app.schemas.status_pages import (
 from app.services.audit.service import write_audit
 from app.services.status_pages import events, incidents, maintenance, notices, tokens
 from app.services.status_pages.cache import RegistryEntry, status_cache
+from app.services.status_pages.css import validate_css
 from app.services.status_pages.incidents import (
     PUBLISHED_EVENT,
     IncidentConflict,
@@ -66,6 +67,18 @@ DEFAULT_CSS_KEY = "status_page_default_css"
 
 CurrentUser = Annotated[User, Depends(require_status_page_manage)]
 Db = Annotated[Session, Depends(get_db)]
+
+
+def checked_css(text: str | None) -> str | None:
+    if text is None or not text.strip():
+        return None
+    result = validate_css(text)
+    if not result.ok:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "Custom CSS was not saved", "css_errors": result.errors},
+        )
+    return text
 
 
 def _registry_entry(page: StatusPage) -> RegistryEntry:
@@ -479,6 +492,8 @@ def get_page(page_id: int, _: CurrentUser, db: Db) -> StatusPageDetail:
 def update_page(page_id: int, payload: StatusPageUpdate, current_user: CurrentUser, db: Db) -> StatusPage:
     page = _get_page(db, page_id)
     changes = {field: getattr(payload, field) for field in payload.model_fields_set}
+    if "custom_css" in changes:
+        changes["custom_css"] = checked_css(changes["custom_css"])
     if "slug" in changes and changes["slug"] != page.slug and _slug_taken(db, changes["slug"], page.id):
         raise _slug_conflict()
     bump = any(field in changes and changes[field] != getattr(page, field) for field in ("slug", "visibility"))
