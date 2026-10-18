@@ -1,10 +1,14 @@
+"""Inbound status API for page-scoped integration tokens; every call is audited except 401 (no token identity) and 429 (flood protection)."""
+
 import hashlib
 import json
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -12,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.network import request_client_ip
 from app.db.session import get_db
 from app.models.status_page import (
     StatusIdempotencyKey,
@@ -22,12 +27,38 @@ from app.models.status_page import (
     StatusPageItem,
 )
 from app.schemas.status_pages import IncidentResolve, IntegrationIncidentCreate, IntegrationIncidentUpdate, NoticeSet
+from app.services.api_keys.throttle import clear_lookup_failures, is_lookup_locked, record_lookup_failure
 from app.services.audit.service import write_audit
 from app.services.status_pages import incidents, notices, tokens
 from app.services.status_pages.incidents import IncidentConflict, IncidentError, IncidentNotFound, Ticket, TokenActor
 from app.services.status_pages.sources import SourceRef
 
-router = APIRouter(prefix="/status-integrations", tags=["status-integrations"])
+_OPS = {
+    "set_notice": "notice_set",
+    "clear_notice": "notice_cleared",
+    "open_incident": "incident_opened",
+    "add_incident_update": "incident_updated",
+    "resolve_incident": "incident_resolved",
+}
+
+
+class AuditedRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def audited(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                refuse = getattr(request.state, "status_integration_refuse", None)
+                if refuse is not None:
+                    refuse(status.HTTP_422_UNPROCESSABLE_CONTENT)
+                raise
+
+        return audited
+
+
+router = APIRouter(prefix="/status-integrations", tags=["status-integrations"], route_class=AuditedRoute)
 
 integration_bearer = HTTPBearer(
     auto_error=False,
@@ -39,21 +70,46 @@ IDEMPOTENCY_KEY_MAX = 120
 INVALID_TOKEN = "Invalid or inactive status integration token"
 NOT_FOUND = "Not found"
 OUT_OF_SCOPE = "This token may not post to that page"
+LOCKED_OUT = "Too many failed status integration token attempts; try again later"
 
 Db = Annotated[Session, Depends(get_db)]
 
 
+def _unauthorized() -> HTTPException:
+    return HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_TOKEN, headers={"WWW-Authenticate": "Bearer"})
+
+
 def current_token(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(integration_bearer)], db: Db,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(integration_bearer)], request: Request, db: Db,
 ) -> StatusIntegrationToken:
     if credentials is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_TOKEN, headers={"WWW-Authenticate": "Bearer"})
+        raise _unauthorized()
+    client_ip = request_client_ip(request)
+    if is_lookup_locked(db, client_ip):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, LOCKED_OUT)
     try:
         token = tokens.authenticate(db, credentials.credentials, datetime.now(timezone.utc))
     except tokens.TokenRejected:
         db.rollback()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_TOKEN, headers={"WWW-Authenticate": "Bearer"})
+        if record_lookup_failure(db, client_ip):
+            write_audit(
+                db, "status_integration.auth_failed", None, f"ip:{client_ip or '-'}",
+                "failed status integration token lookups exceeded threshold; source locked out",
+            )
+        db.commit()
+        raise _unauthorized()
+    clear_lookup_failures(db, client_ip)
     db.commit()
+    token_id, token_name = token.id, token.name
+    op = _OPS.get(getattr(request.scope.get("route"), "name", ""), "call")
+    target = request.path_params.get("slug") or request.path_params.get("incident_id") or "-"
+
+    def refuse(code: int) -> None:
+        db.rollback()
+        _audit(db, token_id, token_name, op, f"target={target} refused={code}")
+        db.commit()
+
+    request.state.status_integration_refuse = refuse
     return token
 
 
@@ -98,8 +154,8 @@ def _replay(row: StatusIdempotencyKey, fingerprint: str) -> tuple[int, dict]:
     return stored["status"], stored["body"]
 
 
-def _audit(db: Session, token_name: str, op: str, detail: str) -> None:
-    write_audit(db, f"status_integration.{op}", None, f"token:{token_name}", detail)
+def _audit(db: Session, token_id: int, token_name: str, op: str, detail: str) -> None:
+    write_audit(db, f"status_integration.{op}", None, f"token:{token_name}", f"token_id={token_id} {detail}")
 
 
 def _write(
@@ -114,6 +170,19 @@ def _write(
             headers={"Retry-After": str(retry_after)},
         )
     detail = f"target={target}"
+    try:
+        return _run(db, token_id, token_name, op, target, detail, key, payload, action, idempotent)
+    except HTTPException as exc:
+        db.rollback()
+        _audit(db, token_id, token_name, op, f"{detail} refused={exc.status_code}")
+        db.commit()
+        raise
+
+
+def _run(
+    db: Session, token_id: int, token_name: str, op: str, target: str, detail: str, key: str | None,
+    payload: BaseModel | None, action: Callable[[], tuple[int, dict | None]], idempotent: bool,
+) -> Response:
     row = None
     if idempotent:
         if not key:
@@ -137,25 +206,18 @@ def _write(
                     raise
         if existing is not None:
             code, body = _replay(existing, fingerprint)
-            _audit(db, token_name, op, f"{detail} replayed=yes status={code}")
+            _audit(db, token_id, token_name, op, f"{detail} replayed=yes status={code}")
             db.commit()
             return JSONResponse(body, status_code=code, headers={"Idempotent-Replayed": "true"})
-    _audit(db, token_name, op, detail)
+    _audit(db, token_id, token_name, op, detail)
     try:
         code, body = action()
     except (IncidentError, IncidentNotFound) as exc:
-        failure = _service_error(exc)
-    except HTTPException as exc:
-        failure = exc
-    else:
-        if row is not None:
-            row.result_json = json.dumps({"fingerprint": fingerprint, "status": code, "body": body})
-        db.commit()
-        return Response(status_code=code) if body is None else JSONResponse(body, status_code=code)
-    db.rollback()
-    _audit(db, token_name, op, f"{detail} refused={failure.status_code}")
+        raise _service_error(exc) from None
+    if row is not None:
+        row.result_json = json.dumps({"fingerprint": fingerprint, "status": code, "body": body})
     db.commit()
-    raise failure
+    return Response(status_code=code) if body is None else JSONResponse(body, status_code=code)
 
 
 def _page_by_slug(db: Session, slug: str, scope: set[int]) -> StatusPage:

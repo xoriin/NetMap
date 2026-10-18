@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.models.status_page import StatusIntegrationToken, StatusIntegrationTokenPage, StatusPage
 from app.models.user import User, UserRole
-from app.services.api_keys.service import PREFIX_LEN, SECRET_LEN, _hash_key, _random_token
+from app.services.api_keys.service import generate_scheme_key, hash_key
 from app.services.audit.service import write_audit
 from app.services.rbac.permissions import has_permission
-from app.services.status_pages.incidents import IncidentError, LABEL_MAX, clean_text, now_or_utc
+from app.services.status_pages.incidents import LABEL_MAX, IncidentError, clean_text, now_or_utc
 from app.services.status_pages.sources import _utc
 
 TOKEN_SCHEME = "nmsp"
@@ -27,10 +27,8 @@ class TokenRejected(Exception):
     pass
 
 
-def _generate() -> tuple[str, str, str]:
-    prefix = _random_token(PREFIX_LEN)
-    raw = f"{TOKEN_SCHEME}_{prefix}_{_random_token(SECRET_LEN)}"
-    return raw, prefix, _hash_key(raw)
+class TokenError(ValueError):
+    pass
 
 
 def creator_may_manage(user: User | None) -> bool:
@@ -55,18 +53,21 @@ def create_token(
     *, now: datetime | None = None,
 ) -> tuple[StatusIntegrationToken, str]:
     now = now_or_utc(now)
-    name = clean_text(name, "Name", LABEL_MAX, required=True)
+    try:
+        name = clean_text(name, "Name", LABEL_MAX, required=True)
+    except IncidentError as exc:
+        raise TokenError(str(exc)) from None
     wanted = sorted(set(page_ids))
     if not wanted:
-        raise IncidentError("Choose at least one status page")
+        raise TokenError("Choose at least one status page")
     found = set(db.scalars(select(StatusPage.id).where(StatusPage.id.in_(wanted))))
     missing = [p for p in wanted if p not in found]
     if missing:
-        raise IncidentError(f"Status page {missing[0]} does not exist")
+        raise TokenError(f"Status page {missing[0]} does not exist")
     expires_at = _utc(expires_at)
     if expires_at is not None and expires_at <= now:
-        raise IncidentError("Expiry must be in the future")
-    raw, prefix, digest = _generate()
+        raise TokenError("Expiry must be in the future")
+    raw, prefix, digest = generate_scheme_key(TOKEN_SCHEME)
     token = StatusIntegrationToken(
         name=name, prefix=prefix, hash=digest, created_by_user_id=creator.id, created_at=now, expires_at=expires_at,
     )
@@ -93,7 +94,7 @@ def authenticate(db: Session, raw: str, now: datetime) -> StatusIntegrationToken
     parts = raw.split("_", 2) if raw else []
     if len(parts) != 3 or parts[0] != TOKEN_SCHEME or not parts[1] or not parts[2]:
         raise TokenRejected()
-    digest = _hash_key(raw)
+    digest = hash_key(raw)
     token = None
     for candidate in db.scalars(select(StatusIntegrationToken).where(StatusIntegrationToken.prefix == parts[1])):
         if hmac.compare_digest(candidate.hash, digest):

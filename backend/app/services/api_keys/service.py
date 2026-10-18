@@ -42,12 +42,21 @@ def _as_aware_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def generate_api_key() -> tuple[str, str, str]:
-    """Return (full_key, prefix, key_hash). The full key is shown exactly once."""
+def hash_key(raw_key: str) -> str:
+    return _hash_key(raw_key)
+
+
+def generate_scheme_key(scheme: str) -> tuple[str, str, str]:
+    """Return (full_key, prefix, key_hash) for `<scheme>_<prefix>_<secret>`."""
     prefix = _random_token(PREFIX_LEN)
     secret = _random_token(SECRET_LEN)
-    full_key = f"{KEY_SCHEME}_{prefix}_{secret}"
+    full_key = f"{scheme}_{prefix}_{secret}"
     return full_key, prefix, _hash_key(full_key)
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """Return (full_key, prefix, key_hash). The full key is shown exactly once."""
+    return generate_scheme_key(KEY_SCHEME)
 
 
 def is_key_active(key: ApiKey, now: datetime | None = None) -> bool:

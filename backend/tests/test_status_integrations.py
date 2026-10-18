@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from app.api.deps import get_current_user
 from app.api.v1 import status_integrations as integrations_api
 from app.api.v1 import status_pages as status_pages_api
+from app.core.config import settings
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.middleware.csrf import CsrfProtectionMiddleware
@@ -25,6 +26,7 @@ from app.models.status_page import (
     StatusNotice,
 )
 from app.models.user import User, UserRole
+from app.services.api_keys import service as api_key_service
 from app.services.api_keys.service import create_api_key
 from app.services.status_pages import events, incidents, tokens
 from app.services.status_pages.incidents import NetmapActor, PersonActor
@@ -160,7 +162,7 @@ def test_token_cannot_use_normal_api_and_api_key_cannot_use_integration_routes(e
     assert with_csrf.status_code == 401 and with_csrf.json() == INVALID
     env.client.cookies.delete("netmap_csrf")
     without_csrf = _call(env, "PUT", "/pages/a/notice", None, _notice())
-    assert without_csrf.status_code in (401, 403)
+    assert without_csrf.status_code == 403 and without_csrf.json() == {"detail": "CSRF token required"}
     assert _count(env, StatusNotice) == 0
 
     ok = _call(env, "PUT", "/pages/a/notice", secret, _notice())
@@ -452,7 +454,10 @@ def test_every_call_is_audited_with_token_name(env):
         "status_integration.notice_set",
     ]
     assert {r.target for r in rows} == {"token:backup-server"}
-    assert "403" in rows[-1].detail
+    with env.Session() as db:
+        token_id = db.scalar(select(StatusIntegrationToken.id))
+    assert all(r.detail.startswith(f"token_id={token_id} ") for r in rows)
+    assert "refused=403" in rows[-1].detail
 
 
 def test_write_rate_limit_is_per_token(env):
@@ -531,3 +536,93 @@ def test_deleting_a_page_removes_it_from_token_scope(env):
     assert _admin(env, "GET", "/tokens").json()[0]["page_ids"] == [a]
     assert _call(env, "PUT", "/pages/a/notice", created["secret"], _notice()).status_code == 200
     assert _count(env, StatusIncidentPage) == 0
+
+
+def _refusals(env):
+    with env.Session() as db:
+        return [
+            (r.action, r.detail) for r in db.scalars(
+                select(AuditLog).where(AuditLog.detail.like("%refused=%")).order_by(AuditLog.id)
+            )
+        ]
+
+
+def test_refused_idempotency_and_validation_calls_are_audited(env):
+    (a,) = _pages(env, "a")
+    created = _new_token(env, [a])
+    secret = created["secret"]
+    body = _incident(pages=["a"])
+    assert _call(env, "POST", "/incidents", secret, body, key=None).status_code == 400
+    assert _call(env, "POST", "/incidents", secret, body, key="x" * 121).status_code == 400
+    assert _call(env, "POST", "/incidents", secret, body, key="same").status_code == 201
+    assert _call(env, "POST", "/incidents", secret, _incident(pages=["a"], title="Changed"), key="same").status_code == 422
+    with env.Session() as db:
+        db.add(StatusIdempotencyKey(token_id=created["id"], operation="notice_set:a", key="busy", result_json=None))
+        db.commit()
+    assert _call(env, "PUT", "/pages/a/notice", secret, _notice(), key="busy").status_code == 409
+    invalid = _call(env, "POST", "/incidents", secret, _incident(pages=["a"], severity="apocalyptic"))
+    assert invalid.status_code == 422 and isinstance(invalid.json()["detail"], list)
+    assert _call(env, "POST", "/incidents/abc/resolve", secret, {}).status_code == 422
+
+    refusals = _refusals(env)
+    assert [(action, detail.rsplit("refused=", 1)[1]) for action, detail in refusals] == [
+        ("status_integration.incident_opened", "400"),
+        ("status_integration.incident_opened", "400"),
+        ("status_integration.incident_opened", "422"),
+        ("status_integration.notice_set", "409"),
+        ("status_integration.incident_opened", "422"),
+        ("status_integration.incident_resolved", "422"),
+    ]
+    assert all(detail.startswith(f"token_id={created['id']} ") for _, detail in refusals)
+
+    assert _call(env, "PUT", "/pages/a/notice", "nmsp_bad_secret", {"level": "nope"}).status_code == 401
+    assert len(_refusals(env)) == len(refusals)
+
+
+def test_repeated_bad_secrets_lock_out_the_source_ip(env, monkeypatch):
+    (a,) = _pages(env, "a")
+    secret = _new_token(env, [a])["secret"]
+    monkeypatch.setattr(settings, "api_key_max_failed_lookups", 3)
+    bad = secret[:-4] + ("AAAA" if not secret.endswith("AAAA") else "BBBB")
+
+    for _ in range(2):
+        assert _call(env, "PUT", "/pages/a/notice", bad, _notice()).status_code == 401
+    assert _call(env, "PUT", "/pages/a/notice", secret, _notice()).status_code == 200
+    for _ in range(2):
+        assert _call(env, "PUT", "/pages/a/notice", bad, _notice()).status_code == 401
+    assert _call(env, "PUT", "/pages/a/notice", secret, _notice()).status_code == 200
+
+    for _ in range(3):
+        assert _call(env, "PUT", "/pages/a/notice", bad, _notice()).status_code == 401
+    locked = _call(env, "PUT", "/pages/a/notice", secret, _notice())
+    assert locked.status_code == 429
+    assert locked.json() == {"detail": "Too many failed status integration token attempts; try again later"}
+    assert env.client.get("/api/v1/whoami", headers={"X-API-Key": env.admin_key}).status_code == 429
+    with env.Session() as db:
+        (row,) = db.scalars(select(AuditLog).where(AuditLog.action == "status_integration.auth_failed")).all()
+        assert row.target == "ip:testclient"
+
+
+def test_token_without_pages_is_listed_inactive(env):
+    a, b = _pages(env, "a", "b")
+    _new_token(env, [a])
+    _new_token(env, [b], name="other")
+    assert _admin(env, "DELETE", f"/{a}").status_code == 204
+    listed = {row["name"]: row for row in _admin(env, "GET", "/tokens").json()}
+    assert listed["backup-server"]["page_ids"] == [] and listed["backup-server"]["active"] is False
+    assert listed["other"]["active"] is True
+
+
+def test_token_validation_raises_token_error_and_api_key_format_is_unchanged(env, monkeypatch):
+    with env.Session() as db:
+        creator = db.get(User, env.admin_id)
+        with pytest.raises(tokens.TokenError):
+            tokens.create_token(db, creator, "x", [9999], None)
+        with pytest.raises(tokens.TokenError):
+            tokens.create_token(db, creator, " ", [], None)
+
+    parts = iter(["P" * 12, "S" * 43])
+    monkeypatch.setattr(api_key_service, "_random_token", lambda length: next(parts))
+    full, prefix, digest = api_key_service.generate_api_key()
+    assert (full, prefix) == (f"nm_{'P' * 12}_{'S' * 43}", "P" * 12)
+    assert digest == api_key_service.hash_key(full)

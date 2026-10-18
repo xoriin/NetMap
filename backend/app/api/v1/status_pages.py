@@ -310,7 +310,7 @@ def _token_reads(db: Session, rows: list[StatusIntegrationToken]) -> list[dict]:
             "created_by": creator.username if (creator := creators.get(row.created_by_user_id)) else None,
             "created_at": row.created_at, "expires_at": row.expires_at, "revoked_at": row.revoked_at,
             "last_used_at": row.last_used_at,
-            "active": tokens.is_active(row, now) and tokens.creator_may_manage(creator),
+            "active": bool(pages[row.id]) and tokens.is_active(row, now) and tokens.creator_may_manage(creator),
         }
         for row in rows
     ]
@@ -326,7 +326,7 @@ def list_tokens(_: CurrentUser, db: Db) -> list[dict]:
 def create_token(payload: TokenCreate, current_user: CurrentUser, db: Db) -> dict:
     try:
         token, secret = tokens.create_token(db, current_user, payload.name, payload.page_ids, payload.expires_at)
-    except IncidentError as exc:
+    except tokens.TokenError as exc:
         db.rollback()
         raise _service_error(exc)
     return {**_token_reads(db, [token])[0], "secret": secret, "name_is_public": True}
