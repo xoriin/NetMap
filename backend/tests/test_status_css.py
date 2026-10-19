@@ -67,7 +67,7 @@ def test_allowed_presentation_css_round_trips():
     )
     result = validate_css(css)
     assert result.ok is True, result.errors
-    assert result.errors == []
+    assert result.errors == ()
     for fragment in (".sp-row", "rgb(1 2 3)", "@media (max-width:600px)", "@keyframes pulse", "!important", "::marker"):
         assert fragment in result.css
     again = validate_css(result.css)
@@ -204,3 +204,11 @@ def test_public_payload_contains_only_validated_css():
         db.get(StatusPage, page.id).custom_css = stored
         db.commit()
         assert build_page_payload(db, page, "public", NOW)["custom_css"] is None
+
+
+def test_cached_results_cannot_be_mutated_by_a_caller():
+    first = validate_css("a{background:url(x)}")
+    with pytest.raises(AttributeError):
+        first.errors.append("leaked")
+    assert validate_css("a{background:url(x)}").errors == first.errors
+    assert validate_css("a{color:red}").errors == ()

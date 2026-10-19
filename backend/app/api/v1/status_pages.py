@@ -77,7 +77,7 @@ def checked_css(text: str | None) -> str | None:
     if not result.ok:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"message": "Custom CSS was not saved", "css_errors": result.errors},
+            detail={"message": "Custom CSS was not saved", "css_errors": list(result.errors)},
         )
     return text
 

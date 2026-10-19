@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 
 import tinycss2
@@ -33,7 +33,7 @@ HTML_MARKERS = ("<", ">", "</style", "<!--")
 class CssResult:
     ok: bool
     css: str | None
-    errors: list[str] = field(default_factory=list)
+    errors: tuple[str, ...] = ()
 
 
 class _Abort(Exception):
@@ -249,9 +249,9 @@ def validate_css(text: str) -> CssResult:
     try:
         size = len(text.encode("utf-8"))
     except UnicodeEncodeError:
-        return CssResult(False, None, ["Custom CSS contains invalid characters"])
+        return CssResult(False, None, ("Custom CSS contains invalid characters",))
     if size > MAX_BYTES:
-        return CssResult(False, None, ["Custom CSS must be 64 KB or smaller"])
+        return CssResult(False, None, ("Custom CSS must be 64 KB or smaller",))
     validator = _Validator()
     parts: list[str] = []
     try:
@@ -264,9 +264,9 @@ def validate_css(text: str) -> CssResult:
     except RecursionError:
         validator.errors.append("Custom CSS is too complex")
     if validator.errors:
-        return CssResult(False, None, validator.errors)
+        return CssResult(False, None, tuple(validator.errors))
     css = "\n".join(parts)
     lowered = css.lower()
     if "<" in css or "</style" in lowered or "<!--" in lowered:
-        return CssResult(False, None, ["Custom CSS contains HTML delimiters"])
-    return CssResult(True, css, [])
+        return CssResult(False, None, ("Custom CSS contains HTML delimiters",))
+    return CssResult(True, css)
