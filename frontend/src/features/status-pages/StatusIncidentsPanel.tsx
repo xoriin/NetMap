@@ -157,32 +157,31 @@ function OpenIncidentModal({
               </label>
             ))}
         </fieldset>
-        <div className="nm-field">
-          <span className="nm-field-label">Audience before you save</span>
-          {selectedPages.length === 0 ? (
-            <span className="status-editor-error">Choose at least one page.</span>
-          ) : (
-            <ul className="status-incident-audience">
-              {selectedPages.map((p) => {
-                const local = choices.filter((c) => itemKeys.includes(c.key))
-                  .map((c) => pageItems(p).find((item) => item.key === c.key)?.displayName)
-                  .filter((name): name is string => Boolean(name));
-                return (
-                  <li key={p.id}>
-                    <strong>{p.name}</strong> <span className="status-editor-count">{p.visibility === "public" ? "Public page" : "Private page"}</span>
-                    <small className="status-editor-sub">{local.length > 0 ? `Shows: ${local.join(", ")}` : "No affected items on this page"}</small>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        <section className="mon-hero-section status-incident-audience">
+          <div className="mon-hero-section-title">Audience before you save<span className="dash-panel-meta">{selectedPages.length} page{selectedPages.length === 1 ? "" : "s"}</span></div>
+          <div className="mon-analysis-body">
+            {selectedPages.length === 0 ? (
+              <div className="mon-analysis-row"><span className="status-editor-error">Choose at least one page.</span></div>
+            ) : selectedPages.map((p) => {
+              const local = choices.filter((c) => itemKeys.includes(c.key))
+                .map((c) => pageItems(p).find((item) => item.key === c.key)?.displayName)
+                .filter((name): name is string => Boolean(name));
+              return (
+                <div key={p.id} className="mon-analysis-row">
+                  <span><strong>{p.name}</strong> <span className="dash-panel-meta">{p.visibility === "public" ? "Public page" : "Private page"}</span></span>
+                  <span className="dash-panel-meta">{local.length > 0 ? `Shows: ${local.join(", ")}` : "No affected items on this page"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
         <label>Ticket link
           <input value={ticketUrl} maxLength={TEXT_LIMITS.ticketUrl} placeholder="https://tickets.example.com/INC-1042" aria-invalid={ticketInvalid || undefined} onChange={(event) => setTicketUrl(event.target.value)} />
           {ticketInvalid && <small className="status-editor-error">Use an http:// or https:// link.</small>}
         </label>
         <label>Ticket label
           <input value={ticketLabel} maxLength={TEXT_LIMITS.ticketLabel} placeholder="e.g. Ticket INC-1042" disabled={!ticketUrl.trim()} onChange={(event) => setTicketLabel(event.target.value)} />
+          <small className="status-editor-hint">{limitHint(ticketLabel.length, TEXT_LIMITS.ticketLabel)}</small>
         </label>
       </form>
     </Modal>
@@ -250,140 +249,140 @@ function IncidentDetailModal({
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
         {incident.breaching && !resolved && (
-          <div className="nm-alert nm-alert--warning" role="status">A monitored condition is still failing. Resolving now needs a reason, and NetMap won't reopen it until the condition clears and fails again.</div>
+          <div className="nm-alert nm-alert--warning" role="status">An affected system hasn't recovered yet. Resolving now needs a reason, and NetMap won't reopen this incident until the system recovers and then fails again.</div>
         )}
 
-        <div className="nm-field">
-          <span className="nm-field-label">Shown on</span>
-          <ul className="status-incident-audience">
+        <section className="mon-hero-section">
+          <div className="mon-hero-section-title">Shown on<span className="dash-panel-meta">{incident.page_ids.length} page{incident.page_ids.length === 1 ? "" : "s"}</span></div>
+          <div className="mon-analysis-body">
             {incident.page_ids.map((id) => {
               const names = incident.items.filter((item) => item.page_id === id).map((item) => item.display_name);
               return (
-                <li key={id}>
+                <div key={id} className="mon-analysis-row">
                   <strong>{pageName(pages, id)}</strong>
-                  <small className="status-editor-sub">{names.length > 0 ? `Shows: ${names.join(", ")}` : "No affected items on this page"}</small>
-                </li>
+                  <span className="dash-panel-meta">{names.length > 0 ? `Shows: ${names.join(", ")}` : "No affected items on this page"}</span>
+                </div>
               );
             })}
-          </ul>
-        </div>
+          </div>
+        </section>
 
-        <div className="nm-field">
-          <span className="nm-field-label">Timeline</span>
-          <small className="status-editor-hint">{AUTHOR_NOTE}</small>
-          <ol className="status-incident-timeline">
+        <section className="mon-hero-section">
+          <div className="mon-hero-section-title">Timeline<span className="dash-panel-meta">{incident.updates.length} update{incident.updates.length === 1 ? "" : "s"}</span></div>
+          <div className="mon-analysis-body">
+            <div className="mon-analysis-row"><small className="status-editor-hint">{AUTHOR_NOTE}</small></div>
             {[...incident.updates].reverse().map((update) => (
-              <li key={update.id}>
+              <div key={update.id} className="mon-analysis-row status-incident-update">
+                <div>
+                  <div className="status-incident-update-meta">
+                    <span>{formatWhen(update.at)}</span>
+                    <strong>{update.author ?? "Unknown"}</strong>
+                    <span className="dash-panel-meta">{update.page_id === null ? "Every page in the audience" : pageName(pages, update.page_id)}</span>
+                  </div>
+                  {updateText(update) && <p>{updateText(update)}</p>}
+                </div>
                 <div className="status-incident-update-meta">
-                  <span>{formatWhen(update.at)}</span>
-                  <strong>{update.author ?? "Unknown"}</strong>
                   {!update.is_public && <span className="nm-status nm-status--paused">Internal</span>}
                   {update.status && <StatusPill status={update.status} />}
-                  <span className="status-editor-count">{update.page_id === null ? "Every page in the audience" : pageName(pages, update.page_id)}</span>
                 </div>
-                {updateText(update) && <p>{updateText(update)}</p>}
-              </li>
+              </div>
             ))}
-          </ol>
-        </div>
+          </div>
+        </section>
 
         {!resolved && (
-          <form className="status-incident-section" onSubmit={(event) => void postUpdate(event)}>
-            <span className="nm-field-label">Post an update</span>
-            <label>Update message
-              <textarea rows={3} value={message} maxLength={TEXT_LIMITS.incidentMessage} onChange={(event) => setMessage(event.target.value)} />
-              <small className="status-editor-hint">{limitHint(message.length, TEXT_LIMITS.incidentMessage)}</small>
-            </label>
-            <div className="status-incident-choice">
-              <label id="status-update-visibility">Visibility</label>
-              <div className="nm-btn-row" role="group" aria-labelledby="status-update-visibility">
-                {([true, false] as const).map((value) => (
-                  <button
-                    key={String(value)}
-                    type="button"
-                    className={`nm-btn nm-btn--sm nm-btn--secondary${isPublic === value ? " nm-btn--active" : ""}`}
-                    aria-pressed={isPublic === value}
-                    onClick={() => setIsPublic(value)}
-                  >
-                    {value ? "Public" : "Internal"}
-                  </button>
-                ))}
+          <section className="mon-hero-section">
+            <div className="mon-hero-section-title">Post an update</div>
+            <form className="status-incident-section-body" onSubmit={(event) => void postUpdate(event)}>
+              <label>Update message
+                <textarea rows={3} value={message} maxLength={TEXT_LIMITS.incidentMessage} onChange={(event) => setMessage(event.target.value)} />
+                <small className="status-editor-hint">{limitHint(message.length, TEXT_LIMITS.incidentMessage)}</small>
+              </label>
+              <label className="tool-form-inline-check">
+                <input type="checkbox" checked={!isPublic} onChange={(event) => setIsPublic(!event.target.checked)} />
+                <span className="tool-form-check-copy">
+                  <span>Internal update</span>
+                  <span className="tool-note">{isPublic ? "Off: shown on public and private pages." : "Shown only on private pages, marked Internal."}</span>
+                </span>
+              </label>
+              <label>Show on
+                <select value={audience} onChange={(event) => setAudience(event.target.value)}>
+                  {incident.page_ids.map((id) => <option key={id} value={id}>{pageName(pages, id)}{id === page.id ? " (this page)" : ""}</option>)}
+                  <option value="all">Every page in the audience</option>
+                </select>
+              </label>
+              <label>Status
+                <select value={statusChange} onChange={(event) => setStatusChange(event.target.value as typeof statusChange)}>
+                  <option value="">Keep {STATUS_LABELS[incident.status]}</option>
+                  {(["investigating", "identified", "monitoring"] as const).filter((s) => s !== incident.status).map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                </select>
+              </label>
+              <div className="nm-btn-row status-incident-actions">
+                <button type="submit" className="nm-btn nm-btn--primary" disabled={busy !== null || (!message.trim() && !statusChange)}>
+                  {busy === "update" ? "Posting…" : "Post update"}
+                </button>
               </div>
-              <small className="status-editor-hint">{isPublic ? "Shown on public and private pages." : "Shown only on private pages, marked Internal."}</small>
-            </div>
-            <label>Show on
-              <select value={audience} onChange={(event) => setAudience(event.target.value)}>
-                {incident.page_ids.map((id) => <option key={id} value={id}>{pageName(pages, id)}{id === page.id ? " (this page)" : ""}</option>)}
-                <option value="all">Every page in the audience</option>
-              </select>
-            </label>
-            <label>Status
-              <select value={statusChange} onChange={(event) => setStatusChange(event.target.value as typeof statusChange)}>
-                <option value="">Keep {STATUS_LABELS[incident.status]}</option>
-                {(["investigating", "identified", "monitoring"] as const).filter((s) => s !== incident.status).map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-              </select>
-            </label>
-            <div className="nm-btn-row status-incident-actions">
-              <button type="submit" className="nm-btn nm-btn--primary" disabled={busy !== null || (!message.trim() && !statusChange)}>
-                {busy === "update" ? "Posting…" : "Post update"}
-              </button>
-            </div>
-          </form>
+            </form>
+          </section>
         )}
 
         {!resolved && (
-          <div className="status-incident-section">
-            <span className="nm-field-label">Resolve</span>
-            <label>Reason for resolving
-              <textarea
-                rows={2}
-                value={reason}
-                maxLength={TEXT_LIMITS.resolveReason}
-                aria-invalid={reasonMissing || undefined}
-                onChange={(event) => setReason(event.target.value)}
-              />
-              <small className="status-editor-hint">
-                {incident.breaching ? "Required while a condition is still failing. " : "Optional. "}Recorded as an internal update · {reason.length}/{TEXT_LIMITS.resolveReason} characters
-              </small>
-            </label>
-            <div className="nm-btn-row status-incident-actions">
-              <button
-                type="button"
-                className="nm-btn nm-btn--secondary"
-                disabled={busy !== null || reasonMissing}
-                onClick={() => void run("resolve", () => statusManageApi.resolve(accessToken, incident.id, reason.trim() || null), "Incident resolved")}
-              >
-                {busy === "resolve" ? "Resolving…" : "Resolve incident"}
-              </button>
+          <section className="mon-hero-section">
+            <div className="mon-hero-section-title">Resolve</div>
+            <div className="status-incident-section-body">
+              <label>Reason for resolving
+                <textarea
+                  rows={2}
+                  value={reason}
+                  maxLength={TEXT_LIMITS.resolveReason}
+                  aria-invalid={reasonMissing || undefined}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+                <small className="status-editor-hint">
+                  {incident.breaching ? "Required while an affected system hasn't recovered. " : "Optional. "}Recorded as an internal update · {reason.length}/{TEXT_LIMITS.resolveReason} characters
+                </small>
+              </label>
+              <div className="nm-btn-row status-incident-actions">
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--secondary"
+                  disabled={busy !== null || reasonMissing}
+                  onClick={() => void run("resolve", () => statusManageApi.resolve(accessToken, incident.id, reason.trim() || null), "Incident resolved")}
+                >
+                  {busy === "resolve" ? "Resolving…" : "Resolve incident"}
+                </button>
+              </div>
             </div>
-          </div>
+          </section>
         )}
 
         {!resolved && otherPages.length > 0 && (
-          <div className="status-incident-section">
-            <span className="nm-field-label">Publish to another page</span>
-            <label>Page
-              <select value={publishTo} onChange={(event) => setPublishTo(event.target.value)}>
-                <option value="">Choose a page</option>
-                {otherPages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            {publishTo && (
-              <div className="nm-alert nm-alert--warning" role="status">
-                Earlier updates won't appear on {pageName(pages, Number(publishTo))}. Visitors there see this incident from the next update you post.
+          <section className="mon-hero-section">
+            <div className="mon-hero-section-title">Publish to another page</div>
+            <div className="status-incident-section-body">
+              <label>Page
+                <select value={publishTo} onChange={(event) => setPublishTo(event.target.value)}>
+                  <option value="">Choose a page</option>
+                  {otherPages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </label>
+              {publishTo && (
+                <div className="nm-alert nm-alert--warning" role="status">
+                  Earlier updates won't appear on {pageName(pages, Number(publishTo))}. Visitors there see this incident from the next update you post.
+                </div>
+              )}
+              <div className="nm-btn-row status-incident-actions">
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--secondary"
+                  disabled={busy !== null || !publishTo}
+                  onClick={() => void run("publish", () => statusManageApi.publish(accessToken, incident.id, [Number(publishTo)]), "Incident published").then((ok) => { if (ok) setPublishTo(""); })}
+                >
+                  {busy === "publish" ? "Publishing…" : "Publish"}
+                </button>
               </div>
-            )}
-            <div className="nm-btn-row status-incident-actions">
-              <button
-                type="button"
-                className="nm-btn nm-btn--secondary"
-                disabled={busy !== null || !publishTo}
-                onClick={() => void run("publish", () => statusManageApi.publish(accessToken, incident.id, [Number(publishTo)]), "Incident published").then((ok) => { if (ok) setPublishTo(""); })}
-              >
-                {busy === "publish" ? "Publishing…" : "Publish"}
-              </button>
             </div>
-          </div>
+          </section>
         )}
       </div>
     </Modal>

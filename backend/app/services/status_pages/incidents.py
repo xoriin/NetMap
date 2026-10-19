@@ -45,7 +45,7 @@ MESSAGE_MAX = 5000
 REASON_MAX = 500
 URL_MAX = 2048
 LABEL_MAX = 120
-BREACHING_NEEDS_REASON = "A monitored condition is still failing. Give a reason to resolve this incident anyway."
+BREACHING_NEEDS_REASON = "An affected system hasn't recovered yet. Give a reason to resolve this incident anyway."
 
 
 class IncidentError(ValueError):

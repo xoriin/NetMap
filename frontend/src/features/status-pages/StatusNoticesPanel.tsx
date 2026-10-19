@@ -30,18 +30,18 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (reseed: boolean) => {
     try {
       const next = await statusManageApi.notices(accessToken, page.id);
       setNotices(next);
-      setDraft(draftFrom(next.find((n) => n.mine)));
+      if (reseed) setDraft(draftFrom(next.find((n) => n.mine)));
       setError(null);
     } catch (err) {
       setError(apiErrorMessage(err, "Unable to load notices"));
     }
   }, [accessToken, page.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(true); }, [load]);
 
   const mine = useMemo(() => notices?.find((n) => n.mine), [notices]);
   const linkInvalid = draft.link.trim() !== "" && !isHttpUrl(draft.link.trim());
@@ -64,7 +64,7 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
         expires_at: expiresAt,
       });
       toast.success("Notice saved");
-      await load();
+      await load(true);
     } catch (err) {
       setFormError(apiErrorMessage(err, "Unable to save the notice"));
     } finally {
@@ -83,7 +83,7 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
       if (notice.mine) await statusManageApi.clearOwnNotice(accessToken, page.id);
       else await statusManageApi.clearNotice(accessToken, notice.id);
       toast.success("Notice cleared");
-      await load();
+      await load(notice.mine);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Unable to clear the notice"));
     }

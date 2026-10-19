@@ -320,25 +320,11 @@
   padding: 0;
 }
 
-.status-incident-audience,
-.status-incident-timeline {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.status-incident-update {
+  align-items: flex-start;
 }
 
-.status-incident-audience li,
-.status-incident-timeline li {
-  padding: var(--nm-space-2) 0;
-  font-size: var(--nm-text-md);
-}
-
-.status-incident-audience li + li,
-.status-incident-timeline li + li {
-  border-top: 1px solid var(--nm-border);
-}
-
-.status-incident-timeline p {
+.status-incident-update p {
   margin: var(--nm-space-1) 0 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -352,20 +338,14 @@
   gap: var(--nm-space-2);
 }
 
-.status-incident-section {
+.status-incident-section-body {
   display: grid;
   gap: var(--nm-space-3);
-  padding-top: var(--nm-space-4);
-  border-top: 1px solid var(--nm-border);
+  padding: 12px 14px 14px;
 }
 
 .status-incident-actions {
   justify-content: flex-end;
-}
-
-.status-incident-choice {
-  display: grid;
-  gap: 6px;
 }
 
 .status-token-secret.totp-key-note {

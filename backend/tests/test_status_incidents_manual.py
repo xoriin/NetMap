@@ -583,3 +583,26 @@ def test_notice_list_flags_owner_and_inactive_tokens(api):
     assert (by_title["Backups running"]["owner_id"], by_title["Backups running"]["mine"]) == (live_id, False)
     assert by_title["Backups running"]["token_active"] is True
     assert (by_title["Stale"]["owner_id"], by_title["Stale"]["token_active"]) == (dead_id, False)
+
+
+def test_resolving_an_unrecovered_incident_without_reason_is_422(api):
+    from app.models.status_page import StatusIncidentSource
+
+    a = _api_page(api, "a")
+    incident_id = api.post("/api/v1/status-pages/incidents", json={
+        "title": "Router down", "severity": "major", "message": "m", "page_ids": [a],
+    }).json()["id"]
+    with api.Session() as db:
+        db.add(StatusIncidentSource(
+            incident_id=incident_id, source_key="device:1", condition_family="availability", page_id=a, active=True, cleared=False,
+        ))
+        db.commit()
+    assert api.get("/api/v1/status-pages/incidents").json()[0]["breaching"] is True
+    expected = "An affected system hasn't recovered yet. Give a reason to resolve this incident anyway."
+    resolved = api.post(f"/api/v1/status-pages/incidents/{incident_id}/resolve", json={})
+    assert (resolved.status_code, resolved.json()["detail"]) == (422, expected)
+    via_update = api.post(f"/api/v1/status-pages/incidents/{incident_id}/updates", json={"status_change": "resolved"})
+    assert (via_update.status_code, via_update.json()["detail"]) == (422, expected)
+    assert api.get("/api/v1/status-pages/incidents").json()[0]["status"] == "investigating"
+    ok = api.post(f"/api/v1/status-pages/incidents/{incident_id}/resolve", json={"reason": "Known ISP outage"})
+    assert ok.status_code == 200 and ok.json()["status"] == "resolved"

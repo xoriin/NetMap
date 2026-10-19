@@ -167,15 +167,22 @@ export function StatusTokensPanel({ accessToken, page }: { accessToken: string; 
       confirmLabel: "Revoke token",
     });
     if (!ok) return;
-    let notices: ManagedNotice[] = [];
     try {
       await statusManageApi.revokeToken(accessToken, token.id);
       toast.success(`Revoked ${token.name}`);
-      notices = await tokenNotices(token);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Unable to revoke the token"));
+      return;
+    } finally {
+      await load();
     }
-    await load();
+    let notices: ManagedNotice[];
+    try {
+      notices = await tokenNotices(token);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "The token is revoked, but its notices couldn't be checked. Clear them from each page's Notices tab."));
+      return;
+    }
     if (notices.length === 0) return;
     const onPages = [...new Set(notices.map((n) => pageName(n.page_id)))].join(", ");
     const clear = await confirm({
@@ -202,7 +209,7 @@ export function StatusTokensPanel({ accessToken, page }: { accessToken: string; 
         </StatusEditorPanelHeader>
         <div className="status-layout-intro">
           {(error || pagesError) && <div className="nm-alert nm-alert--error" role="alert">{error ?? pagesError}</div>}
-          <small className="status-editor-hint">Tokens let other systems post notices, incidents and maintenance to the pages you choose, on every status page. They can't use any other NetMap API.</small>
+          <small className="status-editor-hint">Tokens are shared by all status pages. Each token can post notices, incidents and maintenance only to the pages chosen for it, and can't use any other NetMap API.</small>
         </div>
         {!tokens ? (
           <TableSkeleton rows={2} columns={7} />

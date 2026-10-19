@@ -131,7 +131,7 @@ class ManageApi {
         return json(incident, 201);
       }
       if (parts[2] === "resolve") {
-        if (incident.breaching && !body.reason) return json({ detail: "A monitored condition is still failing. Give a reason to resolve this incident anyway." }, 422);
+        if (incident.breaching && !body.reason) return json({ detail: "An affected system hasn't recovered yet. Give a reason to resolve this incident anyway." }, 422);
         incident.status = "resolved";
         incident.resolved_at = iso(0);
         return json(incident);
@@ -268,6 +268,7 @@ async function expectCanonicalTable(page: Page, tableClass: string) {
   expect(await computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-table-row-bg"));
   await cell.hover();
   await expect.poll(() => computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-row-hover"));
+  expect(await cell.evaluate((node) => getComputedStyle(node).boxShadow)).toBe("rgba(29, 154, 176, 0.3) 3px 0px 0px 0px inset");
 }
 
 async function expectCanonicalPanel(panel: Locator) {
@@ -292,9 +293,9 @@ test("incident audience shows all pages before save", async ({ page }) => {
   const audience = dialog.locator(".status-incident-audience");
   await expect(audience).toContainText("Ops");
   await expect(audience).toContainText("Customers");
-  await expect(audience.locator("li", { hasText: "Ops" })).toContainText("Core router");
-  await expect(audience.locator("li", { hasText: "Customers" })).toContainText("Internet");
-  await expect(audience.locator("li", { hasText: "Customers" })).toContainText("Public");
+  await expect(audience.locator(".mon-analysis-row", { hasText: "Ops" })).toContainText("Core router");
+  await expect(audience.locator(".mon-analysis-row", { hasText: "Customers" })).toContainText("Internet");
+  await expect(audience.locator(".mon-analysis-row", { hasText: "Customers" })).toContainText("Public");
 
   await dialog.getByRole("button", { name: "Open incident" }).click();
   await expect(dialog).toHaveCount(0);
@@ -310,12 +311,13 @@ test("internal update marked in private preview and absent in public preview", a
   await page.locator(".status-incidents-table tbody tr", { hasText: "Mail delays" }).getByRole("button", { name: "View" }).click();
   const dialog = page.getByRole("dialog", { name: "Mail delays" });
   await expect(dialog.getByText("Visitors only ever see \"Status team\"", { exact: false })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Public", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await dialog.getByRole("button", { name: "Internal", exact: true }).click();
+  const internalToggle = dialog.getByRole("checkbox", { name: /Internal update/ });
+  await expect(internalToggle).not.toBeChecked();
+  await internalToggle.check();
   await dialog.getByLabel("Update message").fill("Root cause: expired relay certificate");
   await expect(dialog.getByLabel("Show on")).toHaveValue("1");
   await dialog.getByRole("button", { name: "Post update" }).click();
-  await expect(dialog.locator(".status-incident-timeline li", { hasText: "expired relay certificate" })).toContainText("Internal");
+  await expect(dialog.locator(".status-incident-update", { hasText: "expired relay certificate" })).toContainText("Internal");
   const [posted] = api.bodies("POST", /^incidents\/50\/updates$/);
   expect(posted).toMatchObject({ is_public: false, page_id: 1, message: "Root cause: expired relay certificate" });
   await dialog.getByRole("button", { name: "Close" }).first().click();
@@ -341,7 +343,7 @@ test("resolve while breaching requires reason", async ({ page }) => {
   await openTab(page, api, "Incidents");
   await page.locator(".status-incidents-table tbody tr", { hasText: "Mail delays" }).getByRole("button", { name: "View" }).click();
   const dialog = page.getByRole("dialog", { name: "Mail delays" });
-  await expect(dialog.locator(".nm-alert--warning")).toContainText("still failing");
+  await expect(dialog.locator(".nm-alert--warning")).toContainText("hasn't recovered yet");
   const reason = dialog.getByLabel("Reason for resolving");
   const resolve = dialog.getByRole("button", { name: "Resolve incident" });
   await expect(resolve).toBeDisabled();
@@ -556,6 +558,30 @@ test("alert rule incident toggle defaults on for device offline and off for rtt"
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`incident popup sections match the device monitoring popup in ${theme} mode`, async ({ page }) => {
+    const api = new ManageApi();
+    seedIncident(api, { page_ids: [1] });
+    await openTab(page, api, "Incidents", { theme });
+    await page.locator(".status-incidents-table tbody tr", { hasText: "Mail delays" }).getByRole("button", { name: "View" }).click();
+    const dialog = page.getByRole("dialog", { name: "Mail delays" });
+    const sections = dialog.locator(".mon-hero-section");
+    await expect(sections).toHaveCount(5);
+    await expect(sections.locator("> .mon-hero-section-title")).toHaveText([/Shown on/i, /Timeline/i, /Post an update/i, /Resolve/i, /Publish to another page/i]);
+    const section = sections.first();
+    const title = section.locator(".mon-hero-section-title");
+    const expected = theme === "dark"
+      ? { section: await resolveToken(section, "--nm-modal-header"), title: await resolveToken(section, "--nm-modal-section") }
+      : { section: "rgb(255, 255, 255)", title: await resolveToken(section, "--nm-surface") };
+    expect(await computed(section, "backgroundColor")).toBe(expected.section);
+    expect(await computed(title, "backgroundColor")).toBe(expected.title);
+    await expect(title).toHaveCSS("text-transform", "uppercase");
+    await expect(title).toHaveCSS("font-size", "11px");
+    await expect(section).toHaveCSS("border-top-left-radius", "10px");
+    await expect(dialog.locator(".nm-field-label")).toHaveCount(0);
+    const rows = section.locator(".mon-analysis-row");
+    await expect(rows).toHaveCount(1);
+  });
+
   test(`management panels use canonical surfaces in ${theme} mode`, async ({ page }) => {
     const api = new ManageApi();
     seedIncident(api);
