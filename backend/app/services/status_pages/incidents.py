@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.status_page import (
+    StatusBreachStreak,
     StatusIncident,
     StatusIncidentAlias,
     StatusIncidentPage,
@@ -37,6 +38,7 @@ STATUSES = ("investigating", "identified", "monitoring", "resolved")
 MANUAL_FAMILY = "manual"
 PUBLISHED_EVENT = "published"
 PAST_WINDOW = timedelta(days=30)
+PAGE_DELETED_REASON = "Status page deleted"
 PUBLIC_PERSON_LABEL = "Status team"
 NETMAP_LABEL = "NetMap"
 
@@ -343,12 +345,27 @@ def publish_to_pages(
     commit_and_notify(db, added)
 
 
-def delete_page_records(db: Session, page_id: int) -> None:
+def delete_page_records(db: Session, page_id: int, *, now: datetime | None = None) -> None:
+    now = now_or_utc(now)
+    open_ids = list(db.scalars(
+        select(StatusIncidentPage.incident_id)
+        .join(StatusIncident, StatusIncident.id == StatusIncidentPage.incident_id)
+        .where(StatusIncidentPage.page_id == page_id, StatusIncident.status != "resolved")
+    ))
     for model in (
         StatusNotice, StatusIncidentAlias, StatusIncidentSource, StatusIncidentUpdate, StatusIncidentPage,
-        StatusIntegrationTokenPage, StatusMaintenancePage,
+        StatusIntegrationTokenPage, StatusMaintenancePage, StatusBreachStreak,
     ):
         db.execute(delete(model).where(model.page_id == page_id))
+    actor = NetmapActor()
+    for incident_id in open_ids:
+        if audience_page_ids(db, incident_id):
+            continue
+        incident = get_incident(db, incident_id)
+        _mark_resolved(db, incident, actor, now)
+        incident.resolution_reason = "page_deleted"
+        db.add(_update_row(incident.id, actor, now, message=PAGE_DELETED_REASON, is_public=False))
+        audit(db, actor, "status_incident.resolved", f"status_incident:{incident.id}", "reason=page_deleted")
 
 
 @dataclass

@@ -606,3 +606,37 @@ def test_resolving_an_unrecovered_incident_without_reason_is_422(api):
     assert api.get("/api/v1/status-pages/incidents").json()[0]["status"] == "investigating"
     ok = api.post(f"/api/v1/status-pages/incidents/{incident_id}/resolve", json={"reason": "Known ISP outage"})
     assert ok.status_code == 200 and ok.json()["status"] == "resolved"
+
+
+def test_deleting_a_page_resolves_incidents_it_was_the_only_audience_of():
+    from app.models.alert_rule import AlertRule
+    from app.models.status_page import StatusBreachStreak
+
+    db = make_session()
+    alice = PersonActor(_user(db))
+    device = _device(db)
+    only = seed_page(db, "only", items=[(_ref(device), "Router")])
+    other = seed_page(db, "other", items=[(_ref(device), "Router")])
+    lonely = _open(db, alice, [only], [_ref(device)])
+    shared = _open(db, alice, [only, other], [_ref(device)])
+    rule = AlertRule(name="Down", event_type="device_down", enabled=True)
+    db.add(rule)
+    db.flush()
+    db.add_all([
+        StatusBreachStreak(rule_id=rule.id, source_key=_ref(device).key, page_id=only.id, streak=2),
+        StatusBreachStreak(rule_id=rule.id, source_key=_ref(device).key, page_id=other.id, streak=2),
+    ])
+    db.commit()
+
+    incidents.delete_page_records(db, only.id, now=NOW + timedelta(minutes=1))
+    db.delete(only)
+    db.commit()
+
+    db.refresh(lonely)
+    db.refresh(shared)
+    assert (lonely.status, lonely.resolution_reason) == ("resolved", "page_deleted")
+    assert lonely.resolved_at.replace(tzinfo=timezone.utc) == NOW + timedelta(minutes=1)
+    notes = list(db.scalars(select(StatusIncidentUpdate).where(StatusIncidentUpdate.incident_id == lonely.id)))
+    assert any(u.message == incidents.PAGE_DELETED_REASON and not u.is_public for u in notes)
+    assert shared.status == "investigating"
+    assert [s.page_id for s in db.scalars(select(StatusBreachStreak))] == [other.id]
