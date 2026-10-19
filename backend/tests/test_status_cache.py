@@ -485,3 +485,54 @@ def test_monitor_loop_calls_notify_after_phase_three_commit(factory, monkeypatch
     notify = [entry for entry in log if entry[0] == "notify"]
     assert notify == [("notify", 0, ["monitor:7"])]
     assert log.index(notify[0]) > max(i for i, entry in enumerate(log) if entry[0] == "commit")
+
+
+def test_build_in_flight_across_a_restore_cannot_publish(cache, factory, monkeypatch):
+    page_id = _seed(factory)
+    cache.load_registry()
+    entered, release = threading.Event(), threading.Event()
+    real = cache_module.load_page
+
+    def slow(db, page, now, cycle):
+        inputs = real(db, page, now, cycle)
+        entered.set()
+        assert release.wait(5)
+        return inputs
+
+    monkeypatch.setattr(cache_module, "load_page", slow)
+    result = {}
+    worker = threading.Thread(target=lambda: result.update(ok=cache.build_now(page_id, now=T0)))
+    worker.start()
+    assert entered.wait(5)
+    cache.reset_from_db()
+    release.set()
+    worker.join(5)
+    assert result == {"ok": False}
+    assert cache.get(page_id, "public", T0) is None
+    monkeypatch.setattr(cache_module, "load_page", real)
+    cache.drain(now=T0)
+    assert cache.get(page_id, "public", T0) is not None
+
+
+def test_reset_forgets_floors_snapshots_and_pending_work(cache, factory):
+    page_id = _seed(factory)
+    cache.load_registry()
+    cache.drain(now=T0)
+    cache.remove_page_sync(page_id)
+    assert cache.lookup("media") is None
+    cache.reset_from_db()
+    assert cache.lookup("media") == RegistryEntry(page_id, "media", "public", 0)
+    assert cache.get(page_id, "public", T0) is None
+    assert cache.pending() == [page_id]
+
+
+def test_equal_registry_entries_are_not_interchangeable(cache, factory):
+    page_id = _seed(factory)
+    cache.load_registry()
+    stale = cache.entry(page_id)
+    cache.register_page(RegistryEntry(page_id, "media", "public", 0))
+    assert cache.entry(page_id) == stale and cache.entry(page_id) is not stale
+    cache.remove_page_sync(page_id, only=stale)
+    assert cache.lookup("media") is not None
+    cache.remove_page_sync(page_id, only=cache.entry(page_id))
+    assert cache.lookup("media") is None

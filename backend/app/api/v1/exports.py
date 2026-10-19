@@ -339,7 +339,7 @@ def _reload_status_cache() -> None:
     from app.services.status_pages.cache import status_cache
 
     try:
-        status_cache.load_registry()
+        status_cache.reset_from_db()
     except Exception:
         logger.exception("Could not reload the status page registry after restore")
 

@@ -146,6 +146,25 @@ class StatusSnapshotCache:
             self.ready = True
             self._lock.notify_all()
 
+    def reset_from_db(self) -> None:
+        """After a database restore: forget every floor, snapshot, pending build and aggregate, then reload."""
+        with self._lock:
+            self._by_id, self._by_slug = {}, {}
+            self._floor.clear()
+            self._snapshots.clear()
+            self._queue.clear()
+            self._checked.clear()
+            self._dirty.clear()
+            self._retry_at.clear()
+            self._sources, self._page_sources = defaultdict(set), {}
+            self.ready = False
+        self.history.clear()
+        self.load_registry()
+
+    def entry(self, page_id: int) -> RegistryEntry | None:
+        with self._lock:
+            return self._by_id.get(page_id)
+
     def lookup(self, slug: str) -> RegistryEntry | None:
         with self._lock:
             return self._by_slug.get(slug)
@@ -164,8 +183,12 @@ class StatusSnapshotCache:
             self._floor[entry.page_id] = entry.generation
             self._register(entry)
 
-    def remove_page_sync(self, page_id: int, replacement: RegistryEntry | None = None) -> None:
+    def remove_page_sync(
+        self, page_id: int, replacement: RegistryEntry | None = None, only: RegistryEntry | None = None,
+    ) -> None:
         with self._lock:
+            if only is not None and self._by_id.get(page_id) is not only:
+                return
             floor = self._floor.get(page_id, 0)
             if replacement is not None and replacement.generation < floor:
                 return
@@ -283,7 +306,7 @@ class StatusSnapshotCache:
 
     def _drop(self, page_id: int) -> RegistryEntry | None:
         entry = self._by_id.pop(page_id, None)
-        if entry is not None and self._by_slug.get(entry.slug) == entry:
+        if entry is not None and self._by_slug.get(entry.slug) is entry:
             del self._by_slug[entry.slug]
         for audience in ("public", "private"):
             self._snapshots.pop((page_id, audience), None)
@@ -379,7 +402,7 @@ class StatusSnapshotCache:
             self._retry_later(entry, now)
             return False
         with self._lock:
-            if self._by_id.get(page_id) != entry:
+            if self._by_id.get(page_id) is not entry:
                 return False
             self._snapshots[(page_id, entry.visibility)] = snapshot
             self._set_sources(page_id, keys)
@@ -389,7 +412,7 @@ class StatusSnapshotCache:
 
     def _retry_later(self, entry: RegistryEntry, now: datetime) -> None:
         with self._lock:
-            if self._by_id.get(entry.page_id) == entry:
+            if self._by_id.get(entry.page_id) is entry:
                 self._retry_at[entry.page_id] = now + timedelta(seconds=TIMER_SECONDS)
 
     def _evaluate_checked(self, now: datetime, building: set[int]) -> None:

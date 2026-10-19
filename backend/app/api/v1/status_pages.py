@@ -540,6 +540,7 @@ def update_page(page_id: int, payload: StatusPageUpdate, current_user: CurrentUs
 @router.delete("/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_page(page_id: int, current_user: CurrentUser, db: Db) -> None:
     page = _get_page(db, page_id)
+    cached = status_cache.entry(page_id)
     page.generation += 1
     db.flush()
     for model in (StatusPageItem, StatusPageGroup):
@@ -551,7 +552,8 @@ def delete_page(page_id: int, current_user: CurrentUser, db: Db) -> None:
     db.delete(page)
     write_audit(db, "status_page.deleted", current_user.id, f"status_page:{page_id}", f"slug={slug}")
     db.commit()
-    status_cache.remove_page_sync(page_id)
+    if cached is not None:
+        status_cache.remove_page_sync(page_id, only=cached)
     events.notify_pages_changed([page_id])
 
 

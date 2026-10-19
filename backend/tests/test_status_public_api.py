@@ -310,3 +310,81 @@ def test_stopped_cache_answers_every_slug_identically(env):
         assert_headers(response)
     assert len({r.content for r in responses}) == 1
     assert len({tuple(sorted((k, v) for k, v in r.headers.items() if k != "date")) for r in responses}) == 1
+
+
+def _backup(env):
+    with env.Session() as db:
+        return [
+            {c.name: getattr(page, c.name) for c in StatusPage.__table__.columns}
+            for page in db.scalars(select(StatusPage))
+        ]
+
+
+def _restore_to(env, monkeypatch, rows):
+    def fake_restore(payload, passphrase):
+        with env.Session() as db:
+            for page in db.scalars(select(StatusPage)):
+                db.delete(page)
+            db.flush()
+            for row in rows:
+                db.add(StatusPage(**row))
+            db.commit()
+
+    monkeypatch.setattr(exports_api, "restore_database_bytes", fake_restore)
+    assert env.post("/api/v1/exports/restore", content=BACKUP).status_code == 204
+
+
+def test_page_deleted_after_backup_is_reachable_and_editable_after_restore(env, monkeypatch):
+    page_id = env.seed("media")
+    env.ready(page_id)
+    backup = _backup(env)
+    assert env.delete(f"/api/v1/status-pages/{page_id}").status_code == 204
+    assert env.cache.lookup("media") is None
+
+    _restore_to(env, monkeypatch, backup)
+    assert env.cache.lookup("media") is not None
+    assert env.get("/api/v1/public/status-pages/media").status_code == 503
+    env.cache.drain()
+    assert env.get("/api/v1/public/status-pages/media").json()["slug"] == "media"
+
+    assert env.patch(f"/api/v1/status-pages/{page_id}", json={"title": "Media status"}).status_code == 200
+    env.cache.drain()
+    assert env.get("/api/v1/public/status-pages/media").json()["title"] == "Media status"
+    assert env.patch(f"/api/v1/status-pages/{page_id}", json={"slug": "renamed"}).status_code == 200
+    env.cache.drain()
+    assert env.get("/api/v1/public/status-pages/renamed").status_code == 200
+    assert env.get("/api/v1/public/status-pages/media").status_code == 404
+
+
+def test_reslug_and_visibility_change_after_backup_are_undone_by_restore(env, monkeypatch):
+    page_id = env.seed("media")
+    env.ready(page_id)
+    backup = _backup(env)
+    assert env.patch(f"/api/v1/status-pages/{page_id}", json={"slug": "news", "visibility": "private"}).status_code == 200
+    env.cache.drain()
+    assert env.cache.lookup("news").visibility == "private"
+
+    _restore_to(env, monkeypatch, backup)
+    assert env.cache.lookup("news") is None
+    assert env.cache.lookup("media").visibility == "public"
+    assert env.get("/api/v1/public/status-pages/news").status_code == 404
+    assert env.get("/api/v1/public/status-pages/media").status_code == 503
+    env.cache.drain()
+    assert env.get("/api/v1/public/status-pages/media").json()["slug"] == "media"
+    assert env.cache.get(page_id, "private", datetime.now(timezone.utc)) is None
+
+
+def test_restore_never_serves_another_pages_snapshot_under_a_reused_id(env, monkeypatch):
+    page_id = env.seed("media")
+    env.ready(page_id)
+    other = _backup(env)
+    other[0].update(slug="other", name="Other")
+    old_etag = env.get("/api/v1/public/status-pages/media").headers["etag"]
+
+    _restore_to(env, monkeypatch, other)
+    assert env.get("/api/v1/public/status-pages/media").status_code == 404
+    stale = env.get("/api/v1/public/status-pages/other", headers={"If-None-Match": old_etag})
+    assert stale.status_code == 503
+    env.cache.drain()
+    fresh = env.get("/api/v1/public/status-pages/other")
+    assert fresh.json()["slug"] == "other" and fresh.headers["etag"] != old_etag
