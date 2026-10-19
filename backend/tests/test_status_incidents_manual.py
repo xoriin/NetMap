@@ -16,7 +16,7 @@ from app.models.status_page import (
 )
 from app.models.user import User, UserRole
 from app.services.status_pages import cache as cache_module
-from app.services.status_pages import copy, events, incidents, notices
+from app.services.status_pages import copy, events, incidents, notices, tokens
 from app.services.status_pages.cache import StatusSnapshotCache
 from app.services.status_pages.incidents import NetmapActor, PersonActor, Ticket, TokenActor
 from app.services.status_pages.projection import build_page_payload
@@ -564,3 +564,22 @@ def test_static_incident_routes_are_not_swallowed_by_page_routes(api):
     assert api.delete("/api/v1/status-pages/notices/1").status_code == 404
     with api.Session() as db:
         assert db.scalar(select(StatusPage)) is None
+
+
+def test_notice_list_flags_owner_and_inactive_tokens(api):
+    page_id = _api_page(api, "a")
+    assert api.put(f"/api/v1/status-pages/{page_id}/notice", json={"level": "info", "title": "Mine"}).status_code == 200
+    with api.Session() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        live, _ = tokens.create_token(db, admin, "backup-server", [page_id], None)
+        dead, _ = tokens.create_token(db, admin, "old-job", [page_id], None)
+        notices.set_notice(db, TokenActor(live), page_id, "warning", "Backups running", None, None, None)
+        notices.set_notice(db, TokenActor(dead), page_id, "info", "Stale", None, None, None)
+        tokens.revoke_token(db, admin, dead)
+        live_id, dead_id, admin_id = live.id, dead.id, admin.id
+    by_title = {n["title"]: n for n in api.get(f"/api/v1/status-pages/{page_id}/notices").json()}
+    assert (by_title["Mine"]["owner_kind"], by_title["Mine"]["owner_id"], by_title["Mine"]["mine"]) == ("user", admin_id, True)
+    assert by_title["Mine"]["token_active"] is None
+    assert (by_title["Backups running"]["owner_id"], by_title["Backups running"]["mine"]) == (live_id, False)
+    assert by_title["Backups running"]["token_active"] is True
+    assert (by_title["Stale"]["owner_id"], by_title["Stale"]["token_active"]) == (dead_id, False)

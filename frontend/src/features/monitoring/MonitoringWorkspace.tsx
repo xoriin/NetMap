@@ -925,7 +925,7 @@ export function MonitoringWorkspace({
       <section className="dash-layout">
         <div className="mon-content">
           <Suspense fallback={<PanelSkeleton />}>
-            <StatusPagesPanel accessToken={accessToken} />
+            <StatusPagesPanel accessToken={accessToken} canManageAlerts={canManageAlerts} />
           </Suspense>
         </div>
       </section>

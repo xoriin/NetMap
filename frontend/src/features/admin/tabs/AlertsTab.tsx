@@ -8,6 +8,16 @@ import { useApiQuery } from "../../../hooks/useApiQuery";
 import { formatEventTime } from "../../../utils/format";
 import { legacyChannelLabels, notificationTargetLabel, notificationProfileMethodLabel } from "../notificationProfiles";
 
+const INCIDENT_DEFAULT_EVENTS: AlertRuleEventType[] = ["device_offline", "device_unexpected_state", "service_down", "monitor_down"];
+const INCIDENT_NEVER_EVENTS: AlertRuleEventType[] = ["device_online", "any_status_change", "device_expected_state_restored"];
+
+function newRuleForm(): AlertRulePayload {
+  return {
+    name: "", enabled: true, event_type: "device_offline", device_id: null, port_target_id: null, monitor_id: null, channels: [],
+    cooldown_minutes: 30, threshold_ms: null, loss_pct_threshold: null, loss_window_minutes: 60, open_incident: true, incident_min_failures: 3,
+  };
+}
+
 export function AlertsTab({
   accessToken,
   graph,
@@ -21,19 +31,10 @@ export function AlertsTab({
   const [alertTestBusy, setAlertTestBusy] = useState<number | null>(null);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [editingAlertRule, setEditingAlertRule] = useState<AlertRule | null>(null);
-  const [alertForm, setAlertForm] = useState<AlertRulePayload>({
-    name: "",
-    enabled: true,
-    event_type: "device_offline",
-    device_id: null,
-    port_target_id: null,
-    monitor_id: null,
-    channels: [],
-    cooldown_minutes: 30,
-    threshold_ms: null,
-    loss_pct_threshold: null,
-    loss_window_minutes: 60,
-  });
+  const [alertForm, setAlertForm] = useState<AlertRulePayload>(newRuleForm);
+  const incidentNever = INCIDENT_NEVER_EVENTS.includes(alertForm.event_type);
+  const incidentChecksInvalid = !incidentNever && alertForm.open_incident
+    && (!Number.isInteger(alertForm.incident_min_failures) || alertForm.incident_min_failures < 1 || alertForm.incident_min_failures > 20);
 
   const rulesQuery = useApiQuery(() => api.listAlertRules(accessToken), [accessToken]);
   const profilesQuery = useApiQuery(() => api.listNotificationProfiles(accessToken), [accessToken]);
@@ -59,11 +60,16 @@ export function AlertsTab({
   async function saveAlertRule() {
     setAlertRulesBusy(true);
     setAlertRulesError(null);
+    const payload: AlertRulePayload = {
+      ...alertForm,
+      open_incident: !INCIDENT_NEVER_EVENTS.includes(alertForm.event_type) && alertForm.open_incident,
+      incident_min_failures: Number.isInteger(alertForm.incident_min_failures) ? alertForm.incident_min_failures : 3,
+    };
     try {
       if (editingAlertRule) {
-        await api.updateAlertRule(accessToken, editingAlertRule.id, alertForm);
+        await api.updateAlertRule(accessToken, editingAlertRule.id, payload);
       } else {
-        await api.createAlertRule(accessToken, alertForm);
+        await api.createAlertRule(accessToken, payload);
       }
       setShowAlertForm(false);
       setEditingAlertRule(null);
@@ -114,7 +120,7 @@ export function AlertsTab({
           <div className="admin-panel-actions">
             <button type="button" className="nm-btn nm-btn--primary" onClick={() => {
               setEditingAlertRule(null);
-              setAlertForm({ name: "", enabled: true, event_type: "device_offline", device_id: null, port_target_id: null, monitor_id: null, channels: [], cooldown_minutes: 30, threshold_ms: null, loss_pct_threshold: null, loss_window_minutes: 60 });
+              setAlertForm(newRuleForm());
               setShowAlertForm(true);
             }}>+ Add rule</button>
           </div>
@@ -128,7 +134,7 @@ export function AlertsTab({
               <input value={alertForm.name} maxLength={120} onChange={(e) => setAlertForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Core router offline" />
             </label>
             <label>Trigger
-              <select value={alertForm.event_type} onChange={(e) => setAlertForm(f => ({...f, event_type: e.target.value as AlertRuleEventType}))}>
+              <select value={alertForm.event_type} onChange={(e) => { const eventType = e.target.value as AlertRuleEventType; setAlertForm(f => ({...f, event_type: eventType, open_incident: INCIDENT_DEFAULT_EVENTS.includes(eventType)})); }}>
                 <option value="device_offline">Device goes offline</option>
                 <option value="device_online">Device comes back online</option>
                 <option value="device_warning">Device status becomes Warning</option>
@@ -242,11 +248,26 @@ export function AlertsTab({
               </select>
             </label>
             <label className="tool-form-inline-check">
+              <input type="checkbox" checked={!incidentNever && alertForm.open_incident} disabled={incidentNever} onChange={(e) => setAlertForm(f => ({...f, open_incident: e.target.checked}))} />
+              <span className="tool-form-check-copy">
+                <span>Open an incident on status pages</span>
+                <span className="tool-note">{incidentNever
+                  ? "Not available for this trigger, because it reports a recovery or every change rather than a problem."
+                  : "Status pages showing the affected item get an incident once the checks below breach in a row."}</span>
+              </span>
+            </label>
+            <label>Consecutive breaching checks
+              <input type="number" min={1} max={20} step={1} value={Number.isNaN(alertForm.incident_min_failures) ? "" : alertForm.incident_min_failures}
+                disabled={incidentNever || !alertForm.open_incident} aria-invalid={incidentChecksInvalid || undefined}
+                onChange={(e) => setAlertForm(f => ({...f, incident_min_failures: e.target.value ? Number(e.target.value) : Number.NaN}))} />
+              <span className="tool-note">1–20. Endpoints also wait for their own retry count; the larger of the two applies.</span>
+            </label>
+            <label className="tool-form-inline-check">
               <input type="checkbox" checked={alertForm.enabled} onChange={(e) => setAlertForm(f => ({...f, enabled: e.target.checked}))} />
               Enabled
             </label>
             <div className="ipam-form-actions">
-              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || ((alertForm.event_type === "rtt_above" || alertForm.event_type === "service_slow" || alertForm.event_type === "monitor_slow") && !alertForm.threshold_ms) || (alertForm.event_type === "ping_loss_above" && !alertForm.loss_pct_threshold)} onClick={() => void saveAlertRule()}>
+              <button type="button" className="nm-btn nm-btn--primary" disabled={alertRulesBusy || !alertForm.name || alertForm.channels.length === 0 || incidentChecksInvalid || ((alertForm.event_type === "rtt_above" || alertForm.event_type === "service_slow" || alertForm.event_type === "monitor_slow") && !alertForm.threshold_ms) || (alertForm.event_type === "ping_loss_above" && !alertForm.loss_pct_threshold)} onClick={() => void saveAlertRule()}>
                 {alertRulesBusy ? "Saving…" : editingAlertRule ? "Update rule" : "Create rule"}
               </button>
               <button type="button" className="nm-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
@@ -318,7 +339,7 @@ export function AlertsTab({
                         </button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => {
                           setEditingAlertRule(rule);
-                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, port_target_id: rule.port_target_id, monitor_id: rule.monitor_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms, loss_pct_threshold: rule.loss_pct_threshold, loss_window_minutes: rule.loss_window_minutes ?? 60 });
+                          setAlertForm({ name: rule.name, enabled: rule.enabled, event_type: rule.event_type, device_id: rule.device_id, port_target_id: rule.port_target_id, monitor_id: rule.monitor_id, channels: rule.channels, cooldown_minutes: rule.cooldown_minutes, threshold_ms: rule.threshold_ms, loss_pct_threshold: rule.loss_pct_threshold, loss_window_minutes: rule.loss_window_minutes ?? 60, open_incident: rule.open_incident, incident_min_failures: rule.incident_min_failures });
                           setShowAlertForm(true);
                         }}>Edit</button>
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteAlertRule(rule.id)}>Delete</button>

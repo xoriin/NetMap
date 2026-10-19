@@ -83,7 +83,9 @@
 }
 
 .status-pages-table th:first-child,
-.status-pages-table td:first-child {
+.status-pages-table td:first-child,
+.status-manage-table th:first-child,
+.status-manage-table td:first-child {
   padding-left: 18px;
 }
 
@@ -302,6 +304,72 @@
   border: 1px solid var(--nm-border);
   border-radius: var(--nm-radius-md);
   background: var(--nm-bg);
+}
+
+.status-manage-choices {
+  display: grid;
+  gap: var(--nm-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.status-manage-choices legend {
+  margin-bottom: var(--nm-space-2);
+  padding: 0;
+}
+
+.status-incident-audience,
+.status-incident-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-incident-audience li,
+.status-incident-timeline li {
+  padding: var(--nm-space-2) 0;
+  font-size: var(--nm-text-md);
+}
+
+.status-incident-audience li + li,
+.status-incident-timeline li + li {
+  border-top: 1px solid var(--nm-border);
+}
+
+.status-incident-timeline p {
+  margin: var(--nm-space-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.status-incident-facts,
+.status-incident-update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nm-space-2);
+}
+
+.status-incident-section {
+  display: grid;
+  gap: var(--nm-space-3);
+  padding-top: var(--nm-space-4);
+  border-top: 1px solid var(--nm-border);
+}
+
+.status-incident-actions {
+  justify-content: flex-end;
+}
+
+.status-incident-choice {
+  display: grid;
+  gap: 6px;
+}
+
+.status-token-secret.totp-key-note {
+  margin-top: 0;
 }
 
 @media (max-width: 720px) {

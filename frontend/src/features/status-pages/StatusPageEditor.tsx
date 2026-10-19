@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
-import { ArrowLeft, ExternalLink, FileUp, Eye, LayoutList, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarClock, ExternalLink, FileUp, Eye, KeyRound, LayoutList, Megaphone, RefreshCw, Siren, SlidersHorizontal } from "lucide-react";
 import { PanelSkeleton } from "../../components/Skeleton";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -11,16 +11,24 @@ import {
 } from "./StatusPageLayoutEditor";
 import { statusPagePath, type StatusPagePayload } from "./statusPagesApi";
 import { StatusCssErrors } from "./StatusCssErrors";
+import { StatusIncidentsPanel } from "./StatusIncidentsPanel";
+import { StatusNoticesPanel } from "./StatusNoticesPanel";
+import { StatusMaintenancePanel } from "./StatusMaintenancePanel";
+import { StatusTokensPanel } from "./StatusTokensPanel";
 import {
   SLUG_HINT, cssErrors, isValidAccent, isValidSlug, statusPagesEditorApi,
   type StatusPageDetail, type StatusPageSettings, type StatusPreviewAudience, type StatusSources,
 } from "./statusPagesEditorApi";
 
-type EditorTab = "settings" | "layout" | "preview";
+type EditorTab = "settings" | "layout" | "incidents" | "notices" | "maintenance" | "tokens" | "preview";
 
 const EDITOR_TABS: { id: EditorTab; label: string; Icon: typeof SlidersHorizontal }[] = [
   { id: "settings", label: "Settings", Icon: SlidersHorizontal },
   { id: "layout", label: "Layout", Icon: LayoutList },
+  { id: "incidents", label: "Incidents", Icon: Siren },
+  { id: "notices", label: "Notices", Icon: Megaphone },
+  { id: "maintenance", label: "Maintenance", Icon: CalendarClock },
+  { id: "tokens", label: "Tokens", Icon: KeyRound },
   { id: "preview", label: "Preview", Icon: Eye },
 ];
 
@@ -305,7 +313,12 @@ function PreviewPanel({ accessToken, pageId, stale }: { accessToken: string; pag
   );
 }
 
-export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken: string; pageId: number; onClose: () => void }) {
+export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose }: {
+  accessToken: string;
+  pageId: number;
+  canManageAlerts: boolean;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [tab, setTab] = useState<EditorTab>("settings");
@@ -461,6 +474,10 @@ export function StatusPageEditor({ accessToken, pageId, onClose }: { accessToken
             onSave={() => void saveLayout()}
           />
         )}
+        {tab === "incidents" && <StatusIncidentsPanel accessToken={accessToken} page={page} />}
+        {tab === "notices" && <StatusNoticesPanel accessToken={accessToken} page={page} />}
+        {tab === "maintenance" && <StatusMaintenancePanel accessToken={accessToken} page={page} canManageAlerts={canManageAlerts} />}
+        {tab === "tokens" && <StatusTokensPanel accessToken={accessToken} page={page} />}
         {tab === "preview" && (
           <div className="status-editor-panels">
             <PreviewPanel accessToken={accessToken} pageId={page.id} stale={settingsDirty || layoutDirty} />

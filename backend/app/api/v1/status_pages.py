@@ -36,6 +36,7 @@ from app.schemas.status_pages import (
     LayoutUpdate,
     MaintenanceCreate,
     MaintenanceUpdate,
+    NoticeManagerRead,
     NoticeRead,
     NoticeSet,
     StatusPageCreate,
@@ -212,6 +213,7 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
     pages: dict[int, list[int]] = {i: [] for i in ids}
     items: dict[int, list[dict]] = {i: [] for i in ids}
     updates: dict[int, list[dict]] = {i: [] for i in ids}
+    breaching = incidents.breaching_incident_ids(db, ids)
     if ids:
         for row in db.scalars(select(StatusIncidentPage).where(StatusIncidentPage.incident_id.in_(ids))):
             pages[row.incident_id].append(row.page_id)
@@ -235,6 +237,7 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
             "opened_at": _iso(row.opened_at), "resolved_at": _iso(row.resolved_at),
             "ticket": {"url": row.ticket_url, "label": row.ticket_label} if row.ticket_url else None,
             "page_ids": sorted(pages[row.id]), "items": items[row.id], "updates": updates[row.id],
+            "breaching": row.id in breaching,
         }
         for row in rows
     ]
@@ -307,7 +310,7 @@ def clear_any_notice(notice_id: int, current_user: CurrentUser, db: Db) -> None:
         raise _service_error(exc)
 
 
-def _token_reads(db: Session, rows: list[StatusIntegrationToken]) -> list[dict]:
+def _token_state(db: Session, rows: list[StatusIntegrationToken]) -> tuple[dict[int, list[int]], dict[int, User], dict[int, bool]]:
     ids = [row.id for row in rows]
     pages: dict[int, list[int]] = {i: [] for i in ids}
     if ids:
@@ -320,13 +323,21 @@ def _token_reads(db: Session, rows: list[StatusIntegrationToken]) -> list[dict]:
         User.id.in_({row.created_by_user_id for row in rows if row.created_by_user_id is not None})
     ))}
     now = datetime.now(timezone.utc)
+    active = {
+        row.id: bool(pages[row.id]) and tokens.is_active(row, now) and tokens.creator_may_manage(creators.get(row.created_by_user_id))
+        for row in rows
+    }
+    return pages, creators, active
+
+
+def _token_reads(db: Session, rows: list[StatusIntegrationToken]) -> list[dict]:
+    pages, creators, active = _token_state(db, rows)
     return [
         {
             "id": row.id, "name": row.name, "prefix": row.prefix, "page_ids": pages[row.id],
             "created_by": creator.username if (creator := creators.get(row.created_by_user_id)) else None,
             "created_at": row.created_at, "expires_at": row.expires_at, "revoked_at": row.revoked_at,
-            "last_used_at": row.last_used_at,
-            "active": bool(pages[row.id]) and tokens.is_active(row, now) and tokens.creator_may_manage(creator),
+            "last_used_at": row.last_used_at, "active": active[row.id],
         }
         for row in rows
     ]
@@ -445,10 +456,22 @@ def delete_maintenance(window_id: int, current_user: CurrentUser, db: Db) -> Non
         raise _maintenance_error(exc)
 
 
-@router.get("/{page_id}/notices", response_model=list[NoticeRead])
-def list_page_notices(page_id: int, _: CurrentUser, db: Db) -> list[StatusNotice]:
+@router.get("/{page_id}/notices", response_model=list[NoticeManagerRead])
+def list_page_notices(page_id: int, current_user: CurrentUser, db: Db) -> list[dict]:
     _get_page(db, page_id)
-    return list(db.scalars(select(StatusNotice).where(StatusNotice.page_id == page_id).order_by(StatusNotice.id)))
+    rows = list(db.scalars(select(StatusNotice).where(StatusNotice.page_id == page_id).order_by(StatusNotice.id)))
+    token_rows = list(db.scalars(select(StatusIntegrationToken).where(
+        StatusIntegrationToken.id.in_({n.owner_id for n in rows if n.owner_kind == "token"})
+    )))
+    _, _, active = _token_state(db, token_rows)
+    return [
+        {
+            **NoticeRead.model_validate(n).model_dump(), "owner_id": n.owner_id,
+            "mine": n.owner_kind == "user" and n.owner_id == current_user.id,
+            "token_active": active.get(n.owner_id, False) if n.owner_kind == "token" else None,
+        }
+        for n in rows
+    ]
 
 
 @router.put("/{page_id}/notice", response_model=NoticeRead)

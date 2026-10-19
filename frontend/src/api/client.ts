@@ -776,6 +776,8 @@ export type AlertRule = {
   threshold_ms: number | null;
   loss_pct_threshold: number | null;
   loss_window_minutes: number | null;
+  open_incident: boolean;
+  incident_min_failures: number;
   last_triggered_at: string | null;
   created_at: string;
   updated_at: string;
@@ -793,6 +795,8 @@ export type AlertRulePayload = {
   threshold_ms: number | null;
   loss_pct_threshold: number | null;
   loss_window_minutes: number | null;
+  open_incident: boolean;
+  incident_min_failures: number;
 };
 
 export type AlertEvent = {

@@ -286,6 +286,12 @@ class NoticeRead(BaseModel):
     expires_at: datetime | None
 
 
+class NoticeManagerRead(NoticeRead):
+    owner_id: int
+    mine: bool
+    token_active: bool | None
+
+
 class TokenCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

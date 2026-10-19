@@ -100,7 +100,7 @@ function CreatePageModal({
   );
 }
 
-export function StatusPagesPanel({ accessToken }: { accessToken: string }) {
+export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { accessToken: string; canManageAlerts?: boolean }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [pages, setPages] = useState<StatusPageSummary[]>([]);
@@ -143,6 +143,7 @@ export function StatusPagesPanel({ accessToken }: { accessToken: string }) {
       <StatusPageEditor
         accessToken={accessToken}
         pageId={editingId}
+        canManageAlerts={canManageAlerts}
         onClose={() => { setEditingId(null); void load(); }}
       />
     );

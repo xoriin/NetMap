@@ -45,6 +45,7 @@ MESSAGE_MAX = 5000
 REASON_MAX = 500
 URL_MAX = 2048
 LABEL_MAX = 120
+BREACHING_NEEDS_REASON = "A monitored condition is still failing. Give a reason to resolve this incident anyway."
 
 
 class IncidentError(ValueError):
@@ -261,6 +262,8 @@ def add_update(
         raise IncidentConflict("This incident is already resolved")
     if message is None and status_change is None and ticket is None:
         raise IncidentError("Add a message, a status change or a ticket link")
+    if status_change == "resolved" and message is None and breaching_incident_ids(db, [incident.id]):
+        raise IncidentError(BREACHING_NEEDS_REASON)
     if ticket is not None:
         incident.ticket_url, incident.ticket_label = ticket.url, ticket.label
     resolving = status_change == "resolved"
@@ -280,6 +283,17 @@ def add_update(
     return update
 
 
+def breaching_incident_ids(db: Session, incident_ids: Iterable[int]) -> set[int]:
+    ids = list(incident_ids)
+    if not ids:
+        return set()
+    return set(db.scalars(select(StatusIncidentSource.incident_id).where(
+        StatusIncidentSource.incident_id.in_(ids),
+        StatusIncidentSource.active == True,  # noqa: E712
+        StatusIncidentSource.cleared == False,  # noqa: E712
+    )))
+
+
 def _mark_resolved(db: Session, incident: StatusIncident, actor: Actor, now: datetime) -> StatusIncidentUpdate:
     from app.services.status_pages import evaluator
 
@@ -296,6 +310,8 @@ def resolve(db: Session, actor: Actor, incident_id: int, reason: str | None, *, 
     reason = clean_text(reason, "Reason", REASON_MAX)
     if incident.status == "resolved":
         raise IncidentConflict("This incident is already resolved")
+    if not reason and breaching_incident_ids(db, [incident.id]):
+        raise IncidentError(BREACHING_NEEDS_REASON)
     _mark_resolved(db, incident, actor, now)
     if reason:
         db.add(_update_row(incident.id, actor, now, message=reason, is_public=False))

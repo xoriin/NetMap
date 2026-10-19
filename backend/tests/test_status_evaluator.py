@@ -874,3 +874,29 @@ def test_deleting_a_rule_removes_its_streaks(api, db):
     assert api.delete(f"/api/v1/alerts/rules/{rule.id}").status_code == 204
     db.expire_all()
     assert db.query(StatusBreachStreak).count() == 0
+
+
+def test_resolving_while_still_breaching_requires_a_reason(db):
+    from app.api.v1.status_pages import _incident_detail
+
+    _rule(db)
+    router = _device(db)
+    seed_page(db, "main", items=[(_ref(router), "Router")])
+    user = User(username="ops", password_hash="x", role=UserRole.SUPER_ADMIN, is_active=True)
+    db.add(user)
+    db.commit()
+    last = _fail(db, router, 3)
+    [incident] = _incidents(db)
+    assert _incident_detail(db, [incident])[0]["breaching"] is True
+    with pytest.raises(incidents.IncidentError, match="reason"):
+        incidents.resolve(db, PersonActor(user), incident.id, None, now=last + timedelta(seconds=5))
+    with pytest.raises(incidents.IncidentError, match="reason"):
+        incidents.add_update(db, PersonActor(user), incident.id, None, True, None, "resolved", None, now=last + timedelta(seconds=5))
+    db.rollback()
+    assert incident.status == "investigating"
+
+    _cycle(db, last + STEP, [(router, "online")])
+    assert _incident_detail(db, [incident])[0]["breaching"] is False
+    incidents.resolve(db, PersonActor(user), incident.id, None, now=last + 2 * STEP)
+    assert incident.status == "resolved"
+    assert _incident_detail(db, [incident])[0]["breaching"] is False
