@@ -568,11 +568,9 @@ class _Evaluation:
 
     def create(self, rule: AlertRule, family: str, pages: list[int], keys: list[str], streak: int) -> None:
         db = self.db
-        aliases = self.aliases(pages)
-        names = [aliases[pages[0]][k] for k in keys if k in aliases[pages[0]]]
         savepoint = db.begin_nested()
         incident = StatusIncident(
-            title=copy.auto_title(family, names)[: incidents.TITLE_MAX],
+            title=copy.neutral_title(family, len(set(keys)))[: incidents.TITLE_MAX],
             severity="partial" if family == "availability" else "performance",
             status="investigating", source="netmap", condition_family=family, opened_by_rule_id=rule.id,
             opened_at=self.now,

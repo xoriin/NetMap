@@ -33,6 +33,10 @@ def auto_title(family: str, aliases: Sequence[str]) -> str:
     return TITLES.get(family, TITLES["warning"]).format(names=names(aliases))
 
 
+def neutral_title(family: str, count: int) -> str:
+    return TITLES.get(family, TITLES["warning"]).format(names=f"{count} system{'' if count == 1 else 's'}")
+
+
 def render_event(code: str, data: dict, aliases: dict[str, str]) -> str | None:
     if code in _FIXED_EVENTS:
         return _FIXED_EVENTS[code]

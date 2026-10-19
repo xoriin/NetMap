@@ -900,3 +900,28 @@ def test_resolving_while_still_breaching_requires_a_reason(db):
     incidents.resolve(db, PersonActor(user), incident.id, None, now=last + 2 * STEP)
     assert incident.status == "resolved"
     assert _incident_detail(db, [incident])[0]["breaching"] is False
+
+
+def test_stored_automatic_title_is_neutral_and_never_an_alias(db):
+    _rule(db)
+    router, switch = _device(db), _device(db)
+    secret = seed_page(db, "secret", "private", items=[
+        (_ref(router), "core-sw-01 (10.9.9.9) rack B"), (_ref(switch), "edge-sw-02 (10.9.9.10)"),
+    ])
+    public = seed_page(db, "public", items=[(_ref(router), "Network"), (_ref(switch), "Wifi")])
+    for i in range(3):
+        _cycle(db, T0 + i * STEP, [(router, "offline"), (switch, "offline")])
+    [incident] = _incidents(db)
+    assert incident.title == "2 systems unavailable"
+    for alias in ("core-sw-01", "10.9.9.9", "edge-sw-02", "Network", "Wifi"):
+        assert alias not in incident.title
+    assert [t for t, _ in _shown(db, secret, T0 + 2 * STEP)] == ["core-sw-01 (10.9.9.9) rack B, edge-sw-02 (10.9.9.10) unavailable"]
+    assert [t for t, _ in _shown(db, public, T0 + 2 * STEP)] == ["Network, Wifi unavailable"]
+
+
+def test_neutral_titles_name_the_family_and_count():
+    from app.services.status_pages import copy
+
+    assert copy.neutral_title("availability", 1) == "1 system unavailable"
+    assert copy.neutral_title("latency", 3) == "Slow responses: 3 systems"
+    assert copy.neutral_title("unknown-family", 2) == "Warning: 2 systems"
