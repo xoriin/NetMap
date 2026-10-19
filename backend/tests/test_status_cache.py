@@ -269,8 +269,8 @@ def test_notification_during_build_rebuilds_once_after(cache, factory, monkeypat
     worker = threading.Thread(target=lambda: cache.drain(now=T0))
     worker.start()
     assert entered.wait(5)
-    cache.invalidate_sources([ref.key, "device:999"])
-    cache.invalidate_sources([ref.key])
+    cache.sources_checked([ref, SourceRef("device", device_id=999)])
+    cache.sources_checked([ref])
     release.set()
     worker.join(5)
     assert calls == [page_id, page_id]
@@ -284,7 +284,7 @@ def test_sources_map_to_their_pages_only(cache, factory):
     _seed(factory, "b", items=[(SourceRef("device", device_id=b.id), "B")])
     cache.load_registry()
     cache.drain(now=T0)
-    cache.invalidate_sources([SourceRef("device", device_id=a.id).key, "monitor:42"])
+    cache.sources_checked([SourceRef("device", device_id=a.id), SourceRef("monitor", monitor_id=42)])
     assert cache.pending() == [page_a]
 
 

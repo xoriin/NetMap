@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, delete, func, or_, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,14 @@ from app.models.status_page import (
 from app.services.alerting.service import DEFAULT_LOSS_WINDOW_MINUTES, FLAP_MIN_TRANSITIONS, FLAP_WINDOW_SECONDS
 from app.services.monitoring.health import observed_health
 from app.services.status_pages import copy, incidents, maintenance, sources
-from app.services.status_pages.sources import Health, SourceRef, _utc, freshness_deadline, load_current_states
+from app.services.status_pages.sources import (
+    Health,
+    SourceRef,
+    _utc,
+    freshness_deadline,
+    load_current_states,
+    pages_showing,
+)
 
 CONDITION_FAMILY: dict[str, str] = {
     "device_offline": "availability",
@@ -136,10 +143,6 @@ def rule_version(rule: AlertRule) -> str:
     return hashlib.sha256(json.dumps(fields, default=str).encode()).hexdigest()[:40]
 
 
-def pages_in_maintenance(db: Session, refs: Iterable[SourceRef], now: datetime) -> set[tuple[str, int]]:
-    return maintenance.pages_in_maintenance(db, refs, now)
-
-
 def _history(db: Session, model, column, value, since: datetime | None, limit: int) -> list:
     query = select(model).where(column == value).order_by(model.checked_at.desc(), model.id.desc()).limit(limit)
     if since is not None:
@@ -223,20 +226,6 @@ def _observations(
 def latest_observation(db: Session, ref: SourceRef, rules: list[AlertRule], monitor: Monitor | None = None) -> Observation | None:
     found = _observations(db, ref, rules, monitor, None, 1)
     return found[-1] if found else None
-
-
-def _pages_showing(db: Session, refs: list[SourceRef]) -> dict[str, set[int]]:
-    keys = {r.key for r in refs}
-    device_ids = {r.device_id for r in refs if r.device_id is not None}
-    monitor_ids = {r.monitor_id for r in refs if r.monitor_id is not None}
-    found: dict[str, set[int]] = defaultdict(set)
-    for item in db.scalars(select(StatusPageItem).where(or_(
-        StatusPageItem.device_id.in_(device_ids), StatusPageItem.monitor_id.in_(monitor_ids),
-    ))):
-        key = SourceRef.from_item(item).key
-        if key in keys:
-            found[key].add(item.page_id)
-    return found
 
 
 def _audience(db: Session, incident_ids: Iterable[int]) -> dict[int, set[int]]:
@@ -346,7 +335,7 @@ class _Evaluation:
             )
 
         keys = [r.key for r in refs]
-        showing = _pages_showing(db, refs)
+        showing = pages_showing(db, [r.key for r in refs])
         orphaned = {
             (row.source_key, row.page_id)
             for row in db.scalars(select(StatusIncidentSource).where(
@@ -370,7 +359,7 @@ class _Evaluation:
                 StatusIncidentSource.active == True, StatusIncidentSource.source_key.in_(keys),  # noqa: E712
             ))
         }
-        in_maintenance = pages_in_maintenance(db, refs, now)
+        in_maintenance = maintenance.pages_in_maintenance(db, refs, now)
         states = load_current_states(db, refs, now)
         monitor_ids = {r.monitor_id for r in refs if r.kind == "monitor"}
         monitors = {m.id: m for m in db.scalars(select(Monitor).where(Monitor.id.in_(monitor_ids)))} if monitor_ids else {}

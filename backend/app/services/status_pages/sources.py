@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -324,6 +325,36 @@ def threshold_breaching_sources(
             if ping_loss_above(rule, total, offline or 0):
                 breaching.add(wanted[device_id])
     return breaching
+
+
+def iso(value: datetime | None) -> str | None:
+    value = _utc(value)
+    return value.isoformat() if value else None
+
+
+def source_dict(ref: SourceRef) -> dict[str, int]:
+    if ref.kind == "monitor":
+        return {"monitor": ref.monitor_id}
+    if ref.kind == "service_check":
+        return {"device": ref.device_id, "service_check": ref.port_target_id}
+    return {"device": ref.device_id}
+
+
+def pages_showing(db: Session, keys: Iterable[str]) -> dict[str, set[int]]:
+    keys = set(keys)
+    refs = [SourceRef.from_key(k) for k in keys]
+    found: dict[str, set[int]] = defaultdict(set)
+    if not refs:
+        return found
+    device_ids = {r.device_id for r in refs if r.device_id is not None}
+    monitor_ids = {r.monitor_id for r in refs if r.monitor_id is not None}
+    for item in db.scalars(select(StatusPageItem).where(or_(
+        StatusPageItem.device_id.in_(device_ids), StatusPageItem.monitor_id.in_(monitor_ids),
+    ))):
+        key = SourceRef.from_item(item).key
+        if key in keys:
+            found[key].add(item.page_id)
+    return found
 
 
 def pages_with_items(db: Session, *conditions) -> list[int]:

@@ -27,7 +27,7 @@ from app.models.status_page import (
 from app.models.user import User
 from app.services.audit.service import write_audit
 from app.services.status_pages import copy, events
-from app.services.status_pages.sources import ItemState, SourceRef, _utc
+from app.services.status_pages.sources import ItemState, SourceRef, _utc, iso
 
 Severity = Literal["performance", "partial", "major"]
 IncidentStatus = Literal["investigating", "identified", "monitoring", "resolved"]
@@ -454,11 +454,6 @@ def _author(update: StatusIncidentUpdate) -> str:
     return NETMAP_LABEL
 
 
-def _iso(value: datetime | None) -> str | None:
-    value = _utc(value)
-    return value.isoformat() if value else None
-
-
 def project_incident(
     loaded: LoadedIncident, page: StatusPage, audience: Audience, local: PageLocal | None = None,
 ) -> dict | None:
@@ -490,7 +485,7 @@ def project_incident(
             continue
         updates.append({
             "id": update.id,
-            "at": _iso(update.created_at),
+            "at": iso(update.created_at),
             "status": update.status_change,
             "message": message,
             "author": _author(update),
@@ -502,8 +497,8 @@ def project_incident(
         "title": title,
         "severity": _severity(incident, keys, local),
         "status": incident.status,
-        "opened_at": _iso(incident.opened_at),
-        "resolved_at": _iso(incident.resolved_at),
+        "opened_at": iso(incident.opened_at),
+        "resolved_at": iso(incident.resolved_at),
         "ticket": ticket,
         "updates": updates,
     }

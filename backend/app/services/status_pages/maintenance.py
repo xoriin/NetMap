@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -15,7 +14,6 @@ from app.models.status_page import (
     StatusMaintenanceItem,
     StatusMaintenancePage,
     StatusPage,
-    StatusPageItem,
 )
 from app.models.user import UserRole
 from app.services.rbac.permissions import has_permission
@@ -30,7 +28,7 @@ from app.services.status_pages.incidents import (
     commit_and_notify,
     now_or_utc,
 )
-from app.services.status_pages.sources import SourceRef, _utc
+from app.services.status_pages.sources import SourceRef, _utc, pages_showing
 
 UPCOMING_LEAD = timedelta(days=7)
 TITLE_MAX = 200
@@ -130,23 +128,6 @@ def _item_row(window_id: int, ref: SourceRef) -> StatusMaintenanceItem:
 
 def _key(row) -> str:
     return SourceRef(row.kind, row.device_id, row.monitor_id, row.port_target_id).key
-
-
-def pages_showing(db: Session, keys: Iterable[str]) -> dict[str, set[int]]:
-    keys = set(keys)
-    refs = [SourceRef.from_key(k) for k in keys]
-    device_ids = {r.device_id for r in refs if r.device_id is not None}
-    monitor_ids = {r.monitor_id for r in refs if r.monitor_id is not None}
-    found: dict[str, set[int]] = defaultdict(set)
-    if not refs:
-        return found
-    for item in db.scalars(select(StatusPageItem).where(or_(
-        StatusPageItem.device_id.in_(device_ids), StatusPageItem.monitor_id.in_(monitor_ids),
-    ))):
-        key = SourceRef.from_item(item).key
-        if key in keys:
-            found[key].add(item.page_id)
-    return found
 
 
 def _audience(db: Session, keys: list[str], page_ids: list[int] | None, suppress: bool) -> list[int]:
@@ -384,13 +365,6 @@ def spans_for_page(windows: list[LoadedWindow], page_id: int, keys: Iterable[str
         if spans:
             found[key] = spans
     return found
-
-
-def active_page_maintenance(db: Session, page_id: int, now: datetime) -> dict[str, list[Span]]:
-    now = _utc(now)
-    keys = {SourceRef.from_item(i).key for i in db.scalars(select(StatusPageItem).where(StatusPageItem.page_id == page_id))}
-    windows = [w for w in page_windows(db, page_id, keys, ending_after=now) if w.active(now)]
-    return spans_for_page(windows, page_id, keys)
 
 
 def pages_in_maintenance(db: Session, refs: Iterable[SourceRef], now: datetime) -> set[tuple[str, int]]:

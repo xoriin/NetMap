@@ -60,7 +60,7 @@ from app.services.status_pages.incidents import (
     Ticket,
 )
 from app.services.status_pages.projection import build_page_payload
-from app.services.status_pages.sources import SourceRef
+from app.services.status_pages.sources import SourceRef, iso, source_dict
 
 router = APIRouter(prefix="/status-pages", tags=["status-pages"])
 
@@ -104,14 +104,6 @@ def _slug_conflict() -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail="That slug is already used by another status page")
 
 
-def _source_dict(item: StatusPageItem) -> dict[str, int]:
-    if item.kind == "monitor":
-        return {"monitor": item.monitor_id}
-    if item.kind == "service_check":
-        return {"device": item.device_id, "service_check": item.port_target_id}
-    return {"device": item.device_id}
-
-
 def _detail(db: Session, page: StatusPage) -> StatusPageDetail:
     groups = db.scalars(
         select(StatusPageGroup).where(StatusPageGroup.page_id == page.id).order_by(StatusPageGroup.sort_order, StatusPageGroup.id)
@@ -123,7 +115,7 @@ def _detail(db: Session, page: StatusPage) -> StatusPageDetail:
     for item in items:
         by_group.setdefault(item.group_id, []).append({
             "id": item.id,
-            "source": _source_dict(item),
+            "source": source_dict(SourceRef.from_item(item)),
             "source_key": SourceRef.from_item(item).key,
             "display_name": item.display_name,
             "extras": ItemExtras(**(item.extras or {})),
@@ -202,12 +194,6 @@ def _ticket(payload) -> Ticket | None:
     return Ticket(payload.url, payload.label) if payload is not None else None
 
 
-def _iso(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    return (value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value).isoformat()
-
-
 def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
     ids = [row.id for row in rows]
     pages: dict[int, list[int]] = {i: [] for i in ids}
@@ -227,14 +213,14 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
             ).order_by(StatusIncidentUpdate.id)
         ):
             updates[row.incident_id].append({
-                "id": row.id, "at": _iso(row.created_at), "page_id": row.page_id, "author": row.author_label,
+                "id": row.id, "at": iso(row.created_at), "page_id": row.page_id, "author": row.author_label,
                 "author_kind": row.author_kind, "is_public": row.is_public, "status": row.status_change,
                 "message": row.message, "event_code": row.event_code,
             })
     return [
         {
             "id": row.id, "title": row.title, "severity": row.severity, "status": row.status, "source": row.source,
-            "opened_at": _iso(row.opened_at), "resolved_at": _iso(row.resolved_at),
+            "opened_at": iso(row.opened_at), "resolved_at": iso(row.resolved_at),
             "ticket": {"url": row.ticket_url, "label": row.ticket_label} if row.ticket_url else None,
             "page_ids": sorted(pages[row.id]), "items": items[row.id], "updates": updates[row.id],
             "breaching": row.id in breaching,
@@ -367,15 +353,6 @@ def revoke_token(token_id: int, current_user: CurrentUser, db: Db) -> None:
     tokens.revoke_token(db, current_user, token)
 
 
-def _source_from_key(key: str) -> dict[str, int]:
-    ref = SourceRef.from_key(key)
-    if ref.kind == "monitor":
-        return {"monitor": ref.monitor_id}
-    if ref.kind == "service_check":
-        return {"device": ref.device_id, "service_check": ref.port_target_id}
-    return {"device": ref.device_id}
-
-
 def _window_reads(db: Session, rows: list[maintenance.LoadedWindow]) -> list[dict]:
     users = {u.id: u.username for u in db.scalars(select(User).where(
         User.id.in_({w.window.created_by_user_id for w in rows if w.window.created_by_user_id is not None})
@@ -389,11 +366,11 @@ def _window_reads(db: Session, rows: list[maintenance.LoadedWindow]) -> list[dic
             "id": w.window.id, "title": w.window.title, "description": w.window.description,
             "starts_at": w.start.isoformat(), "ends_at": w.end.isoformat(), "suppress_alerts": w.window.suppress_alerts,
             "state": "active" if w.active(now) else "finished" if w.end <= now else "upcoming",
-            "items": [{"source": _source_from_key(key), "source_key": key} for key in w.keys],
+            "items": [{"source": source_dict(SourceRef.from_key(key)), "source_key": key} for key in w.keys],
             "page_ids": sorted(w.page_ids),
             "created_by": users.get(w.window.created_by_user_id),
             "created_by_token": token_names.get(w.window.created_by_token_id),
-            "created_at": _iso(w.window.created_at),
+            "created_at": iso(w.window.created_at),
         }
         for w in rows
     ]

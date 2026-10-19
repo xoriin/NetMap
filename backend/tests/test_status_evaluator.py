@@ -31,7 +31,7 @@ from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
 from app.services.monitoring.health import observed_is_healthy
 from app.services.status_pages import cache as cache_module
-from app.services.status_pages import evaluator, events, incidents, sources
+from app.services.status_pages import evaluator, events, incidents, maintenance, sources
 from app.services.status_pages.cache import StatusSnapshotCache
 from app.services.status_pages.incidents import PersonActor
 from app.services.status_pages.projection import build_page_payload
@@ -657,8 +657,8 @@ def test_maintenance_seam_resets_only_that_page(db, monkeypatch):
     router = _device(db)
     one = seed_page(db, "one", items=[(_ref(router), "Router")])
     two = seed_page(db, "two", items=[(_ref(router), "Router")])
-    assert evaluator.pages_in_maintenance(db, [_ref(router)], T0) == set()
-    monkeypatch.setattr(evaluator, "pages_in_maintenance", lambda db, refs, now: {(_ref(router).key, one.id)})
+    assert maintenance.pages_in_maintenance(db, [_ref(router)], T0) == set()
+    monkeypatch.setattr(maintenance, "pages_in_maintenance", lambda db, refs, now: {(_ref(router).key, one.id)})
     _fail(db, router, 3)
     assert _streak(db, rule, _ref(router), two).streak == 3
     assert _streak(db, rule, _ref(router), one) is None or _streak(db, rule, _ref(router), one).streak == 0

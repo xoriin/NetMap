@@ -38,7 +38,7 @@ from app.services.api_keys.throttle import clear_lookup_failures, is_lookup_lock
 from app.services.audit.service import write_audit
 from app.services.status_pages import incidents, maintenance, notices, tokens
 from app.services.status_pages.incidents import IncidentConflict, IncidentError, IncidentNotFound, Ticket, TokenActor
-from app.services.status_pages.sources import SourceRef
+from app.services.status_pages.sources import SourceRef, iso, source_dict
 
 _OPS = {
     "set_notice": "notice_set",
@@ -239,12 +239,6 @@ def _page_by_slug(db: Session, slug: str, scope: set[int]) -> StatusPage:
     return page
 
 
-def _iso(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    return (value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value).isoformat()
-
-
 def _incident_body(db: Session, incident_id: int) -> dict:
     incident = db.get(StatusIncident, incident_id)
     slugs = db.scalars(
@@ -253,7 +247,7 @@ def _incident_body(db: Session, incident_id: int) -> dict:
     ).all()
     return {
         "id": incident.id, "title": incident.title, "severity": incident.severity, "status": incident.status,
-        "opened_at": _iso(incident.opened_at), "resolved_at": _iso(incident.resolved_at),
+        "opened_at": iso(incident.opened_at), "resolved_at": iso(incident.resolved_at),
         "ticket": {"url": incident.ticket_url, "label": incident.ticket_label} if incident.ticket_url else None,
         "pages": list(slugs),
     }
@@ -262,7 +256,7 @@ def _incident_body(db: Session, incident_id: int) -> dict:
 def _notice_body(notice, slug: str) -> dict:
     return {
         "id": notice.id, "page": slug, "level": notice.level, "title": notice.title, "body": notice.body,
-        "link": notice.link, "expires_at": _iso(notice.expires_at),
+        "link": notice.link, "expires_at": iso(notice.expires_at),
     }
 
 
@@ -369,14 +363,7 @@ def _forbidden(detail: str) -> HTTPException:
 def _window_body(db: Session, window_id: int) -> dict:
     loaded = maintenance.get_window(db, window_id)
     slugs = db.scalars(select(StatusPage.slug).where(StatusPage.id.in_(loaded.page_ids)).order_by(StatusPage.slug)).all()
-    items = []
-    for key in loaded.keys:
-        ref = SourceRef.from_key(key)
-        items.append(
-            {"monitor": ref.monitor_id} if ref.kind == "monitor"
-            else {"device": ref.device_id, "service_check": ref.port_target_id} if ref.kind == "service_check"
-            else {"device": ref.device_id}
-        )
+    items = [source_dict(SourceRef.from_key(key)) for key in loaded.keys]
     return {
         "id": loaded.window.id, "title": loaded.window.title, "description": loaded.window.description,
         "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(),

@@ -216,9 +216,7 @@ def test_page_maintenance_only_affects_that_page(db):
     assert [(m["id"], m["active"]) for m in first["maintenance"]] == [(window.id, True)]
     assert _item(second)["state"] == "down"
     assert second["maintenance"] == []
-    assert maintenance.active_page_maintenance(db, two.id, T0) == {}
-    assert set(maintenance.active_page_maintenance(db, one.id, T0)) == {_ref(router).key}
-    assert evaluator.pages_in_maintenance(db, [_ref(router)], T0) == {(_ref(router).key, one.id)}
+    assert maintenance.pages_in_maintenance(db, [_ref(router)], T0) == {(_ref(router).key, one.id)}
     assert maintenance.globally_suppressed(db, T0) == set()
 
 
@@ -233,7 +231,7 @@ def test_global_suppression_shows_maintenance_on_all_pages(db):
         payload = build_page_payload(db, page, "public", T0)
         assert _item(payload)["state"] == "maintenance"
         assert payload["summary"]["state"] == "maintenance"
-    assert evaluator.pages_in_maintenance(db, [_ref(router)], T0) == {(_ref(router).key, one.id), (_ref(router).key, two.id)}
+    assert maintenance.pages_in_maintenance(db, [_ref(router)], T0) == {(_ref(router).key, one.id), (_ref(router).key, two.id)}
     assert maintenance.globally_suppressed(db, T0 + timedelta(minutes=30)) == set()
 
 

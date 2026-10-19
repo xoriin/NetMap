@@ -215,14 +215,6 @@ class StatusSnapshotCache:
                 self._retry_at.pop(page_id, None)
                 self._enqueue(page_id, dirty=True)
 
-    def invalidate_sources(self, keys: Iterable[str]) -> None:
-        with self._lock:
-            if not self.ready:
-                return
-            pages = set().union(*(self._sources.get(key, ()) for key in set(keys)))
-            for page_id in pages:
-                self._enqueue(page_id, dirty=True)
-
     def sources_checked(self, refs: Iterable[SourceRef]) -> None:
         with self._lock:
             if not self.ready:
