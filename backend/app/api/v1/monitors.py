@@ -21,9 +21,12 @@ from app.schemas.monitor import (
 from app.services.audit.service import write_audit
 from app.services.status_pages import evaluator as status_evaluator
 from app.services.status_pages import events as status_page_events
+from app.services.status_pages.sources import pages_with_items
 from app.core.secrets import encrypt_secret
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
+
+STATUS_PAGE_MONITOR_FIELDS = ("enabled", "check_interval_seconds", "retry_interval_seconds")
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -275,6 +278,9 @@ def update_monitor(
         "expected_status_min" in updates or "expected_status_max" in updates
     ):
         updates["accepted_status_codes"] = f"{merged_min}-{merged_max}"
+    monitoring_changed = any(
+        field in updates and updates[field] != getattr(monitor, field) for field in STATUS_PAGE_MONITOR_FIELDS
+    )
     for key, value in updates.items():
         setattr(monitor, key, value)
     write_audit(
@@ -285,6 +291,8 @@ def update_monitor(
     )
     db.commit()
     db.refresh(monitor)
+    if monitoring_changed:
+        status_page_events.notify_pages_changed(pages_with_items(db, StatusPageItem.monitor_id == monitor.id))
     return _build_reads(db, [monitor], current_user)[0]
 
 

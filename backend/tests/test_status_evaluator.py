@@ -925,3 +925,46 @@ def test_neutral_titles_name_the_family_and_count():
     assert copy.neutral_title("availability", 1) == "1 system unavailable"
     assert copy.neutral_title("latency", 3) == "Slow responses: 3 systems"
     assert copy.neutral_title("unknown-family", 2) == "Warning: 2 systems"
+
+
+def test_device_monitoring_changes_refresh_the_pages_showing_it(api, db):
+    router, other = _device(db), _device(db)
+    target = seed_service_check(db, router.id)
+    page = seed_page(db, "main", items=[(SourceRef("service_check", device_id=router.id, port_target_id=target.id), "Web")])
+    seed_page(db, "other", items=[(_ref(other), "Other")])
+    for change in ({"monitoring_paused": True}, {"expected_status": "offline"}, {"ip_address": "10.1.1.1"}):
+        api.calls.clear()
+        assert api.patch(f"/api/v1/topology/devices/{router.id}", json=change).status_code == 200
+        assert api.calls == [[page.id]]
+    api.calls.clear()
+    assert api.patch(f"/api/v1/topology/devices/{router.id}", json={"hostname": "renamed"}).status_code == 200
+    assert api.calls == []
+
+
+def test_monitor_enable_and_disable_refresh_the_pages_showing_it(api, db):
+    monitor = seed_monitor(db, check_interval_seconds=60)
+    page = seed_page(db, "main", items=[(SourceRef("monitor", monitor_id=monitor.id), "Website")])
+    seed_page(db, "other")
+    for enabled in (False, True):
+        api.calls.clear()
+        assert api.patch(f"/api/v1/monitors/{monitor.id}", json={"enabled": enabled}).status_code == 200
+        assert api.calls == [[page.id]]
+    api.calls.clear()
+    assert api.patch(f"/api/v1/monitors/{monitor.id}", json={"name": "Renamed"}).status_code == 200
+    assert api.calls == []
+
+
+def test_alert_rule_changes_refresh_every_page(api, db):
+    pages = sorted(seed_page(db, slug).id for slug in ("one", "two"))
+    api.calls.clear()
+    created = api.post("/api/v1/alerts/rules", json={
+        "name": "Slow", "event_type": "rtt_above", "threshold_ms": 100, "channels": [],
+    })
+    assert created.status_code == 201, created.text
+    assert api.calls == [pages]
+    api.calls.clear()
+    assert api.patch(f"/api/v1/alerts/rules/{created.json()['id']}", json={"threshold_ms": 50}).status_code == 200
+    assert api.calls == [pages]
+    api.calls.clear()
+    assert api.delete(f"/api/v1/alerts/rules/{created.json()['id']}").status_code == 204
+    assert api.calls == [pages]

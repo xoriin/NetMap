@@ -13,7 +13,7 @@ from app.models.device import Device
 from app.models.monitor import Monitor
 from app.models.notification_delivery import NotificationDelivery
 from app.models.port_target import DevicePortTarget
-from app.models.status_page import OPEN_INCIDENT_DEFAULT_EVENTS, StatusBreachStreak
+from app.models.status_page import OPEN_INCIDENT_DEFAULT_EVENTS, StatusBreachStreak, StatusPage
 from app.schemas.alert import (
     INCIDENT_NEVER_EVENTS,
     AlertEventRead,
@@ -25,6 +25,7 @@ from app.schemas.alert import (
 from app.models.user import User
 from app.services.alerting.service import AlertMonitorService
 from app.services.monitors.service import StandaloneMonitorService
+from app.services.status_pages import events as status_page_events
 from app.services.notifications import (
     list_notification_profiles,
     load_notification_settings,
@@ -49,6 +50,10 @@ def list_rules(
 ) -> list[AlertRuleRead]:
     rules = db.scalars(select(AlertRule).order_by(AlertRule.created_at)).all()
     return [_to_read(r) for r in rules]
+
+
+def _refresh_status_pages(db: Session) -> None:
+    status_page_events.notify_pages_changed(db.scalars(select(StatusPage.id).order_by(StatusPage.id)).all())
 
 
 @router.post("/rules", response_model=AlertRuleRead, status_code=status.HTTP_201_CREATED)
@@ -87,6 +92,7 @@ def create_rule(
     db.add(rule)
     db.commit()
     db.refresh(rule)
+    _refresh_status_pages(db)
     return _to_read(rule)
 
 
@@ -128,6 +134,7 @@ def update_rule(
         raise HTTPException(status_code=422, detail="threshold_ms is required for monitor_slow rules")
     db.commit()
     db.refresh(rule)
+    _refresh_status_pages(db)
     return _to_read(rule)
 
 
@@ -143,6 +150,7 @@ def delete_rule(
     db.execute(delete(StatusBreachStreak).where(StatusBreachStreak.rule_id == rule.id))
     db.delete(rule)
     db.commit()
+    _refresh_status_pages(db)
 
 
 @router.post("/rules/{rule_id}/test", response_model=dict[str, str])

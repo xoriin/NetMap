@@ -65,6 +65,7 @@ from app.services.search import build_device_event_counts, correlation_window_st
 from app.services.audit.service import write_audit
 from app.services.status_pages import evaluator as status_evaluator
 from app.services.status_pages import events as status_page_events
+from app.services.status_pages.sources import pages_with_items
 from app.services.rbac.permissions import has_permission
 from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
@@ -73,6 +74,7 @@ from app.services.snmp_profiles import decrypt_profile_community
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["topology"])
+STATUS_PAGE_DEVICE_FIELDS = ("ip_address", "status", "lifecycle", "monitoring_paused", "expected_status")
 TOPOLOGY_AUTOSAVE_LAYOUT_NAME = "__autosave__"
 
 
@@ -1004,6 +1006,9 @@ def update_device(
         device.tags = serialize_tags(updates.pop("tags"))
     if "ip_address" in updates and updates["ip_address"] is None:
         updates["ip_address"] = ""
+    monitoring_changed = any(
+        field in updates and updates[field] != getattr(device, field) for field in STATUS_PAGE_DEVICE_FIELDS
+    )
     for field, value in updates.items():
         setattr(device, field, value)
 
@@ -1018,6 +1023,8 @@ def update_device(
     db.refresh(device)
     if group_changed:
         sync_topology_group_entities(db)
+    if monitoring_changed:
+        status_page_events.notify_pages_changed(pages_with_items(db, StatusPageItem.device_id == device.id))
     return DeviceRead(**device_to_dict(device))
 
 

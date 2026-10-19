@@ -326,6 +326,10 @@ def threshold_breaching_sources(
     return breaching
 
 
+def pages_with_items(db: Session, *conditions) -> list[int]:
+    return sorted(set(db.scalars(select(StatusPageItem.page_id).where(*conditions))))
+
+
 def item_state(state: CurrentState, degraded: bool, in_maintenance: bool, now: datetime) -> ItemState:
     if in_maintenance:
         return "maintenance"
