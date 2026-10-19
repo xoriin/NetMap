@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from app.models.alert_rule import AlertRule
 from app.models.device import Device
@@ -113,16 +113,66 @@ def _device_usable(device: Device | None) -> bool:
     )
 
 
-def _latest_history(db: Session, device_id: int, limit: int) -> list[DeviceMonitorHistory]:
-    return list(db.scalars(
-        select(DeviceMonitorHistory)
-        .where(DeviceMonitorHistory.device_id == device_id)
+def _latest_device_rtt(db: Session, device_ids: set[int]) -> dict[int, float | None]:
+    if not device_ids:
+        return {}
+    latest = (
+        select(DeviceMonitorHistory.rtt_ms)
+        .where(DeviceMonitorHistory.device_id == Device.id)
         .order_by(DeviceMonitorHistory.checked_at.desc(), DeviceMonitorHistory.id.desc())
-        .limit(limit)
-    ))
+        .limit(1)
+        .correlate(Device)
+        .scalar_subquery()
+    )
+    return dict(db.execute(select(Device.id, latest).where(Device.id.in_(device_ids))).all())
 
 
-def _port_entry(row: DeviceMonitorHistory, target_id: int) -> dict | None:
+def _latest_port_rows(db: Session, device_ids: set[int], limit: int) -> dict[int, list]:
+    if not device_ids:
+        return {}
+    earlier = aliased(DeviceMonitorHistory)
+    bound = (
+        select(earlier.checked_at)
+        .where(earlier.device_id == Device.id)
+        .order_by(earlier.checked_at.desc())
+        .offset(limit - 1)
+        .limit(1)
+        .correlate(Device)
+        .scalar_subquery()
+    )
+    bounds = select(Device.id.label("owner_id"), bound.label("bound")).where(Device.id.in_(device_ids)).subquery()
+    rows = db.execute(
+        select(DeviceMonitorHistory.device_id, DeviceMonitorHistory.checked_at, DeviceMonitorHistory.port_results)
+        .join(bounds, bounds.c.owner_id == DeviceMonitorHistory.device_id)
+        .where(or_(bounds.c.bound.is_(None), DeviceMonitorHistory.checked_at >= bounds.c.bound))
+        .order_by(DeviceMonitorHistory.device_id, DeviceMonitorHistory.checked_at.desc(), DeviceMonitorHistory.id.desc())
+    ).all()
+    found: dict[int, list] = {device_id: [] for device_id in device_ids}
+    for row in rows:
+        if len(found[row.device_id]) < limit:
+            found[row.device_id].append(row)
+    return found
+
+
+def _latest_monitor_response(db: Session, monitor_ids: set[int]) -> dict[int, tuple[str, float | None]]:
+    if not monitor_ids:
+        return {}
+    latest = (
+        select(MonitorCheckHistory.id)
+        .where(MonitorCheckHistory.monitor_id == Monitor.id)
+        .order_by(MonitorCheckHistory.checked_at.desc(), MonitorCheckHistory.id.desc())
+        .limit(1)
+        .correlate(Monitor)
+        .scalar_subquery()
+    )
+    rows = db.execute(
+        select(MonitorCheckHistory.monitor_id, MonitorCheckHistory.status, MonitorCheckHistory.response_time_ms)
+        .where(MonitorCheckHistory.id.in_(select(latest).where(Monitor.id.in_(monitor_ids))))
+    ).all()
+    return {row.monitor_id: (row.status, row.response_time_ms) for row in rows}
+
+
+def _port_entry(row, target_id: int) -> dict | None:
     try:
         results = json.loads(row.port_results or "[]")
     except ValueError:
@@ -141,13 +191,14 @@ def load_current_states(db: Session, refs: Iterable[SourceRef], now: datetime) -
     device_ids = {r.device_id for r in refs if r.kind in ("device", "service_check")}
     devices = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_(device_ids)))} if device_ids else {}
 
-    for ref in (r for r in refs if r.kind == "device"):
+    device_refs = [r for r in refs if r.kind == "device"]
+    rtts = _latest_device_rtt(db, {r.device_id for r in device_refs if _device_usable(devices.get(r.device_id))})
+    for ref in device_refs:
         device = devices.get(ref.device_id)
         if not _device_usable(device):
             states[ref] = _state(ref, "unknown", None, None, interval)
             continue
-        rows = _latest_history(db, device.id, 1)
-        rtt = rows[0].rtt_ms if rows else None
+        rtt = rtts.get(device.id)
         health = observed_health(device.monitor_status, device.expected_status)
         states[ref] = _state(ref, health, device.last_monitored_at, rtt, interval)
 
@@ -155,25 +206,24 @@ def load_current_states(db: Session, refs: Iterable[SourceRef], now: datetime) -
     if service_refs:
         target_ids = {r.port_target_id for r in service_refs}
         targets = {t.id: t for t in db.scalars(select(DevicePortTarget).where(DevicePortTarget.id.in_(target_ids)))}
-        history_by_device: dict[int, list[DeviceMonitorHistory]] = {}
+        valid = {
+            ref for ref in service_refs
+            if _device_usable(devices.get(ref.device_id))
+            and (target := targets.get(ref.port_target_id)) is not None
+            and target.enabled
+            and target.device_id in (None, ref.device_id)
+        }
+        history_by_device = _latest_port_rows(db, {r.device_id for r in valid}, SERVICE_SCAN_ROWS)
         for ref in service_refs:
-            target = targets.get(ref.port_target_id)
-            valid = (
-                _device_usable(devices.get(ref.device_id))
-                and target is not None
-                and target.enabled
-                and target.device_id in (None, ref.device_id)
-            )
-            if not valid:
+            if ref not in valid:
                 states[ref] = _state(ref, "unknown", None, None, interval)
                 continue
-            if ref.device_id not in history_by_device:
-                history_by_device[ref.device_id] = _latest_history(db, ref.device_id, SERVICE_SCAN_ROWS)
             states[ref] = _service_state(ref, history_by_device[ref.device_id], interval)
 
     monitor_refs = [r for r in refs if r.kind == "monitor"]
     if monitor_refs:
         monitors = {m.id: m for m in db.scalars(select(Monitor).where(Monitor.id.in_({r.monitor_id for r in monitor_refs})))}
+        latest_rows = _latest_monitor_response(db, {m.id for m in monitors.values() if m.enabled})
         for ref in monitor_refs:
             monitor = monitors.get(ref.monitor_id)
             if monitor is None or not monitor.enabled:
@@ -181,19 +231,14 @@ def load_current_states(db: Session, refs: Iterable[SourceRef], now: datetime) -
                 continue
             monitor_interval = monitor.retry_interval_seconds if monitor.consecutive_failures > 0 else monitor.check_interval_seconds
             health: Health = {"online": "healthy", "offline": "unhealthy"}.get(monitor.last_status, "unknown")
-            latest = db.scalar(
-                select(MonitorCheckHistory)
-                .where(MonitorCheckHistory.monitor_id == monitor.id)
-                .order_by(MonitorCheckHistory.checked_at.desc(), MonitorCheckHistory.id.desc())
-                .limit(1)
-            )
-            response_ms = latest.response_time_ms if latest is not None and latest.status == "online" else None
+            status, response = latest_rows.get(monitor.id, (None, None))
+            response_ms = response if status == "online" else None
             states[ref] = _state(ref, health, monitor.last_checked_at, response_ms, monitor_interval)
 
     return states
 
 
-def _service_state(ref: SourceRef, rows: list[DeviceMonitorHistory], interval: int) -> CurrentState:
+def _service_state(ref: SourceRef, rows: list, interval: int) -> CurrentState:
     for row in rows:
         entry = _port_entry(row, ref.port_target_id)
         if entry is None:
@@ -222,7 +267,9 @@ def ping_loss_above(rule: AlertRule, total_probes: int, offline_probes: int) -> 
     return offline_probes / total_probes * 100 >= rule.loss_pct_threshold
 
 
-def threshold_breaching_sources(db: Session, refs: Iterable[SourceRef], now: datetime) -> set[SourceRef]:
+def threshold_breaching_sources(
+    db: Session, refs: Iterable[SourceRef], now: datetime, states: dict[SourceRef, CurrentState] | None = None,
+) -> set[SourceRef]:
     now = _utc(now)
     refs = set(refs)
     rules = list(db.scalars(
@@ -230,7 +277,10 @@ def threshold_breaching_sources(db: Session, refs: Iterable[SourceRef], now: dat
     ))
     if not refs or not rules:
         return set()
-    states = load_current_states(db, refs, now)
+    if states is None:
+        states = load_current_states(db, refs, now)
+    else:
+        states = {ref: states[ref] for ref in refs}
     breaching: set[SourceRef] = set()
 
     def fresh(state: CurrentState) -> bool:

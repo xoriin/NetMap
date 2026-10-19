@@ -503,7 +503,7 @@ def view_page(slug: str, request: Request, _: Annotated[User, Depends(get_curren
 
 @router.get("/{page_id}/preview")
 def preview_page(page_id: int, _: CurrentUser, db: Db, audience: Literal["public", "private"] = "public") -> dict:
-    return build_page_payload(db, _get_page(db, page_id), audience, datetime.now(timezone.utc))
+    return build_page_payload(db, _get_page(db, page_id), audience, datetime.now(timezone.utc), status_cache.history.cycle())
 
 
 @router.get("/{page_id}", response_model=StatusPageDetail)

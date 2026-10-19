@@ -15,7 +15,8 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.status_page import StatusPage, StatusPageItem
 from app.services.status_pages import evaluator, retention, worker_lock
-from app.services.status_pages.projection import build_page_payload
+from app.services.status_pages.aggregates import BuildCycle, SourceHistory
+from app.services.status_pages.projection import load_page, project_page
 from app.services.status_pages.sources import SourceRef
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ REFRESH_LEAD = timedelta(seconds=2)
 MIN_TIMER_WAIT = 0.05
 JOIN_TIMEOUT = 10
 PRUNE_INTERVAL = timedelta(hours=24)
+CYCLE_MAX_AGE = timedelta(seconds=5)
 
 _ITEM_SOURCE = (
     StatusPageItem.page_id, StatusPageItem.kind, StatusPageItem.device_id,
@@ -74,7 +76,7 @@ class StatusSnapshotCache:
         self._page_sources: dict[int, set[str]] = {}
         self._queue: dict[int, None] = {}
         self._checked: dict[SourceRef, None] = {}
-        self._building: int | None = None
+        self._building: set[int] = set()
         self._dirty: set[int] = set()
         self._retry_at: dict[int, datetime] = {}
         self._threads: list[threading.Thread] = []
@@ -82,6 +84,7 @@ class StatusSnapshotCache:
         self._wake = threading.Event()
         self._locked = False
         self._last_prune: datetime | None = None
+        self.history = SourceHistory()
         self.ready = False
 
     def start(self, data_dir: str | None = None, timer: bool = True) -> None:
@@ -215,20 +218,19 @@ class StatusSnapshotCache:
 
     def wait_idle(self, timeout: float) -> bool:
         with self._lock:
-            return self._lock.wait_for(lambda: not self._queue and self._building is None, timeout)
+            return self._lock.wait_for(lambda: not self._queue and not self._building, timeout)
 
     def build_now(self, page_id: int, now: datetime | None = None) -> bool:
         with self._lock:
             self._queue.pop(page_id, None)
-        return self._build(page_id, now or _now())
+        return self._build(page_id, now or _now(), self.history.cycle())
 
     def drain(self, now: datetime | None = None) -> None:
-        while (page_id := self._take(block=False)) is not None:
+        while batch := self._take(block=False):
             try:
-                self._evaluate_checked(now or _now(), page_id)
-                self._build(page_id, now or _now())
+                self._run_batch(batch, now)
             finally:
-                self._finish(page_id)
+                self._finish(batch)
 
     def run_timer_once(self, now: datetime | None = None) -> list[int]:
         now = now or _now()
@@ -260,7 +262,7 @@ class StatusSnapshotCache:
         with self._lock:
             times = []
             for page_id, entry in self._by_id.items():
-                if page_id in self._queue or page_id == self._building:
+                if page_id in self._queue or page_id in self._building:
                     continue
                 retry = self._retry_at.get(page_id)
                 if retry is not None and retry > now:
@@ -304,7 +306,7 @@ class StatusSnapshotCache:
     def _enqueue(self, page_id: int, dirty: bool) -> None:
         if page_id not in self._by_id:
             return
-        if page_id == self._building:
+        if page_id in self._building:
             if dirty:
                 self._dirty.add(page_id)
             return
@@ -312,28 +314,38 @@ class StatusSnapshotCache:
             self._queue[page_id] = None
             self._lock.notify_all()
 
-    def _take(self, block: bool) -> int | None:
+    def _take(self, block: bool) -> list[int]:
         with self._lock:
             while not self._queue:
                 if not block or self._stop.is_set():
-                    return None
+                    return []
                 self._lock.wait()
             if block and self._stop.is_set():
-                return None
-            page_id = next(iter(self._queue))
-            del self._queue[page_id]
-            self._building = page_id
-            return page_id
+                return []
+            batch, self._queue = list(self._queue), {}
+            self._building = set(batch)
+            return batch
 
-    def _finish(self, page_id: int) -> None:
+    def _finish(self, batch: list[int]) -> None:
         with self._lock:
-            self._building = None
-            if page_id in self._dirty:
-                self._dirty.discard(page_id)
-                self._enqueue(page_id, dirty=False)
+            self._building = set()
+            for page_id in batch:
+                if page_id in self._dirty:
+                    self._dirty.discard(page_id)
+                    self._enqueue(page_id, dirty=False)
             self._lock.notify_all()
 
-    def _build(self, page_id: int, now: datetime) -> bool:
+    def _run_batch(self, batch: list[int], now: datetime | None = None) -> None:
+        """One build cycle: every page in the batch shares the cycle's source states and history."""
+        at = now or _now()
+        self._evaluate_checked(at, set(batch))
+        cycle = self.history.cycle()
+        for page_id in batch:
+            if now is None and _now() - at > CYCLE_MAX_AGE:
+                at, cycle = _now(), self.history.cycle()
+            self._build(page_id, at, cycle)
+
+    def _build(self, page_id: int, now: datetime, cycle: BuildCycle) -> bool:
         with self._lock:
             entry = self._by_id.get(page_id)
         if entry is None:
@@ -344,15 +356,16 @@ class StatusSnapshotCache:
                 if page is None or (page.slug, page.visibility, page.generation) != (
                     entry.slug, entry.visibility, entry.generation,
                 ):
-                    payload = None
+                    inputs = None
                 else:
-                    payload = build_page_payload(db, page, entry.visibility, now)
+                    inputs = load_page(db, page, now, cycle)
                     keys = {_source_key(row) for row in db.execute(
                         select(*_ITEM_SOURCE).where(StatusPageItem.page_id == page_id)
                     )}
-            if payload is None:
+            if inputs is None:
                 self._retry_later(entry, now)
                 return False
+            payload = project_page(inputs, entry.visibility, cycle)
             body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
             snapshot = Snapshot(
                 body=body,
@@ -379,7 +392,7 @@ class StatusSnapshotCache:
             if self._by_id.get(entry.page_id) == entry:
                 self._retry_at[entry.page_id] = now + timedelta(seconds=TIMER_SECONDS)
 
-    def _evaluate_checked(self, now: datetime, building: int) -> None:
+    def _evaluate_checked(self, now: datetime, building: set[int]) -> None:
         with self._lock:
             refs, self._checked = list(self._checked), {}
         if not refs:
@@ -390,15 +403,14 @@ class StatusSnapshotCache:
         except Exception:
             logger.exception("Status page incident evaluation failed")
             return
-        self.invalidate_pages(affected - {building})
+        self.invalidate_pages(affected - building)
 
     def _run_builder(self) -> None:
-        while (page_id := self._take(block=True)) is not None:
+        while batch := self._take(block=True):
             try:
-                self._evaluate_checked(_now(), page_id)
-                self._build(page_id, _now())
+                self._run_batch(batch)
             finally:
-                self._finish(page_id)
+                self._finish(batch)
 
     def _run_timer(self) -> None:
         while not self._stop.is_set():

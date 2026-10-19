@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -8,11 +8,30 @@ from app.models.monitor import Monitor
 from app.models.port_target import DevicePortTarget
 
 
-def make_session() -> Session:
+PRODUCTION_HISTORY_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_at ON device_monitor_history (device_id, checked_at)",
+    "CREATE INDEX IF NOT EXISTS ix_monitor_history_checked_at_rtt ON device_monitor_history (checked_at, rtt_ms)",
+    "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_status "
+    "ON device_monitor_history (device_id, checked_at, status, rtt_ms)",
+    "CREATE INDEX IF NOT EXISTS ix_monitor_history_device_checked_health "
+    "ON device_monitor_history (device_id, checked_at, is_healthy, status, rtt_ms)",
+    "CREATE INDEX IF NOT EXISTS ix_monitor_check_history_monitor_checked "
+    "ON monitor_check_history (monitor_id, checked_at, status, response_time_ms)",
+)
+
+
+def make_engine():
     import_all_models()
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
-    return sessionmaker(bind=engine, expire_on_commit=False)()
+    with engine.begin() as conn:
+        for ddl in PRODUCTION_HISTORY_INDEXES:
+            conn.execute(text(ddl))
+    return engine
+
+
+def make_session() -> Session:
+    return sessionmaker(bind=make_engine(), expire_on_commit=False)()
 
 
 def seed_device(db: Session, **kw) -> Device:

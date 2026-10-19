@@ -191,15 +191,15 @@ def test_uptime_period_uses_its_own_window_and_history_loads_once_per_window():
     ref = SourceRef("device", device_id=device.id)
     page = seed_page(db, "p", "public", [(ref, "Media")])
     _set_extras(db, page, uptime_period="7d")
-    from app.services.status_pages import projection
+    from app.services.status_pages import aggregates
 
     calls = []
-    real = projection.load_samples
-    projection.load_samples = lambda db_, refs, s, e: (calls.append((s, e)), real(db_, refs, s, e))[1]
+    real = aggregates.fetch_history
+    aggregates.fetch_history = lambda db_, refs, s, e, **kw: (calls.append((s, e)), real(db_, refs, s, e, **kw))[1]
     try:
         payload = build_page_payload(db, page, "public", NOW)
     finally:
-        projection.load_samples = real
+        aggregates.fetch_history = real
     assert len(calls) == len({(s, e) for s, e in calls}) == 2
     metric = payload["groups"][0]["items"][0]["metrics"]["uptime_period"]
     assert metric["label"] != "ok" and metric["percent"] is None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Literal, TypedDict
 
@@ -13,14 +14,18 @@ from app.services.status_pages import maintenance
 from app.services.status_pages.css import validate_css
 from app.services.status_pages.incidents import PAST_WINDOW, PageLocal, load_page_incidents, project_incident
 from app.services.status_pages.notices import live_notices
+from app.services.status_pages.aggregates import BuildCycle, LongKey, SourceHistory
 from app.services.status_pages.history import (
+    Availability,
+    RawHistory,
     Sample,
+    SampleConverter,
     availability,
     build_spans,
     failure_rate,
     heartbeat_slots,
-    load_samples,
     p95,
+    period_availability,
     response_slots,
     window_samples,
 )
@@ -30,8 +35,6 @@ from app.services.status_pages.sources import (
     SourceRef,
     _utc,
     item_state,
-    load_current_states,
-    threshold_breaching_sources,
 )
 
 Audience = Literal["public", "private"]
@@ -39,6 +42,7 @@ SummaryState = Literal["empty", "major", "affected", "unknown", "maintenance", "
 
 WINDOWS = {"1h": timedelta(hours=1), "24h": timedelta(hours=24)}
 PERIODS = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}
+LONG_PERIODS = ("7d", "30d")
 SLOTS = 60
 MAX_VALIDITY = timedelta(seconds=30)
 
@@ -114,7 +118,7 @@ def _round(value: float | None, digits: int | None = None) -> float | None:
 
 def _metrics(
     extras: dict, samples: list[Sample], start: datetime, now: datetime, state: CurrentState,
-    period_samples: list[Sample], period_start: datetime | None, spans_out: list,
+    period: Availability | None, spans_out: list,
 ) -> dict | None:
     metrics: dict = {}
     window = window_samples(samples, start, now, spans_out)
@@ -127,13 +131,10 @@ def _metrics(
         metrics["failure_rate"] = _round(failure_rate(samples, start, now, spans_out), 4)
     if extras.get("last_check"):
         metrics["last_check"] = state.observed_at.isoformat() if state.observed_at else None
-    period = extras.get("uptime_period")
-    if period in PERIODS:
-        spans = build_spans(period_samples, period_start, now, state.interval_seconds, spans_out)
-        found = availability(spans, period_start, now)
+    if period is not None:
         metrics["uptime_period"] = {
-            "period": period, "percent": _round(found.percent, 4), "label": found.label,
-            "coverage": _round(found.coverage, 4),
+            "period": extras["uptime_period"], "percent": _round(period.percent, 4), "label": period.label,
+            "coverage": _round(period.coverage, 4),
         }
     return metrics or None
 
@@ -154,11 +155,37 @@ def _past_window(loaded: maintenance.LoadedWindow) -> dict:
     }
 
 
-def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: datetime) -> PagePayload:
-    now = _utc(now)
-    window = WINDOWS[page.heartbeat_window]
+@dataclass
+class PageInputs:
+    """Everything a page build reads from the database; projecting it needs no session."""
+
+    page: StatusPage
+    now: datetime
+    groups: list[StatusPageGroup]
+    items: list[StatusPageItem]
+    refs: dict[int, SourceRef]
+    states: dict[SourceRef, CurrentState]
+    degraded: set[SourceRef]
+    windows: list[maintenance.LoadedWindow]
+    excluded: dict[str, list]
+    incidents: list
+    notices: list
+    long_rows: dict[str, RawHistory] = field(default_factory=dict)
+    long_hits: dict[tuple[SourceRef, str], Availability] = field(default_factory=dict)
+
+
+def _long_key(ref: SourceRef, period: str, state: CurrentState, excluded: list) -> LongKey:
+    return ref.key, period, state.interval_seconds, tuple(sorted((_utc(a), _utc(b)) for a, b in excluded))
+
+
+def _bounds(page: StatusPage, now: datetime) -> tuple[datetime, datetime]:
     end = slot_end(page, now)
-    start = end - window
+    return end - WINDOWS[page.heartbeat_window], end
+
+
+def load_page(db: Session, page: StatusPage, now: datetime, cycle: BuildCycle) -> PageInputs:
+    now = _utc(now)
+    start, end = _bounds(page, now)
     groups = list(db.scalars(
         select(StatusPageGroup).where(StatusPageGroup.page_id == page.id).order_by(StatusPageGroup.sort_order, StatusPageGroup.id)
     ))
@@ -166,32 +193,72 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
         select(StatusPageItem).where(StatusPageItem.page_id == page.id).order_by(StatusPageItem.sort_order, StatusPageItem.id)
     ))
     refs = {item.id: SourceRef.from_item(item) for item in items}
-    states = load_current_states(db, refs.values(), now)
-    degraded = threshold_breaching_sources(db, refs.values(), now)
-
-    lengths: dict[timedelta, set[SourceRef]] = defaultdict(set)
-    for item in items:
-        lengths[window].add(refs[item.id])
-        period = (item.extras or {}).get("uptime_period")
-        if period in PERIODS:
-            lengths[PERIODS[period]].add(refs[item.id])
-    samples = {length: load_samples(db, group_refs, end - length, now) for length, group_refs in lengths.items()}
+    states = cycle.states(db, refs.values(), now)
+    degraded = cycle.degraded(db, refs.values(), now)
     keys = [ref.key for ref in refs.values()]
     windows = maintenance.page_windows(db, page.id, keys, ending_after=now - max(*PERIODS.values(), PAST_WINDOW))
     excluded = maintenance.spans_for_page(windows, page.id, keys)
 
+    fresh: dict[datetime, set[SourceRef]] = defaultdict(set)
+    long: dict[str, set[SourceRef]] = defaultdict(set)
+    long_hits: dict[tuple[SourceRef, str], Availability] = {}
+    for item in items:
+        ref = refs[item.id]
+        fresh[start].add(ref)
+        period = (item.extras or {}).get("uptime_period")
+        if period in LONG_PERIODS:
+            hit = cycle.shared.long(_long_key(ref, period, states[ref], excluded.get(ref.key, [])), now)
+            if hit is None:
+                long[period].add(ref)
+            else:
+                long_hits[(ref, period)] = hit
+        elif period in PERIODS:
+            fresh[end - PERIODS[period]].add(ref)
+    for since, group_refs in fresh.items():
+        cycle.fetch(db, group_refs, since, now)
+    long_rows = {period: cycle.fetch_long(db, group_refs, end - PERIODS[period], now) for period, group_refs in long.items()}
+    return PageInputs(
+        page=page, now=now, groups=groups, items=items, refs=refs, states=states, degraded=degraded,
+        windows=windows, excluded=excluded, incidents=load_page_incidents(db, page.id, now),
+        notices=live_notices(db, page.id, now), long_rows=long_rows, long_hits=long_hits,
+    )
+
+
+def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: datetime, converters: dict) -> Availability | None:
+    if period not in PERIODS:
+        return None
+    now, state, own_excluded = inputs.now, inputs.states[ref], inputs.excluded.get(ref.key, [])
+    since = end - PERIODS[period]
+    if period not in LONG_PERIODS:
+        return cycle.memo(("period", ref, since, now, state.interval_seconds, tuple(own_excluded)), lambda: availability(
+            build_spans(cycle.samples(ref, since, now), since, now, state.interval_seconds, own_excluded), since, now,
+        ))
+    if (ref, period) in inputs.long_hits:
+        return inputs.long_hits[(ref, period)]
+    key = _long_key(ref, period, state, own_excluded)
+    found = cycle.shared.long(key, now)
+    if found is None:
+        converter = converters.setdefault(period, SampleConverter(inputs.long_rows[period]))
+        found = period_availability(converter.points(ref), since, now, state.interval_seconds, own_excluded)
+        cycle.shared.store_long(key, now, found)
+    return found
+
+
+def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> PagePayload:
+    page, now, refs, states = inputs.page, inputs.now, inputs.refs, inputs.states
+    start, end = _bounds(page, now)
+    windows, excluded = inputs.windows, inputs.excluded
+    converters: dict = {}
+
     by_group: dict[int, list[dict]] = defaultdict(list)
     item_states: dict[int, ItemState] = {}
-    for item in items:
+    for item in inputs.items:
         ref, extras, state = refs[item.id], item.extras or {}, states[refs[item.id]]
-        own = samples[window][ref]
+        own = cycle.samples(ref, start, now)
         own_excluded = excluded.get(ref.key, [])
-        spans = build_spans(own, start, now, state.interval_seconds, own_excluded)
-        found = availability(spans, start, now)
-        period = extras.get("uptime_period")
-        period_samples = samples[PERIODS[period]][ref] if period in PERIODS else []
-        period_start = end - PERIODS[period] if period in PERIODS else None
-        item_states[item.id] = item_state(state, ref in degraded, any(a <= now < b for a, b in own_excluded), now)
+        memo_key = (ref, start, now, state.interval_seconds, tuple(own_excluded))
+        spans, found, heartbeats = cycle.memo(("window", *memo_key), lambda: _window(own, start, end, now, state, own_excluded))
+        item_states[item.id] = item_state(state, ref in inputs.degraded, any(a <= now < b for a, b in own_excluded), now)
         by_group[item.group_id].append({
             "id": item.id,
             "name": item.display_name,
@@ -199,18 +266,22 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
             "availability": {
                 "percent": _round(found.percent, 4), "label": found.label, "coverage": _round(found.coverage, 4),
             },
-            "heartbeats": heartbeat_slots(spans, start, end, SLOTS),
+            "heartbeats": list(heartbeats),
             "response": (
-                [_round(v) for v in response_slots(own, start, end, own_excluded, SLOTS)] if extras.get("rtt_graph") else None
+                list(cycle.memo(("response", *memo_key), lambda: [_round(v) for v in response_slots(own, start, end, own_excluded, SLOTS)]))
+                if extras.get("rtt_graph") else None
             ),
-            "metrics": _metrics(extras, own, start, now, state, period_samples, period_start, own_excluded),
+            "metrics": _metrics(
+                extras, own, start, now, state, _period(inputs, cycle, ref, extras.get("uptime_period"), end, converters),
+                own_excluded,
+            ),
             "incident_ids": [],
         })
 
-    local = PageLocal({refs[item.id].key: item_states[item.id] for item in items}, len(items))
+    local = PageLocal({refs[item.id].key: item_states[item.id] for item in inputs.items}, len(inputs.items))
     open_incidents, past = [], []
     by_source: dict[str, list[int]] = defaultdict(list)
-    for loaded in load_page_incidents(db, page.id, now):
+    for loaded in inputs.incidents:
         projected = project_incident(loaded, page, audience, local)
         if projected is None:
             continue
@@ -230,7 +301,7 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
     for group_items in by_group.values():
         for entry in group_items:
             entry["incident_ids"] = sorted(by_source.get(refs[entry["id"]].key, []))
-    notices = live_notices(db, page.id, now)
+    notices = inputs.notices
     critical = any(n.level == "critical" for n in notices)
     age_outs = [datetime.fromisoformat(p["resolved_at"]) + PAST_WINDOW for p in past if p["kind"] == "incident"]
 
@@ -268,6 +339,18 @@ def build_page_payload(db: Session, page: StatusPage, audience: Audience, now: d
                 "collapsed": group.collapsed_by_default,
                 "items": by_group[group.id],
             }
-            for group in groups
+            for group in inputs.groups
         ],
     }
+
+
+def _window(samples: list[Sample], start: datetime, end: datetime, now: datetime, state: CurrentState, excluded: list):
+    spans = build_spans(samples, start, now, state.interval_seconds, excluded)
+    return spans, availability(spans, start, now), tuple(heartbeat_slots(spans, start, end, SLOTS))
+
+
+def build_page_payload(
+    db: Session, page: StatusPage, audience: Audience, now: datetime, cycle: BuildCycle | None = None,
+) -> PagePayload:
+    cycle = cycle or SourceHistory().cycle()
+    return project_page(load_page(db, page, now, cycle), audience, cycle)

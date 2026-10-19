@@ -299,3 +299,34 @@ def test_item_state_degraded_only_when_healthy():
     assert item_state(healthy, True, False, NOW) == "degraded"
     assert item_state(unhealthy, True, False, NOW) == "down"
     assert item_state(healthy, False, False, NOW + timedelta(seconds=601)) == "unknown"
+
+
+def _statements_for(count):
+    from sqlalchemy import event
+
+    db = make_session()
+    refs = []
+    for n in range(count):
+        device = _device(db)
+        target = seed_service_check(db, device.id, port=1000 + n)
+        for ago in range(30, 30 + 60 * 25, 60):
+            _history(db, device, ports=[{"target_id": target.id, "open": True, "response_time_ms": 3}], rtt=float(n), ago=ago)
+        monitor = seed_monitor(db, enabled=True, last_status="online", last_checked_at=NOW - timedelta(seconds=10))
+        db.add(MonitorCheckHistory(monitor_id=monitor.id, checked_at=NOW - timedelta(seconds=10), status="online", response_time_ms=n + 1.0))
+        db.commit()
+        refs += [SourceRef("device", device_id=device.id), SourceRef("monitor", monitor_id=monitor.id),
+                 SourceRef("service_check", device_id=device.id, port_target_id=target.id)]
+    seen = []
+    event.listen(db.get_bind(), "before_cursor_execute", lambda *a: seen.append(a[2]))
+    states = load_current_states(db, refs, NOW)
+    return len(seen), states, refs
+
+
+def test_current_states_query_count_does_not_grow_with_sources():
+    few, _, _ = _statements_for(2)
+    many, states, refs = _statements_for(8)
+    assert many == few
+    for n, ref in enumerate(refs[::3]):
+        assert states[ref].response_ms == float(n)
+    assert {states[r].response_ms for r in refs[1::3]} == {n + 1.0 for n in range(8)}
+    assert {states[r].response_ms for r in refs[2::3]} == {3}

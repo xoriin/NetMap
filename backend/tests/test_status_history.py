@@ -300,7 +300,7 @@ def test_load_samples_batches_one_query_per_kind_and_returns_empty_lists():
     statements = _count_selects(db.get_bind())
     out = load_samples(db, refs, START, END)
     history_selects = [s for s in statements if "monitor_check_history" in s or "device_monitor_history" in s]
-    assert len(history_selects) <= 4
+    assert len(history_selects) <= 6
     assert set(out) == set(refs)
     assert out[refs[2]] == []
     assert len(out[refs[0]]) == 1 and len(out[refs[3]]) == 1

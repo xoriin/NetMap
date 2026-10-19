@@ -65,7 +65,7 @@ def test_unknown_slug_lookup_never_touches_db(cache, factory, monkeypatch):
         raise AssertionError("database touched")
 
     monkeypatch.setattr(cache_module, "SessionLocal", explode)
-    monkeypatch.setattr(cache_module, "build_page_payload", explode)
+    monkeypatch.setattr(cache_module, "load_page", explode)
     for slug in ("nope", "../media", "", "x" * 200, "MEDIA"):
         assert cache.lookup(slug) is None
     assert cache.pending() == []
@@ -186,15 +186,15 @@ def test_stale_generation_build_is_discarded(cache, factory, monkeypatch):
     page_id = _seed(factory)
     cache.load_registry()
     entered, release = threading.Event(), threading.Event()
-    real = cache_module.build_page_payload
+    real = cache_module.load_page
 
-    def slow(db, page, audience, now):
-        payload = real(db, page, audience, now)
+    def slow(db, page, now, cycle):
+        inputs = real(db, page, now, cycle)
         entered.set()
         assert release.wait(5)
-        return payload
+        return inputs
 
-    monkeypatch.setattr(cache_module, "build_page_payload", slow)
+    monkeypatch.setattr(cache_module, "load_page", slow)
     result = {}
     worker = threading.Thread(target=lambda: result.update(ok=cache.build_now(page_id, now=T0)))
     worker.start()
@@ -219,15 +219,15 @@ def test_older_mutation_cannot_overwrite_newer_registry_entry(cache, factory):
 def test_concurrent_requests_trigger_one_build(cache, factory, monkeypatch, tmp_path):
     page_id = _seed(factory)
     calls, entered, release = [], threading.Event(), threading.Event()
-    real = cache_module.build_page_payload
+    real = cache_module.load_page
 
-    def counted(db, page, audience, now):
+    def counted(db, page, now, cycle):
         calls.append(page.id)
         entered.set()
         assert release.wait(5)
-        return real(db, page, audience, now)
+        return real(db, page, now, cycle)
 
-    monkeypatch.setattr(cache_module, "build_page_payload", counted)
+    monkeypatch.setattr(cache_module, "load_page", counted)
     cache.start(data_dir=str(tmp_path), timer=False)
     assert cache.ready
     assert entered.wait(5)
@@ -256,16 +256,16 @@ def test_notification_during_build_rebuilds_once_after(cache, factory, monkeypat
     page_id = _seed(factory, items=[(ref, "Router")])
     cache.load_registry()
     calls, entered, release = [], threading.Event(), threading.Event()
-    real = cache_module.build_page_payload
+    real = cache_module.load_page
 
-    def counted(db, page, audience, now):
+    def counted(db, page, now, cycle):
         calls.append(page.id)
         if len(calls) == 1:
             entered.set()
             assert release.wait(5)
-        return real(db, page, audience, now)
+        return real(db, page, now, cycle)
 
-    monkeypatch.setattr(cache_module, "build_page_payload", counted)
+    monkeypatch.setattr(cache_module, "load_page", counted)
     worker = threading.Thread(target=lambda: cache.drain(now=T0))
     worker.start()
     assert entered.wait(5)
@@ -404,7 +404,7 @@ def test_timer_rebuilds_exactly_at_a_deadline_it_cannot_refresh_early(cache, fac
 def test_timer_retries_missing_snapshots_but_not_in_a_tight_loop(cache, factory, monkeypatch):
     page_id = _seed(factory)
     cache.load_registry()
-    monkeypatch.setattr(cache_module, "build_page_payload", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(cache_module, "load_page", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
     assert cache.build_now(page_id, now=T0) is False
     assert cache.run_timer_once(T0 + timedelta(seconds=1)) == []
     assert cache.timer_delay(T0 + timedelta(seconds=1)) == pytest.approx(cache_module.TIMER_SECONDS - 1)
