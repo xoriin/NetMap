@@ -574,3 +574,36 @@ def test_pending_key_serves_the_latest_sibling_value_for_the_same_source_and_per
     assert _uptimes(_build(cache, [page_id], NOW + timedelta(minutes=1))[page_id]) == first
     _settle(cache, NOW + timedelta(minutes=1))
     assert cache.pending() == [page_id]
+
+
+def test_first_build_inline_work_stops_at_the_seconds_budget(cache, factory, monkeypatch):
+    ids = _devices(factory, 6, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    monkeypatch.setattr(aggregates, "FIRST_BUILD_SECONDS_PER_CYCLE", 1e-9)
+    refreshed = _long_fetches(monkeypatch)
+    labels = [u["label"] for u in _uptimes(_build(cache, [page_id])[page_id])]
+    assert len(refreshed) == 1
+    assert labels.count("no_data") == 5
+
+
+def test_first_build_budget_carries_across_cycle_renewals_in_one_batch(cache, factory, monkeypatch):
+    ids = _devices(factory, 6, minutes=8 * 1440)
+    pages = [_page(factory, f"p{n}", ids[2 * n:2 * n + 2], period="7d") for n in range(3)]
+    monkeypatch.setattr(cache_module, "CYCLE_MAX_AGE", timedelta(0))
+    budgets = []
+    real_cycle = cache.history.cycle
+
+    def recorded(*args, **kwargs):
+        built = real_cycle(*args, **kwargs)
+        budgets.append(built.budget)
+        return built
+
+    monkeypatch.setattr(cache.history, "cycle", recorded)
+    refreshed = _long_fetches(monkeypatch)
+    cache.load_registry()
+    cache._queue.clear()
+    for page_id in pages:
+        cache._queue[page_id] = None
+    cache.drain()
+    assert len(budgets) >= 3 and all(b is budgets[0] for b in budgets)
+    assert len(refreshed) == aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
