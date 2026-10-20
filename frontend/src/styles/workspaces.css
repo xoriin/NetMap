@@ -1136,7 +1136,7 @@ body.route-topology .graph-surface {
 }
 
 .toolbar-actions button,
-.detail-actions button,
+.detail-actions button:not(.nm-btn),
 .modal-actions button,
 .modal-header button {
   min-height: 38px;
@@ -1152,14 +1152,14 @@ body.route-topology .graph-surface {
 }
 
 .toolbar-actions button:hover,
-.detail-actions button:hover,
+.detail-actions button:not(.nm-btn):hover,
 .modal-actions button:hover {
   opacity: 0.9;
   box-shadow: 0 2px 8px rgba(29, 100, 114, 0.32);
 }
 
 .toolbar-actions button:disabled,
-.detail-actions button:disabled,
+.detail-actions button:not(.nm-btn):disabled,
 .modal-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -4097,7 +4097,8 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 .device-detail-tab.active { color: var(--nm-accent-strong); border-bottom-color: var(--nm-accent-strong); }
 
 .detail-actions--device {
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 .detail-actions--device .vlan-action-btn {
   flex: 1;
