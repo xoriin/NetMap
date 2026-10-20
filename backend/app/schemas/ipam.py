@@ -259,3 +259,18 @@ class ExternalMigrationReport(BaseModel):
     migrated: int
     declined: list[ExternalMigrationDecline]
     skipped: list[ExternalMigrationSkip] = []
+
+
+class SavedCloudAssetOut(BaseModel):
+    """Retained resource metadata, independent of the active address register."""
+
+    id: int
+    name: str
+    kind: str | None
+    provider_id: int | None
+    account: str | None
+    region: str | None
+    device_id: int | None
+    description: str | None
+
+    model_config = ConfigDict(from_attributes=True)

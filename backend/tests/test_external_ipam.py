@@ -297,3 +297,45 @@ def test_migration_report_returns_none_for_partial_json(session):
     session.add(SystemSetting(key="external_ip_migration_report", value='{"declined": "not-a-list"}'))
     session.commit()
     assert external_migration_report(db=session, user=_reader()) is None
+
+
+def test_saved_cloud_resources_remain_readable_without_assignments_or_devices(session):
+    from app.api.v1.ipam import list_saved_cloud_assets
+
+    assert list_saved_cloud_assets(user=_reader(), db=session) == []
+    session.add_all([
+        CloudAsset(name="Unaddressed resource", kind="nat_gateway", account="Production", region="Sydney", description="Keep this metadata"),
+        CloudAsset(name="Old optional link", device_id=999),
+    ])
+    session.commit()
+    before = [(row.id, row.name, row.device_id) for row in session.query(CloudAsset).order_by(CloudAsset.id)]
+    rows = list_saved_cloud_assets(user=_reader(), db=session)
+    assert {row.name for row in rows} == {"Unaddressed resource", "Old optional link"}
+    resource = next(row for row in rows if row.name == "Unaddressed resource")
+    assert (resource.account, resource.region, resource.description, resource.device_id) == ("Production", "Sydney", "Keep this metadata", None)
+    assert next(row for row in rows if row.name == "Old optional link").device_id == 999
+    assert session.query(Device).count() == 0
+    assert session.query(ExternalIpAddress).count() == 0
+    assert [(row.id, row.name, row.device_id) for row in session.query(CloudAsset).order_by(CloudAsset.id)] == before
+
+
+def test_saved_cloud_resource_api_requires_auth_and_is_read_only(session):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.deps import get_current_user
+    from app.api.v1.ipam import router
+    from app.db.session import get_db
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: session
+    client = TestClient(app)
+    assert client.get("/ipam/external/assets").status_code == 401
+    app.dependency_overrides[get_current_user] = _reader
+    session.add(CloudAsset(name="Visible to Inventory readers"))
+    session.commit()
+    response = client.get("/ipam/external/assets")
+    assert response.status_code == 200
+    assert response.json()[0]["name"] == "Visible to Inventory readers"
+    assert client.post("/ipam/external/assets", json={"name": "Not supported"}).status_code == 405
+    assert session.query(CloudAsset).count() == 1

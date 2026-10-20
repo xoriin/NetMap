@@ -17,7 +17,7 @@ from app.api.deps import get_current_user, require_ipam_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.dhcp_lease import DhcpLease
-from app.models.cloud import CloudProvider
+from app.models.cloud import CloudAsset, CloudProvider
 from app.models.external_ip import ExternalIpAddress, ExternalProviderAccount, ExternalLocation
 from app.models.system_setting import SystemSetting
 from app.schemas.ipam import ExternalAccountCreate, ExternalAccountOut, ExternalLocationCreate, ExternalLocationOut
@@ -45,6 +45,7 @@ from app.schemas.ipam import (
     ExternalIpSummary,
     ExternalMigrationReport,
     CloudProviderOut,
+    SavedCloudAssetOut,
     ExternalIpDeviceOut,
 )
 from app.services.external_addresses import (
@@ -1038,3 +1039,17 @@ def delete_external_account(account_id: int, _user: Annotated[User, Depends(requ
         raise HTTPException(status_code=409, detail="Move or remove this account's addresses first")
     db.delete(row)
     db.commit()
+
+
+@router.get("/external/assets", response_model=list[SavedCloudAssetOut])
+def list_saved_cloud_assets(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[SavedCloudAssetOut]:
+    """Keep pre-register resources visible without reactivating obsolete assignments.
+
+    Reads do not create devices, enable monitoring or reinterpret current addresses.
+    All authenticated Inventory readers can inspect this non-secret metadata.
+    """
+    rows = db.scalars(select(CloudAsset).order_by(CloudAsset.name, CloudAsset.id)).all()
+    return [SavedCloudAssetOut.model_validate(row) for row in rows]

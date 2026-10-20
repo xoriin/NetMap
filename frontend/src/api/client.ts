@@ -1093,6 +1093,11 @@ export type IpamSummary = {
   reservation_count: number;
 };
 
+export type SavedCloudAsset = {
+  id: number; name: string; kind: string | null; provider_id: number | null;
+  account: string | null; region: string | null; device_id: number | null; description: string | null;
+};
+
 export type ExternalProviderAccount = { id: number; provider_id: number | null; name: string };
 /** `account_id` is nullable: a location may exist before any provider account does — the
  *  hierarchy is a lens on the address register, never a prerequisite for entering one. */
@@ -2210,6 +2215,7 @@ export const api = {
   listExternalLocations: (token: string) => request<ExternalLocation[]>("/api/v1/ipam/external/locations", { token }),
   saveExternalLocation: (token: string, payload: Omit<ExternalLocation, "id">, id?: number) => request<ExternalLocation>(`/api/v1/ipam/external/locations${id ? `/${id}` : ""}`, { token, method: id ? "PUT" : "POST", body: JSON.stringify(payload) }),
   deleteExternalLocation: (token: string, id: number) => request<void>(`/api/v1/ipam/external/locations/${id}`, { token, method: "DELETE" }),
+  listSavedCloudAssets: (token: string) => request<SavedCloudAsset[]>("/api/v1/ipam/external/assets", { token }),
   listExternalAddresses: (token: string, params?: { status?: ExternalIpAddress["status"]; location_id?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set("status", params.status);
