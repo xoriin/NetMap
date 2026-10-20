@@ -332,6 +332,8 @@ function WorkspaceApp() {
   }
 
   useEffect(() => {
+    // Keep workspace deep links intact while restoring the session.
+    if (screen === "loading") return;
     if (screen !== "dashboard" || !user) {
       if (window.location.pathname !== "/") {
         window.history.replaceState(null, "", "/");

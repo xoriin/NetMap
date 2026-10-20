@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./inventory.css";
+import { CloudAssetsPanel } from "./CloudAssetsPanel";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import {
   INVENTORY_VIEW_CHANGE_EVENT,
@@ -670,6 +671,8 @@ export function InventoryWorkspace({
       window.removeEventListener(INVENTORY_VIEW_CHANGE_EVENT, sync);
     };
   }, []);
+
+  if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate} />;
 
   return (
     <section className="topology-layout inventory-layout">
