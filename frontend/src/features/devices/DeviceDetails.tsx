@@ -36,6 +36,7 @@ import { EntityChip } from "../../components/EntityChip";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
+import { editableField } from "../../utils/editableField";
 
 export function DeviceDetails({
   canViewSecurity,
@@ -207,8 +208,7 @@ export function DeviceDetails({
       <dl>
         <dt><span className="details-field-icon"><Pencil size={12} /></span>Display name</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("display_name", device.display_name ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("display_name", device.display_name ?? ""))}
         >
           {editingField === "display_name" ? (
             <input
@@ -226,8 +226,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconServer size={12} /></span>Hostname</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("hostname", device.hostname ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("hostname", device.hostname ?? ""))}
         >
           {editingField === "hostname" ? (
             <input
@@ -245,8 +244,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><Network size={12} /></span>IP address</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("ip_address", device.ip_address ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("ip_address", device.ip_address ?? ""))}
         >
           {editingField === "ip_address" ? (
             <input
@@ -264,8 +262,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconFingerprint size={12} /></span>MAC address</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("mac_address", device.mac_address ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("mac_address", device.mac_address ?? ""))}
         >
           {editingField === "mac_address" ? (
             <input
@@ -283,8 +280,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconBuildingStore size={12} /></span>Vendor</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("vendor", device.vendor ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("vendor", device.vendor ?? ""))}
         >
           {editingField === "vendor" ? (
             <input
@@ -302,8 +298,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconTerminal2 size={12} /></span>OS</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("os", device.os ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("os", device.os ?? ""))}
         >
           {editingField === "os" ? (
             <input
@@ -322,8 +317,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconDeviceDesktop size={12} /></span>Type</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("device_type", device.device_type ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("device_type", device.device_type ?? ""))}
         >
           {editingField === "device_type" ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -373,8 +367,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconPalette size={12} /></span>Color</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("color", device.color ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("color", device.color ?? ""))}
         >
           {editingField === "color" ? (
             <div className="details-inline-color">
@@ -396,8 +389,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconMap size={12} /></span>VLAN / Group</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("topology_group_id", String(device.topology_group_id ?? "")) : undefined}
+          {...editableField(editHint, () => startEdit("topology_group_id", String(device.topology_group_id ?? "")))}
         >
           {editingField === "topology_group_id" ? (
             <select
@@ -425,8 +417,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><MapPin size={12} /></span>Location</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("site_id", String(device.site_id ?? "")) : undefined}
+          {...editableField(editHint, () => startEdit("site_id", String(device.site_id ?? "")))}
         >
           {editingField === "site_id" ? (
             <select
@@ -453,8 +444,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>SNMP profile</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("snmp_profile_id", String(device.snmp_profile_id ?? "")) : undefined}
+          {...editableField(editHint, () => startEdit("snmp_profile_id", String(device.snmp_profile_id ?? "")))}
         >
           {editingField === "snmp_profile_id" ? (
             <select
@@ -477,8 +467,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>Subnet</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("subnet", device.subnet ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("subnet", device.subnet ?? ""))}
         >
           {editingField === "subnet" ? (
             <input
@@ -497,8 +486,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconTag size={12} /></span>Tags</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("tags", device.tags.join(", ")) : undefined}
+          {...editableField(editHint, () => startEdit("tags", device.tags.join(", ")))}
         >
           {editingField === "tags" ? (
             <input
@@ -519,8 +507,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconNote size={12} /></span>Notes</dt>
         <dd
-          className={editHint ? "editable-dd" : undefined}
-          onDoubleClick={editHint ? () => startEdit("notes", device.notes ?? "") : undefined}
+          {...editableField(editHint, () => startEdit("notes", device.notes ?? ""))}
         >
           {editingField === "notes" ? (
             <textarea
