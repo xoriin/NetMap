@@ -47,7 +47,7 @@ export function PickOrCreate({
   emptyLabel: string;
   createLabel: string;
   onChange: (id: number | null) => void;
-  onCreateRequested: () => void;
+  onCreateRequested?: () => void;
   disabled?: boolean;
   ariaLabel: string;
 }) {
@@ -123,9 +123,9 @@ export function PickOrCreate({
   const rows = useMemo<Row[]>(() => [
     { kind: "empty", id: emptyRowId },
     ...groupedOptions.map((option) => ({ kind: "option" as const, id: optionRowId(option.id), option })),
-    { kind: "create", id: createRowId },
+    ...(onCreateRequested ? [{ kind: "create" as const, id: createRowId }] : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [groupedOptions, emptyRowId, createRowId]);
+  ], [groupedOptions, emptyRowId, createRowId, Boolean(onCreateRequested)]);
 
   const highlightedRow = rows[highlighted];
   // Only genuine listbox children (the empty row, real options) get
@@ -222,7 +222,7 @@ export function PickOrCreate({
       setOpen(false);
     } else {
       setOpen(false);
-      onCreateRequested();
+      onCreateRequested?.();
     }
   }
 
@@ -365,7 +365,7 @@ export function PickOrCreate({
               <div className="nm-pick-empty-state">No matches</div>
             )}
           </div>
-          <button
+          {onCreateRequested && <button
             ref={createRef}
             type="button"
             id={createRowId}
@@ -379,7 +379,7 @@ export function PickOrCreate({
           >
             <Plus size={13} aria-hidden />
             {createLabel}
-          </button>
+          </button>}
         </div>
       )}
     </div>
