@@ -5,7 +5,7 @@ import { TableSkeleton } from "../../components/Skeleton";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { StatusEditorPanelHeader } from "./StatusPageLayoutEditor";
-import { itemChoices, useStatusPageCatalog } from "./useStatusPageCatalog";
+import { itemChoices, pageItems, useStatusPageCatalog } from "./useStatusPageCatalog";
 import {
   TEXT_LIMITS, apiErrorMessage, browserTimeZone, formatWhen, isoToLocalInput, localInputToIso, sourceKey, statusManageApi, toOffsetIso,
   type MaintenancePayload, type ManagedMaintenance, type StatusPageDetail,
@@ -15,6 +15,7 @@ const STATE_LABELS = { upcoming: "Upcoming", active: "In progress", finished: "F
 const STATE_TONES = { upcoming: "unknown", active: "warning", finished: "disabled" } as const;
 const PAST_START_GRACE_MS = 5 * 60_000;
 const SUPPRESS_NOTE = "Also silences monitoring alert notifications for these items throughout NetMap while the window is active, not only on the announced pages. Checks and history continue.";
+const GENERIC_LINE_NOTE = "Pages showing these items that you don't announce on will show a generic 'Scheduled maintenance' line.";
 const SUPPRESS_STARTED_NOTE = "Alert suppression can't be changed after a window starts. End the window early instead.";
 
 type Draft = {
@@ -69,6 +70,10 @@ function MaintenanceModal({
       .map((item) => ({ key: item.source_key, source: item.source, label: item.source_key, aliases: [] }));
     return [...known, ...extra];
   }, [pages, page.id, window]);
+  const resolvedPages = useMemo(
+    () => pages.filter((p) => pageItems(p).some((item) => draft.itemKeys.includes(item.key))).map((p) => p.name),
+    [pages, draft.itemKeys],
+  );
   const startsAt = localInputToIso(draft.starts);
   const endsAt = localInputToIso(draft.ends);
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
@@ -190,6 +195,15 @@ function MaintenanceModal({
                 <input type="radio" name="status-maintenance-pages" checked={draft.pageMode === "chosen"} onChange={() => update("pageMode", "chosen")} />
                 Only the pages I choose
               </label>
+              {draft.pageMode === "auto" && (
+                <small className="status-editor-hint status-maintenance-audience">
+                  {draft.itemKeys.length === 0
+                    ? "Choose affected items to see which pages will announce this window."
+                    : resolvedPages.length === 0
+                      ? "None of these items is on a status page yet."
+                      : `Announces on ${resolvedPages.join(", ")}. Saved as this list of pages; pages that add these items later aren't included.`}
+                </small>
+              )}
             </>
           )}
           {draft.pageMode === "chosen" && pages.map((p) => (
@@ -210,6 +224,7 @@ function MaintenanceModal({
             <span className="tool-form-check-copy">
               <span>Suppress monitoring alerts</span>
               <span className="tool-note">{started ? SUPPRESS_STARTED_NOTE : SUPPRESS_NOTE}</span>
+              {draft.suppress && !started && <span className="tool-note">{GENERIC_LINE_NOTE}</span>}
             </span>
           </label>
         )}

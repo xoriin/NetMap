@@ -402,6 +402,33 @@ test("maintenance create sends local times with the browser offset", async ({ pa
   expect(created).not.toHaveProperty("suppress_alerts", true);
 });
 
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`maintenance create lists the resolved pages and the generic-line note in ${colorScheme}`, async ({ page }) => {
+    const api = new ManageApi();
+    await openTab(page, api, "Maintenance", { theme: colorScheme });
+    await page.getByRole("button", { name: "Schedule maintenance" }).click();
+    const dialog = page.getByRole("dialog", { name: "Schedule maintenance" });
+    const resolved = dialog.locator(".status-maintenance-audience");
+    await expect(resolved).toHaveText("Choose affected items to see which pages will announce this window.");
+    await dialog.getByRole("checkbox", { name: /Office switch/ }).check();
+    await expect(resolved).toHaveText("Announces on Ops. Saved as this list of pages; pages that add these items later aren't included.");
+    await dialog.getByRole("checkbox", { name: /Core router/ }).check();
+    await expect(resolved).toContainText("Announces on Ops, Customers.");
+    await dialog.getByRole("radio", { name: "Only the pages I choose" }).check();
+    await expect(resolved).toHaveCount(0);
+    await dialog.getByRole("radio", { name: "Every page showing an affected item" }).check();
+
+    const note = dialog.getByText("Pages showing these items that you don't announce on will show a generic 'Scheduled maintenance' line.");
+    await expect(note).toHaveCount(0);
+    await dialog.getByRole("checkbox", { name: /Suppress monitoring alerts/ }).check();
+    await expect(note).toBeVisible();
+    const look = (node: Locator) => node.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el).fontSize]);
+    expect(await look(resolved)).toEqual(await look(dialog.getByText(/Times are in your timezone/)));
+    expect(await look(note)).toEqual(await look(dialog.getByText(/throughout NetMap/)));
+    expect(await dialog.evaluate(() => document.body.classList.contains("theme-dark"))).toBe(colorScheme === "dark");
+  });
+}
+
 test("maintenance PATCH sends only changed fields and End now sends ends_at", async ({ page }) => {
   const api = new ManageApi();
   api.windows.push(
