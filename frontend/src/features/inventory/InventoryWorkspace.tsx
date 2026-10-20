@@ -7,7 +7,9 @@ import { InventoryTableFrame, InventoryColumnHeading, InventoryPagination } from
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import {
   INVENTORY_VIEW_CHANGE_EVENT,
+  clearCloudAssetReturn,
   navigateToInventoryView,
+  readCloudAssetReturn,
   readInventoryViewFromLocation,
   type InventoryViewId,
 } from "./inventoryNavigation";
@@ -636,8 +638,10 @@ export function InventoryWorkspace({
 
   // A selection belongs to the subview where it was made, including history navigation.
   useEffect(() => {
-    setSelectedDeviceId(pendingDeviceRef.current);
+    const returning = inventoryView === "cloud-assets" ? readCloudAssetReturn() : null;
+    setSelectedDeviceId(pendingDeviceRef.current ?? returning?.cloudAssetDevice ?? null);
     pendingDeviceRef.current = null;
+    if (returning?.cloudAsset) clearCloudAssetReturn();
     setSelectedDeviceIds(new Set());
     setBulkMenuOpen(false);
   }, [inventoryView]);

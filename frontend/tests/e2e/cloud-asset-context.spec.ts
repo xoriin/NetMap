@@ -47,5 +47,9 @@ for(const theme of ['light','dark'] as const) {
   await expect(page).toHaveURL(/inventory#cloud-assets$/);
   await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('8.8.8.8');
   await expect(page.locator('[data-cloud-record="address-1"].active')).toBeVisible();
+  expect(await page.evaluate(()=>(window.history.state as {cloudAsset?:string}|null)?.cloudAsset ?? null)).toBeNull();
+  await page.reload();
+  await expect(page.locator('[data-cloud-record]').first()).toBeVisible();
+  await expect(page.getByRole('complementary',{name:'Asset overview'})).toHaveCount(0);
  });
 }

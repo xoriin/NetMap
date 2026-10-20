@@ -13,6 +13,7 @@ import type { AppRoute } from "../../routes";
 import { deviceHealthLabel, type DeviceHealth } from "../../utils/deviceHealth";
 import { InventoryColumnHeading, InventoryPagination, InventoryTableFrame } from "./InventoryTableFrame";
 import { useInventoryTableColumns } from "./useInventoryTableColumns";
+import { readCloudAssetReturn, rememberCloudAssetReturn } from "./inventoryNavigation";
 
 type CloudRow = {
   key: string; name: string; ip: string; kind: string; purpose: string;
@@ -20,7 +21,6 @@ type CloudRow = {
   record: CloudAssetRecord; health: DeviceHealth; monitoring: string; latency: string; details: [string, string][];
 };
 const headings = ["Asset", "IP", "Kind", "Monitoring", "Latency", "State", "Provider", "Location"];
-const restoreKey = () => (window.history.state as { cloudAsset?: string } | null)?.cloudAsset ?? null;
 
 /** Current addresses and retained resources remain independent records; linking never enables probes. */
 export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteIds, onToggleFavourite,
@@ -46,7 +46,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const [kindFilter, setKindFilter] = useState("all");
   const [monitorFilter, setMonitorFilter] = useState("all");
   const [favouritesOnly, setFavouritesOnly] = useState(false);
-  const [detailKey, setDetailKey] = useState<string | null>(restoreKey);
+  const [detailKey, setDetailKey] = useState<string | null>(() => readCloudAssetReturn().cloudAsset ?? null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [sort, setSort] = useState(0);
@@ -110,13 +110,6 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const detail = records.find(row => row.key === detailKey);
   const linkedCount = new Set(records.flatMap(row => row.deviceId !== null ? [row.deviceId] : [])).size;
   const offlineCount = new Set(records.flatMap(row => row.device && row.health === "offline" ? [row.device.id] : [])).size;
-  useEffect(() => {
-    if (!query.data || !detailKey || detailKey !== restoreKey()) return;
-    const restored = records.find(row => row.key === detailKey);
-    if (restored?.device) onOpenDevice(restored.device.id);
-    // Only the first load after returning from Devices restores the linked device.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.data]);
   function options(field: "provider" | "location" | "kind", label: string) {
     return [{value:"all",label}, ...[...new Set(records.map(row => row[field]))].sort().map(value => ({value, label:value || "Unassigned"}))];
   }
@@ -132,11 +125,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
     latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
-    onShowInDevices={id => {window.history.replaceState({...(window.history.state ?? {}), cloudAsset: detail.key}, ""); onShowInDevices(id);}}
-    deviceDetails={deviceDetails} externalIpAction={ipamLinkFor("nm-btn nm-btn--sm nm-btn--secondary")} onClose={() => {
-      if (restoreKey()) window.history.replaceState({...(window.history.state ?? {}), cloudAsset: undefined}, "");
-      setDetailKey(null); onOpenDevice(null);
-    }} onLinkChange={onOpenDevice}
+    onShowInDevices={id => {rememberCloudAssetReturn(detail.key, id); onShowInDevices(id);}}
+    deviceDetails={deviceDetails} externalIpAction={ipamLinkFor("nm-btn nm-btn--sm nm-btn--secondary")} onClose={() => {setDetailKey(null); onOpenDevice(null);}} onLinkChange={onOpenDevice}
     onAddressChange={value => query.setData(current => current && ({...current,addresses:current.addresses.map(row=>row.id===value.id ? value : row)}))}
     onResourceChange={value => query.setData(current => current && ({...current,assets:current.assets.map(row=>row.id===value.id ? value : row)}))}
   /> : null;
