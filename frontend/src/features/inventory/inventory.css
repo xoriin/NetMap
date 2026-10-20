@@ -11,6 +11,7 @@
 }
 
 .inventory-layout .inventory-panel-header.nm-app-panel-header {
+  flex-wrap: wrap;
   justify-content: flex-start;
   min-height: 44px;
   padding: 6px 18px;
@@ -261,10 +262,6 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 }
 
 @media (max-width: 1400px) {
-  .inventory-layout .inventory-panel-header.nm-app-panel-header {
-    flex-wrap: wrap;
-  }
-
   .inventory-layout .inv-search-box {
     flex: 1 1 180px;
   }

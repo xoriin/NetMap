@@ -182,9 +182,9 @@ for (const theme of ['light','dark'] as const) {
   await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
   await page.getByTitle('Show all assets').click();
   await page.getByRole('button',{name:'Open 2606:4700:4700::1111 details'}).click();
-  await expect(page.getByRole('dialog')).toContainText('Retained notes');
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('Retained notes');
+  await page.getByRole('button',{name:'Close asset overview'}).click();
+  await expect(page.getByRole('complementary',{name:'Asset overview'})).toHaveCount(0);
   await page.getByRole('button',{name:'Filter by monitoring'}).click();
   await page.getByRole('option',{name:'Not linked',exact:true}).click();
   await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
@@ -210,6 +210,54 @@ test('Cloud loading uses a skeleton and read-only users can inspect retained met
  await expect(page.getByRole('status',{name:'Loading'}).first()).toBeVisible();
  finish();
  await page.getByRole('button',{name:'Open 203.0.113.10 details'}).click();
- await expect(page.getByRole('dialog')).toContainText('Retained notes');
+ await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('Retained notes');
  await expect(page.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+});
+
+for (const theme of ['light','dark'] as const) {
+ test(`unlinked Cloud items use the Devices sidebar treatment in ${theme}`,async({page})=>{
+  await page.setViewportSize({width:1440,height:1000});
+  await setupExternalIps(page,{theme,devices:[mockDevice({id:7,hostname:'Reference device'})],addresses:[mockAddress({label:'Public service',notes:'Retained notes'})]});
+  await page.goto('/inventory#devices');
+  await page.getByRole('button',{name:'Open Reference device details'}).click();
+  const reference=await page.locator('.inventory-device-sidebar').evaluate(el=>({width:el.getBoundingClientRect().width,background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderColor}));
+  await page.goto('/inventory#cloud-assets');
+  await page.getByRole('button',{name:'Open Public service details'}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const sidebar=page.getByRole('complementary',{name:'Asset overview'});
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar).toContainText('Retained notes');
+  expect(await sidebar.evaluate(el=>({width:el.getBoundingClientRect().width,background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderColor}))).toEqual(reference);
+  await expect(sidebar.locator('.inventory-device-sidebar-header')).toHaveCSS('min-height','44px');
+  const toolbar=await page.locator('.inventory-panel-header').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
+  expect(toolbar.scroll).toBeLessThanOrEqual(toolbar.width);
+  await page.screenshot({path:`/tmp/netmap-asset-sidebar-${theme}.png`});
+  await page.setViewportSize({width:780,height:850});
+  await expect(sidebar).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await sidebar.scrollIntoViewIfNeeded();
+  await page.screenshot({path:`/tmp/netmap-asset-sidebar-${theme}-narrow.png`});
+  await sidebar.getByRole('link',{name:'Manage external IPs'}).scrollIntoViewIfNeeded();
+  await expect(sidebar.getByRole('link',{name:'Manage external IPs'})).toBeVisible();
+  await page.getByRole('button',{name:'Close asset overview'}).click();
+  await expect(sidebar).toHaveCount(0);
+ });
+}
+
+test('linked addresses, unlinked addresses and retained resources replace one detail sidebar',async({page})=>{
+ await setupExternalIps(page,{devices:[mockDevice({id:7,hostname:'Public server'})],addresses:[mockAddress({device_id:7}),mockAddress({id:2,label:'Unlinked address'})],beforeGoto:async page=>{
+  await page.route('**/api/v1/ipam/external/assets',route=>route.fulfill({json:[{id:4,name:'Retained gateway',kind:'nat_gateway',provider_id:null,account:null,region:null,device_id:null,description:'Original metadata'}]}));
+ }});
+ await page.goto('/inventory#cloud-assets');
+ await page.getByRole('button',{name:'Open Public server details'}).click();
+ await expect(page.getByRole('complementary',{name:'Device overview'})).toBeVisible();
+ await page.getByRole('button',{name:'Open Unlinked address details'}).click();
+ await expect(page.getByRole('complementary',{name:'Device overview'})).toHaveCount(0);
+ await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('Unlinked address');
+ await page.getByRole('button',{name:'Open Retained gateway details'}).click();
+ await expect(page.locator('.inventory-device-sidebar')).toHaveCount(1);
+ await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('Original metadata');
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await page.getByRole('button',{name:'Close asset overview'}).click();
+ await expect(page.locator('.topology-content.details-open')).toHaveCount(0);
 });

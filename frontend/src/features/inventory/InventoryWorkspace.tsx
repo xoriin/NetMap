@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties } from "react";
 import "./inventory.css";
+import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 import { CloudAssetsPanel } from "./CloudAssetsPanel";
 import { useInventoryTableColumns } from "./useInventoryTableColumns";
 import { InventoryTableFrame, InventoryColumnHeading, InventoryPagination } from "./InventoryTableFrame";
@@ -11,7 +12,7 @@ import {
 } from "./inventoryNavigation";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { Search, Star, ChevronDown, X } from "lucide-react";
+import { Search, Star, ChevronDown } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -636,22 +637,7 @@ export function InventoryWorkspace({
   }, [inventoryView]);
 
   const deviceOverview = selectedDevice && (
-    <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
-      <div className="inventory-device-sidebar-header">
-        <span className="inventory-device-sidebar-title">
-          <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
-          <span>Device overview</span>
-        </span>
-        <button
-          type="button"
-          className="nm-btn nm-btn--icon"
-          aria-label="Close device overview"
-          onClick={() => setSelectedDeviceId(null)}
-        >
-          <X size={17} />
-        </button>
-      </div>
-      <div className="inventory-device-sidebar-body">
+    <InventoryDetailsPanel title="Device overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>
         <DeviceDetails
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
@@ -669,8 +655,7 @@ export function InventoryWorkspace({
           securityLoading={deviceSecurityLoading}
           securitySummary={deviceSecuritySummary}
         />
-      </div>
-    </aside>
+    </InventoryDetailsPanel>
   );
 
   if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate}

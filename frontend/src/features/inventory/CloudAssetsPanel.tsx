@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Cloud, Globe, Link2, Search, Server, Star, Unlink } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Activity, Cloud, FileText, Globe, Link2, MapPin, Network, Search, Server, Star, Tag, Unlink, UserRound } from "lucide-react";
 import { api, type Device } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
-import { Modal } from "../../components/Modal";
+import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
 import { SpaLink } from "../../components/SpaLink";
 import { SwatchSelect } from "../../components/SwatchSelect";
@@ -25,7 +25,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   onOpenDevice, selectedDeviceId, deviceOverview, healthFor, livePingEnabled, mutationError }: {
   accessToken: string; devices: Device[]; onNavigate?: (route: AppRoute) => void;
   favouriteIds: Set<number>; onToggleFavourite: (id: number) => void;
-  onOpenDevice: (id: number) => void; selectedDeviceId: number | null;
+  onOpenDevice: (id: number | null) => void; selectedDeviceId: number | null;
   deviceOverview: ReactNode; healthFor: (device: Device) => DeviceHealth; livePingEnabled: boolean; mutationError: string | null;
 }) {
   const query = useApiQuery(async () => {
@@ -110,6 +110,22 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const ipamLink = <SpaLink className="nm-btn nm-btn--secondary" href="/ipam#external" onNavigate={() => {
     onNavigate?.("/ipam"); window.history.replaceState(null, "", "/ipam#external"); window.dispatchEvent(new Event("hashchange"));
   }}>Manage external IPs</SpaLink>;
+  function openRow(row: CloudRow) {
+    setDetailKey(row.key);
+    onOpenDevice(row.device?.id ?? null);
+  }
+  const activeOverview = detail ? (detail.device ? deviceOverview : <InventoryDetailsPanel
+    title="Asset overview" icon={<Cloud size={17} />} onClose={() => setDetailKey(null)}>
+    <div className="details-heading">
+      <span className={`status-dot ${detail.health}`} />
+      <div className="details-heading-body"><div className="details-heading-title-row"><h3>{detail.name}</h3></div></div>
+    </div>
+    <div className="device-detail-tabs"><button type="button" className="device-detail-tab active">Details</button></div>
+    <dl>{[...headings.map((heading,index) => ({ label: heading, value: values(detail)[index], Icon: [Cloud, Network, Server, FileText, Activity, Tag, Globe, MapPin][index] })),
+      ...detail.details.map(([label,value]) => ({label,value,Icon: label === "Owner" ? UserRound : label === "Tags" ? Tag : label === "URL" ? Link2 : FileText}))]
+      .map(({label,value,Icon}) => <Fragment key={label}><dt><span className="details-field-icon"><Icon size={12} /></span>{label}</dt><dd>{value || "—"}</dd></Fragment>)}</dl>
+    <div className="detail-actions detail-actions--device">{ipamLink}</div>
+  </InventoryDetailsPanel>) : null;
   if (query.isLoading) return <WorkspaceSkeleton />;
   return <section className="topology-layout inventory-layout inventory-cloud-layout">
     <div className="dash-stats inventory-stats nm-summary-band">
@@ -119,7 +135,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       <DashStat label="Providers" value={query.error ? "—" : providerCount} icon={<Globe size={20} />} accent="purple" />
     </div>
     {mutationError && <div className="form-error" role="alert">{mutationError}</div>}
-    <div className={deviceOverview ? "topology-content details-open" : "topology-content"}>
+    <div className={activeOverview ? "topology-content details-open" : "topology-content"}>
       <InventoryTableFrame toolbar={<>
         <span className="inv-panel-title"><span className="inv-panel-title-icon" aria-hidden="true"><Cloud size={17} /></span><span>Cloud assets</span><span className="inv-panel-count">{filtered.length === records.length ? records.length : `${filtered.length} of ${records.length}`}</span></span>
         <SwatchSelect ariaLabel="Filter by provider" value={providerFilter} options={options("provider","All providers")} onChange={setProviderFilter} />
@@ -137,11 +153,11 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         footer={filtered.length > 0 && <InventoryPagination total={filtered.length} page={currentPage} pageSize={pageSize} noun="records" onPageChange={setPage} onPageSizeChange={setPageSize} />}>
         {query.error ? <div className="inventory-empty" role="alert">{query.error}<button className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void query.reload()}>Retry</button></div>
           : !filtered.length ? <div className="inventory-empty">{records.length ? "No cloud assets match the current filters." : "No external IPs tracked yet. Add an external IP in IPAM to get started."}</div>
-          : visible.map(row => <div key={row.key} className={`inventory-row${row.device && row.device.id === selectedDeviceId ? " active" : ""}`} data-cloud-record={row.key}
-            onClick={() => row.device ? onOpenDevice(row.device.id) : setDetailKey(row.key)}>
+          : visible.map(row => <div key={row.key} className={`inventory-row${row.key === detailKey && (!row.device || row.device.id === selectedDeviceId) ? " active" : ""}`} data-cloud-record={row.key}
+            onClick={() => openRow(row)}>
             <span className="inventory-row-check">{row.device && <button type="button" className={`fav-btn${favouriteIds.has(row.device.id) ? " fav-btn--active" : ""}`} title={favouriteIds.has(row.device.id) ? "Remove from favourites" : "Add to favourites"}
               onClick={event => {event.stopPropagation(); onToggleFavourite(row.device!.id);}}><Star size={13} fill={favouriteIds.has(row.device.id) ? "currentColor" : "none"} /></button>}</span>
-            <button type="button" className="inventory-row-device" aria-label={`Open ${row.name} details`} onClick={event => {event.stopPropagation(); row.device ? onOpenDevice(row.device.id) : setDetailKey(row.key);}}>
+            <button type="button" className="inventory-row-device" aria-label={`Open ${row.name} details`} onClick={event => {event.stopPropagation(); openRow(row);}}>
               <span className={`status-dot status-dot--sm ${row.health}`} /><span>{row.name}</span>
             </button>
             <span className="inventory-row-os" title={row.ip}>{row.ip || "—"}</span>
@@ -153,11 +169,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
             <span>{row.location ? <EntityChip label={row.location} /> : <EntityChipEmpty />}</span>
           </div>)}
       </InventoryTableFrame>
-      {deviceOverview}
+      {activeOverview}
     </div>
-    {detail && <Modal title={detail.name} onCancel={() => setDetailKey(null)} footer={<>{ipamLink}<button className="nm-btn nm-btn--secondary" onClick={() => setDetailKey(null)}>Close</button></>}>
-      <div className="modal-form">{[...headings.map((heading,index) => [heading, values(detail)[index]]), ...detail.details].map(([label,value]) => <div className="nm-field" key={label}><label>{label}</label><span style={{overflowWrap:"anywhere"}}>{value || "—"}</span></div>)}
-      </div>
-    </Modal>}
+
   </section>;
 }
