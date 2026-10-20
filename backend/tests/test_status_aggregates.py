@@ -495,3 +495,16 @@ def test_job_unused_since_its_last_compute_is_dropped_instead_of_refreshed(cache
     assert refreshed == [ids]
     assert cache.history.backlog(again + timedelta(hours=1)) == []
     assert _uptimes(_build(cache, [page_id], again)[page_id])[0]["label"] == "ok"
+
+
+def test_preview_cycles_read_shared_values_but_never_register_or_store(cache, factory):
+    ids = _devices(factory, 2, minutes=8 * 1440)
+    shown = _page(factory, "shown", ids[:1], period="7d")
+    draft = _page(factory, "draft", ids, period="7d")
+    _build(cache, [shown])
+    with factory() as db:
+        payload = build_page_payload(db, db.get(StatusPage, draft), "public", NOW, cache.history.cycle())
+    assert all(u["label"] == "ok" for u in _uptimes(json.loads(json.dumps(payload))))
+    assert cache.history.long((f"device:{ids[1]}", "7d", 60, ()), NOW) is None
+    later = NOW + timedelta(hours=1)
+    assert [key[0] for key in cache.history.backlog(later)] == [f"device:{ids[0]}"]

@@ -224,10 +224,15 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     key, length = _long_key(ref, period, state, own_excluded), PERIODS[period]
     entry = cycle.shared.long(key, now)
     if entry is not None:
-        cycle.shared.track(key, ref, length, now)
+        if cycle.capped:
+            cycle.shared.track(key, ref, length, now)
         if entry.overdue(now):
             cycle.overdue.add(key)
         return entry.value
+    if not cycle.capped:
+        return cycle.memo(("long", key, now), lambda: compute_long(
+            lambda refs, start, end: cycle.fetch_long(refs, start, end, inputs.session), ref, key, length, now,
+        ))
     if not cycle.claim_inline(key):
         cycle.shared.track(key, ref, length, now)
         cycle.deferred.add(key)

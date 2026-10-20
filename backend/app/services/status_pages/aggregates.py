@@ -195,7 +195,11 @@ class InlineBudget:
 
 
 class BuildCycle:
-    """One builder pass: current states, heartbeat-window history and computed spans are loaded once per source."""
+    """One builder pass: current states, heartbeat-window history and computed spans are loaded once per source.
+
+    A capped cycle is the snapshot builder's: it limits inline first-build work and keeps the refresher's list. An
+    uncapped one (previews, standalone payloads) only reads shared values and computes anything missing for itself.
+    """
 
     def __init__(
         self, shared: SourceHistory, sessions: Callable[[], Session] | None = None, capped: bool = False,
