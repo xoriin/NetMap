@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import event, insert
+from sqlalchemy import event, insert, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.monitor_history import DeviceMonitorHistory
@@ -149,6 +149,13 @@ def test_maintenance_change_invalidates_long_period(cache, factory, monkeypatch)
     from app.models.status_page import StatusMaintenance, StatusMaintenanceItem
 
     ids = _devices(factory, 1)
+    with factory() as db:
+        db.execute(
+            update(DeviceMonitorHistory)
+            .where(DeviceMonitorHistory.checked_at >= NOW - timedelta(days=3), DeviceMonitorHistory.checked_at < NOW - timedelta(days=2))
+            .values(is_healthy=False, status="offline")
+        )
+        db.commit()
     page_id = _page(factory, "media", ids)
     first = _build(cache, [page_id])[page_id]
     with factory() as db:
@@ -164,7 +171,7 @@ def test_maintenance_change_invalidates_long_period(cache, factory, monkeypatch)
     assert any(length > timedelta(days=29) for length, _ in fetched)
     before = first["groups"][0]["items"][0]["metrics"]["uptime_period"]
     after = second["groups"][0]["items"][0]["metrics"]["uptime_period"]
-    assert after != before
+    assert after["percent"] > before["percent"]
 
 
 def test_cached_and_fresh_aggregates_give_identical_payloads(cache, factory):
@@ -178,6 +185,31 @@ def test_cached_and_fresh_aggregates_give_identical_payloads(cache, factory):
         for page_id in (one, two, three):
             fresh = build_page_payload(db, db.get(StatusPage, page_id), "public", NOW)
             assert built[page_id] == rebuilt[page_id] == json.loads(json.dumps(fresh))
+
+
+def _uptimes(payload):
+    return [item["metrics"]["uptime_period"] for group in payload["groups"] for item in group["items"]]
+
+
+def test_long_periods_do_not_depend_on_heartbeat_window_or_build_order(cache, factory):
+    ids = _devices(factory, 2, minutes=8 * 1440)
+    with factory() as db:
+        db.execute(
+            update(DeviceMonitorHistory)
+            .where(DeviceMonitorHistory.checked_at >= NOW - timedelta(days=7, minutes=30),
+                   DeviceMonitorHistory.checked_at < NOW - timedelta(days=7) + timedelta(minutes=5))
+            .values(is_healthy=False, status="offline")
+        )
+        db.commit()
+    hour = _page(factory, "hour", ids, period="7d", window="1h")
+    day = _page(factory, "day", ids, period="7d", window="24h")
+    for builder, order in ((cache, [hour, day]), (StatusSnapshotCache(), [day, hour])):
+        built = _build(builder, order)
+        with factory() as db:
+            for page_id in order:
+                fresh = build_page_payload(db, db.get(StatusPage, page_id), "public", NOW)
+                assert _uptimes(built[page_id]) == _uptimes(json.loads(json.dumps(fresh)))
+        assert _uptimes(built[hour]) == _uptimes(built[day])
 
 
 def test_page_session_is_closed_before_projection(cache, factory, monkeypatch):

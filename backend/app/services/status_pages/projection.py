@@ -216,7 +216,7 @@ def load_page(db: Session, page: StatusPage, now: datetime, cycle: BuildCycle) -
             fresh[end - PERIODS[period]].add(ref)
     for since, group_refs in fresh.items():
         cycle.fetch(db, group_refs, since, now)
-    long_rows = {period: cycle.fetch_long(db, group_refs, end - PERIODS[period], now) for period, group_refs in long.items()}
+    long_rows = {period: cycle.fetch_long(db, group_refs, now - PERIODS[period], now) for period, group_refs in long.items()}
     return PageInputs(
         page=page, now=now, groups=groups, items=items, refs=refs, states=states, degraded=degraded,
         windows=windows, excluded=excluded, incidents=load_page_incidents(db, page.id, now),
@@ -228,8 +228,8 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     if period not in PERIODS:
         return None
     now, state, own_excluded = inputs.now, inputs.states[ref], inputs.excluded.get(ref.key, [])
-    since = end - PERIODS[period]
     if period not in LONG_PERIODS:
+        since = end - PERIODS[period]
         return cycle.memo(("period", ref, since, now, state.interval_seconds, tuple(own_excluded)), lambda: availability(
             build_spans(cycle.samples(ref, since, now), since, now, state.interval_seconds, own_excluded), since, now,
         ))
@@ -239,6 +239,7 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     found = cycle.shared.long(key, now)
     if found is None:
         converter = converters.setdefault(period, SampleConverter(inputs.long_rows[period]))
+        since = now - PERIODS[period]
         found = period_availability(converter.points(ref), since, now, state.interval_seconds, own_excluded)
         cycle.shared.store_long(key, now, found)
     return found
