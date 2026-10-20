@@ -366,6 +366,26 @@ def test_stop_joins_background_threads(cache, factory, tmp_path):
     worker_lock.release()
 
 
+def test_refresher_thread_survives_a_failing_refresh_and_stops_with_the_cache(cache, factory, tmp_path, monkeypatch):
+    _seed(factory)
+    calls, again = [], threading.Event()
+
+    def flaky(now=None):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("boom")
+        again.set()
+        return False
+
+    monkeypatch.setattr(cache, "refresh_long", flaky)
+    monkeypatch.setattr(cache_module.aggregates, "REFRESHER_IDLE_SECONDS", 0.01)
+    cache.start(data_dir=str(tmp_path), timer=False)
+    assert again.wait(5)
+    assert [t.name for t in threading.enumerate() if t.name == "status-pages-refresher" and t.is_alive()]
+    cache.stop()
+    assert not [t for t in threading.enumerate() if t.name.startswith("status-pages")]
+
+
 def test_timer_rebuilds_when_probes_stop(cache, factory):
     page_id = _seed(factory)
     cache.load_registry()

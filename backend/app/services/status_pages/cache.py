@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.status_page import StatusPage, StatusPageItem
-from app.services.status_pages import evaluator, retention, worker_lock
+from app.services.status_pages import aggregates, evaluator, retention, worker_lock
 from app.services.status_pages.aggregates import BuildCycle, SourceHistory
 from app.services.status_pages.projection import load_page, project_page
 from app.services.status_pages.sources import SourceRef
@@ -84,7 +84,7 @@ class StatusSnapshotCache:
         self._wake = threading.Event()
         self._locked = False
         self._last_prune: datetime | None = None
-        self.history = SourceHistory()
+        self.history = SourceHistory(on_change=self._long_changed)
         self.ready = False
 
     def start(self, data_dir: str | None = None, timer: bool = True) -> None:
@@ -107,6 +107,7 @@ class StatusSnapshotCache:
             return
         self._stop.clear()
         self._spawn("status-pages-builder", self._run_builder)
+        self._spawn("status-pages-refresher", self._run_refresher)
         if timer:
             self._spawn("status-pages-timer", self._run_timer)
 
@@ -116,6 +117,7 @@ class StatusSnapshotCache:
             self.ready = False
             self._lock.notify_all()
         self._wake.set()
+        self.history.wake.set()
         for thread in self._threads:
             thread.join(JOIN_TIMEOUT)
         self._threads = []
@@ -238,7 +240,7 @@ class StatusSnapshotCache:
     def build_now(self, page_id: int, now: datetime | None = None) -> bool:
         with self._lock:
             self._queue.pop(page_id, None)
-        return self._build(page_id, now or _now(), self.history.cycle(SessionLocal))
+        return self._build(page_id, now or _now(), self.history.cycle(SessionLocal, capped=True))
 
     def drain(self, now: datetime | None = None) -> None:
         while batch := self._take(block=False):
@@ -263,6 +265,14 @@ class StatusSnapshotCache:
             for page_id in due:
                 self._enqueue(page_id, dirty=False)
             return due
+
+    def refresh_long(self, now: datetime | None = None) -> bool:
+        return self.history.refresh_once(now or _now(), SessionLocal)
+
+    def _long_changed(self, source_key: str) -> None:
+        with self._lock:
+            pages = set(self._sources.get(source_key, ()))
+        self.invalidate_pages(pages)
 
     def maybe_prune(self, now: datetime) -> None:
         if self._last_prune is not None and now - self._last_prune < PRUNE_INTERVAL:
@@ -354,10 +364,10 @@ class StatusSnapshotCache:
         """One build cycle: every page in the batch shares the cycle's source states and history."""
         at = now or _now()
         self._evaluate_checked(at, set(batch))
-        cycle = self.history.cycle(SessionLocal)
+        cycle = self.history.cycle(SessionLocal, capped=True)
         for page_id in batch:
             if now is None and _now() - at > CYCLE_MAX_AGE:
-                at, cycle = _now(), self.history.cycle(SessionLocal)
+                at, cycle = _now(), self.history.cycle(SessionLocal, capped=True, budget=cycle.budget)
             self._build(page_id, at, cycle)
 
     def _build(self, page_id: int, now: datetime, cycle: BuildCycle) -> bool:
@@ -426,6 +436,21 @@ class StatusSnapshotCache:
                 self._run_batch(batch)
             finally:
                 self._finish(batch)
+
+    def _run_refresher(self) -> None:
+        while not self._stop.is_set():
+            self.history.wake.clear()
+            try:
+                worked = self.refresh_long()
+            except Exception:
+                logger.exception("Status page long-period refresh failed")
+                worked = False
+            if self._stop.is_set():
+                return
+            if worked:
+                self._stop.wait(aggregates.REFRESHER_PAUSE_SECONDS)
+            else:
+                self.history.wake.wait(self.history.idle_delay(_now()))
 
     def _run_timer(self) -> None:
         while not self._stop.is_set():

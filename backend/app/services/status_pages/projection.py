@@ -14,17 +14,15 @@ from app.services.status_pages import maintenance
 from app.services.status_pages.css import validate_css
 from app.services.status_pages.incidents import PAST_WINDOW, PageLocal, load_page_incidents, project_incident
 from app.services.status_pages.notices import live_notices
-from app.services.status_pages.aggregates import BuildCycle, LongKey, SourceHistory
+from app.services.status_pages.aggregates import PENDING, BuildCycle, LongKey, SourceHistory, compute_long
 from app.services.status_pages.history import (
     Availability,
     Sample,
-    SampleConverter,
     availability,
     build_spans,
     failure_rate,
     heartbeat_slots,
     p95,
-    period_availability,
     response_slots,
     window_samples,
 )
@@ -224,13 +222,18 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
             build_spans(cycle.samples(ref, since, now), since, now, state.interval_seconds, own_excluded), since, now,
         ))
     key = _long_key(ref, period, state, own_excluded)
-    entry = cycle.shared.long(key, now)
-    if entry is not None and (not entry.stale(now) or not cycle.claim_refresh(key)):
+    entry = cycle.shared.long(key, now, ref, PERIODS[period])
+    if entry is not None:
+        if entry.overdue(now):
+            cycle.overdue.add(key)
         return entry.value
-    since = now - PERIODS[period]
+    if not cycle.claim_inline(key):
+        cycle.deferred.add(key)
+        return PENDING
     with cycle.timed():
-        raw = cycle.fetch_long([ref], since, now, inputs.session)
-        found = period_availability(SampleConverter(raw).points(ref), since, now, state.interval_seconds, own_excluded)
+        found = compute_long(
+            lambda refs, start, end: cycle.fetch_long(refs, start, end, inputs.session), ref, key, PERIODS[period], now,
+        )
     cycle.shared.store_long(key, now, found, cycle.generation)
     return found
 

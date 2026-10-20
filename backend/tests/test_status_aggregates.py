@@ -26,6 +26,11 @@ def factory():
     return sessionmaker(bind=make_engine(), autoflush=False, expire_on_commit=False)
 
 
+@pytest.fixture(autouse=True)
+def count_only_inline_budget(monkeypatch):
+    monkeypatch.setattr(aggregates, "FIRST_BUILD_SECONDS_PER_CYCLE", 600.0)
+
+
 @pytest.fixture
 def cache(factory, monkeypatch):
     monkeypatch.setattr(cache_module, "SessionLocal", factory)
@@ -99,6 +104,17 @@ def _build(cache, page_ids, now=NOW):
     return {page_id: json.loads(cache.get(page_id, "public", now).body) for page_id in page_ids}
 
 
+def _settle(cache, now=NOW):
+    while cache.refresh_long(now):
+        pass
+
+
+def _built(cache, page_ids, now=NOW):
+    _build(cache, page_ids, now)
+    _settle(cache, now)
+    return _build(cache, page_ids, now)
+
+
 def test_pages_sharing_sources_scan_their_history_once_per_build_cycle(cache, factory, monkeypatch):
     ids = _devices(factory, 4)
     one = _page(factory, "one", ids)
@@ -140,9 +156,12 @@ def test_long_period_reused_for_five_minutes_then_refreshed(cache, factory, monk
     _build(cache, [page_id], NOW + timedelta(minutes=4))
     assert all(length < timedelta(days=2) for length, _ in fetched)
 
+    stale = NOW + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
     fetched.clear()
-    _build(cache, [page_id], NOW + aggregates.LONG_REFRESH + aggregates.LONG_JITTER)
-    assert any(length > timedelta(days=29) and rows for length, rows in fetched)
+    _build(cache, [page_id], stale)
+    assert all(length < timedelta(days=2) for length, _ in fetched)
+    _settle(cache, stale)
+    assert sorted(length > timedelta(days=29) and rows > 0 for length, rows in fetched).count(True) == 2
 
 
 def test_maintenance_change_invalidates_long_period(cache, factory, monkeypatch):
@@ -179,7 +198,7 @@ def test_cached_and_fresh_aggregates_give_identical_payloads(cache, factory):
     one = _page(factory, "one", ids)
     two = _page(factory, "two", ids[::-1], period="7d", window="1h")
     three = _page(factory, "three", ids, period="7d")
-    built = _build(cache, [one, two, three])
+    built = _built(cache, [one, two, three])
     rebuilt = _build(cache, [three, two, one])
     with factory() as db:
         for page_id in (one, two, three):
@@ -204,7 +223,7 @@ def test_long_periods_do_not_depend_on_heartbeat_window_or_build_order(cache, fa
     hour = _page(factory, "hour", ids, period="7d", window="1h")
     day = _page(factory, "day", ids, period="7d", window="24h")
     for builder, order in ((cache, [hour, day]), (StatusSnapshotCache(), [day, hour])):
-        built = _build(builder, order)
+        built = _built(builder, order)
         with factory() as db:
             for page_id in order:
                 fresh = build_page_payload(db, db.get(StatusPage, page_id), "public", NOW)
@@ -261,14 +280,15 @@ def test_long_period_maths_match_span_maths_exactly():
 
 def _long_fetches(monkeypatch):
     refreshed = []
-    real = aggregates.BuildCycle.fetch_long
+    real = aggregates.fetch_history
 
-    def counted(self, refs, start, end, db=None):
+    def counted(db, refs, start, end, **kw):
         refs = list(refs)
-        refreshed.append(len(refs))
-        return real(self, refs, start, end, db)
+        if kw.get("health_only"):
+            refreshed.append([r.device_id for r in refs])
+        return real(db, refs, start, end, **kw)
 
-    monkeypatch.setattr(aggregates.BuildCycle, "fetch_long", counted)
+    monkeypatch.setattr(aggregates, "fetch_history", counted)
     return refreshed
 
 
@@ -276,54 +296,130 @@ def _stale_at():
     return NOW + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
 
 
-def test_stale_long_period_is_served_while_its_refresh_waits_for_budget(cache, factory, monkeypatch):
+def test_builds_compute_only_capped_first_build_work_and_never_refresh_inline(cache, factory, monkeypatch):
+    ids = _devices(factory, 10, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    refreshed = _long_fetches(monkeypatch)
+    first = _build(cache, [page_id])[page_id]
+    assert len(refreshed) == aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
+    labels = [u["label"] for u in _uptimes(first)]
+    assert labels.count("no_data") == 10 - aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
+
+    refreshed.clear()
+    _build(cache, [page_id])
+    assert len(refreshed) == aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
+    _settle(cache)
+    refreshed.clear()
+    for later in (NOW, _stale_at(), NOW + aggregates.LONG_HARD_CAP + timedelta(minutes=1)):
+        _build(cache, [page_id], later)
+        assert refreshed == []
+
+
+def test_deferred_first_build_values_are_filled_by_the_refresher_and_the_page_rebuilt(cache, factory, monkeypatch):
+    ids = _devices(factory, 6, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    _build(cache, [page_id])
+    assert cache.pending() == []
+    _settle(cache)
+    assert cache.pending() == [page_id]
+    rebuilt = _build(cache, [page_id])[page_id]
+    assert all(u["label"] != "no_data" for u in _uptimes(rebuilt))
+
+
+def test_stale_long_period_is_served_until_the_refresher_replaces_it(cache, factory, monkeypatch):
     ids = _devices(factory, 1)
     page_id = _page(factory, "media", ids)
     first = _uptimes(_build(cache, [page_id])[page_id])
     with factory() as db:
         db.execute(update(DeviceMonitorHistory).values(is_healthy=False, status="offline"))
         db.commit()
-    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 0)
     refreshed = _long_fetches(monkeypatch)
     assert _uptimes(_build(cache, [page_id], _stale_at())[page_id]) == first
     assert refreshed == []
-    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 4)
+    assert cache.refresh_long(_stale_at()) is True
+    assert refreshed == [ids]
+    assert cache.pending() == [page_id]
     assert _uptimes(_build(cache, [page_id], _stale_at())[page_id]) != first
-    assert refreshed == [1]
 
 
-def test_stale_refreshes_respect_the_per_cycle_source_and_time_budget(cache, factory, monkeypatch):
-    ids = _devices(factory, 6, minutes=8 * 1440)
-    page_id = _page(factory, "media", ids, period="7d")
-    refreshed = _long_fetches(monkeypatch)
-    _build(cache, [page_id])
-    assert refreshed == [1] * 6
-    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 60.0)
-    refreshed.clear()
-    _build(cache, [page_id], _stale_at())
-    assert refreshed == [1] * aggregates.REFRESH_SOURCES_PER_CYCLE
-    _build(cache, [page_id], _stale_at() + timedelta(seconds=1))
-    assert refreshed == [1] * 6
+def test_refresh_that_changes_nothing_rebuilds_no_page(cache, factory, monkeypatch):
+    ids = _devices(factory, 2, minutes=8 * 1440)
+    one = _page(factory, "one", ids[:1], period="7d")
+    two = _page(factory, "two", ids[1:], period="7d")
+    _build(cache, [one, two])
 
-    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 1e-9)
-    refreshed.clear()
-    later = _stale_at() + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
-    _build(cache, [page_id], later)
-    assert refreshed == [1]
-    _build(cache, [page_id], later + timedelta(seconds=1))
-    assert refreshed == [1, 1]
+    def compute(fetch, ref, key, length, now):
+        if ref.device_id == ids[1]:
+            return cache.history.long(key, now).value
+        return aggregates.PENDING
+
+    monkeypatch.setattr(aggregates, "compute_long", compute)
+    _settle(cache, _stale_at())
+    assert cache.pending() == [one]
 
 
-def test_hard_cap_forces_a_recompute_even_without_budget(cache, factory, monkeypatch):
+def _recording_compute(mp, order, failing=()):
+    def compute(fetch, ref, key, length, now):
+        order.append(ref.device_id)
+        if ref.device_id in failing:
+            raise RuntimeError("boom")
+        return aggregates.PENDING
+
+    mp.setattr(aggregates, "compute_long", compute)
+
+
+def test_refresher_drains_never_computed_first_then_oldest_due_with_jitter(monkeypatch):
+    history = aggregates.SourceHistory(seed=3)
+    week = timedelta(days=7)
+    refs = [SourceRef("device", device_id=n) for n in range(1, 9)]
+    keys = {ref: (ref.key, "7d", 60, ()) for ref in refs}
+    for n, ref in enumerate(refs):
+        at = NOW + timedelta(minutes=2 * (n % 4))
+        history.long(keys[ref], at, ref, week)
+        history.store_long(keys[ref], at, aggregates.PENDING)
+    later = NOW + timedelta(minutes=20)
+    history.long(("device:99", "7d", 60, ()), later, SourceRef("device", device_id=99), week)
+    due = {ref.device_id: history.long(keys[ref], later).refresh_at for ref in refs}
+    assert len(set(due.values())) == 8
+    order = []
+    _recording_compute(monkeypatch, order)
+    while history.refresh_once(later, lambda: None):
+        pass
+    assert order == [99, *sorted(due, key=due.get)]
+
+
+def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch):
+    history = aggregates.SourceHistory()
+    for n in (1, 2):
+        history.long((f"device:{n}", "7d", 60, ()), NOW, SourceRef("device", device_id=n), timedelta(days=7))
+    order = []
+    _recording_compute(monkeypatch, order, failing={1})
+    with pytest.raises(RuntimeError):
+        history.refresh_once(NOW, lambda: None)
+    assert history.refresh_once(NOW, lambda: None) is True
+    assert history.refresh_once(NOW, lambda: None) is False
+    with pytest.raises(RuntimeError):
+        history.refresh_once(NOW + aggregates.LONG_RETRY, lambda: None)
+    assert order == [1, 2, 1]
+
+
+def test_value_past_the_hard_cap_is_served_flagged_and_warned(cache, factory, monkeypatch, caplog):
     ids = _devices(factory, 1)
     page_id = _page(factory, "media", ids)
-    _build(cache, [page_id])
-    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 0)
+    first = _uptimes(_build(cache, [page_id])[page_id])
     refreshed = _long_fetches(monkeypatch)
-    _build(cache, [page_id], NOW + aggregates.LONG_HARD_CAP - timedelta(seconds=1))
-    assert refreshed == []
-    _build(cache, [page_id], NOW + aggregates.LONG_HARD_CAP)
-    assert refreshed == [1]
+    capped = NOW + aggregates.LONG_HARD_CAP + timedelta(seconds=1)
+    with factory() as db:
+        before = cache.history.cycle()
+        build_page_payload(db, db.get(StatusPage, page_id), "public", NOW + timedelta(minutes=1), before)
+        cycle = cache.history.cycle()
+        payload = json.loads(json.dumps(build_page_payload(db, db.get(StatusPage, page_id), "public", capped, cycle)))
+    assert before.overdue == set()
+    assert _uptimes(payload) == first
+    assert len(cycle.overdue) == 1 and refreshed == []
+    caplog.set_level("WARNING")
+    assert cache.refresh_long(capped)
+    assert "refresh is behind" in caplog.text and "1 past the 15-minute cap" in caplog.text
 
 
 def test_refresh_deadlines_are_jittered_deterministically():
@@ -353,6 +449,7 @@ def test_long_period_rows_are_fetched_one_source_at_a_time_in_short_sessions(cac
 
     monkeypatch.setattr(cache_module, "SessionLocal", counting)
     _build(cache, [page_id])
+    _settle(cache)
     long_fetches = [rows for length, rows in fetched if length > timedelta(days=6)]
     assert len(long_fetches) == 5
     assert max(long_fetches) <= 8 * 1440 + 1
