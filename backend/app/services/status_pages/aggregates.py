@@ -106,6 +106,12 @@ class SourceHistory:
         with self._lock:
             return self._long.get(key)
 
+    def latest(self, key: LongKey) -> LongEntry | None:
+        """The newest value for the same source and period under any interval or maintenance exclusions."""
+        with self._lock:
+            siblings = [e for k, e in self._long.items() if k[:2] == key[:2]]
+        return max(siblings, key=lambda e: e.computed_at, default=None)
+
     def track(self, key: LongKey, ref: SourceRef, length: timedelta, now: datetime) -> None:
         """Keep `key` on the refresher's list and mark it used by a build at `now`."""
         with self._lock:

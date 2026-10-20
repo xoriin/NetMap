@@ -172,7 +172,7 @@ class PageInputs:
 
 
 def _long_key(ref: SourceRef, period: str, state: CurrentState, excluded: list) -> LongKey:
-    return ref.key, period, state.interval_seconds, tuple(sorted((_utc(a), _utc(b)) for a, b in excluded))
+    return ref.key, period, state.schedule_interval, tuple(sorted((_utc(a), _utc(b)) for a, b in excluded))
 
 
 def _bounds(page: StatusPage, now: datetime) -> tuple[datetime, datetime]:
@@ -236,7 +236,8 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     if not cycle.claim_inline(key):
         cycle.shared.track(key, ref, length, now)
         cycle.deferred.add(key)
-        return PENDING
+        sibling = cycle.shared.latest(key)
+        return sibling.value if sibling is not None else PENDING
     with cycle.timed():
         found = compute_long(lambda refs, start, end: cycle.fetch_long(refs, start, end, inputs.session), ref, key, length, now)
     cycle.shared.store_long(key, now, found, cycle.generation)

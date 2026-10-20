@@ -75,6 +75,12 @@ class CurrentState:
     fresh_until: datetime | None
     response_ms: float | None
     interval_seconds: int
+    schedule_seconds: int | None = None
+
+    @property
+    def schedule_interval(self) -> int:
+        """The configured check interval, never a monitor's shorter retry interval while it fails."""
+        return self.schedule_seconds if self.schedule_seconds is not None else self.interval_seconds
 
 
 def _utc(value: datetime | None) -> datetime | None:
@@ -97,11 +103,14 @@ def _device_interval(db: Session) -> int:
     return DEFAULT_INTERVAL_SECONDS
 
 
-def _state(ref: SourceRef, health: Health, observed_at: datetime | None, response_ms: float | None, interval: int) -> CurrentState:
+def _state(
+    ref: SourceRef, health: Health, observed_at: datetime | None, response_ms: float | None, interval: int,
+    schedule: int | None = None,
+) -> CurrentState:
     observed_at = _utc(observed_at)
     if observed_at is None:
-        return CurrentState(ref, "unknown", None, None, None, interval)
-    return CurrentState(ref, health, observed_at, freshness_deadline(observed_at, interval), response_ms, interval)
+        return CurrentState(ref, "unknown", None, None, None, interval, schedule)
+    return CurrentState(ref, health, observed_at, freshness_deadline(observed_at, interval), response_ms, interval, schedule)
 
 
 def _device_usable(device: Device | None) -> bool:
@@ -234,7 +243,9 @@ def load_current_states(db: Session, refs: Iterable[SourceRef], now: datetime) -
             health: Health = {"online": "healthy", "offline": "unhealthy"}.get(monitor.last_status, "unknown")
             status, response = latest_rows.get(monitor.id, (None, None))
             response_ms = response if status == "online" else None
-            states[ref] = _state(ref, health, monitor.last_checked_at, response_ms, monitor_interval)
+            states[ref] = _state(
+                ref, health, monitor.last_checked_at, response_ms, monitor_interval, monitor.check_interval_seconds,
+            )
 
     return states
 

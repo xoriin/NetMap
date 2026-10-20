@@ -508,3 +508,65 @@ def test_preview_cycles_read_shared_values_but_never_register_or_store(cache, fa
     assert cache.history.long((f"device:{ids[1]}", "7d", 60, ()), NOW) is None
     later = NOW + timedelta(hours=1)
     assert [key[0] for key in cache.history.backlog(later)] == [f"device:{ids[0]}"]
+
+
+def _monitors(factory, count, minutes=8 * 1440):
+    from app.models.monitor import MonitorCheckHistory
+    from tests.status_page_helpers import seed_monitor
+
+    with factory() as db:
+        ids = [seed_monitor(
+            db, enabled=True, last_status="online", last_checked_at=NOW - timedelta(seconds=20),
+            check_interval_seconds=60, retry_interval_seconds=20,
+        ).id for _ in range(count)]
+        for monitor_id in ids:
+            db.execute(insert(MonitorCheckHistory), [
+                dict(monitor_id=monitor_id, checked_at=NOW - timedelta(minutes=minutes - k),
+                     status="offline" if k % 11 == 0 else "online", response_time_ms=5.0)
+                for k in range(minutes)
+            ])
+        db.commit()
+    with factory() as db:
+        page = seed_page(db, "monitors", items=[(SourceRef("monitor", monitor_id=i), f"M{i}") for i in ids])
+        for item in db.query(StatusPageItem).filter_by(page_id=page.id):
+            item.extras = {"uptime_period": "7d"}
+        db.commit()
+        return ids, page.id
+
+
+def _fail(factory, ids):
+    from app.models.monitor import Monitor
+
+    with factory() as db:
+        db.execute(update(Monitor).where(Monitor.id.in_(ids)).values(consecutive_failures=3, last_status="offline"))
+        db.commit()
+
+
+def test_mass_outage_keeps_every_computed_long_period_figure(cache, factory, monkeypatch):
+    ids, page_id = _monitors(factory, 6)
+    first = _uptimes(_built(cache, [page_id])[page_id])
+    assert all(u["label"] == "ok" for u in first)
+    _fail(factory, ids)
+    monkeypatch.setattr(aggregates, "FIRST_BUILD_SOURCES_PER_CYCLE", 0)
+    refreshed = _long_fetches(monkeypatch)
+    after = _uptimes(_build(cache, [page_id], NOW + timedelta(minutes=1))[page_id])
+    assert after == first
+    assert refreshed == []
+
+
+def test_pending_key_serves_the_latest_sibling_value_for_the_same_source_and_period(cache, factory, monkeypatch):
+    from app.models.status_page import StatusMaintenance, StatusMaintenanceItem
+
+    ids = _devices(factory, 1, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    first = _uptimes(_build(cache, [page_id])[page_id])
+    with factory() as db:
+        window = StatusMaintenance(title="Swap", starts_at=NOW - timedelta(days=3), ends_at=NOW - timedelta(days=2), suppress_alerts=True)
+        db.add(window)
+        db.flush()
+        db.add(StatusMaintenanceItem(maintenance_id=window.id, kind="device", device_id=ids[0]))
+        db.commit()
+    monkeypatch.setattr(aggregates, "FIRST_BUILD_SOURCES_PER_CYCLE", 0)
+    assert _uptimes(_build(cache, [page_id], NOW + timedelta(minutes=1))[page_id]) == first
+    _settle(cache, NOW + timedelta(minutes=1))
+    assert cache.pending() == [page_id]
