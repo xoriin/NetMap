@@ -281,16 +281,3 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   }
 }
 
-
-/* Cloud assets uses the same attached panel and table primitives as Inventory/IPAM. */
-.inventory-cloud-workspace { display: flex; flex: 1 1 auto; min-height: 0; }
-.inventory-cloud-panel { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.inventory-cloud-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; min-height: 44px; }
-.inventory-cloud-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-.inventory-cloud-table-wrap { flex: 1; min-height: 0; }
-.inventory-cloud-table { min-width: 760px; background: var(--nm-modal-section); }
-.inventory-cloud-table .inventory-cloud-group td { background: var(--nm-modal-header); }
-@media (max-width: 900px) {
-  .inventory-cloud-header { padding-block: 12px; }
-  .inventory-cloud-controls { width: 100%; }
-}

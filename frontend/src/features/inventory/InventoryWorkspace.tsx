@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, useContext, useRef, type CSSProperties } from "react";
 import "./inventory.css";
 import { CloudAssetsPanel } from "./CloudAssetsPanel";
+import { useInventoryTableColumns } from "./useInventoryTableColumns";
+import { InventoryTableFrame, InventoryColumnHeading, InventoryPagination } from "./InventoryTableFrame";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import {
   INVENTORY_VIEW_CHANGE_EVENT,
@@ -9,7 +11,7 @@ import {
 } from "./inventoryNavigation";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { Search, Star, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Search, Star, ChevronDown, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -129,8 +131,7 @@ export function InventoryWorkspace({
     return saved ? Math.max(1, Number(saved)) : 25;
   });
 
-  const [colWidths, setColWidths] = useState<number[] | null>(loadInvColWidths);
-  const headerRef = useRef<HTMLDivElement | null>(null);
+  const { widths: colWidths, headerRef, startResize: startColResize, reset: resetColWidths } = useInventoryTableColumns({ count: INV_COL_COUNT, storageKey: INV_COL_WIDTHS_KEY, leadingColumns: 1, initialWidths: loadInvColWidths, minWidth: INV_MIN_COL_WIDTH });
   // A native <details> only closes via its own summary, so the bulk menu is
   // controlled to let an outside click or Escape dismiss it.
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
@@ -193,51 +194,6 @@ export function InventoryWorkspace({
       document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [bulkMenuOpen]);
-
-  // A handle sits at the right edge of column colIdx and resizes that column
-  // only. Widths are read from the DOM on the first drag so the flexible `fr`
-  // columns freeze at exactly the width they were already rendering at.
-  function startColResize(colIdx: number, event: ReactMouseEvent) {
-    event.preventDefault();
-    const startX = event.clientX;
-    const header = headerRef.current;
-    const initialWidths: number[] = header
-      ? Array.from(header.children)
-          .slice(1, 1 + INV_COL_COUNT)
-          .map((cell) => cell.getBoundingClientRect().width)
-      : (colWidths ?? []);
-    if (initialWidths.length !== INV_COL_COUNT) return;
-
-    function onMove(moveEvent: MouseEvent) {
-      const next = Math.max(INV_MIN_COL_WIDTH, initialWidths[colIdx] + (moveEvent.clientX - startX));
-      const updated = [...initialWidths];
-      updated[colIdx] = next;
-      setColWidths(updated);
-    }
-
-    function onUp() {
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      setColWidths((previous) => {
-        if (previous) window.localStorage.setItem(INV_COL_WIDTHS_KEY, JSON.stringify(previous));
-        return previous;
-      });
-    }
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }
-
-  // Double-clicking any divider drops the saved widths entirely, returning the
-  // table to the stylesheet's flexible default layout.
-  function resetColWidths() {
-    window.localStorage.removeItem(INV_COL_WIDTHS_KEY);
-    setColWidths(null);
-  }
 
   // Filter dropdowns carry the same swatch colours as the table chips.
   const groupFilterOptions = useMemo<SwatchOption[]>(
@@ -712,8 +668,8 @@ export function InventoryWorkspace({
 
       {inventoryError && <div className="form-error">{inventoryError}</div>}
       <div className={selectedDevice ? "topology-content details-open" : "topology-content"}>
-        <div className="inventory-surface nm-app-panel">
-          <div className="inventory-panel-header nm-app-panel-header">
+        <InventoryTableFrame
+          toolbar={<>
             <span className="inv-panel-title">
               <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
               <span>Devices</span>
@@ -854,40 +810,26 @@ export function InventoryWorkspace({
                 onChange={(e) => setInventorySearch(e.target.value)}
               />
             </div>
-          </div>
-          <div
-            className={`inventory-table${colWidths ? " inventory-table--fixed" : ""}`}
-            style={colWidths ? ({ "--inv-grid-template": invGridTemplate(colWidths) } as CSSProperties) : undefined}
-          >
-            <div className="inventory-table-header" ref={headerRef}>
+          </>}
+          header={<>
               <span aria-label="Device selection" />
               {["device", "ip", "type", "os", "status", "latency", "group", "location"].map((key, i) => {
                 const labels = ["Device", "IP", "Device Type", "OS", "Status", "Latency", "VLAN / Group", "Location"];
                 const active = inventorySortKey === key;
                 return (
-                  <span key={key} className="inventory-th">
-                    <button
-                      type="button"
-                      className={`inventory-sort-btn${active ? " active" : ""}`}
-                      onClick={() => toggleSort(key)}
-                    >
-                      {labels[i]}
-                      {active && (inventorySortDir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
-                    </button>
-                    {i < INV_COL_COUNT - 1 && (
-                      <span
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="inventory-col-resize-handle"
-                        title="Drag to resize · double-click to reset all columns"
-                        onMouseDown={(event) => startColResize(i, event)}
-                        onDoubleClick={resetColWidths}
-                      />
-                    )}
-                  </span>
+                  <InventoryColumnHeading key={key} active={active} ascending={inventorySortDir === "asc"}
+                    onSort={() => toggleSort(key)} onResize={i < INV_COL_COUNT - 1 ? (event) => startColResize(i, event) : undefined} onReset={resetColWidths}>
+                    {labels[i]}
+                  </InventoryColumnHeading>
                 );
               })}
-            </div>
+          </>}
+          headerRef={headerRef}
+          fixed={colWidths !== null}
+          tableStyle={colWidths ? ({ "--inv-grid-template": invGridTemplate(colWidths) } as CSSProperties) : undefined}
+          footer={filteredDevices.length > 0 && <InventoryPagination total={filteredDevices.length} page={currentPage} pageSize={pageSize}
+            noun={filteredDevices.length === 1 ? "device" : "devices"} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />}
+        >
             {filteredDevices.length === 0 ? (
               <div className="inventory-empty">No devices match the current filters.</div>
             ) : (
@@ -974,44 +916,7 @@ export function InventoryWorkspace({
                 );
               })
             )}
-          </div>
-          {filteredDevices.length > 0 && (
-            <div className="inv-pagination">
-              <span className="inv-pagination-info">
-                Showing {Math.min((currentPage - 1) * pageSize + 1, filteredDevices.length)}–{Math.min(currentPage * pageSize, filteredDevices.length)} of {filteredDevices.length} device{filteredDevices.length !== 1 ? "s" : ""}
-              </span>
-              <div className="inv-pagination-controls">
-                <span style={{ fontSize: 11, opacity: 0.7 }}>Per page:</span>
-                <select
-                  className="inv-pagination-select"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                >
-                  {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <button
-                  type="button"
-                  className="inv-pagination-btn"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                >
-                  ‹ Prev
-                </button>
-                <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                  {currentPage} / {Math.max(1, Math.ceil(filteredDevices.length / pageSize))}
-                </span>
-                <button
-                  type="button"
-                  className="inv-pagination-btn"
-                  disabled={currentPage >= Math.ceil(filteredDevices.length / pageSize)}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                >
-                  Next ›
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        </InventoryTableFrame>
 
         {selectedDevice && (
           <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
