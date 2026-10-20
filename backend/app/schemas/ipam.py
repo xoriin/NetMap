@@ -274,3 +274,22 @@ class SavedCloudAssetOut(BaseModel):
     description: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SavedCloudAssetUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    kind: str | None = Field(default=None, max_length=40)
+    provider_id: int | None = None
+    account: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(default=None, max_length=120)
+    device_id: int | None = None
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def nonempty_name(cls, value: str | None) -> str:
+        if value is None or not value.strip():
+            raise ValueError("Enter an asset name")
+        return value.strip()

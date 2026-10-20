@@ -17,7 +17,7 @@ from app.api.deps import get_current_user, require_ipam_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.dhcp_lease import DhcpLease
-from app.models.cloud import CloudAsset, CloudProvider
+from app.models.cloud import CLOUD_ASSET_KINDS, CloudAsset, CloudProvider
 from app.models.external_ip import ExternalIpAddress, ExternalProviderAccount, ExternalLocation
 from app.models.system_setting import SystemSetting
 from app.schemas.ipam import ExternalAccountCreate, ExternalAccountOut, ExternalLocationCreate, ExternalLocationOut
@@ -46,6 +46,7 @@ from app.schemas.ipam import (
     ExternalMigrationReport,
     CloudProviderOut,
     SavedCloudAssetOut,
+    SavedCloudAssetUpdate,
     ExternalIpDeviceOut,
 )
 from app.services.external_addresses import (
@@ -1053,3 +1054,33 @@ def list_saved_cloud_assets(
     """
     rows = db.scalars(select(CloudAsset).order_by(CloudAsset.name, CloudAsset.id)).all()
     return [SavedCloudAssetOut.model_validate(row) for row in rows]
+
+
+@router.patch("/external/assets/{asset_id}", response_model=SavedCloudAssetOut)
+def update_saved_cloud_asset(
+    asset_id: int,
+    payload: SavedCloudAssetUpdate,
+    user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> SavedCloudAssetOut:
+    """Update retained resource metadata and its optional Inventory bridge only."""
+    row = db.get(CloudAsset, asset_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Cloud asset not found")
+    fields = payload.model_dump(exclude_unset=True)
+    if fields.get("kind") is not None and fields["kind"] not in CLOUD_ASSET_KINDS:
+        raise HTTPException(status_code=422, detail="Choose a supported asset kind")
+    # Validate new references, while preserving untouched legacy/dangling values.
+    if fields.get("provider_id") is not None and db.get(CloudProvider, fields["provider_id"]) is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if fields.get("device_id") is not None and db.get(Device, fields["device_id"]) is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    for field, value in fields.items():
+        setattr(row, field, value)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An asset with this name already exists in this provider account") from exc
+    db.refresh(row)
+    return SavedCloudAssetOut.model_validate(row)
