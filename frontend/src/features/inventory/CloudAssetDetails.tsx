@@ -37,6 +37,7 @@ import { useToast } from "../../components/Toast";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { editableField } from "../../utils/editableField";
+import { sameIp } from "../../utils/ipParse";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 
 export type CloudAssetRecord =
@@ -331,7 +332,7 @@ export function CloudAssetDetails({
     try {
       let target = createdDevice;
       if (!target) {
-        const existing = devices.find((row) => row.ip_address && row.ip_address.toLowerCase() === payload.ip_address?.trim().toLowerCase());
+        const existing = devices.find((row) => sameIp(row.ip_address, payload.ip_address));
         if (existing && await confirmAction({
           title: "Link existing Inventory device?",
           message: `${deviceLabel(existing)} already uses this address.`,

@@ -133,3 +133,19 @@ test('Inventory-only writers can inspect linked context but cannot edit or relin
  await expect(sidebar.getByRole('button',{name:'Unlink device',exact:true})).toHaveCount(0);
  await expect(sidebar.locator('.editable-dd')).toHaveCount(0);
 });
+
+test('an Inventory device with an equivalent IPv6 spelling is offered instead of a duplicate',async({page})=>{
+ let posts=0;
+ const state=await setupExternalIps(page,{devices:[mockDevice({id:12,hostname:'IPv6 edge',ip_address:'2606:4700:4700:0:0:0:0:1111'})],addresses:[mockAddress({label:'Resolver',ip_address:'2606:4700:4700::1111'})],beforeGoto:async page=>{
+  await common(page);
+  await page.route('**/api/v1/topology/devices',route=>{if(route.request().method()!=='POST') return route.fallback(); posts++; return route.fulfill({json:mockDevice({id:93})});});
+ }});
+ await page.goto('/inventory#cloud-assets');
+ await page.getByRole('button',{name:'Open Resolver details'}).click();
+ await page.getByRole('button',{name:'Add to Inventory',exact:true}).click();
+ await page.getByRole('dialog',{name:'Add device',exact:true}).getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Link device',exact:true}).last().click();
+ await expect(page.getByRole('dialog',{name:'Add device',exact:true})).toBeHidden();
+ expect(posts).toBe(0);
+ expect(state.addressPatches.at(-1)).toEqual([1,{device_id:12}]);
+});
