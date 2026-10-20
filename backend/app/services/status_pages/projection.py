@@ -207,11 +207,12 @@ def load_page(db: Session, page: StatusPage, now: datetime, cycle: BuildCycle) -
         fresh[start].add(ref)
         period = (item.extras or {}).get("uptime_period")
         if period in LONG_PERIODS:
-            hit = cycle.shared.long(_long_key(ref, period, states[ref], excluded.get(ref.key, [])), now)
-            if hit is None:
-                long[period].add(ref)
+            key = _long_key(ref, period, states[ref], excluded.get(ref.key, []))
+            entry = cycle.shared.long(key, now)
+            if entry is not None and (not entry.stale(now) or not cycle.claim_refresh(key)):
+                long_hits[(ref, period)] = entry.value
             else:
-                long_hits[(ref, period)] = hit
+                long[period].add(ref)
         elif period in PERIODS:
             fresh[end - PERIODS[period]].add(ref)
     for since, group_refs in fresh.items():
@@ -236,12 +237,14 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     if (ref, period) in inputs.long_hits:
         return inputs.long_hits[(ref, period)]
     key = _long_key(ref, period, state, own_excluded)
-    found = cycle.shared.long(key, now)
-    if found is None:
+    entry = cycle.shared.long(key, now)
+    if entry is not None and not entry.stale(now):
+        return entry.value
+    with cycle.timed():
         converter = converters.setdefault(period, SampleConverter(inputs.long_rows[period]))
         since = now - PERIODS[period]
         found = period_availability(converter.points(ref), since, now, state.interval_seconds, own_excluded)
-        cycle.shared.store_long(key, now, found)
+    cycle.shared.store_long(key, now, found)
     return found
 
 

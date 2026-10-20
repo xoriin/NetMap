@@ -141,7 +141,7 @@ def test_long_period_reused_for_five_minutes_then_refreshed(cache, factory, monk
     assert all(length < timedelta(days=2) for length, _ in fetched)
 
     fetched.clear()
-    _build(cache, [page_id], NOW + timedelta(minutes=5))
+    _build(cache, [page_id], NOW + aggregates.LONG_REFRESH + aggregates.LONG_JITTER)
     assert any(length > timedelta(days=29) and rows for length, rows in fetched)
 
 
@@ -257,3 +257,78 @@ def test_long_period_maths_match_span_maths_exactly():
         assert period_availability(points, start, end, interval, windows) == availability(
             build_spans(samples, start, end, interval, windows), start, end,
         )
+
+
+def _long_fetches(monkeypatch):
+    refreshed = []
+    real = aggregates.BuildCycle.fetch_long
+
+    def counted(self, db, refs, start, end):
+        refs = list(refs)
+        refreshed.append(len(refs))
+        return real(self, db, refs, start, end)
+
+    monkeypatch.setattr(aggregates.BuildCycle, "fetch_long", counted)
+    return refreshed
+
+
+def _stale_at():
+    return NOW + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
+
+
+def test_stale_long_period_is_served_while_its_refresh_waits_for_budget(cache, factory, monkeypatch):
+    ids = _devices(factory, 1)
+    page_id = _page(factory, "media", ids)
+    first = _uptimes(_build(cache, [page_id])[page_id])
+    with factory() as db:
+        db.execute(update(DeviceMonitorHistory).values(is_healthy=False, status="offline"))
+        db.commit()
+    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 0)
+    refreshed = _long_fetches(monkeypatch)
+    assert _uptimes(_build(cache, [page_id], _stale_at())[page_id]) == first
+    assert refreshed == []
+    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 4)
+    assert _uptimes(_build(cache, [page_id], _stale_at())[page_id]) != first
+    assert refreshed == [1]
+
+
+def test_stale_refreshes_respect_the_per_cycle_source_and_time_budget(cache, factory, monkeypatch):
+    ids = _devices(factory, 6, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    _build(cache, [page_id])
+    refreshed = _long_fetches(monkeypatch)
+    _build(cache, [page_id], _stale_at())
+    assert refreshed == [aggregates.REFRESH_SOURCES_PER_CYCLE]
+    _build(cache, [page_id], _stale_at() + timedelta(seconds=1))
+    assert refreshed == [aggregates.REFRESH_SOURCES_PER_CYCLE, 6 - aggregates.REFRESH_SOURCES_PER_CYCLE]
+
+    cycle = aggregates.SourceHistory().cycle()
+    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 0.25)
+    cycle.refresh_seconds = 0.25
+    assert cycle.claim_refresh(("device:1", "30d", 60, ())) is False
+
+
+def test_hard_cap_forces_a_recompute_even_without_budget(cache, factory, monkeypatch):
+    ids = _devices(factory, 1)
+    page_id = _page(factory, "media", ids)
+    _build(cache, [page_id])
+    monkeypatch.setattr(aggregates, "REFRESH_SOURCES_PER_CYCLE", 0)
+    refreshed = _long_fetches(monkeypatch)
+    _build(cache, [page_id], NOW + aggregates.LONG_HARD_CAP - timedelta(seconds=1))
+    assert refreshed == []
+    _build(cache, [page_id], NOW + aggregates.LONG_HARD_CAP)
+    assert refreshed == [1]
+
+
+def test_refresh_deadlines_are_jittered_deterministically():
+    keys = [(f"device:{n}", "30d", 60, ()) for n in range(50)]
+    history = aggregates.SourceHistory(seed=7)
+    jitters = [history.jitter(key) for key in keys]
+    assert all(timedelta(0) <= j < aggregates.LONG_JITTER for j in jitters)
+    assert len(set(jitters)) > 40
+    assert max(jitters) - min(jitters) > aggregates.LONG_JITTER / 2
+    assert jitters == [aggregates.SourceHistory(seed=7).jitter(key) for key in keys]
+    assert jitters != [aggregates.SourceHistory(seed=8).jitter(key) for key in keys]
+    for key in keys[:3]:
+        history.store_long(key, NOW, None)
+        assert history.long(key, NOW).refresh_at == NOW + aggregates.LONG_REFRESH + history.jitter(key)
