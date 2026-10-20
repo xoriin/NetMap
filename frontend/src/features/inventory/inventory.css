@@ -291,3 +291,27 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Inline Cloud editors use existing controls; only field arrangement is local. */
+.cloud-asset-field-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.cloud-asset-field-edit {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cloud-asset-field-value > span:first-child {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.cloud-asset-field-value > .nm-btn--icon {
+  flex: none;
+  margin-block: -6px;
+}

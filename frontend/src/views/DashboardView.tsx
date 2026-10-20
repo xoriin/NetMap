@@ -172,6 +172,7 @@ export function DashboardView({
           accessToken={accessToken}
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
+          canWriteIpam={canWriteIpam}
           canManageDiscovery={canManageDiscovery}
           favouriteIds={favouriteIds}
           graph={graph}

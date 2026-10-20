@@ -64,6 +64,7 @@ export function InventoryWorkspace({
   accessToken,
   canViewSecurity,
   canWrite,
+  canWriteIpam,
   canManageDiscovery,
   favouriteIds,
   graph,
@@ -79,6 +80,7 @@ export function InventoryWorkspace({
   accessToken: string;
   canViewSecurity: boolean;
   canWrite: boolean;
+  canWriteIpam: boolean;
   canManageDiscovery: boolean;
   favouriteIds: Set<number>;
   graph: TopologyGraph;
@@ -636,8 +638,7 @@ export function InventoryWorkspace({
     setBulkMenuOpen(false);
   }, [inventoryView]);
 
-  const deviceOverview = selectedDevice && (
-    <InventoryDetailsPanel title="Device overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>
+  const deviceDetails = selectedDevice && (
         <DeviceDetails
           canViewSecurity={canViewSecurity}
           canWrite={canWrite}
@@ -655,12 +656,13 @@ export function InventoryWorkspace({
           securityLoading={deviceSecurityLoading}
           securitySummary={deviceSecuritySummary}
         />
-    </InventoryDetailsPanel>
   );
+  const deviceOverview = selectedDevice && <InventoryDetailsPanel title="Device overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>{deviceDetails}</InventoryDetailsPanel>;
 
   if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate}
     favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} onOpenDevice={setSelectedDeviceId}
-    selectedDeviceId={selectedDeviceId} deviceOverview={deviceOverview} healthFor={healthFor}
+    selectedDeviceId={selectedDeviceId} deviceDetails={deviceDetails} canWriteIpam={canWriteIpam} healthFor={healthFor}
+    canCreateDevice={canWrite} deviceFormOptions={{ deviceTypes: deviceTypeOptions, groups, snmpProfiles, sites }} onDeviceCreated={onDeviceChange}
     livePingEnabled={livePingEnabled} mutationError={inventoryError} />;
 
   return (

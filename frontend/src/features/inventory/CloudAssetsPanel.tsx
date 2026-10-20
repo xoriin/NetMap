@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Activity, Cloud, FileText, Globe, Link2, MapPin, Network, Search, Server, Star, Tag, Unlink, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Cloud, Globe, Link2, Search, Server, Star, Unlink } from "lucide-react";
 import { api, type Device } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
-import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
+import { CloudAssetDetails, type CloudAssetRecord, type CloudDeviceFormOptions } from "./CloudAssetDetails";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
 import { SpaLink } from "../../components/SpaLink";
 import { SwatchSelect } from "../../components/SwatchSelect";
@@ -16,17 +16,19 @@ import { useInventoryTableColumns } from "./useInventoryTableColumns";
 type CloudRow = {
   key: string; name: string; ip: string; kind: string; purpose: string;
   provider: string; location: string; lifecycle: string; device?: Device; deviceId: number | null;
-  health: DeviceHealth; monitoring: string; details: [string, string][];
+  record: CloudAssetRecord; health: DeviceHealth; monitoring: string; details: [string, string][];
 };
 const headings = ["Asset", "IP", "Kind", "Purpose", "Monitoring", "Address state", "Provider", "Location / account"];
 
 /** Current addresses and retained resources remain independent records; linking never enables probes. */
 export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteIds, onToggleFavourite,
-  onOpenDevice, selectedDeviceId, deviceOverview, healthFor, livePingEnabled, mutationError }: {
+  onOpenDevice, selectedDeviceId, deviceDetails, healthFor, livePingEnabled, mutationError, canWriteIpam,
+  canCreateDevice, deviceFormOptions, onDeviceCreated }: {
   accessToken: string; devices: Device[]; onNavigate?: (route: AppRoute) => void;
   favouriteIds: Set<number>; onToggleFavourite: (id: number) => void;
   onOpenDevice: (id: number | null) => void; selectedDeviceId: number | null;
-  deviceOverview: ReactNode; healthFor: (device: Device) => DeviceHealth; livePingEnabled: boolean; mutationError: string | null;
+  deviceDetails: ReactNode; canWriteIpam: boolean; healthFor: (device: Device) => DeviceHealth; livePingEnabled: boolean; mutationError: string | null;
+  canCreateDevice: boolean; deviceFormOptions: CloudDeviceFormOptions; onDeviceCreated: (device: Device) => void;
 }) {
   const query = useApiQuery(async () => {
     const [addresses, locations, accounts, providers, assets] = await Promise.all([
@@ -67,7 +69,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         const device = deviceById.get(address.device_id ?? -1);
         const identity = device ?? address.device;
         return {
-          key: `address-${address.id}`,
+          key: `address-${address.id}`, record: {type: "address" as const,value:address},
           name: identity?.display_name || identity?.hostname || address.label || address.ip_address,
           ip: address.ip_address, kind: "External IP", purpose: address.label || "",
           provider: providerById.get(account?.provider_id ?? -1) || "",
@@ -80,7 +82,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       ...assets.map(asset => {
         const device = deviceById.get(asset.device_id ?? -1);
         return {
-          key: `saved-${asset.id}`, name: asset.name, ip: device?.ip_address || "",
+          key: `saved-${asset.id}`, record: {type: "resource" as const,value:asset}, name: asset.name, ip: device?.ip_address || "",
           kind: asset.kind?.replace(/_/g, " ") || "Resource", purpose: asset.description || "",
           provider: providerById.get(asset.provider_id ?? -1) || "",
           location: [asset.account, asset.region].filter(Boolean).join(" · "), lifecycle: "",
@@ -114,18 +116,14 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     setDetailKey(row.key);
     onOpenDevice(row.device?.id ?? null);
   }
-  const activeOverview = detail ? (detail.device ? deviceOverview : <InventoryDetailsPanel
-    title="Asset overview" icon={<Cloud size={17} />} onClose={() => setDetailKey(null)}>
-    <div className="details-heading">
-      <span className={`status-dot ${detail.health}`} />
-      <div className="details-heading-body"><div className="details-heading-title-row"><h3>{detail.name}</h3></div></div>
-    </div>
-    <div className="device-detail-tabs"><button type="button" className="device-detail-tab active">Details</button></div>
-    <dl>{[...headings.map((heading,index) => ({ label: heading, value: values(detail)[index], Icon: [Cloud, Network, Server, FileText, Activity, Tag, Globe, MapPin][index] })),
-      ...detail.details.map(([label,value]) => ({label,value,Icon: label === "Owner" ? UserRound : label === "Tags" ? Tag : label === "URL" ? Link2 : FileText}))]
-      .map(({label,value,Icon}) => <Fragment key={label}><dt><span className="details-field-icon"><Icon size={12} /></span>{label}</dt><dd>{value || "—"}</dd></Fragment>)}</dl>
-    <div className="detail-actions detail-actions--device">{ipamLink}</div>
-  </InventoryDetailsPanel>) : null;
+  const activeOverview = detail && query.data ? <CloudAssetDetails key={detail.key}
+    record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
+    devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
+    canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
+    deviceDetails={deviceDetails} externalIpAction={ipamLink} onClose={() => {setDetailKey(null);onOpenDevice(null);}} onLinkChange={onOpenDevice}
+    onAddressChange={value => query.setData(current => current && ({...current,addresses:current.addresses.map(row=>row.id===value.id ? value : row)}))}
+    onResourceChange={value => query.setData(current => current && ({...current,assets:current.assets.map(row=>row.id===value.id ? value : row)}))}
+  /> : null;
   if (query.isLoading) return <WorkspaceSkeleton />;
   return <section className="topology-layout inventory-layout inventory-cloud-layout">
     <div className="dash-stats inventory-stats nm-summary-band">
