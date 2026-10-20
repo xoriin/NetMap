@@ -98,9 +98,13 @@ test('a failed link after creating a device retries without creating a second de
  const form=page.getByRole('dialog').filter({has:page.locator('.device-form')});
  await form.getByRole('button',{name:'Save',exact:true}).click();
  await expect(page.getByText(/Link failed/).first()).toBeVisible();
+ await expect(form).toHaveCount(0);
+ const retry=page.getByRole('dialog',{name:'Link the created device'});
+ await expect(retry).toContainText('Public service');
+ await expect(retry.locator('input, select, textarea')).toHaveCount(0);
  fail=false;
- await page.getByRole('button',{name:'Retry link',exact:true}).click();
- await expect(form).toBeHidden();
+ await retry.getByRole('button',{name:'Retry link',exact:true}).click();
+ await expect(retry).toBeHidden();
  expect(posts).toBe(1);
  expect(state.addressPatches.at(-1)).toEqual([1,{device_id:91}]);
 });

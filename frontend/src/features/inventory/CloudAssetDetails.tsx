@@ -31,6 +31,7 @@ import {
   type TopologyGroup,
 } from "../../api/client";
 import { deviceLabel, formatEventTime } from "../../utils/format";
+import { Modal } from "../../components/Modal";
 import { PickOrCreate } from "../../components/PickOrCreate";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
@@ -326,12 +327,12 @@ export function CloudAssetDetails({
       : { display_name: record.value.name, hostname: null, notes: record.value.description, monitoring_paused: false });
   }
 
-  async function createAndLink(payload: DevicePayload) {
+  async function createAndLink(payload: DevicePayload | null) {
     if (!canCreate) return;
     setBusy(true);
     try {
       let target = createdDevice;
-      if (!target) {
+      if (!target && payload) {
         const existing = devices.find((row) => sameIp(row.ip_address, payload.ip_address));
         if (existing && await confirmAction({
           title: "Link existing Inventory device?",
@@ -343,13 +344,14 @@ export function CloudAssetDetails({
           return;
         }
       }
-      if (!target) {
+      if (!target && payload) {
         const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
         if (!created) return;
         target = created;
         setCreatedDevice(created);
         onDeviceCreated(created);
       }
+      if (!target) return;
       await link(target.id);
       setDeviceSeed(null);
       setCreatedDevice(null);
@@ -475,11 +477,10 @@ export function CloudAssetDetails({
           </>
         )}
       </InventoryDetailsPanel>
-      {deviceSeed && (
+      {deviceSeed && !createdDevice && (
         <DeviceForm
           busy={busy}
-          title={createdDevice ? "Device created — link cloud asset" : "Add device"}
-          submitLabel={createdDevice ? "Retry link" : undefined}
+          title="Add device"
           device={null}
           cloneSource={null}
           initialValues={deviceSeed}
@@ -487,9 +488,28 @@ export function CloudAssetDetails({
           groups={deviceFormOptions.groups}
           snmpProfiles={deviceFormOptions.snmpProfiles}
           sites={deviceFormOptions.sites}
-          onCancel={() => { setDeviceSeed(null); setCreatedDevice(null); }}
+          onCancel={() => setDeviceSeed(null)}
           onSubmit={createAndLink}
         />
+      )}
+      {deviceSeed && createdDevice && (
+        <Modal
+          title="Link the created device"
+          onCancel={() => { if (!busy) { setDeviceSeed(null); setCreatedDevice(null); } }}
+          footer={(
+            <>
+              <button type="button" className="nm-btn" disabled={busy} onClick={() => { setDeviceSeed(null); setCreatedDevice(null); }}>Cancel</button>
+              <button type="button" className="nm-btn nm-btn--primary" disabled={busy} onClick={() => void createAndLink(null)}>
+                {busy ? "Linking…" : "Retry link"}
+              </button>
+            </>
+          )}
+        >
+          <p>
+            {deviceLabel(createdDevice)} was added to Inventory, but linking it to {name} failed.
+            Retry the link, or cancel to keep the device without this link.
+          </p>
+        </Modal>
       )}
     </>
   );
