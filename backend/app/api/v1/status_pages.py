@@ -531,6 +531,8 @@ def delete_page(page_id: int, current_user: CurrentUser, db: Db) -> None:
     db.commit()
     if cached is not None:
         status_cache.remove_page_sync(page_id, only=cached)
+    if status_cache.entry(page_id) is not None and db.scalar(select(StatusPage.id).where(StatusPage.id == page_id)) is None:
+        status_cache.remove_page_sync(page_id)
     events.notify_pages_changed([page_id])
 
 

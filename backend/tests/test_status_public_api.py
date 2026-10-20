@@ -388,3 +388,21 @@ def test_restore_never_serves_another_pages_snapshot_under_a_reused_id(env, monk
     env.cache.drain()
     fresh = env.get("/api/v1/public/status-pages/other")
     assert fresh.json()["slug"] == "other" and fresh.headers["etag"] != old_etag
+
+
+def test_delete_drops_a_registry_entry_replaced_while_it_was_running(env, monkeypatch):
+    from app.services.status_pages.cache import RegistryEntry
+
+    page_id = env.seed("media")
+    env.ready(page_id)
+    real = status_pages_api.incidents.delete_page_records
+
+    def concurrent_update(db, deleted_id, **kw):
+        env.cache.remove_page_sync(deleted_id, replacement=RegistryEntry(deleted_id, "media", "private", 5))
+        return real(db, deleted_id, **kw)
+
+    monkeypatch.setattr(status_pages_api.incidents, "delete_page_records", concurrent_update)
+    assert env.delete(f"/api/v1/status-pages/{page_id}").status_code == 204
+    assert env.cache.entry(page_id) is None
+    assert env.cache.lookup("media") is None
+    assert env.get("/api/v1/public/status-pages/media").status_code == 404
