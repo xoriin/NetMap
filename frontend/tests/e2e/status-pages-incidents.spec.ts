@@ -532,6 +532,28 @@ test("own notice saves level, link and expiry with the browser offset", async ({
   await expect(page.locator(".status-notices-table tbody tr", { hasText: "Power work" })).toContainText("You");
 });
 
+test("own notice form stays locked until the page's notices load so edits are not overwritten", async ({ page }) => {
+  const api = new ManageApi();
+  api.notices.push({ id: 40, page_id: 1, owner_kind: "user", owner_id: 1, level: "warning", title: "Cabling work", body: null, link: null, author: "Ada Admin", created_at: iso(-5), expires_at: null, mine: true, token_active: null });
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await openApp(page);
+  await api.install(page);
+  await page.route("**/api/v1/status-pages/1/notices", async (route) => { await held; await route.fallback(); });
+  await page.goto("/monitoring");
+  await page.getByRole("link", { name: "Status pages", exact: true }).click();
+  await page.locator(".status-pages-table tbody tr", { hasText: "Ops" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("tab", { name: "Notices" }).click();
+  const form = page.locator(".status-notice-form");
+  await expect(form.getByLabel("Title")).toBeDisabled();
+  await expect(form.getByLabel("Level")).toBeDisabled();
+  await expect(form.getByRole("button", { name: "Save notice" })).toBeDisabled();
+  release();
+  await expect(form.getByLabel("Title")).toBeEnabled();
+  await expect(form.getByLabel("Title")).toHaveValue("Cabling work");
+  await expect(form.getByLabel("Level")).toHaveValue("warning");
+});
+
 test("alert rule incident toggle defaults on for device offline and off for rtt", async ({ page }) => {
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
