@@ -19,7 +19,7 @@ type CloudRow = {
   provider: string; location: string; lifecycle: string; device?: Device; deviceId: number | null;
   record: CloudAssetRecord; health: DeviceHealth; monitoring: string; latency: string; details: [string, string][];
 };
-const headings = ["Asset", "IP", "Kind", "Purpose", "Monitoring", "Latency", "Address state", "Provider", "Location / account"];
+const headings = ["Asset", "IP", "Kind", "Monitoring", "Latency", "State", "Provider", "Location"];
 const restoreKey = () => (window.history.state as { cloudAsset?: string } | null)?.cloudAsset ?? null;
 
 /** Current addresses and retained resources remain independent records; linking never enables probes. */
@@ -51,7 +51,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const [pageSize, setPageSize] = useState(25);
   const [sort, setSort] = useState(0);
   const [ascending, setAscending] = useState(true);
-  const { widths, headerRef, startResize, reset } = useInventoryTableColumns({ count: 9, leadingColumns: 1, storageKey: "netmap.cloud_asset_columns_v3" });
+  const { widths, headerRef, startResize, reset } = useInventoryTableColumns({ count: 8, leadingColumns: 1, storageKey: "netmap.cloud_asset_columns_v4" });
   const records = useMemo<CloudRow[]>(() => {
     if (!query.data) return [];
     const { addresses, locations, accounts, providers, assets } = query.data;
@@ -95,21 +95,21 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       }),
     ];
   }, [query.data, devices, healthFor, livePingEnabled, latencyFor]);
-  const values = (row: CloudRow) => [row.name, row.ip, row.kind, row.purpose, row.monitoring, row.latency, row.lifecycle, row.provider, row.location];
+  const values = (row: CloudRow) => [row.name, row.ip, row.kind, row.monitoring, row.latency, row.lifecycle, row.provider, row.location];
   const filtered = records.filter(row =>
     (providerFilter === "all" || row.provider === providerFilter) &&
     (locationFilter === "all" || row.location === locationFilter) &&
     (kindFilter === "all" || row.kind === kindFilter) &&
     (monitorFilter === "all" || (monitorFilter === "unlinked" ? row.deviceId === null : row.deviceId !== null && row.health === monitorFilter)) &&
     (!favouritesOnly || row.device && favouriteIds.has(row.device.id)) &&
-    (!search.trim() || [...values(row), ...row.details.map(([,value]) => value)].some(value => value.toLowerCase().includes(search.trim().toLowerCase()))))
+    (!search.trim() || [...values(row), row.purpose, ...row.details.map(([,value]) => value)].some(value => value.toLowerCase().includes(search.trim().toLowerCase()))))
     .sort((a,b) => (ascending ? 1 : -1) * values(a)[sort].localeCompare(values(b)[sort], undefined, { numeric: true }) || a.key.localeCompare(b.key));
   useEffect(() => setPage(1), [search, providerFilter, locationFilter, kindFilter, monitorFilter, favouritesOnly, pageSize, sort, ascending]);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const detail = records.find(row => row.key === detailKey);
   const linkedCount = new Set(records.flatMap(row => row.deviceId !== null ? [row.deviceId] : [])).size;
-  const offlineCount = records.filter(row => row.device && row.health === "offline").length;
+  const offlineCount = new Set(records.flatMap(row => row.device && row.health === "offline" ? [row.device.id] : [])).size;
   useEffect(() => {
     if (!query.data || !detailKey || detailKey !== restoreKey()) return;
     const restored = records.find(row => row.key === detailKey);
@@ -163,7 +163,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         onSort={() => { if (sort === index) setAscending(value => !value); else { setSort(index); setAscending(true); } }}
         onResize={index < headings.length - 1 ? event => startResize(index,event) : undefined} onReset={reset}>{label}</InventoryColumnHeading>)}</>}
         headerRef={headerRef} fixed={widths !== null}
-        tableStyle={{ "--inv-grid-template": widths ? `48px ${widths.map(width => `${width}px`).join(" ")}` : "48px minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.3fr)" } as CSSProperties}
+        tableStyle={{ "--inv-grid-template": widths ? `48px ${widths.map(width => `${width}px`).join(" ")}` : "48px minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.2fr)" } as CSSProperties}
         footer={filtered.length > 0 && <InventoryPagination total={filtered.length} page={currentPage} pageSize={pageSize} noun="records" onPageChange={setPage} onPageSizeChange={setPageSize} />}>
         {query.error ? <div className="inventory-empty" role="alert">{query.error}<button className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void query.reload()}>Retry</button></div>
           : !filtered.length ? <div className="inventory-empty">{records.length ? "No cloud assets match the current filters." : "No external IPs tracked yet. Add an external IP in IPAM to get started."}</div>
@@ -176,7 +176,6 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
             </button>
             <span className="inventory-row-os" title={row.ip}>{row.ip || "—"}</span>
             <span><EntityChip label={row.kind} icon={<Server size={13} />} /></span>
-            <span className="inventory-row-os" title={row.purpose}>{row.purpose || "—"}</span>
             <span className={`status-pill ${row.health}`} title={row.monitoring}><span className="status-pill-text">{row.monitoring}</span></span>
             <span>{row.latency || "—"}</span>
             <span>{row.lifecycle ? <span className="nm-status nm-status--unknown">{row.lifecycle}</span> : <EntityChipEmpty />}</span>

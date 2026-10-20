@@ -62,8 +62,9 @@ for (const theme of ['light','dark'] as const) {
   }});
   await page.goto('/inventory#cloud-assets');
   await expect(page.getByText('Retained gateway',{exact:true})).toBeVisible();
-  await expect(page.getByText('Original description',{exact:true})).toBeVisible();
   await expect(page.getByText('Not monitored',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Open Retained gateway details'}).click();
+  await expect(page.getByRole('complementary',{name:'Asset overview'})).toContainText('Original description');
  });
 }
 
@@ -90,7 +91,7 @@ for (const theme of ['light','dark'] as const) {
    return {
     panel:await styles('.inventory-surface',['background-color','border-color','border-radius','box-shadow']),
     toolbar:await styles('.inventory-panel-header',['background-color','padding','gap','min-height']),
-    header:await styles('.inventory-table-header',['background-color','color','font-size','font-weight','padding','letter-spacing','border-bottom-color']),
+    header:await styles('.inventory-table-header',['background-color','color','font-size','font-weight','padding','letter-spacing','border-bottom-color','height']),
     row:await styles(row,['background-color','color','font-size','line-height','height','padding','border-bottom-color','border-left-width']),
     search:await styles('.inv-search-box',['background-color','border-color','border-radius','height']),
     footer:await styles('.inv-pagination',['background-color','color','padding','border-top-color']),
