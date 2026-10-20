@@ -602,3 +602,62 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(dimensions!.favouriteLeftGap).toBeLessThanOrEqual(2);
   });
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`device popup sections keep their colours on design tokens in ${theme} mode`, async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, [mockDevice({ id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+    await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+    await page.addInitScript((t) => window.localStorage.setItem("netmap.theme", t), theme);
+    await page.goto("/monitoring");
+    await page.locator(".mon-row", { hasText: "Core Router" }).click();
+    const section = page.locator(".mon-hero-section", { has: page.locator(".mon-analysis-row") }).first();
+    await expect(section).toBeVisible();
+    const colours = await popupSectionColours(section);
+    expect(colours).toEqual({ ...POPUP_SECTION_COLOURS[theme], tokens: { title: colours.titleColor, divider: colours.rowBorder } });
+  });
+}
+
+const POPUP_SECTION_COLOURS = {
+  light: {
+    sectionBackground: "rgb(255, 255, 255)", sectionBorder: "rgba(209, 220, 230, 0.7)",
+    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(249, 251, 253)", titleBorder: "rgba(209, 220, 230, 0.5)",
+    rowBorder: "rgba(209, 220, 230, 0.4)",
+  },
+  dark: {
+    sectionBackground: "rgb(24, 38, 53)", sectionBorder: "rgb(45, 61, 82)",
+    titleColor: "rgb(138, 180, 204)", titleBackground: "rgb(21, 33, 46)", titleBorder: "rgb(45, 61, 82)",
+    rowBorder: "rgba(45, 61, 82, 0.7)",
+  },
+};
+
+async function popupSectionColours(section: import("@playwright/test").Locator) {
+  return section.evaluate((node) => {
+    const title = node.querySelector(".mon-hero-section-title")!;
+    const row = node.querySelector(".mon-analysis-row")!;
+    const s = getComputedStyle(node);
+    const t = getComputedStyle(title);
+    const r = getComputedStyle(row);
+    const probe = document.createElement("div");
+    node.appendChild(probe);
+    const token = (name: string) => {
+      probe.style.color = "";
+      probe.style.color = getComputedStyle(node).getPropertyValue(name).trim();
+      return probe.style.color ? getComputedStyle(probe).color : null;
+    };
+    const tokens = {
+      title: token("--nm-popup-section-title"),
+      divider: token("--nm-popup-divider"),
+    };
+    probe.remove();
+    return {
+      sectionBackground: s.backgroundColor,
+      sectionBorder: s.borderTopColor,
+      titleColor: t.color,
+      titleBackground: t.backgroundColor,
+      titleBorder: t.borderBottomColor,
+      rowBorder: r.borderBottomColor,
+      tokens,
+    };
+  });
+}

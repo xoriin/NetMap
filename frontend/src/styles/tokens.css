@@ -35,6 +35,8 @@
   --nm-modal-section: var(--nm-surface);
   --nm-modal-input: #ffffff;
   --nm-modal-label: var(--nm-text);
+  --nm-popup-section-title: #3a5468;
+  --nm-popup-divider: rgba(209, 220, 230, 0.4);
   --nm-danger: #d94b4b;
   --nm-warning: #d4912c;
   --nm-success: #2d9d78;

@@ -2168,7 +2168,7 @@ tr.mon-port-sort-row.is-drag-over > td:not(:last-child)::before { right: 0; bord
 
 /* Card sections */
 .mon-hero-section {
-  background: #ffffff;
+  background: var(--nm-modal-input);
   border: 1px solid rgba(209, 220, 230, 0.7);
   border-radius: 10px;
   overflow: hidden;
@@ -2181,7 +2181,7 @@ tr.mon-port-sort-row.is-drag-over > td:not(:last-child)::before { right: 0; bord
   padding: 10px 14px 9px;
   font-size: 11px;
   font-weight: 700;
-  color: #3a5468;
+  color: var(--nm-popup-section-title);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid rgba(209, 220, 230, 0.5);
@@ -2207,8 +2207,8 @@ body.theme-dark .mon-hero-sub { color: var(--nm-text-faint); }
 body.theme-dark .mon-hero-stats { background: #15212e; border-color: var(--nm-border-strong); }
 body.theme-dark .mon-hero-stat { border-color: var(--nm-border-strong); }
 body.theme-dark .mon-hero-stat-val { color: #d8eaf5; }
-body.theme-dark .mon-hero-section { background: #182635; border-color: var(--nm-border-strong); }
-body.theme-dark .mon-hero-section-title { color: #8ab4cc; background: #15212e; border-color: var(--nm-border-strong); }
+body.theme-dark .mon-hero-section { background: var(--nm-modal-header); border-color: var(--nm-border-strong); }
+body.theme-dark .mon-hero-section-title { color: var(--nm-popup-section-title); background: var(--nm-modal-section); border-color: var(--nm-border-strong); }
 body.theme-dark .mon-hero-close { background: rgba(90, 122, 149, 0.18); color: #8ab4cc; }
 body.theme-dark .mon-hero-close:hover { background: rgba(90, 122, 149, 0.30); color: #c8dff0; }
 body.theme-dark .modal-close { background: rgba(90, 122, 149, 0.18); color: #8ab4cc; }
@@ -2273,7 +2273,7 @@ body.theme-dark .incident-alert-tag { color: #e0b060; background: rgba(224,144,4
   font-size: 12.5px;
 }
 .mon-analysis-row:not(:last-child) {
-  border-bottom: 1px solid rgba(209,220,230,0.4);
+  border-bottom: 1px solid var(--nm-popup-divider);
 }
 .mon-analysis-val {
   font-weight: 650;
@@ -2309,7 +2309,7 @@ body.theme-dark .incident-alert-tag { color: #e0b060; background: rgba(224,144,4
 .mon-anomaly-score { font-weight: 500; opacity: 0.8; }
 
 /* Dark theme */
-body.theme-dark .mon-analysis-row { border-color: rgba(45,61,82,0.7); }
+body.theme-dark .mon-analysis-row { border-color: var(--nm-popup-divider); }
 body.theme-dark .mon-analysis-val { color: #c8dae8; }
 body.theme-dark .mon-analysis-val--warn { color: #e0b060; }
 body.theme-dark .mon-trend--rising  { color: #f0c060; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.28); }
