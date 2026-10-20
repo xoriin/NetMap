@@ -69,8 +69,7 @@ def _simple(model):
     return lambda db, ids: db.execute(delete(model).where(model.id.in_(ids)))
 
 
-def _orphan_exits(db: Session) -> list[int]:
-    rows = list(db.execute(select(StatusMaintenanceExit.id, StatusMaintenanceExit.source_key)))
+def _orphan_exits(db: Session, rows) -> list[int]:
     refs: dict[int, SourceRef | None] = {}
     for row in rows:
         try:
@@ -104,15 +103,23 @@ def _orphan_exits(db: Session) -> list[int]:
 
 
 def _prune_exits(db_factory: Callable[[], Session], now: datetime, batch_size: int) -> int:
-    with db_factory() as db:
-        orphans = _orphan_exits(db)
-    total = 0
-    for start in range(0, len(orphans), batch_size):
-        chunk = orphans[start:start + batch_size]
+    total, scanned, after = 0, 0, 0
+    while scanned < MAX_ROWS_PER_RUN:
         with db_factory() as db:
-            db.execute(delete(StatusMaintenanceExit).where(StatusMaintenanceExit.id.in_(chunk)))
-            db.commit()
-        total += len(chunk)
+            rows = list(db.execute(
+                select(StatusMaintenanceExit.id, StatusMaintenanceExit.source_key)
+                .where(StatusMaintenanceExit.id > after).order_by(StatusMaintenanceExit.id)
+                .limit(min(batch_size, MAX_ROWS_PER_RUN - scanned))
+            ))
+            if not rows:
+                break
+            orphans = _orphan_exits(db, rows)
+            if orphans:
+                db.execute(delete(StatusMaintenanceExit).where(StatusMaintenanceExit.id.in_(orphans)))
+                db.commit()
+        total += len(orphans)
+        scanned += len(rows)
+        after = rows[-1].id
     return total + _batches(
         db_factory,
         select(StatusMaintenanceExit.id).where(StatusMaintenanceExit.created_at < now - EXIT_RETENTION),

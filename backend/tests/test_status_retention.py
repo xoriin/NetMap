@@ -247,3 +247,30 @@ def test_maintenance_exits_pruned_when_source_is_gone_or_older_than_30_days(fact
     with factory() as db:
         assert set(db.scalars(select(StatusMaintenanceExit.source_key))) == set(keep)
     assert result["maintenance_exits"] == len(drop) + 1
+
+
+def test_maintenance_exit_orphan_scan_is_batched_and_bounded(factory, monkeypatch):  # noqa: F811
+    from sqlalchemy import event
+
+    with factory() as db:
+        live = [seed_device(db) for _ in range(2)]
+        keys = [f"device:{live[0].id}", *(f"device:{900 + n}" for n in range(3)), f"device:{live[1].id}",
+                *(f"device:{950 + n}" for n in range(3))]
+        for key in keys:
+            db.add(StatusMaintenanceExit(source_key=key, maintenance_id=None, created_at=NOW))
+        db.commit()
+    sizes = []
+
+    def record(conn, cursor, statement, parameters, *args):
+        if statement.lstrip().upper().startswith("SELECT") and ("FROM devices" in statement or "FROM monitors" in statement):
+            sizes.append(len(parameters))
+
+    event.listen(factory.kw["bind"], "before_cursor_execute", record)
+    monkeypatch.setattr(retention, "MAX_ROWS_PER_RUN", 4)
+    first = retention.prune(factory, NOW, batch_size=2)
+    assert first["maintenance_exits"] == 3
+    assert sizes and max(sizes) <= 2
+    assert retention.prune(factory, NOW, batch_size=2)["maintenance_exits"] == 2
+    assert retention.prune(factory, NOW, batch_size=2)["maintenance_exits"] == 1
+    with factory() as db:
+        assert set(db.scalars(select(StatusMaintenanceExit.source_key))) == {f"device:{d.id}" for d in live}
