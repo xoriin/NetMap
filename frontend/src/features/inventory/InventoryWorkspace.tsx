@@ -628,6 +628,13 @@ export function InventoryWorkspace({
     };
   }, []);
 
+  // A selection belongs to the subview where it was made, including history navigation.
+  useEffect(() => {
+    setSelectedDeviceId(null);
+    setSelectedDeviceIds(new Set());
+    setBulkMenuOpen(false);
+  }, [inventoryView]);
+
   const deviceOverview = selectedDevice && (
     <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
       <div className="inventory-device-sidebar-header">
