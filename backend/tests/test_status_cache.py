@@ -562,6 +562,22 @@ def test_pages_building_during_a_restore_are_requeued(cache, factory, monkeypatc
     assert cache.get(page_id, "public", T0) is not None
 
 
+def test_restore_marks_building_pages_dirty_before_the_build_can_finish(cache, factory, monkeypatch):
+    page_id = _seed(factory)
+    cache.load_registry()
+    batch = cache._take(block=False)
+    assert batch == [page_id]
+    real = cache.load_registry
+
+    def then_finish(*args, **kwargs):
+        real(*args, **kwargs)
+        cache._finish(batch)
+
+    monkeypatch.setattr(cache, "load_registry", then_finish)
+    cache.reset_from_db()
+    assert cache.pending() == [page_id]
+
+
 def test_long_period_values_from_before_a_restore_are_not_stored():
     from app.services.status_pages.aggregates import SourceHistory
     from app.services.status_pages.history import Availability

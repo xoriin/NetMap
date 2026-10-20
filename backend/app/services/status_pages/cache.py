@@ -121,7 +121,7 @@ class StatusSnapshotCache:
         self._threads = []
         self._release_lock()
 
-    def load_registry(self) -> None:
+    def load_registry(self, requeue_building: bool = False) -> None:
         with SessionLocal() as db:
             pages = db.execute(
                 select(StatusPage.id, StatusPage.slug, StatusPage.visibility, StatusPage.generation)
@@ -142,7 +142,7 @@ class StatusSnapshotCache:
             self._page_sources = {}
             for page_id in self._by_id:
                 self._set_sources(page_id, sources.get(page_id, set()))
-                self._enqueue(page_id, dirty=False)
+                self._enqueue(page_id, dirty=requeue_building)
             self.ready = True
             self._lock.notify_all()
 
@@ -159,9 +159,7 @@ class StatusSnapshotCache:
             self._sources, self._page_sources = defaultdict(set), {}
             self.ready = False
         self.history.clear()
-        self.load_registry()
-        with self._lock:
-            self._dirty.update(page_id for page_id in self._building if page_id in self._by_id)
+        self.load_registry(requeue_building=True)
 
     def entry(self, page_id: int) -> RegistryEntry | None:
         with self._lock:
