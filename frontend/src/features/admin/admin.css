@@ -616,17 +616,6 @@
   align-items: center;
 }
 
-.admin-layout .email-branding-colour input[type="color"] {
-  width: 44px;
-  height: var(--nm-control-lg);
-  box-sizing: border-box;
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-sm);
-  padding: 3px;
-  background: var(--nm-modal-input);
-  cursor: pointer;
-}
-
 .admin-layout .email-branding-actions {
   display: flex;
   align-items: center;

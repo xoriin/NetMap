@@ -839,10 +839,12 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
 .nm-file[aria-disabled="true"] { cursor: not-allowed; opacity: 0.6; }
 
 /* Colour picker — the swatch half of a colour field; pair it with an `.nm-input` for the hex value.
-   Typed selector so it outranks the global `body.theme-dark input` rule without a dark twin. */
-input.nm-color-input[type="color"] {
+   The dark twin outranks `body.theme-dark .tool-form input`. */
+input.nm-color-input[type="color"],
+body.theme-dark input.nm-color-input[type="color"] {
   width: 44px;
   height: var(--nm-control-lg);
+  min-height: auto;
   flex: 0 0 auto;
   box-sizing: border-box;
   border: 1px solid var(--nm-border-strong);
@@ -1420,6 +1422,21 @@ body.theme-dark .modal .nm-textarea {
   color: var(--nm-text);
   color-scheme: dark;
 }
+
+/* `.nm-color-input` inside a modal form: the modal input rules above outrank the primitive. */
+.modal .modal-form input.nm-color-input[type="color"],
+body.theme-dark .modal .modal-form input.nm-color-input[type="color"] {
+  width: 44px;
+  height: var(--nm-control-lg);
+  min-height: auto;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-sm);
+  padding: 3px;
+  background: var(--nm-modal-input);
+}
+.modal .modal-form input.nm-color-input[type="color"]:hover:not(:disabled) { border-color: var(--nm-accent); }
+.modal .modal-form input.nm-color-input[type="color"]:focus:not(:focus-visible) { border-color: var(--nm-border-strong); outline: none; }
+.modal .modal-form input.nm-color-input[type="color"]:focus-visible { border-color: var(--nm-focus-border); outline: 1px solid var(--nm-focus-border); outline-offset: -1px; }
 
 /* ── Workspace section tabs ───────────────────────────────────────────────
    Splits one workspace into sibling sections (IPAM: Internal/External,

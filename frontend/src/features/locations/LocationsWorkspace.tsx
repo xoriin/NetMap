@@ -202,7 +202,7 @@ export function LocationsWorkspace({
       </label>
       <label className="nm-field"><span className="nm-field-label">Colour</span>
         <div className="loc-colour-field">
-          <input className="loc-colour-input" type="color" value={form.color || '#6366f1'} aria-label="Location colour" onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
+          <input className="nm-color-input" type="color" value={form.color || '#6366f1'} aria-label="Location colour" onChange={(event) => setForm((c) => ({ ...c, color: event.target.value }))} />
           <span className="loc-colour-value">{form.color || '#6366f1'}</span>
           {form.color && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={() => setForm((c) => ({ ...c, color: '' }))}>Clear</button>}
         </div>

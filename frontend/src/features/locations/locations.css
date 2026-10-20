@@ -271,23 +271,6 @@ body.theme-dark .locations-workspace .loc-item-badge--zero {
   gap: 8px;
 }
 
-.loc-colour-input {
-  width: 44px;
-  height: 32px;
-  flex: 0 0 44px;
-  cursor: pointer;
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-md);
-  padding: 2px;
-  background: var(--nm-modal-input);
-}
-
-.loc-colour-input:focus-visible {
-  outline: none;
-  border-color: var(--nm-accent);
-  box-shadow: 0 0 0 3px var(--nm-accent-soft);
-}
-
 .loc-colour-value {
   color: var(--nm-text-muted);
   font-family: 'SF Mono', 'Fira Mono', Consolas, monospace;

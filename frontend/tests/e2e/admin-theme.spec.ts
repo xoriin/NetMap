@@ -911,3 +911,71 @@ for (const theme of ["light", "dark"]) {
     await expect(page.getByLabel("Backup passphrase")).toBeVisible();
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`Admin, Locations and status page colour pickers render identically (${theme})`, async ({ page }) => {
+    await setupAdminMocks(page);
+    const statusPage = {
+      id: 1, slug: "ops", name: "Ops", title: null, visibility: "public", heartbeat_window: "1h",
+      logo: null, accent: null, custom_css: null, created_at: "2026-10-17T00:00:00Z", updated_at: "2026-10-17T00:00:00Z",
+    };
+    await page.route("**/api/v1/status-pages**", (route) => {
+      const path = new URL(route.request().url()).pathname.replace(/^\/api\/v1\/status-pages\/?/, "");
+      if (path === "") return route.fulfill({ json: [statusPage] });
+      if (path === "sources") return route.fulfill({ json: { devices: [], monitors: [] } });
+      if (path === "1") return route.fulfill({ json: { ...statusPage, groups: [] } });
+      return route.fulfill({ json: [] });
+    });
+    await page.addInitScript((t) => window.localStorage.setItem("netmap.theme", t), theme);
+
+    const read = async (picker: ReturnType<Page["locator"]>) => {
+      const rest = await style(picker);
+      await picker.hover();
+      const hovered = await style(picker);
+      await page.mouse.move(0, 0);
+      return { ...rest, hoverBorderColor: hovered.borderColor };
+    };
+    const style = (picker: ReturnType<Page["locator"]>) => picker.evaluate((node) => {
+      const s = getComputedStyle(node);
+      const probe = document.createElement("div");
+      node.parentElement!.appendChild(probe);
+      const token = (name: string, prop: "backgroundColor" | "borderTopColor") => {
+        probe.style[prop] = s.getPropertyValue(name).trim();
+        return getComputedStyle(probe)[prop];
+      };
+      const tokens = {
+        input: token("--nm-modal-input", "backgroundColor"),
+        border: token("--nm-border-strong", "borderTopColor"),
+        accent: token("--nm-accent", "borderTopColor"),
+      };
+      probe.remove();
+      return {
+        className: node.className,
+        width: s.width, height: s.height, minHeight: s.minHeight,
+        padding: s.padding, borderWidth: s.borderWidth, borderStyle: s.borderStyle, borderColor: s.borderColor,
+        borderRadius: s.borderRadius, backgroundColor: s.backgroundColor, cursor: s.cursor, tokens,
+      };
+    });
+
+    await page.goto("/admin");
+    await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Notifications", exact: true }).click();
+    const admin = await read(page.locator(".email-branding-colour input[type='color']"));
+
+    await page.goto("/locations");
+    await page.getByRole("button", { name: "+ New location" }).click();
+    const locations = await read(page.getByRole("dialog", { name: "New location" }).getByLabel("Location colour"));
+
+    await page.goto("/monitoring");
+    await page.getByRole("link", { name: "Status pages", exact: true }).click();
+    await page.locator(".status-pages-table tbody tr", { hasText: "Ops" }).getByRole("button", { name: "Edit" }).click();
+    const statusEditor = await read(page.getByLabel("Pick accent colour"));
+
+    expect(statusEditor).toMatchObject({
+      className: "nm-color-input", width: "44px", height: "36px", padding: "3px", borderWidth: "1px",
+      borderStyle: "solid", borderColor: statusEditor.tokens.border, backgroundColor: statusEditor.tokens.input,
+      hoverBorderColor: statusEditor.tokens.accent,
+    });
+    expect(admin).toEqual(statusEditor);
+    expect(locations).toEqual(statusEditor);
+  });
+}
