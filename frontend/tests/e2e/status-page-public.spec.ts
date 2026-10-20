@@ -243,7 +243,7 @@ test.describe("scheduled maintenance", () => {
       await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({
         summary: { state: "maintenance", label: "Maintenance in progress", counts: { operational: 1, degraded: 0, down: 0, maintenance: 1, unknown: 0 } },
         maintenance: [
-          { id: 1, title: "Scheduled maintenance", description: null, starts_at: iso(-10), ends_at: iso(20), active: true, announced: false },
+          { title: "Scheduled maintenance", description: null, starts_at: iso(-10), ends_at: iso(20), active: true, announced: false },
           { id: 2, title: "Router swap", description: "Expect blips", starts_at: iso(-5), ends_at: iso(25), active: true, announced: true },
         ],
         groups: [{

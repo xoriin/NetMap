@@ -141,13 +141,10 @@ def _metrics(
 
 def _window_entry(loaded: maintenance.LoadedWindow, now: datetime, announced: bool) -> dict:
     window = loaded.window
-    return {
-        "id": window.id,
-        "title": window.title if announced else GENERIC_MAINTENANCE_TITLE,
-        "description": window.description if announced else None,
-        "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(), "active": loaded.active(now),
-        "announced": announced,
-    }
+    times = {"starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(), "active": loaded.active(now)}
+    if not announced:
+        return {"title": GENERIC_MAINTENANCE_TITLE, "description": None, **times, "announced": False}
+    return {"id": window.id, "title": window.title, "description": window.description, **times, "announced": True}
 
 
 def _past_window(loaded: maintenance.LoadedWindow) -> dict:

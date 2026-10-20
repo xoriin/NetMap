@@ -389,7 +389,7 @@ test("maintenance create sends local times with the browser offset", async ({ pa
   await page.getByRole("button", { name: "Schedule maintenance" }).click();
   const dialog = page.getByRole("dialog", { name: "Schedule maintenance" });
   await dialog.getByLabel("Title").fill("Firmware upgrade");
-  await dialog.getByLabel("Starts").fill("2030-06-01T22:00");
+  await dialog.getByLabel("Starts", { exact: true }).fill("2030-06-01T22:00");
   await dialog.getByLabel("Ends").fill("2030-06-01T22:30");
   await dialog.getByRole("checkbox", { name: /Core router/ }).check();
   await dialog.getByRole("button", { name: "Schedule" }).click();
@@ -447,7 +447,7 @@ test("maintenance PATCH sends only changed fields and End now sends ends_at", as
 
   await page.locator(".status-maintenance-table tbody tr", { hasText: "Core reboot" }).getByRole("button", { name: "Edit" }).click();
   const started = page.getByRole("dialog", { name: "Edit maintenance" });
-  await expect(started.getByLabel("Starts")).toBeDisabled();
+  await expect(started.getByLabel("Starts", { exact: true })).toBeDisabled();
   await expect(started.getByRole("checkbox", { name: /Core router/ })).toBeDisabled();
   await expect(started.getByText(/has started/)).toBeVisible();
   await expect(started.getByRole("checkbox", { name: /Suppress monitoring alerts/ })).toBeDisabled();

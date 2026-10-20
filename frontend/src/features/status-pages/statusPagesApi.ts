@@ -66,14 +66,12 @@ export type StatusIncident = {
 };
 
 export type StatusMaintenanceWindow = {
-  id: number;
   title: string;
   description: string | null;
   starts_at: string;
   ends_at: string;
   active: boolean;
-  announced: boolean;
-};
+} & ({ id: number; announced: true } | { announced: false; description: null });
 
 export type StatusPastIncident = StatusIncident & { kind: "incident" };
 

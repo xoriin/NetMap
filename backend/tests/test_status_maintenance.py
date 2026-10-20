@@ -247,11 +247,13 @@ def test_unannounced_pages_get_a_generic_line_for_a_suppressing_window(db):
     )
 
     announced = build_page_payload(db, one, "public", T0)
-    assert [(m["title"], m["announced"]) for m in announced["maintenance"]] == [("Secret firmware upgrade", True)]
+    assert [(m["id"], m["title"], m["announced"]) for m in announced["maintenance"]] == [
+        (window.id, "Secret firmware upgrade", True),
+    ]
     for audience in ("public", "private"):
         payload = build_page_payload(db, two, audience, T0)
         assert payload["maintenance"] == [{
-            "id": window.id, "title": "Scheduled maintenance", "description": None, "active": True,
+            "title": "Scheduled maintenance", "description": None, "active": True,
             "announced": False, "starts_at": start.isoformat(), "ends_at": end.isoformat(),
         }]
         text = json.dumps(payload)
@@ -270,15 +272,15 @@ def test_unannounced_upcoming_line_needs_a_covered_item_on_the_page(db):
     two = seed_page(db, "two", items=[(_ref(router), "Router")])
     three = seed_page(db, "three", items=[(_ref(switch), "Switch")])
     start, actor = T0 + timedelta(days=6), _admin(db)
-    soon = _window(db, actor, [_ref(router)], start, start + timedelta(minutes=30), pages=[one.id], suppress=True,
-                   now=T0, title="Soon")
+    _window(db, actor, [_ref(router)], start, start + timedelta(minutes=30), pages=[one.id], suppress=True, now=T0, title="Soon")
     _window(db, actor, [_ref(router)], T0 + timedelta(days=9), T0 + timedelta(days=9, minutes=5), pages=[one.id],
             suppress=True, now=T0, title="Later")
 
     payload = build_page_payload(db, two, "public", T0)
-    assert [(m["id"], m["title"], m["active"], m["announced"]) for m in payload["maintenance"]] == [
-        (soon.id, "Scheduled maintenance", False, False),
-    ]
+    assert payload["maintenance"] == [{
+        "title": "Scheduled maintenance", "description": None, "active": False, "announced": False,
+        "starts_at": start.isoformat(), "ends_at": (start + timedelta(minutes=30)).isoformat(),
+    }]
     assert _item(payload)["state"] == "operational"
     assert build_page_payload(db, three, "public", T0)["maintenance"] == []
     lead = build_page_payload(db, two, "public", T0 + timedelta(days=2, seconds=1))
