@@ -35,7 +35,10 @@
   --nm-modal-section: var(--nm-surface);
   --nm-modal-input: #ffffff;
   --nm-modal-label: var(--nm-text);
+  --nm-popup-section-bg: #ffffff;
+  --nm-popup-section-border: rgba(209, 220, 230, 0.7);
   --nm-popup-section-title: #3a5468;
+  --nm-popup-section-title-border: rgba(209, 220, 230, 0.5);
   --nm-popup-divider: rgba(209, 220, 230, 0.4);
   --nm-danger: #d94b4b;
   --nm-warning: #d4912c;

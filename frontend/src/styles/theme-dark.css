@@ -29,7 +29,10 @@ body.theme-dark {
   --nm-modal-section: #15212e;
   --nm-modal-input: var(--nm-shell);
   --nm-modal-label: #c8dae8;
+  --nm-popup-section-bg: #182635;
+  --nm-popup-section-border: #2d3d52;
   --nm-popup-section-title: #8ab4cc;
+  --nm-popup-section-title-border: #2d3d52;
   --nm-popup-divider: rgba(45, 61, 82, 0.7);
   --nm-danger-soft: rgba(217, 75, 75, 0.15);
   --nm-warning-soft: rgba(212, 145, 44, 0.15);

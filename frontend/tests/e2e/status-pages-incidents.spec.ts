@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import { mockUser, setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { expectPopupRulesUseTokens, expectPopupSectionColours } from "./helpers/popup-sections";
 
 type Source = { device?: number; monitor?: number; service_check?: number };
 type Item = { id: number; source: Source; display_name: string };
@@ -663,8 +664,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(dialog.locator(".nm-field-label")).toHaveCount(0);
     const rows = section.locator(".mon-analysis-row");
     await expect(rows).toHaveCount(1);
-    const colours = await popupSectionColours(sections.nth(1));
-    expect(colours).toEqual({ ...POPUP_SECTION_COLOURS[theme], tokens: { title: colours.titleColor, divider: colours.rowBorder } });
+    await expectPopupSectionColours(sections.nth(1), theme);
+    await expectPopupRulesUseTokens(page);
   });
 
   test(`management panels use canonical surfaces in ${theme} mode`, async ({ page }) => {
@@ -704,49 +705,5 @@ for (const theme of ["light", "dark"] as const) {
     const secret = callout.locator("code");
     expect(await computed(secret, "color")).toBe(await resolveToken(secret, "--nm-text", "color"));
     await expect(secret).toHaveCSS("font-family", /JetBrains Mono|monospace/);
-  });
-}
-
-const POPUP_SECTION_COLOURS = {
-  light: {
-    sectionBackground: "rgb(255, 255, 255)", sectionBorder: "rgba(209, 220, 230, 0.7)",
-    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(249, 251, 253)", titleBorder: "rgba(209, 220, 230, 0.5)",
-    rowBorder: "rgba(209, 220, 230, 0.4)",
-  },
-  dark: {
-    sectionBackground: "rgb(24, 38, 53)", sectionBorder: "rgb(45, 61, 82)",
-    titleColor: "rgb(138, 180, 204)", titleBackground: "rgb(21, 33, 46)", titleBorder: "rgb(45, 61, 82)",
-    rowBorder: "rgba(45, 61, 82, 0.7)",
-  },
-};
-
-async function popupSectionColours(section: Locator) {
-  return section.evaluate((node) => {
-    const title = node.querySelector(".mon-hero-section-title")!;
-    const row = node.querySelector(".mon-analysis-row")!;
-    const s = getComputedStyle(node);
-    const t = getComputedStyle(title);
-    const r = getComputedStyle(row);
-    const probe = document.createElement("div");
-    node.appendChild(probe);
-    const token = (name: string) => {
-      probe.style.color = "";
-      probe.style.color = getComputedStyle(node).getPropertyValue(name).trim();
-      return probe.style.color ? getComputedStyle(probe).color : null;
-    };
-    const tokens = {
-      title: token("--nm-popup-section-title"),
-      divider: token("--nm-popup-divider"),
-    };
-    probe.remove();
-    return {
-      sectionBackground: s.backgroundColor,
-      sectionBorder: s.borderTopColor,
-      titleColor: t.color,
-      titleBackground: t.backgroundColor,
-      titleBorder: t.borderBottomColor,
-      rowBorder: r.borderBottomColor,
-      tokens,
-    };
   });
 }
