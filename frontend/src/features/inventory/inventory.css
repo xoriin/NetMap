@@ -281,3 +281,16 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   }
 }
 
+
+/* Cloud records carry provider/account metadata in eight columns. Preserve readable
+   column widths inside the existing table scrollport at narrow workspace widths. */
+.inventory-cloud-layout .inventory-table-header,
+.inventory-cloud-layout .inventory-row {
+  min-width: 1200px;
+}
+
+@media (max-width: 980px) {
+  .inventory-cloud-layout .inventory-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

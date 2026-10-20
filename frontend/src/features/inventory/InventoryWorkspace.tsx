@@ -628,7 +628,48 @@ export function InventoryWorkspace({
     };
   }, []);
 
-  if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate} />;
+  const deviceOverview = selectedDevice && (
+    <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
+      <div className="inventory-device-sidebar-header">
+        <span className="inventory-device-sidebar-title">
+          <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
+          <span>Device overview</span>
+        </span>
+        <button
+          type="button"
+          className="nm-btn nm-btn--icon"
+          aria-label="Close device overview"
+          onClick={() => setSelectedDeviceId(null)}
+        >
+          <X size={17} />
+        </button>
+      </div>
+      <div className="inventory-device-sidebar-body">
+        <DeviceDetails
+          canViewSecurity={canViewSecurity}
+          canWrite={canWrite}
+          accessToken={accessToken}
+          device={selectedDevice}
+          deviceTypes={deviceTypeOptions}
+          disabled={busy}
+          groups={groups}
+          snmpProfiles={snmpProfiles}
+          sites={sites}
+          onGraphChange={onGraphChange}
+          liveStatus={selectedDeviceLive}
+          monitorSummary={selectedMonitorSummary}
+          onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
+          securityLoading={deviceSecurityLoading}
+          securitySummary={deviceSecuritySummary}
+        />
+      </div>
+    </aside>
+  );
+
+  if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate}
+    favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} onOpenDevice={setSelectedDeviceId}
+    selectedDeviceId={selectedDeviceId} deviceOverview={deviceOverview} healthFor={healthFor}
+    livePingEnabled={livePingEnabled} mutationError={inventoryError} />;
 
   return (
     <section className="topology-layout inventory-layout">
@@ -918,43 +959,7 @@ export function InventoryWorkspace({
             )}
         </InventoryTableFrame>
 
-        {selectedDevice && (
-          <aside className="details-panel inventory-device-sidebar" aria-label="Device overview">
-            <div className="inventory-device-sidebar-header">
-              <span className="inventory-device-sidebar-title">
-                <span className="inv-panel-title-icon" aria-hidden="true"><IconServer size={17} /></span>
-                <span>Device overview</span>
-              </span>
-              <button
-                type="button"
-                className="nm-btn nm-btn--icon"
-                aria-label="Close device overview"
-                onClick={() => setSelectedDeviceId(null)}
-              >
-                <X size={17} />
-              </button>
-            </div>
-            <div className="inventory-device-sidebar-body">
-              <DeviceDetails
-                canViewSecurity={canViewSecurity}
-                canWrite={canWrite}
-                accessToken={accessToken}
-                device={selectedDevice}
-                deviceTypes={deviceTypeOptions}
-                disabled={busy}
-                groups={groups}
-                snmpProfiles={snmpProfiles}
-                sites={sites}
-                onGraphChange={onGraphChange}
-                liveStatus={selectedDeviceLive}
-                monitorSummary={selectedMonitorSummary}
-                onSubmit={(payload) => submitDeviceUpdate(selectedDevice.id, payload)}
-                securityLoading={deviceSecurityLoading}
-                securitySummary={deviceSecuritySummary}
-              />
-            </div>
-          </aside>
-        )}
+        {deviceOverview}
       </div>
 
       {showDeviceForm && (

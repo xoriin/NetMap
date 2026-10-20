@@ -2534,8 +2534,9 @@ body:not(.theme-dark) .inventory-row.active:hover {
 .status-pill.warning::before { background: #d99a22; }
 
 .status-pill.unknown {
-  color: #4f6474;
-  background: #edf3f7;
+  color: var(--nm-text-muted);
+  background: var(--nm-surface-soft);
+  border-color: var(--nm-border);
 }
 
 .status-pill.disabled {

@@ -16,8 +16,8 @@ for (const theme of ['light', 'dark'] as const) {
   await expect(table).toBeVisible();
   await expect(table).toContainText('8.8.8.8'); await expect(table).toContainText('8.8.4.4');
   await expect(table).toContainText('2606:4700:4700::1111');
-  await expect(table).toContainText('AWS · Public server (2)');
-  await expect(table).toContainText('Not linked to Inventory');
+  await expect(table.locator('.inventory-row')).toHaveCount(3);
+  await expect(table).toContainText('Not monitored');
   const firstHeader=table.locator('.inventory-table-header');
   expect(await firstHeader.evaluate(el=>getComputedStyle(el).fontSize)).toBe('11px');
   const bg=await table.evaluate(el=>getComputedStyle(el).backgroundColor);
@@ -25,9 +25,6 @@ for (const theme of ['light', 'dark'] as const) {
   const cell=table.locator('[data-cloud-record]').first();
   await cell.hover();
   expect(await cell.evaluate(el=>getComputedStyle(el).boxShadow)).toContain('inset');
-  await page.getByRole('button',{name:'AWS · Public server (2)'}).click();
-  await expect(table.getByText('8.8.8.8',{exact:true})).toBeHidden();
-  await page.getByRole('button',{name:'AWS · Public server (2)'}).click();
   await page.getByRole('textbox',{name:'Search cloud assets'}).fill('Secondary');
   await expect(table.getByText('8.8.4.4',{exact:true})).toBeVisible();
   await expect(table.getByText('8.8.8.8',{exact:true})).toBeHidden();
@@ -66,7 +63,7 @@ for (const theme of ['light','dark'] as const) {
    }]}));
   }});
   await page.goto('/inventory#cloud-assets');
-  await expect(page.getByText('Retained gateway · nat gateway',{exact:true})).toBeVisible();
+  await expect(page.getByText('Retained gateway',{exact:true})).toBeVisible();
   await expect(page.getByText('Original description',{exact:true})).toBeVisible();
   await expect(page.getByText('Not monitored',{exact:true})).toBeVisible();
   await page.screenshot({path:`/tmp/netmap-saved-assets-${theme}.png`});
@@ -127,6 +124,92 @@ for (const theme of ['light','dark'] as const) {
   await expect(page.locator('.inventory-table--fixed')).toHaveCount(0);
   await page.setViewportSize({width:780,height:850});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  const layout = await page.locator('.inventory-stats').evaluate(el => ({width:el.clientWidth,scroll:el.scrollWidth,columns:getComputedStyle(el).gridTemplateColumns.split(' ').length}));
+  expect(layout.scroll).toBeLessThanOrEqual(layout.width); expect(layout.columns).toBe(2);
+  expect(await page.locator('.inventory-table-header').evaluate(el=>el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(1200);
   await page.screenshot({path:`/tmp/netmap-canonical-cloud-${theme}-narrow.png`});
  });
 }
+
+for (const theme of ['light','dark'] as const) {
+ test(`whole Cloud workspace follows Devices composition with real lifecycle states in ${theme}`,async({page})=>{
+  await page.setViewportSize({width:2315,height:1289});
+  await setupExternalIps(page,{theme,addresses:[mockAddress({ip_address:'110.50.33.120',label:'Virtual Machine'}),mockAddress({id:2,ip_address:'203.11.55.200',status:'available'})],beforeGoto:async page=>{
+   await page.route('**/api/v1/admin/settings/*',route=>route.fulfill({json:{app_name:'NetMap',idle_timeout_minutes:15,announcement:'NetMap Development Image'}}));
+   await page.route('**/api/v1/ipam/external/assets',route=>route.fulfill({json:[{id:1,name:'VM',kind:null,provider_id:null,account:null,region:null,device_id:null,description:null},{id:2,name:'web-test-01',kind:'ec2',provider_id:1,account:null,region:'ap-east',device_id:null,description:null}]}));
+  }});
+  await page.goto('/inventory#cloud-assets');
+  await expect(page.locator('.inventory-stats .dash-stat')).toHaveCount(4);
+  for(const name of ['Filter by provider','Filter by cloud location','Filter by asset kind','Filter by monitoring']) await expect(page.getByRole('button',{name})).toBeVisible();
+  await expect(page.locator('.inventory-row')).toHaveCount(4);
+  await expect(page.locator('[data-cloud-record="address-1"]')).not.toContainText('online');
+  const neutral=page.locator('[data-cloud-record="address-2"] .nm-status--unknown').first();
+  await expect(neutral).toBeVisible();
+  if(theme==='dark') {
+   expect(await neutral.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe('rgb(237, 243, 247)');
+   expect(await page.locator('.status-pill.unknown').first().evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe('rgb(237, 243, 247)');
+  }
+  await page.screenshot({path:`/tmp/netmap-cloud-workspace-${theme}.png`});
+ });
+}
+
+for (const theme of ['light','dark'] as const) {
+ test(`Cloud filters, favourites and shared details work in ${theme}`,async({page})=>{
+  const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await setupExternalIps(page,{theme,providers:[AWS],accounts:[{id:1,provider_id:1,name:'Production'}],locations:[{id:1,account_id:1,name:'Sydney',region:'au'}],devices:[mockDevice({id:7,hostname:'Public server',ip_address:'8.8.8.8',expected_status:'offline',monitor_status:'offline',is_favourite:true})],addresses:[mockAddress({device_id:7,ip_address:'8.8.8.8',location_id:1}),mockAddress({id:2,ip_address:'2606:4700:4700::1111',status:'reserved',notes:'Retained notes'})]});
+  await page.route('**/api/v1/topology/devices/favourites',route=>route.fulfill({json:[7]}));
+  await page.goto('/inventory#devices');
+  const stats=await page.locator('.inventory-stats').boundingBox();
+  const panel=await page.locator('.inventory-surface').boundingBox();
+  await page.getByRole('link',{name:'Cloud assets',exact:true}).click();
+  await expect(page.locator('[data-cloud-record]')).toHaveCount(2);
+  const cloudStats=await page.locator('.inventory-stats').boundingBox();
+  const cloudPanel=await page.locator('.inventory-surface').boundingBox();
+  expect(cloudStats).toEqual(stats);
+  expect(cloudPanel).toEqual(panel);
+  await expect(page.locator('[data-cloud-record="address-1"] .status-pill')).toHaveText('expected offline');
+  await page.getByRole('button',{name:'Filter by provider'}).click();
+  await page.getByRole('option',{name:'AWS',exact:true}).click();
+  await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
+  await page.getByRole('button',{name:'Open Public server details'}).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('complementary',{name:'Device overview'})).toBeVisible();
+  await page.getByRole('button',{name:'Close device overview'}).click();
+  await page.getByRole('button',{name:'Filter by provider'}).click();
+  await page.getByRole('option',{name:'All providers',exact:true}).click();
+  await page.getByTitle('Show favourites only').click();
+  await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
+  await page.getByTitle('Show all assets').click();
+  await page.getByRole('button',{name:'Open 2606:4700:4700::1111 details'}).click();
+  await expect(page.getByRole('dialog')).toContainText('Retained notes');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button',{name:'Filter by monitoring'}).click();
+  await page.getByRole('option',{name:'Not linked',exact:true}).click();
+  await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
+  expect(errors).toEqual([]);
+ });
+}
+
+test('a retained device link without a graph observation stays unknown',async({page})=>{
+ await setupExternalIps(page,{addresses:[mockAddress({device_id:99,status:'in_use',device:{id:99,hostname:'Retained device',display_name:null,ip_address:'203.0.113.10',device_type:null,site_id:null}})]});
+ await page.goto('/inventory#cloud-assets');
+ await expect(page.locator('[data-cloud-record] .status-pill')).toHaveText('Unknown');
+ await expect(page.locator('.dash-stat').filter({hasText:'Linked devices'}).locator('strong')).toHaveText('1');
+ await expect(page.locator('.dash-stat').filter({hasText:'Not linked'}).locator('strong')).toHaveText('0');
+});
+
+test('Cloud loading uses a skeleton and read-only users can inspect retained metadata',async({page})=>{
+ await setupExternalIps(page,{addresses:[mockAddress({notes:'Retained notes'})]});
+ await page.route('**/api/v1/auth/me',route=>route.fulfill({json:{id:2,username:'viewer',email:'viewer@example.com',role:'Viewer',is_active:true,permissions:['topology_read','ipam_read']}}));
+ let finish:()=>void=()=>{};
+ const waiting=new Promise<void>(resolve=>{finish=resolve;});
+ await page.route('**/api/v1/ipam/external/addresses',async route=>{await waiting; await route.fulfill({json:[mockAddress({notes:'Retained notes'})]});});
+ await page.goto('/inventory#cloud-assets');
+ await expect(page.getByRole('status',{name:'Loading'}).first()).toBeVisible();
+ finish();
+ await page.getByRole('button',{name:'Open 203.0.113.10 details'}).click();
+ await expect(page.getByRole('dialog')).toContainText('Retained notes');
+ await expect(page.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+});
