@@ -87,6 +87,7 @@ class SourceHistory:
         self.on_change = on_change
         self.wake = threading.Event()
         self._warned_at: datetime | None = None
+        self._failed: dict[LongKey, datetime] = {}
 
     def cycle(self, sessions: Callable[[], Session] | None = None, capped: bool = False, budget: InlineBudget | None = None) -> BuildCycle:
         return BuildCycle(self, sessions, capped, budget)
@@ -95,6 +96,7 @@ class SourceHistory:
         with self._lock:
             self._long.clear()
             self._jobs.clear()
+            self._failed.clear()
             self.generation += 1
 
     def jitter(self, key: LongKey) -> timedelta:
@@ -172,11 +174,22 @@ class SourceHistory:
 
         try:
             value = compute_long(fetch, job.ref, key, job.length, now)
-        except Exception:
+        except Exception as exc:
             with self._lock:
                 if self._jobs.get(key) is job:
                     job.due_at = now + LONG_RETRY
-            raise
+                logged = self._failed.get(key)
+                if logged is None or now - logged >= LONG_REFRESH:
+                    self._failed[key] = now
+                else:
+                    return True
+            if logged is None:
+                logger.exception("Status page long-period refresh failed for %s %s", key[0], key[1])
+            else:
+                logger.warning("Status page long-period refresh still failing for %s %s: %r", key[0], key[1], exc)
+            return True
+        with self._lock:
+            self._failed.pop(key, None)
         if self.store_long(key, now, value, generation) and self.on_change is not None:
             self.on_change(key[0])
         return True

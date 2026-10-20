@@ -388,19 +388,23 @@ def test_refresher_drains_never_computed_first_then_oldest_due_with_jitter(monke
     assert order == [99, *sorted(due, key=due.get)]
 
 
-def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch):
+def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch, caplog):
     history = aggregates.SourceHistory()
     for n in (1, 2):
         history.track((f"device:{n}", "7d", 60, ()), SourceRef("device", device_id=n), timedelta(days=7), NOW)
     order = []
     _recording_compute(monkeypatch, order, failing={1})
-    with pytest.raises(RuntimeError):
-        history.refresh_once(NOW, lambda: None)
+    caplog.set_level("WARNING", logger=aggregates.logger.name)
+    assert history.refresh_once(NOW, lambda: None) is True
     assert history.refresh_once(NOW, lambda: None) is True
     assert history.refresh_once(NOW, lambda: None) is False
-    with pytest.raises(RuntimeError):
-        history.refresh_once(NOW + aggregates.LONG_RETRY, lambda: None)
-    assert order == [1, 2, 1]
+    retry = aggregates.LONG_RETRY
+    for at in (NOW + retry, NOW + 2 * retry, NOW + aggregates.LONG_REFRESH + 2 * retry):
+        assert history.refresh_once(at, lambda: None) is True
+    assert order == [1, 2, 1, 1, 1]
+    failures = [r for r in caplog.records if "device:1" in r.getMessage()]
+    assert [r.exc_info is not None for r in failures] == [True, False]
+    assert all("boom" in r.getMessage() or r.exc_info for r in failures)
 
 
 def test_value_past_the_hard_cap_is_served_flagged_and_warned(cache, factory, monkeypatch, caplog):
