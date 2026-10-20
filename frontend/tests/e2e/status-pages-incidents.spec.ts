@@ -423,6 +423,8 @@ test("maintenance PATCH sends only changed fields and End now sends ends_at", as
   await expect(started.getByLabel("Starts")).toBeDisabled();
   await expect(started.getByRole("checkbox", { name: /Core router/ })).toBeDisabled();
   await expect(started.getByText(/has started/)).toBeVisible();
+  await expect(started.getByRole("checkbox", { name: /Suppress monitoring alerts/ })).toBeDisabled();
+  await expect(started.getByText("Alert suppression can't be changed after a window starts. End the window early instead.")).toBeVisible();
   await started.getByRole("button", { name: "Cancel" }).click();
 
   const before = Date.now();

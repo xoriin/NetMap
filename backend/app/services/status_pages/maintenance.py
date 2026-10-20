@@ -38,6 +38,7 @@ TOKEN_SUPPRESS_DETAIL = "Integration tokens cannot suppress monitoring alerts"
 START_GRACE = timedelta(minutes=5)
 STARTED_DETAIL = "This window has started; only its title, description and end can change"
 FINISHED_DETAIL = "This window has finished; only its title and description can change"
+SUPPRESS_STARTED_DETAIL = "Alert suppression can't be changed after a window starts. End the window early instead."
 
 Span = tuple[datetime, datetime]
 _KIND_PREFIX = {"device": "device:", "service_check": "service:", "monitor": "monitor:"}
@@ -253,6 +254,8 @@ def update_window(db: Session, actor: Actor, window_id: int, changes: dict, *, n
         raise IncidentError(FINISHED_DETAIL)
     if loaded.start <= now and {"starts_at", "items", "page_ids"} & set(changes):
         raise IncidentError(STARTED_DETAIL)
+    if loaded.start <= now and "suppress_alerts" in changes and bool(changes["suppress_alerts"]) != window.suppress_alerts:
+        raise IncidentError(SUPPRESS_STARTED_DETAIL)
     before_pages = _touched_pages(db, loaded)
     before_suppressed = globally_suppressed(db, now)
 

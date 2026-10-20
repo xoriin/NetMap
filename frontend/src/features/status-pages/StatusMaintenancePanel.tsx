@@ -15,6 +15,7 @@ const STATE_LABELS = { upcoming: "Upcoming", active: "In progress", finished: "F
 const STATE_TONES = { upcoming: "unknown", active: "warning", finished: "disabled" } as const;
 const PAST_START_GRACE_MS = 5 * 60_000;
 const SUPPRESS_NOTE = "Also silences monitoring alert notifications for these items throughout NetMap while the window is active, not only on the announced pages. Checks and history continue.";
+const SUPPRESS_STARTED_NOTE = "Alert suppression can't be changed after a window starts. End the window early instead.";
 
 type Draft = {
   title: string;
@@ -92,7 +93,7 @@ function MaintenanceModal({
       next.items = choices.filter((c) => draft.itemKeys.includes(c.key)).map((c) => c.source);
     }
     if (!started && !sameSet(draft.pageIds, base.page_ids)) next.page_ids = draft.pageIds;
-    if (canSuppress && draft.suppress !== base.suppress_alerts) next.suppress_alerts = draft.suppress;
+    if (!started && canSuppress && draft.suppress !== base.suppress_alerts) next.suppress_alerts = draft.suppress;
     return next;
   }
 
@@ -205,10 +206,10 @@ function MaintenanceModal({
         </fieldset>
         {canSuppress && (
           <label className="tool-form-inline-check">
-            <input type="checkbox" checked={draft.suppress} disabled={finished} onChange={(event) => update("suppress", event.target.checked)} />
+            <input type="checkbox" checked={draft.suppress} disabled={started} onChange={(event) => update("suppress", event.target.checked)} />
             <span className="tool-form-check-copy">
               <span>Suppress monitoring alerts</span>
-              <span className="tool-note">{SUPPRESS_NOTE}</span>
+              <span className="tool-note">{started ? SUPPRESS_STARTED_NOTE : SUPPRESS_NOTE}</span>
             </span>
           </label>
         )}

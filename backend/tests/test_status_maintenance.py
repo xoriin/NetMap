@@ -725,6 +725,28 @@ def test_started_window_keeps_its_recorded_scope_and_can_end_early(api, db):
     assert too_early.status_code == 422
 
 
+def test_alert_suppression_is_frozen_once_a_window_starts(api, db):
+    client = _as(api, api.admin)
+    now = datetime.now(timezone.utc)
+    detail = {"detail": "Alert suppression can't be changed after a window starts. End the window early instead."}
+    started = {"starts_at": (now - timedelta(minutes=1)).isoformat(), "ends_at": (now + timedelta(hours=1)).isoformat()}
+    plain = client.post("/api/v1/status-pages/maintenance", json=_body(api, **started)).json()
+    silenced = client.post("/api/v1/status-pages/maintenance", json=_body(api, **started, suppress_alerts=True)).json()
+    for window, value in ((plain, True), (silenced, False)):
+        response = client.patch(f"/api/v1/status-pages/maintenance/{window['id']}", json={"suppress_alerts": value})
+        assert response.status_code == 422 and response.json() == detail, window["title"]
+    db.expire_all()
+    assert [db.get(StatusMaintenance, w["id"]).suppress_alerts for w in (plain, silenced)] == [False, True]
+    assert maintenance.globally_suppressed(db, datetime.now(timezone.utc)) == {_ref(api.device).key}
+    same = client.patch(f"/api/v1/status-pages/maintenance/{silenced['id']}", json={"suppress_alerts": True, "title": "Renamed"})
+    assert same.status_code == 200, same.text
+
+    upcoming = client.post("/api/v1/status-pages/maintenance", json=_body(api)).json()
+    path = f"/api/v1/status-pages/maintenance/{upcoming['id']}"
+    assert client.patch(path, json={"suppress_alerts": True}).json()["suppress_alerts"] is True
+    assert client.patch(path, json={"suppress_alerts": False}).json()["suppress_alerts"] is False
+
+
 def test_listing_and_page_history_are_bounded(api, db):
     client = _as(api, api.admin)
     now = datetime.now(timezone.utc)

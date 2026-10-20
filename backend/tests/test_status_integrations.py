@@ -682,6 +682,23 @@ def test_token_cannot_enable_alert_suppression_or_edit_suppressing_window(env):
     assert any("refused=404" in d for d in refusals)
 
 
+def test_token_still_cannot_set_suppression_on_a_started_window(env):
+    host = _device(env)
+    (a,) = _pages(env, "a", items={"a": [(SourceRef("device", device_id=host), "Backups")]})
+    secret = _new_token(env, [a])["secret"]
+    now = datetime.now(timezone.utc)
+    created = _call(env, "POST", "/maintenance", secret, _window_body(
+        host, starts_at=(now - timedelta(minutes=1)).isoformat(), ends_at=(now + timedelta(hours=1)).isoformat(),
+    ))
+    assert created.status_code == 201, created.text
+    response = _call(env, "PATCH", f"/maintenance/{created.json()['id']}", secret, {"suppress_alerts": True})
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Integration tokens cannot suppress monitoring alerts"}
+    person = _admin(env, "PATCH", f"/maintenance/{created.json()['id']}", json={"suppress_alerts": True})
+    assert person.status_code == 422
+    assert person.json() == {"detail": "Alert suppression can't be changed after a window starts. End the window early instead."}
+
+
 def test_token_maintenance_scope_ownership_and_idempotency(env):
     host, hidden = _device(env), _device(env)
     a, b = _pages(env, "a", "b", items={"a": [(SourceRef("device", device_id=host), "Backups")],
