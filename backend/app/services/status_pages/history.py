@@ -1,23 +1,26 @@
 from __future__ import annotations
 
+import json
 import math
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, defer
+from sqlalchemy import DateTime, func, literal, select
+from sqlalchemy.orm import Session, aliased, defer
 
-from app.models.monitor import MonitorCheckHistory
+from app.models.device import Device
+from app.models.monitor import Monitor, MonitorCheckHistory
 from app.models.monitor_history import DeviceMonitorHistory
-from app.services.status_pages.sources import SERVICE_SCAN_ROWS, SourceRef, _port_entry, _utc, freshness_deadline
+from app.services.status_pages.sources import SERVICE_SCAN_ROWS, SourceRef, _utc, freshness_deadline
 
 Health = Literal["healthy", "unhealthy", "unknown"]
 SpanHealth = Literal["healthy", "unhealthy", "unknown", "maintenance"]
 AvailabilityLabel = Literal["ok", "insufficient", "no_data"]
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 MIN_COVERAGE = 0.9
 DEFAULT_SLOTS = 60
 
@@ -64,35 +67,55 @@ def _monitor_sample(row: MonitorCheckHistory) -> Sample:
     return Sample(_utc(row.checked_at), health, response, health == "healthy")
 
 
-def _service_sample(row: DeviceMonitorHistory, target_id: int) -> Sample | None:
-    entry = _port_entry(row, target_id)
-    if entry is None:
-        return None
+def _port_map(row: DeviceMonitorHistory) -> dict[int, dict]:
+    try:
+        results = json.loads(row.port_results or "[]")
+    except ValueError:
+        return {}
+    entries: dict[int, dict] = {}
+    for entry in results if isinstance(results, list) else []:
+        if isinstance(entry, dict) and isinstance(entry.get("target_id"), int):
+            entries.setdefault(entry["target_id"], entry)
+    return entries
+
+
+def _service_sample(at: datetime, entry: dict) -> Sample:
     healthy = bool(entry.get("open"))
     response = _valid_response(entry.get("response_time_ms")) if healthy else None
-    return Sample(_utc(row.checked_at), "healthy" if healthy else "unhealthy", response, healthy)
+    return Sample(at, "healthy" if healthy else "unhealthy", response, healthy)
 
 
-def _fetch(db: Session, model, owner_col, ids: set[int], start: datetime, end: datetime, preceding: int, *, light: bool):
+def _fetch(db: Session, model, owner_model, owner_col, ids: set[int], start: datetime, end: datetime, preceding: int, *, light: bool):
     options = [defer(model.port_results)] if light else []
     rows = list(db.scalars(
         select(model).options(*options)
         .where(owner_col.in_(ids), model.checked_at >= start, model.checked_at < end)
         .order_by(owner_col, model.checked_at, model.id)
     ))
-    ranked = (
-        select(model.id, func.row_number().over(
-            partition_by=owner_col, order_by=(model.checked_at.desc(), model.id.desc())).label("rn"))
-        .where(owner_col.in_(ids), model.checked_at < start)
-        .subquery()
+    earlier = aliased(model)
+    bound = (
+        select(earlier.checked_at)
+        .where(getattr(earlier, owner_col.key) == owner_model.id, earlier.checked_at < start)
+        .order_by(earlier.checked_at.desc())
+        .offset(preceding - 1)
+        .limit(1)
+        .correlate(owner_model)
+        .scalar_subquery()
     )
+    bound = func.coalesce(bound, literal(_EPOCH, type_=DateTime(timezone=True)))
+    bounds = select(owner_model.id.label("owner_id"), bound.label("bound")).where(owner_model.id.in_(ids)).subquery()
     before = list(db.scalars(
         select(model).options(*options)
-        .join(ranked, ranked.c.id == model.id)
-        .where(ranked.c.rn <= preceding)
+        .join(bounds, bounds.c.owner_id == owner_col)
+        .where(model.checked_at < start, model.checked_at >= bounds.c.bound)
         .order_by(owner_col, model.checked_at, model.id)
     ))
     return before + rows
+
+
+def _last_preceding(samples: list[Sample], start: datetime) -> list[Sample]:
+    inside = [s for s in samples if s.at >= start]
+    return [s for s in samples if s.at < start][-1:] + inside
 
 
 def load_samples(db: Session, refs: Iterable[SourceRef], start: datetime, end: datetime) -> dict[SourceRef, list[Sample]]:
@@ -102,27 +125,32 @@ def load_samples(db: Session, refs: Iterable[SourceRef], start: datetime, end: d
 
     device_refs = {r.device_id: r for r in refs if r.kind == "device"}
     if device_refs:
-        for row in _fetch(db, DeviceMonitorHistory, DeviceMonitorHistory.device_id, set(device_refs), start, end, 1, light=True):
+        for row in _fetch(db, DeviceMonitorHistory, Device, DeviceMonitorHistory.device_id, set(device_refs), start, end, 1, light=True):
             out[device_refs[row.device_id]].append(_device_sample(row))
+        for ref in device_refs.values():
+            out[ref] = _last_preceding(out[ref], start)
 
     monitor_refs = {r.monitor_id: r for r in refs if r.kind == "monitor"}
     if monitor_refs:
-        for row in _fetch(db, MonitorCheckHistory, MonitorCheckHistory.monitor_id, set(monitor_refs), start, end, 1, light=False):
+        for row in _fetch(db, MonitorCheckHistory, Monitor, MonitorCheckHistory.monitor_id, set(monitor_refs), start, end, 1, light=False):
             out[monitor_refs[row.monitor_id]].append(_monitor_sample(row))
+        for ref in monitor_refs.values():
+            out[ref] = _last_preceding(out[ref], start)
 
     service_by_device: dict[int, list[SourceRef]] = defaultdict(list)
     for ref in refs:
         if ref.kind == "service_check":
             service_by_device[ref.device_id].append(ref)
     if service_by_device:
-        rows = _fetch(db, DeviceMonitorHistory, DeviceMonitorHistory.device_id, set(service_by_device),
-                      start, end, SERVICE_SCAN_ROWS, light=False)
-        for ref_list in service_by_device.values():
-            for ref in ref_list:
-                samples = [s for row in rows if row.device_id == ref.device_id
-                           and (s := _service_sample(row, ref.port_target_id)) is not None]
-                before = [s for s in samples if s.at < start]
-                out[ref] = before[-1:] + [s for s in samples if s.at >= start]
+        parsed: dict[int, list[tuple[datetime, dict[int, dict]]]] = defaultdict(list)
+        for row in _fetch(db, DeviceMonitorHistory, Device, DeviceMonitorHistory.device_id, set(service_by_device),
+                          start, end, SERVICE_SCAN_ROWS, light=False):
+            parsed[row.device_id].append((_utc(row.checked_at), _port_map(row)))
+        for device_id, device_refs_list in service_by_device.items():
+            for ref in device_refs_list:
+                samples = [_service_sample(at, entries[ref.port_target_id])
+                           for at, entries in parsed[device_id] if ref.port_target_id in entries]
+                out[ref] = _last_preceding(samples, start)
     return out
 
 
@@ -204,7 +232,9 @@ def availability(spans: Sequence[Span], start: datetime, end: datetime) -> Avail
     if eligible <= 0 or known <= 0:
         return Availability(None, 0.0, "no_data")
     coverage = min(1.0, known / eligible)
-    return Availability(healthy / known, coverage, "ok" if coverage >= MIN_COVERAGE else "insufficient")
+    if coverage < MIN_COVERAGE:
+        return Availability(None, coverage, "insufficient")
+    return Availability(healthy / known, coverage, "ok")
 
 
 def _slot_bounds(start: datetime, end: datetime, slots: int) -> list[Interval]:

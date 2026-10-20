@@ -85,7 +85,7 @@ def test_unknown_time_lowers_coverage_not_percent():
     a = availability(spans, START, END)
     assert a.coverage == 0.5
     assert a.label == "insufficient"
-    assert round(a.percent, 4) == 0.9
+    assert a.percent is None
 
 
 def test_coverage_below_90_percent_is_insufficient():
@@ -127,7 +127,7 @@ def test_thirty_day_window_with_ten_days_history_is_insufficient():
     spans = build_spans([_s(history_from)], start, START, 30 * 86400, [])
     a = availability(spans, start, START)
     assert round(a.coverage, 4) == 0.3333
-    assert a.percent == 1.0
+    assert a.percent is None
     assert a.label == "insufficient"
 
 
@@ -309,3 +309,76 @@ def test_load_samples_batches_one_query_per_kind_and_returns_empty_lists():
 def test_load_samples_with_no_refs_runs_no_queries():
     db = make_session()
     assert load_samples(db, [], START, END) == {}
+
+
+def test_insufficient_and_no_data_never_expose_a_percent():
+    insufficient = availability([_span(0, 30, "healthy"), _span(30, 60, "unknown")], START, END)
+    assert (insufficient.percent, insufficient.coverage, insufficient.label) == (None, 0.5, "insufficient")
+
+
+def test_slots_with_window_not_divisible_by_slot_count():
+    end = START + timedelta(seconds=100)
+    spans = [Span(START, START + timedelta(seconds=99), "healthy"), Span(START + timedelta(seconds=99), end, "unhealthy")]
+    slots = heartbeat_slots(spans, START, end, slots=60)
+    assert len(slots) == 60
+    assert slots[-1] == "unhealthy"
+    assert slots[:-1].count("healthy") == 59
+    samples = [_s(START + timedelta(seconds=99.5), "healthy", 9.0), _s(START, "healthy", 1.0)]
+    graph = response_slots(samples, START, end, [], slots=60)
+    assert graph[0] == 1.0 and graph[59] == 9.0
+    assert sum(v is not None for v in graph) == 2
+
+
+def test_batch_mixing_device_and_service_refs_parses_each_row_once(monkeypatch):
+    from app.services.status_pages import history
+
+    db = make_session()
+    devices = [seed_device(db) for _ in range(2)]
+    targets = {d.id: [seed_service_check(db, d.id, port=p, label=str(p)) for p in (80, 443)] for d in devices}
+    rows = 0
+    for d in devices:
+        for minute in (-3, 5, 15):
+            results = [{"target_id": t.id, "open": minute != 5, "response_time_ms": 10.0 + minute} for t in targets[d.id]]
+            db.add(DeviceMonitorHistory(device_id=d.id, checked_at=_t(minute), status="online", expected_status="online",
+                                        is_healthy=True, rtt_ms=2.0, port_results=json.dumps(results)))
+            rows += 1
+    db.commit()
+    refs = [SourceRef("device", device_id=d.id) for d in devices]
+    refs += [SourceRef("service_check", device_id=d.id, port_target_id=t.id) for d in devices for t in targets[d.id]]
+    calls = []
+    real = history.json.loads
+    monkeypatch.setattr(history.json, "loads", lambda raw, *a, **k: calls.append(1) or real(raw, *a, **k))
+    out = load_samples(db, refs, START, END)
+    assert len(calls) == rows
+    for d in devices:
+        assert [(s.health, s.response_ms) for s in out[SourceRef("device", device_id=d.id)]] == [("healthy", 2.0)] * 3
+        for t in targets[d.id]:
+            got = out[SourceRef("service_check", device_id=d.id, port_target_id=t.id)]
+            assert [(s.at, s.health, s.response_ms) for s in got] == [
+                (_t(-3), "healthy", 7.0), (_t(5), "unhealthy", None), (_t(15), "healthy", 25.0)]
+
+
+def test_preceding_sample_is_latest_per_source_not_whole_history():
+    db = make_session()
+    monitors = [seed_monitor(db) for _ in range(2)]
+    for m in monitors:
+        for minute in (-300, -200, -100, -30):
+            db.add(MonitorCheckHistory(monitor_id=m.id, checked_at=_t(minute), status="online", response_time_ms=minute + 1000.0))
+    db.commit()
+    refs = [SourceRef("monitor", monitor_id=m.id) for m in monitors]
+    out = load_samples(db, refs, START, END)
+    assert [[s.at for s in out[r]] for r in refs] == [[_t(-30)], [_t(-30)]]
+
+
+def test_preceding_scan_limit_applies_when_history_is_longer_than_scan_rows():
+    db = make_session()
+    device = seed_device(db)
+    target = seed_service_check(db, device.id)
+    for minute in range(-60, -20):
+        results = [{"target_id": target.id, "open": True, "response_time_ms": float(-minute)}] if minute in (-60, -21) else []
+        db.add(DeviceMonitorHistory(device_id=device.id, checked_at=_t(minute), status="online", expected_status="online",
+                                    is_healthy=True, port_results=json.dumps(results)))
+    db.commit()
+    ref = SourceRef("service_check", device_id=device.id, port_target_id=target.id)
+    got = load_samples(db, [ref], START, END)[ref]
+    assert [(s.at, s.response_ms) for s in got] == [(_t(-21), 21.0)]
