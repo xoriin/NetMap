@@ -119,8 +119,8 @@ def test_pages_sharing_sources_scan_their_history_once_per_build_cycle(cache, fa
 
 def test_statement_count_does_not_grow_with_item_count(cache, factory):
     ids = _devices(factory, 12, minutes=90)
-    small = _page(factory, "small", ids[:2])
-    large = _page(factory, "large", ids)
+    small = _page(factory, "small", ids[:2], period="24h")
+    large = _page(factory, "large", ids, period="24h")
     counter = _Counter(factory.kw["bind"])
     _build(cache, [small])
     few = len(counter.statements)
@@ -134,7 +134,7 @@ def test_long_period_reused_for_five_minutes_then_refreshed(cache, factory, monk
     page_id = _page(factory, "media", ids)
     fetched = _rows(monkeypatch)
     _build(cache, [page_id])
-    assert sorted(length > timedelta(days=29) for length, _ in fetched) == [False, True]
+    assert sorted(length > timedelta(days=29) for length, _ in fetched) == [False, True, True]
 
     fetched.clear()
     _build(cache, [page_id], NOW + timedelta(minutes=4))
@@ -263,10 +263,10 @@ def _long_fetches(monkeypatch):
     refreshed = []
     real = aggregates.BuildCycle.fetch_long
 
-    def counted(self, db, refs, start, end):
+    def counted(self, refs, start, end, db=None):
         refs = list(refs)
         refreshed.append(len(refs))
-        return real(self, db, refs, start, end)
+        return real(self, refs, start, end, db)
 
     monkeypatch.setattr(aggregates.BuildCycle, "fetch_long", counted)
     return refreshed
@@ -295,17 +295,23 @@ def test_stale_long_period_is_served_while_its_refresh_waits_for_budget(cache, f
 def test_stale_refreshes_respect_the_per_cycle_source_and_time_budget(cache, factory, monkeypatch):
     ids = _devices(factory, 6, minutes=8 * 1440)
     page_id = _page(factory, "media", ids, period="7d")
-    _build(cache, [page_id])
     refreshed = _long_fetches(monkeypatch)
+    _build(cache, [page_id])
+    assert refreshed == [1] * 6
+    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 60.0)
+    refreshed.clear()
     _build(cache, [page_id], _stale_at())
-    assert refreshed == [aggregates.REFRESH_SOURCES_PER_CYCLE]
+    assert refreshed == [1] * aggregates.REFRESH_SOURCES_PER_CYCLE
     _build(cache, [page_id], _stale_at() + timedelta(seconds=1))
-    assert refreshed == [aggregates.REFRESH_SOURCES_PER_CYCLE, 6 - aggregates.REFRESH_SOURCES_PER_CYCLE]
+    assert refreshed == [1] * 6
 
-    cycle = aggregates.SourceHistory().cycle()
-    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 0.25)
-    cycle.refresh_seconds = 0.25
-    assert cycle.claim_refresh(("device:1", "30d", 60, ())) is False
+    monkeypatch.setattr(aggregates, "REFRESH_SECONDS_PER_CYCLE", 1e-9)
+    refreshed.clear()
+    later = _stale_at() + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
+    _build(cache, [page_id], later)
+    assert refreshed == [1]
+    _build(cache, [page_id], later + timedelta(seconds=1))
+    assert refreshed == [1, 1]
 
 
 def test_hard_cap_forces_a_recompute_even_without_budget(cache, factory, monkeypatch):
@@ -332,3 +338,22 @@ def test_refresh_deadlines_are_jittered_deterministically():
     for key in keys[:3]:
         history.store_long(key, NOW, None)
         assert history.long(key, NOW).refresh_at == NOW + aggregates.LONG_REFRESH + history.jitter(key)
+
+
+def test_long_period_rows_are_fetched_one_source_at_a_time_in_short_sessions(cache, factory, monkeypatch):
+    ids = _devices(factory, 5, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    fetched = _rows(monkeypatch)
+    opened = []
+    real = factory
+
+    def counting():
+        opened.append(1)
+        return real()
+
+    monkeypatch.setattr(cache_module, "SessionLocal", counting)
+    _build(cache, [page_id])
+    long_fetches = [rows for length, rows in fetched if length > timedelta(days=6)]
+    assert len(long_fetches) == 5
+    assert max(long_fetches) <= 8 * 1440 + 1
+    assert len(opened) >= 1 + 5

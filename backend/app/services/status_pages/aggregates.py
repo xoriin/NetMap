@@ -44,8 +44,8 @@ class SourceHistory:
         self._long: dict[LongKey, LongEntry] = {}
         self.seed = seed
 
-    def cycle(self) -> BuildCycle:
-        return BuildCycle(self)
+    def cycle(self, sessions: Callable[[], Session] | None = None) -> BuildCycle:
+        return BuildCycle(self, sessions)
 
     def clear(self) -> None:
         with self._lock:
@@ -72,8 +72,9 @@ class SourceHistory:
 class BuildCycle:
     """One builder pass: current states, heartbeat-window history and computed spans are loaded once per source."""
 
-    def __init__(self, shared: SourceHistory) -> None:
+    def __init__(self, shared: SourceHistory, sessions: Callable[[], Session] | None = None) -> None:
         self.shared = shared
+        self.sessions = sessions
         self.rows = 0
         self.refreshed: set[LongKey] = set()
         self.refresh_seconds = 0.0
@@ -134,8 +135,12 @@ class BuildCycle:
         finally:
             self.refresh_seconds += time.perf_counter() - started
 
-    def fetch_long(self, db: Session, refs: Iterable[SourceRef], start: datetime, end: datetime) -> RawHistory:
-        with self.timed():
+    def fetch_long(self, refs: Iterable[SourceRef], start: datetime, end: datetime, db: Session | None = None) -> RawHistory:
+        """One source's long-period rows, in a short session of its own when the cycle has a session factory."""
+        if self.sessions is not None:
+            with self.sessions() as own:
+                raw = fetch_history(own, refs, start, end, health_only=True)
+        else:
             raw = fetch_history(db, refs, start, end, health_only=True)
         self.rows += raw.rows
         return raw

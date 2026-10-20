@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal, TypedDict
 
@@ -17,7 +17,6 @@ from app.services.status_pages.notices import live_notices
 from app.services.status_pages.aggregates import BuildCycle, LongKey, SourceHistory
 from app.services.status_pages.history import (
     Availability,
-    RawHistory,
     Sample,
     SampleConverter,
     availability,
@@ -170,8 +169,7 @@ class PageInputs:
     excluded: dict[str, list]
     incidents: list
     notices: list
-    long_rows: dict[str, RawHistory] = field(default_factory=dict)
-    long_hits: dict[tuple[SourceRef, str], Availability] = field(default_factory=dict)
+    session: Session | None = None
 
 
 def _long_key(ref: SourceRef, period: str, state: CurrentState, excluded: list) -> LongKey:
@@ -200,32 +198,22 @@ def load_page(db: Session, page: StatusPage, now: datetime, cycle: BuildCycle) -
     excluded = maintenance.spans_for_page(windows, page.id, keys)
 
     fresh: dict[datetime, set[SourceRef]] = defaultdict(set)
-    long: dict[str, set[SourceRef]] = defaultdict(set)
-    long_hits: dict[tuple[SourceRef, str], Availability] = {}
     for item in items:
         ref = refs[item.id]
         fresh[start].add(ref)
         period = (item.extras or {}).get("uptime_period")
-        if period in LONG_PERIODS:
-            key = _long_key(ref, period, states[ref], excluded.get(ref.key, []))
-            entry = cycle.shared.long(key, now)
-            if entry is not None and (not entry.stale(now) or not cycle.claim_refresh(key)):
-                long_hits[(ref, period)] = entry.value
-            else:
-                long[period].add(ref)
-        elif period in PERIODS:
+        if period in PERIODS and period not in LONG_PERIODS:
             fresh[end - PERIODS[period]].add(ref)
     for since, group_refs in fresh.items():
         cycle.fetch(db, group_refs, since, now)
-    long_rows = {period: cycle.fetch_long(db, group_refs, now - PERIODS[period], now) for period, group_refs in long.items()}
     return PageInputs(
         page=page, now=now, groups=groups, items=items, refs=refs, states=states, degraded=degraded,
         windows=windows, excluded=excluded, incidents=load_page_incidents(db, page.id, now),
-        notices=live_notices(db, page.id, now), long_rows=long_rows, long_hits=long_hits,
+        notices=live_notices(db, page.id, now), session=db if cycle.sessions is None else None,
     )
 
 
-def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: datetime, converters: dict) -> Availability | None:
+def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: datetime) -> Availability | None:
     if period not in PERIODS:
         return None
     now, state, own_excluded = inputs.now, inputs.states[ref], inputs.excluded.get(ref.key, [])
@@ -234,16 +222,14 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
         return cycle.memo(("period", ref, since, now, state.interval_seconds, tuple(own_excluded)), lambda: availability(
             build_spans(cycle.samples(ref, since, now), since, now, state.interval_seconds, own_excluded), since, now,
         ))
-    if (ref, period) in inputs.long_hits:
-        return inputs.long_hits[(ref, period)]
     key = _long_key(ref, period, state, own_excluded)
     entry = cycle.shared.long(key, now)
-    if entry is not None and not entry.stale(now):
+    if entry is not None and (not entry.stale(now) or not cycle.claim_refresh(key)):
         return entry.value
+    since = now - PERIODS[period]
     with cycle.timed():
-        converter = converters.setdefault(period, SampleConverter(inputs.long_rows[period]))
-        since = now - PERIODS[period]
-        found = period_availability(converter.points(ref), since, now, state.interval_seconds, own_excluded)
+        raw = cycle.fetch_long([ref], since, now, inputs.session)
+        found = period_availability(SampleConverter(raw).points(ref), since, now, state.interval_seconds, own_excluded)
     cycle.shared.store_long(key, now, found)
     return found
 
@@ -252,7 +238,6 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
     page, now, refs, states = inputs.page, inputs.now, inputs.refs, inputs.states
     start, end = _bounds(page, now)
     windows, excluded = inputs.windows, inputs.excluded
-    converters: dict = {}
 
     by_group: dict[int, list[dict]] = defaultdict(list)
     item_states: dict[int, ItemState] = {}
@@ -276,7 +261,7 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
                 if extras.get("rtt_graph") else None
             ),
             "metrics": _metrics(
-                extras, own, start, now, state, _period(inputs, cycle, ref, extras.get("uptime_period"), end, converters),
+                extras, own, start, now, state, _period(inputs, cycle, ref, extras.get("uptime_period"), end),
                 own_excluded,
             ),
             "incident_ids": [],

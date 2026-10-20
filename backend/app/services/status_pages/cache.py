@@ -238,7 +238,7 @@ class StatusSnapshotCache:
     def build_now(self, page_id: int, now: datetime | None = None) -> bool:
         with self._lock:
             self._queue.pop(page_id, None)
-        return self._build(page_id, now or _now(), self.history.cycle())
+        return self._build(page_id, now or _now(), self.history.cycle(SessionLocal))
 
     def drain(self, now: datetime | None = None) -> None:
         while batch := self._take(block=False):
@@ -354,10 +354,10 @@ class StatusSnapshotCache:
         """One build cycle: every page in the batch shares the cycle's source states and history."""
         at = now or _now()
         self._evaluate_checked(at, set(batch))
-        cycle = self.history.cycle()
+        cycle = self.history.cycle(SessionLocal)
         for page_id in batch:
             if now is None and _now() - at > CYCLE_MAX_AGE:
-                at, cycle = _now(), self.history.cycle()
+                at, cycle = _now(), self.history.cycle(SessionLocal)
             self._build(page_id, at, cycle)
 
     def _build(self, page_id: int, now: datetime, cycle: BuildCycle) -> bool:
