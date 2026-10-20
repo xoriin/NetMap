@@ -230,7 +230,7 @@ def _period(inputs: PageInputs, cycle: BuildCycle, ref: SourceRef, period, end: 
     with cycle.timed():
         raw = cycle.fetch_long([ref], since, now, inputs.session)
         found = period_availability(SampleConverter(raw).points(ref), since, now, state.interval_seconds, own_excluded)
-    cycle.shared.store_long(key, now, found)
+    cycle.shared.store_long(key, now, found, cycle.generation)
     return found
 
 

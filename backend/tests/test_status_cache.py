@@ -536,3 +536,42 @@ def test_equal_registry_entries_are_not_interchangeable(cache, factory):
     assert cache.lookup("media") is not None
     cache.remove_page_sync(page_id, only=cache.entry(page_id))
     assert cache.lookup("media") is None
+
+
+def test_pages_building_during_a_restore_are_requeued(cache, factory, monkeypatch):
+    page_id = _seed(factory)
+    cache.load_registry()
+    calls, entered, release = [], threading.Event(), threading.Event()
+    real = cache_module.load_page
+
+    def slow(db, page, now, cycle):
+        calls.append(page.id)
+        if len(calls) == 1:
+            entered.set()
+            assert release.wait(5)
+        return real(db, page, now, cycle)
+
+    monkeypatch.setattr(cache_module, "load_page", slow)
+    worker = threading.Thread(target=lambda: cache.drain(now=T0))
+    worker.start()
+    assert entered.wait(5)
+    cache.reset_from_db()
+    release.set()
+    worker.join(5)
+    assert calls == [page_id, page_id]
+    assert cache.get(page_id, "public", T0) is not None
+
+
+def test_long_period_values_from_before_a_restore_are_not_stored():
+    from app.services.status_pages.aggregates import SourceHistory
+    from app.services.status_pages.history import Availability
+
+    history = SourceHistory()
+    key = ("device:1", "30d", 60, ())
+    before = history.cycle()
+    history.clear()
+    history.store_long(key, T0, Availability(0.5, 1.0, "ok"), before.generation)
+    assert history.long(key, T0) is None
+    after = history.cycle()
+    history.store_long(key, T0, Availability(0.9, 1.0, "ok"), after.generation)
+    assert history.long(key, T0).value.percent == 0.9

@@ -43,6 +43,7 @@ class SourceHistory:
         self._lock = threading.Lock()
         self._long: dict[LongKey, LongEntry] = {}
         self.seed = seed
+        self.generation = 0
 
     def cycle(self, sessions: Callable[[], Session] | None = None) -> BuildCycle:
         return BuildCycle(self, sessions)
@@ -50,6 +51,7 @@ class SourceHistory:
     def clear(self) -> None:
         with self._lock:
             self._long.clear()
+            self.generation += 1
 
     def jitter(self, key: LongKey) -> timedelta:
         spread = int(LONG_JITTER.total_seconds() * 1000)
@@ -62,9 +64,11 @@ class SourceHistory:
             return None
         return found
 
-    def store_long(self, key: LongKey, now: datetime, value: Availability) -> None:
+    def store_long(self, key: LongKey, now: datetime, value: Availability, generation: int | None = None) -> None:
         entry = LongEntry(value, now, now + LONG_REFRESH + self.jitter(key))
         with self._lock:
+            if generation is not None and generation != self.generation:
+                return
             self._long = {k: v for k, v in self._long.items() if timedelta(0) <= now - v.computed_at < LONG_HARD_CAP}
             self._long[key] = entry
 
@@ -75,6 +79,7 @@ class BuildCycle:
     def __init__(self, shared: SourceHistory, sessions: Callable[[], Session] | None = None) -> None:
         self.shared = shared
         self.sessions = sessions
+        self.generation = shared.generation
         self.rows = 0
         self.refreshed: set[LongKey] = set()
         self.refresh_seconds = 0.0

@@ -160,6 +160,8 @@ class StatusSnapshotCache:
             self.ready = False
         self.history.clear()
         self.load_registry()
+        with self._lock:
+            self._dirty.update(page_id for page_id in self._building if page_id in self._by_id)
 
     def entry(self, page_id: int) -> RegistryEntry | None:
         with self._lock:
