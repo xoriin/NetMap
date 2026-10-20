@@ -410,7 +410,10 @@ def list_live_device_status(
                     host=device.ip_address,
                     count=1,
                     timeout_seconds=max(2, payload.timeout_seconds),
-                )
+                ),
+                # Inventory probes configured devices under the scheduler's policy.
+                # Interactive Tools keep their separate public-target opt-in.
+                allow_public_targets=True,
             )
             reachable = (result.received or 0) > 0
             next_status = "online" if reachable else "offline"
