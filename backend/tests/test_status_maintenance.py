@@ -235,6 +235,56 @@ def test_global_suppression_shows_maintenance_on_all_pages(db):
     assert maintenance.globally_suppressed(db, T0 + timedelta(minutes=30)) == set()
 
 
+def test_unannounced_pages_get_a_generic_line_for_a_suppressing_window(db):
+    router, switch = _device(db, status="offline"), _device(db)
+    one = seed_page(db, "one", items=[(_ref(router), "Router")])
+    two = seed_page(db, "two", items=[(_ref(router), "Edge router"), (_ref(switch), "Switch")])
+    three = seed_page(db, "three", items=[(_ref(switch), "Switch")])
+    start, end = T0 - STEP, T0 + timedelta(minutes=30)
+    window = maintenance.create_window(
+        db, _admin(db), "Secret firmware upgrade", "Ring the vendor at 555", start, end,
+        [_ref(router)], [one.id], True, now=start - STEP,
+    )
+
+    announced = build_page_payload(db, one, "public", T0)
+    assert [(m["title"], m["announced"]) for m in announced["maintenance"]] == [("Secret firmware upgrade", True)]
+    for audience in ("public", "private"):
+        payload = build_page_payload(db, two, audience, T0)
+        assert payload["maintenance"] == [{
+            "id": window.id, "title": "Scheduled maintenance", "description": None, "active": True,
+            "announced": False, "starts_at": start.isoformat(), "ends_at": end.isoformat(),
+        }]
+        text = json.dumps(payload)
+        assert "Secret firmware" not in text and "555" not in text and "Router" not in text
+    assert build_page_payload(db, three, "public", T0)["maintenance"] == []
+
+    after = T0 + timedelta(hours=1)
+    assert [p["kind"] for p in build_page_payload(db, one, "public", after)["past"]] == ["maintenance"]
+    assert build_page_payload(db, two, "public", after)["past"] == []
+    assert build_page_payload(db, two, "public", after)["maintenance"] == []
+
+
+def test_unannounced_upcoming_line_needs_a_covered_item_on_the_page(db):
+    router, switch = _device(db), _device(db)
+    one = seed_page(db, "one", items=[(_ref(router), "Router")])
+    two = seed_page(db, "two", items=[(_ref(router), "Router")])
+    three = seed_page(db, "three", items=[(_ref(switch), "Switch")])
+    start, actor = T0 + timedelta(days=6), _admin(db)
+    soon = _window(db, actor, [_ref(router)], start, start + timedelta(minutes=30), pages=[one.id], suppress=True,
+                   now=T0, title="Soon")
+    _window(db, actor, [_ref(router)], T0 + timedelta(days=9), T0 + timedelta(days=9, minutes=5), pages=[one.id],
+            suppress=True, now=T0, title="Later")
+
+    payload = build_page_payload(db, two, "public", T0)
+    assert [(m["id"], m["title"], m["active"], m["announced"]) for m in payload["maintenance"]] == [
+        (soon.id, "Scheduled maintenance", False, False),
+    ]
+    assert _item(payload)["state"] == "operational"
+    assert build_page_payload(db, three, "public", T0)["maintenance"] == []
+    lead = build_page_payload(db, two, "public", T0 + timedelta(days=2, seconds=1))
+    assert [m["title"] for m in lead["maintenance"]] == ["Scheduled maintenance", "Scheduled maintenance"]
+
+
 def test_suppression_requires_alert_write_even_for_title_edit(api, db):
     manager = _as(api, api.manager)
     refused = manager.post("/api/v1/status-pages/maintenance", json=_body(api, suppress_alerts=True))
@@ -496,7 +546,7 @@ def test_upcoming_shown_within_seven_days_only(db):
     assert [(m["title"], m["active"]) for m in payload["maintenance"]] == [("Soon", False)]
     (entry,) = payload["maintenance"]
     assert entry == {
-        "id": soon.id, "title": "Soon", "description": "Firmware", "active": False,
+        "id": soon.id, "title": "Soon", "description": "Firmware", "active": False, "announced": True,
         "starts_at": (T0 + timedelta(days=6)).isoformat(), "ends_at": (T0 + timedelta(days=6, minutes=30)).isoformat(),
     }
     assert payload["valid_until"] == (T0 + timedelta(seconds=10)).isoformat()

@@ -72,6 +72,7 @@ export type StatusMaintenanceWindow = {
   starts_at: string;
   ends_at: string;
   active: boolean;
+  announced: boolean;
 };
 
 export type StatusPastIncident = StatusIncident & { kind: "incident" };

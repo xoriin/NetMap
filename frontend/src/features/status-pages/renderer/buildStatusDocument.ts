@@ -377,6 +377,7 @@ function maintenanceStrip(b: Builder, window: StatusMaintenanceWindow): HTMLElem
   ]);
   node.dataset.kind = "maintenance";
   node.dataset.active = String(window.active);
+  node.dataset.announced = String(window.announced);
   return node;
 }
 

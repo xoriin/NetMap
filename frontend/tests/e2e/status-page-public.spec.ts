@@ -200,8 +200,8 @@ test.describe("scheduled maintenance", () => {
     await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({
       summary: { state: "maintenance", label: "Maintenance in progress", counts: { operational: 2, degraded: 0, down: 0, maintenance: 1, unknown: 0 } },
       maintenance: [
-        { id: 1, title: "Core switch firmware upgrade", description: null, starts_at: iso(-10), ends_at: iso(20), active: true },
-        { id: 2, title: `Router swap ${hostile}`, description: `Expect ${hostile} blips`, starts_at: iso(48 * 60), ends_at: iso(48 * 60 + 30), active: false },
+        { id: 1, title: "Core switch firmware upgrade", description: null, starts_at: iso(-10), ends_at: iso(20), active: true, announced: true },
+        { id: 2, title: `Router swap ${hostile}`, description: `Expect ${hostile} blips`, starts_at: iso(48 * 60), ends_at: iso(48 * 60 + 30), active: false, announced: true },
       ],
       past: [{ kind: "maintenance", id: 3, title: "UPS battery test", description: "Done", starts_at: iso(-3000), ends_at: iso(-2940) }],
       groups: [{
@@ -233,6 +233,42 @@ test.describe("scheduled maintenance", () => {
     const order = await frame.locator(".sp-page > *").evaluateAll((nodes) => nodes.map((node) => node.className));
     expect(order).toEqual(["sp-header", "sp-summary", "sp-strip", "sp-strip", "sp-groups", "sp-past"]);
   });
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`a window not announced on this page shows the generic line like an announced one in ${colorScheme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme });
+      const now = Date.now();
+      const iso = (offsetMinutes: number) => new Date(now + offsetMinutes * 60_000).toISOString();
+      await blockEverythingElse(page);
+      await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({
+        summary: { state: "maintenance", label: "Maintenance in progress", counts: { operational: 1, degraded: 0, down: 0, maintenance: 1, unknown: 0 } },
+        maintenance: [
+          { id: 1, title: "Scheduled maintenance", description: null, starts_at: iso(-10), ends_at: iso(20), active: true, announced: false },
+          { id: 2, title: "Router swap", description: "Expect blips", starts_at: iso(-5), ends_at: iso(25), active: true, announced: true },
+        ],
+        groups: [{
+          id: 1, name: "Core network", state: "maintenance", collapsed: false,
+          items: [item(1, "Edge router", false, { state: "maintenance", heartbeats: Array(60).fill("maintenance") }), item(2, "Core switch")],
+        }],
+      })));
+      await page.goto(`/status/${SLUG}`);
+      const frame = statusFrame(page);
+      const generic = frame.locator('.sp-strip[data-kind="maintenance"][data-announced="false"]');
+      const announced = frame.locator('.sp-strip[data-kind="maintenance"][data-announced="true"]');
+      await expect(generic.locator(".sp-pill")).toHaveText("Maintenance");
+      await expect(generic.locator(".sp-strip-title")).toHaveText("Scheduled maintenance");
+      await expect(generic.locator(".sp-strip-meta")).toContainText("until");
+      await expect(generic.locator(".sp-strip-body")).toHaveCount(0);
+      await expect(announced.locator(".sp-strip-body")).toHaveText("Expect blips");
+      expect(await frameBackground(page)).toBe(colorScheme === "dark" ? DARK_BG : LIGHT_BG);
+      const look = (strip: typeof generic) => strip.evaluate((node) => {
+        const pill = node.querySelector(".sp-pill")!;
+        const s = getComputedStyle(node), p = getComputedStyle(pill);
+        return [s.backgroundColor, s.borderColor, s.color, p.backgroundColor, p.color];
+      });
+      expect(await look(generic)).toEqual(await look(announced));
+    });
+  }
 });
 
 test("status page marks itself unavailable when the server stops answering", async ({ page }) => {

@@ -43,6 +43,7 @@ WINDOWS = {"1h": timedelta(hours=1), "24h": timedelta(hours=24)}
 PERIODS = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": timedelta(days=30)}
 LONG_PERIODS = ("7d", "30d")
 SLOTS = 60
+GENERIC_MAINTENANCE_TITLE = "Scheduled maintenance"
 MAX_VALIDITY = timedelta(seconds=30)
 
 LABELS: dict[SummaryState, str] = {
@@ -138,11 +139,14 @@ def _metrics(
     return metrics or None
 
 
-def _window_entry(loaded: maintenance.LoadedWindow, now: datetime) -> dict:
+def _window_entry(loaded: maintenance.LoadedWindow, now: datetime, announced: bool) -> dict:
     window = loaded.window
     return {
-        "id": window.id, "title": window.title, "description": window.description,
+        "id": window.id,
+        "title": window.title if announced else GENERIC_MAINTENANCE_TITLE,
+        "description": window.description if announced else None,
         "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(), "active": loaded.active(now),
+        "announced": announced,
     }
 
 
@@ -281,12 +285,17 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
         for key in loaded.sources.get(page.id, []):
             by_source[key].append(projected["id"])
     announced = [w for w in windows if page.id in w.page_ids]
-    listed = [w for w in announced if w.start - maintenance.UPCOMING_LEAD <= now < w.end]
+    page_keys = {ref.key for ref in refs.values()}
+    unannounced = [
+        w for w in windows if page.id not in w.page_ids and w.window.suppress_alerts and page_keys.intersection(w.keys)
+    ]
+    listed = [w for w in (*announced, *unannounced) if w.start - maintenance.UPCOMING_LEAD <= now < w.end]
     finished = [w for w in announced if now - PAST_WINDOW < w.end <= now]
     past += [_past_window(w) for w in finished]
     past.sort(key=lambda p: p["resolved_at"] if p["kind"] == "incident" else p["ends_at"], reverse=True)
     edges = [edge for w in windows for edge in (w.start, w.end)]
     edges += [edge for w in announced for edge in (w.start - maintenance.UPCOMING_LEAD, w.end + PAST_WINDOW)]
+    edges += [w.start - maintenance.UPCOMING_LEAD for w in unannounced]
     for group_items in by_group.values():
         for entry in group_items:
             entry["incident_ids"] = sorted(by_source.get(refs[entry["id"]].key, []))
@@ -318,7 +327,9 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
             for n in notices
         ],
         "incidents": open_incidents,
-        "maintenance": [_window_entry(w, now) for w in sorted(listed, key=lambda w: (w.start, w.window.id))],
+        "maintenance": [
+            _window_entry(w, now, page.id in w.page_ids) for w in sorted(listed, key=lambda w: (w.start, w.window.id))
+        ],
         "past": past,
         "groups": [
             {
