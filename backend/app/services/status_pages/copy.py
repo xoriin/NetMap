@@ -14,6 +14,8 @@ TITLES = {
 _SOURCE_EVENTS = {
     "opened": "{names} failing ({count} consecutive checks).",
     "source_added": "{names} is also affected.",
+    "source_failing": "{names} failing ({count} consecutive checks).",
+    "source_recovered": "{names} has recovered.",
     "rebreached": "{names} is failing again.",
     "source_removed": "Monitoring source removed",
 }

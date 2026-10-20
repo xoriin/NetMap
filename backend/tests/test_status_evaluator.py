@@ -23,6 +23,7 @@ from app.models.status_page import (
     StatusIncidentPage,
     StatusIncidentSource,
     StatusIncidentUpdate,
+    StatusIntegrationToken,
     StatusPage,
     StatusPageGroup,
     StatusPageItem,
@@ -983,3 +984,136 @@ def test_service_check_enable_and_disable_refresh_the_pages_showing_it(api, db):
     api.calls.clear()
     assert api.put(f"/api/v1/monitoring/service-checks/{target.id}", json={**body, "label": "Web"}).status_code == 200
     assert page.id not in sum(api.calls, [])
+
+
+def _person(db):
+    user = User(username="ops", password_hash="x", role=UserRole.SUPER_ADMIN, is_active=True)
+    db.add(user)
+    db.commit()
+    return PersonActor(user)
+
+
+def _declare(db, actor, pages, refs, at=T0 - STEP):
+    return incidents.open_manual_incident(
+        db, actor, "Router outage", "major", "Looking into it.", True, [p.id for p in pages], refs, None, now=at,
+    )
+
+
+def _page_events(db, incident):
+    return [(u.event_code, u.page_id, u.status_change) for u in db.scalars(
+        select(StatusIncidentUpdate).where(
+            StatusIncidentUpdate.incident_id == incident.id, StatusIncidentUpdate.event_code.is_not(None),
+        ).order_by(StatusIncidentUpdate.id)
+    )]
+
+
+def test_breach_attaches_to_an_open_manual_incident_instead_of_opening_another(db):
+    _rule(db)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    person = _person(db)
+    manual = _declare(db, person, [page], [_ref(router)])
+
+    last = _fail(db, router, 3)
+    assert _incidents(db) == [manual]
+    assert manual.status == "investigating"
+    [row] = db.scalars(select(StatusIncidentSource).where(
+        StatusIncidentSource.incident_id == manual.id, StatusIncidentSource.active == True,  # noqa: E712
+    )).all()
+    assert (row.source_key, row.page_id, row.condition_family) == (_ref(router).key, page.id, "availability")
+    assert _page_events(db, manual) == [("source_failing", page.id, None)]
+    assert _shown(db, page, last) == [("Router outage", ["Looking into it.", "Router failing (3 consecutive checks)."])]
+
+    _cycle(db, last + STEP, [(router, "offline")])
+    assert len(_incidents(db)) == 1
+    assert len(_page_events(db, manual)) == 1
+
+
+def test_automation_never_moves_a_manual_incident_status(db):
+    _rule(db)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    person = _person(db)
+    manual = _declare(db, person, [page], [_ref(router)])
+    last = _fail(db, router, 3)
+    incidents.add_update(db, person, manual.id, None, True, None, "identified", None, now=last + timedelta(seconds=5))
+
+    _cycle(db, last + STEP, [(router, "online")])
+    assert manual.status == "identified"
+    _cycle(db, last + 2 * STEP, [(router, "online")])
+    assert manual.status == "identified"
+    assert _page_events(db, manual)[1:] == [("source_recovered", page.id, None)]
+
+    incidents.add_update(db, person, manual.id, None, True, None, "monitoring", None, now=last + 2 * STEP)
+    _cycle(db, last + 3 * STEP, [(router, "offline")])
+    _cycle(db, last + 4 * STEP, [(router, "offline")])
+    assert manual.status == "monitoring"
+    assert _page_events(db, manual)[1:] == [("source_recovered", page.id, None), ("rebreached", page.id, None)]
+    [(_, messages)] = _shown(db, page, last + 4 * STEP)
+    assert [m for m in messages if m][-2:] == ["Router has recovered.", "Router is failing again."]
+    assert len(_incidents(db)) == 1
+
+
+def test_resolving_a_manual_incident_latches_its_attached_breach(db):
+    rule = _rule(db)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    person = _person(db)
+    manual = _declare(db, person, [page], [_ref(router)])
+    last = _fail(db, router, 3)
+
+    with pytest.raises(incidents.IncidentError):
+        incidents.resolve(db, person, manual.id, None, now=last + timedelta(seconds=5))
+    incidents.resolve(db, person, manual.id, "ISP confirmed", now=last + timedelta(seconds=5))
+    assert _streak(db, rule, _ref(router), page).resolution_latched is True
+
+    last = _fail(db, router, 4, start=last + STEP)
+    assert _incidents(db) == [manual]
+    _cycle(db, last + STEP, [(router, "online")])
+    last = _fail(db, router, 3, start=last + 2 * STEP)
+    old, new = _incidents(db)
+    assert (old.id, old.status) == (manual.id, "resolved")
+    assert (new.source, new.status) == ("netmap", "investigating")
+    assert _sources(db, new) == [(_ref(router).key, page.id)]
+
+
+def test_manual_incident_on_one_page_does_not_absorb_another_pages_breach(db):
+    _rule(db)
+    router = _device(db)
+    one = seed_page(db, "one", items=[(_ref(router), "Router")])
+    two = seed_page(db, "two", items=[(_ref(router), "Edge router")])
+    manual = _declare(db, _person(db), [one], [_ref(router)])
+
+    last = _fail(db, router, 3)
+    first, auto = _incidents(db)
+    assert first.id == manual.id
+    assert _sources(db, manual) == [(_ref(router).key, one.id)]
+    assert _audience(db, manual) == {one.id}
+    assert auto.source == "netmap"
+    assert _audience(db, auto) == {two.id}
+    assert _sources(db, auto) == [(_ref(router).key, two.id)]
+    assert _shown(db, two, last) == [("Edge router unavailable", ["Edge router failing (3 consecutive checks)."])]
+
+
+def test_manual_incident_for_another_item_does_not_absorb_the_breach(db):
+    _rule(db)
+    router, switch = _device(db), _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router"), (_ref(switch), "Switch")])
+    manual = _declare(db, _person(db), [page], [_ref(switch)])
+    _fail(db, router, 3)
+    first, auto = _incidents(db)
+    assert first.id == manual.id and _sources(db, manual) == []
+    assert _sources(db, auto) == [(_ref(router).key, page.id)]
+
+
+def test_token_created_incident_is_owned_like_a_persons(db):
+    _rule(db)
+    router = _device(db)
+    page = seed_page(db, "main", items=[(_ref(router), "Router")])
+    token = StatusIntegrationToken(name="backup-server", prefix="nmst_abc", hash="h")
+    db.add(token)
+    db.commit()
+    manual = _declare(db, incidents.TokenActor(token), [page], [_ref(router)])
+    _fail(db, router, 3)
+    assert _incidents(db) == [manual]
+    assert _sources(db, manual) == [(_ref(router).key, page.id)]

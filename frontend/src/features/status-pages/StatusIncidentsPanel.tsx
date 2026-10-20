@@ -23,6 +23,8 @@ const SOURCE_LABELS = { person: "Opened by a person", token: "Opened by an integ
 const EVENT_LABELS: Record<string, string> = {
   opened: "Opened automatically after consecutive failed checks.",
   source_added: "Another monitored item is affected.",
+  source_failing: "Automatic checks found an affected item failing.",
+  source_recovered: "Automatic checks found an affected item recovered.",
   rebreached: "Failing again.",
   source_removed: "Monitoring source removed.",
   recovered: "All affected systems have recovered. Monitoring.",

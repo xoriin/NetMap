@@ -20,6 +20,7 @@ from app.models.status_page import (
     StatusIncidentAlias,
     StatusIncidentPage,
     StatusIncidentSource,
+    StatusIncidentUpdate,
     StatusPageItem,
 )
 from app.services.alerting.service import DEFAULT_LOSS_WINDOW_MINUTES, FLAP_MIN_TRANSITIONS, FLAP_WINDOW_SECONDS
@@ -53,6 +54,8 @@ SERVICE_EVENTS = {"service_down", "service_slow"}
 MONITOR_EVENTS = {"monitor_down", "monitor_slow", "monitor_certificate_expiry"}
 
 GROUP_WINDOW = timedelta(minutes=5)
+OWNED_SOURCES = ("person", "token")
+OBSERVED_EVENTS = ("source_failing", "source_recovered", "rebreached")
 SCAN_ROWS = 50
 NETMAP = incidents.NetmapActor()
 
@@ -312,6 +315,7 @@ class _Evaluation:
         self.changed: set[int] = set()
         self.cleared: set[int] = set()
         self.rebreached: dict[int, set[str]] = defaultdict(set)
+        self.failing: set[int] = set()
         self.candidates: list[tuple[AlertRule, str, int, int]] = []
         self.aliases_cache: dict[int, dict[str, str]] = {}
 
@@ -408,6 +412,7 @@ class _Evaluation:
                 self.cleared.add(assoc.incident_id)
             elif result is True:
                 self.rebreached[assoc.incident_id].add(key)
+                self.failing.add(assoc.id)
 
     def evaluate_ref(self, ref, rules, pages, state, monitor, streaks) -> None:
         db = self.db
@@ -477,6 +482,7 @@ class _Evaluation:
             if any(r is True for r in results):
                 assoc.cleared = False
                 self.rebreached[assoc.incident_id].add(ref.key)
+                self.failing.add(assoc.id)
             elif all(r is False for r in results):
                 if not assoc.cleared:
                     assoc.cleared = True
@@ -489,6 +495,11 @@ class _Evaluation:
         for rule, key, page_id, streak in self.candidates:
             family = CONDITION_FAMILY[rule.event_type]
             if (key, family, page_id) in self.associations:
+                continue
+            owner = self.owned_incident(key, page_id)
+            if owner is not None:
+                if self.attach(owner, [key], [page_id], rule.id, family):
+                    self.add_event(owner, "source_failing", [key], count=streak, page_id=page_id, family=family)
                 continue
             entry = wanted.setdefault((rule.id, key), (rule, set(), 0))
             entry[1].add(page_id)
@@ -511,6 +522,19 @@ class _Evaluation:
                     self.rebreached[incident.id].update(attached)
             else:
                 self.create(rules[rule_id], family, sorted(pages), keys, max(s for _, s in members))
+
+    def owned_incident(self, key: str, page_id: int) -> int | None:
+        return self.db.scalar(
+            select(StatusIncident.id)
+            .join(StatusIncidentSource, StatusIncidentSource.incident_id == StatusIncident.id)
+            .join(StatusIncidentPage, (StatusIncidentPage.incident_id == StatusIncident.id) & (StatusIncidentPage.page_id == page_id))
+            .where(
+                StatusIncident.source.in_(OWNED_SOURCES), StatusIncident.status != "resolved",
+                StatusIncidentSource.source_key == key, StatusIncidentSource.page_id == page_id,
+                StatusIncidentSource.condition_family == incidents.MANUAL_FAMILY,
+            )
+            .order_by(StatusIncident.opened_at.desc(), StatusIncident.id.desc()).limit(1)
+        )
 
     def group_target(self, rule_id: int, family: str, pages: frozenset[int]) -> StatusIncident | None:
         candidates = list(self.db.scalars(
@@ -578,26 +602,51 @@ class _Evaluation:
 
     def add_event(
         self, incident_id: int, code: str, keys: list[str], *, count: int | None = None, page_id: int | None = None,
-        status: str | None = None,
+        status: str | None = None, family: str | None = None,
     ) -> None:
+        data = {"sources": list(keys), "count": len(keys) if count is None else count}
+        if family is not None:
+            data["family"] = family
         self.db.add(incidents._update_row(
-            incident_id, NETMAP, self.now, page_id=page_id, status_change=status, event_code=code,
-            event_data={"sources": list(keys), "count": len(keys) if count is None else count},
+            incident_id, NETMAP, self.now, page_id=page_id, status_change=status, event_code=code, event_data=data,
         ))
         self.db.flush()
         self.changed.add(incident_id)
 
+    def last_observed(self, incident_id: int, page_id: int, key: str, family: str) -> str | None:
+        for row in self.db.scalars(select(StatusIncidentUpdate).where(
+            StatusIncidentUpdate.incident_id == incident_id, StatusIncidentUpdate.page_id == page_id,
+            StatusIncidentUpdate.event_code.in_(OBSERVED_EVENTS),
+        ).order_by(StatusIncidentUpdate.id.desc())):
+            data = row.event_data or {}
+            if data.get("family") == family and key in (data.get("sources") or []):
+                return row.event_code
+        return None
+
+    def report_to_owners(self) -> None:
+        db = self.db
+        for (key, family, page_id), assoc in sorted(self.associations.items()):
+            incident = db.get(StatusIncident, assoc.incident_id)
+            if incident is None or incident.source not in OWNED_SOURCES or incident.status == "resolved":
+                continue
+            last = self.last_observed(incident.id, page_id, key, family)
+            if assoc.id in self.failing and last == "source_recovered":
+                self.add_event(incident.id, "rebreached", [key], page_id=page_id, family=family)
+            elif assoc.cleared and last in ("source_failing", "rebreached"):
+                self.add_event(incident.id, "source_recovered", [key], page_id=page_id, family=family)
+
     def apply_status_changes(self) -> None:
         db = self.db
         db.flush()
+        self.report_to_owners()
         for incident_id, keys in sorted(self.rebreached.items()):
             incident = db.get(StatusIncident, incident_id)
-            if incident is not None and incident.status == "monitoring":
+            if incident is not None and incident.source == "netmap" and incident.status == "monitoring":
                 incident.status = "investigating"
                 self.add_event(incident_id, "rebreached", sorted(keys), status="investigating")
         for incident_id in sorted(self.cleared):
             incident = db.get(StatusIncident, incident_id)
-            if incident is None or incident.status not in ("investigating", "identified"):
+            if incident is None or incident.source != "netmap" or incident.status not in ("investigating", "identified"):
                 continue
             rows = list(db.execute(select(StatusIncidentSource.active, StatusIncidentSource.cleared).where(
                 StatusIncidentSource.incident_id == incident_id,
