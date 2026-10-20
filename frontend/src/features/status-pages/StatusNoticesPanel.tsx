@@ -114,7 +114,7 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
       <section className="nm-app-panel status-editor-panel status-notices-panel">
         <StatusEditorPanelHeader icon={Megaphone} title="Notices on this page" meta={notices ? `${notices.length} notice${notices.length === 1 ? "" : "s"}` : undefined} />
         <div className="status-layout-intro">
-          {error && <div className="nm-alert nm-alert--error" role="alert">{error}</div>}
+          {error && <div className="nm-alert nm-alert--error" role="alert">{error} <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void load(notices === null)}>Try again</button></div>}
           <small className="status-editor-hint">Each person and each integration token has one notice slot per page. You can clear anyone's notice.</small>
         </div>
         {!notices ? (

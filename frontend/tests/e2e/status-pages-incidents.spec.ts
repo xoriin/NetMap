@@ -390,7 +390,7 @@ test("maintenance create sends local times with the browser offset", async ({ pa
   const dialog = page.getByRole("dialog", { name: "Schedule maintenance" });
   await dialog.getByLabel("Title").fill("Firmware upgrade");
   await dialog.getByLabel("Starts", { exact: true }).fill("2030-06-01T22:00");
-  await dialog.getByLabel("Ends").fill("2030-06-01T22:30");
+  await dialog.getByLabel(/^Ends/).fill("2030-06-01T22:30");
   await dialog.getByRole("checkbox", { name: /Core router/ }).check();
   await dialog.getByRole("button", { name: "Schedule" }).click();
   await expect(dialog).toHaveCount(0);
@@ -552,6 +552,38 @@ test("own notice form stays locked until the page's notices load so edits are no
   await expect(form.getByLabel("Title")).toBeEnabled();
   await expect(form.getByLabel("Title")).toHaveValue("Cabling work");
   await expect(form.getByLabel("Level")).toHaveValue("warning");
+});
+
+test("own notice form offers a retry when the first notices request fails", async ({ page }) => {
+  const api = new ManageApi();
+  api.notices.push({ id: 40, page_id: 1, owner_kind: "user", owner_id: 1, level: "warning", title: "Cabling work", body: null, link: null, author: "Ada Admin", created_at: iso(-5), expires_at: null, mine: true, token_active: null });
+  let attempts = 0;
+  await openApp(page);
+  await api.install(page);
+  await page.route("**/api/v1/status-pages/1/notices", async (route) => {
+    attempts += 1;
+    if (attempts === 1) return route.fulfill({ status: 500, json: { detail: "Database is busy" } });
+    return route.fallback();
+  });
+  await page.goto("/monitoring");
+  await page.getByRole("link", { name: "Status pages", exact: true }).click();
+  await page.locator(".status-pages-table tbody tr", { hasText: "Ops" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("tab", { name: "Notices" }).click();
+  const form = page.locator(".status-notice-form");
+  const alert = page.locator(".status-notices-panel .nm-alert--error");
+  await expect(alert).toBeVisible();
+  await expect(form.getByLabel("Title")).toBeDisabled();
+  const retry = alert.getByRole("button", { name: "Try again" });
+  await expect(retry).toHaveClass(/\bnm-btn\b/);
+  await expect(retry).toHaveClass(/\bnm-btn--sm\b/);
+  await expect(retry).toHaveClass(/\bnm-btn--secondary\b/);
+  await retry.click();
+  await expect.poll(() => attempts).toBe(2);
+  await expect(alert).toHaveCount(0);
+  await expect(form.getByLabel("Title")).toBeEnabled();
+  await expect(form.getByLabel("Title")).toHaveValue("Cabling work");
+  await expect(form.getByLabel("Level")).toHaveValue("warning");
+  await expect(form.getByRole("button", { name: "Save notice" })).toBeEnabled();
 });
 
 test("alert rule incident toggle defaults on for device offline and off for rtt", async ({ page }) => {
