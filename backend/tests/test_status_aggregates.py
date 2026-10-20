@@ -375,10 +375,10 @@ def test_refresher_drains_never_computed_first_then_oldest_due_with_jitter(monke
     keys = {ref: (ref.key, "7d", 60, ()) for ref in refs}
     for n, ref in enumerate(refs):
         at = NOW + timedelta(minutes=2 * (n % 4))
-        history.long(keys[ref], at, ref, week)
+        history.track(keys[ref], ref, week, at)
         history.store_long(keys[ref], at, aggregates.PENDING)
     later = NOW + timedelta(minutes=20)
-    history.long(("device:99", "7d", 60, ()), later, SourceRef("device", device_id=99), week)
+    history.track(("device:99", "7d", 60, ()), SourceRef("device", device_id=99), week, later)
     due = {ref.device_id: history.long(keys[ref], later).refresh_at for ref in refs}
     assert len(set(due.values())) == 8
     order = []
@@ -391,7 +391,7 @@ def test_refresher_drains_never_computed_first_then_oldest_due_with_jitter(monke
 def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch):
     history = aggregates.SourceHistory()
     for n in (1, 2):
-        history.long((f"device:{n}", "7d", 60, ()), NOW, SourceRef("device", device_id=n), timedelta(days=7))
+        history.track((f"device:{n}", "7d", 60, ()), SourceRef("device", device_id=n), timedelta(days=7), NOW)
     order = []
     _recording_compute(monkeypatch, order, failing={1})
     with pytest.raises(RuntimeError):
@@ -454,3 +454,44 @@ def test_long_period_rows_are_fetched_one_source_at_a_time_in_short_sessions(cac
     assert len(long_fetches) == 5
     assert max(long_fetches) <= 8 * 1440 + 1
     assert len(opened) >= 1 + 5
+
+
+def test_refresher_never_recomputes_keys_the_build_is_computing_inline(cache, factory, monkeypatch):
+    ids = _devices(factory, 6, minutes=8 * 1440)
+    page_id = _page(factory, "media", ids, period="7d")
+    inline, background = [], []
+    real_fetch, real_compute = aggregates.BuildCycle.fetch_long, aggregates.compute_long
+
+    def racing_fetch(self, refs, start, end, db=None):
+        refs = list(refs)
+        inline.append(refs[0].device_id)
+        while cache.refresh_long(NOW):
+            pass
+        return real_fetch(self, refs, start, end, db)
+
+    def recorded(fetch, ref, key, length, now):
+        background.append(ref.device_id)
+        return real_compute(fetch, ref, key, length, now)
+
+    monkeypatch.setattr(aggregates.BuildCycle, "fetch_long", racing_fetch)
+    monkeypatch.setattr(aggregates, "compute_long", recorded)
+    cache.history.wake.clear()
+    _build(cache, [page_id])
+    assert cache.history.wake.is_set()
+    _settle(cache)
+    assert len(inline) == aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
+    assert sorted(inline + background) == sorted(ids)
+
+
+def test_job_unused_since_its_last_compute_is_dropped_instead_of_refreshed(cache, factory, monkeypatch):
+    ids = _devices(factory, 1)
+    page_id = _page(factory, "media", ids)
+    _build(cache, [page_id])
+    refreshed = _long_fetches(monkeypatch)
+    _settle(cache, _stale_at())
+    assert refreshed == [ids]
+    again = _stale_at() + aggregates.LONG_REFRESH + aggregates.LONG_JITTER
+    _settle(cache, again)
+    assert refreshed == [ids]
+    assert cache.history.backlog(again + timedelta(hours=1)) == []
+    assert _uptimes(_build(cache, [page_id], again)[page_id])[0]["label"] == "ok"

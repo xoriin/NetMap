@@ -24,7 +24,6 @@ from app.services.status_pages.sources import CurrentState, SourceRef, load_curr
 LONG_REFRESH = timedelta(minutes=5)
 LONG_JITTER = timedelta(seconds=60)
 LONG_HARD_CAP = timedelta(minutes=15)
-LONG_IDLE = timedelta(minutes=30)
 LONG_RETRY = timedelta(minutes=1)
 FIRST_BUILD_SOURCES_PER_CYCLE = 4
 FIRST_BUILD_SECONDS_PER_CYCLE = 0.25
@@ -102,19 +101,20 @@ class SourceHistory:
         spread = int(LONG_JITTER.total_seconds() * 1000)
         return timedelta(milliseconds=zlib.crc32(f"{self.seed}:{key[0]}:{key[1]}".encode()) % spread)
 
-    def long(self, key: LongKey, now: datetime, ref: SourceRef | None = None, length: timedelta | None = None) -> LongEntry | None:
-        """The cached value whatever its age; with `ref` the key is also kept on the refresher's list."""
+    def long(self, key: LongKey, now: datetime) -> LongEntry | None:
+        """The cached value whatever its age."""
         with self._lock:
-            found = self._long.get(key)
-            if ref is not None and length is not None:
-                job = self._jobs.get(key)
-                if job is None:
-                    self._jobs[key] = _Job(ref, length, now, found.refresh_at if found else now)
-                elif now > job.used_at:
-                    job.used_at = now
-        if found is None and ref is not None:
-            self.wake.set()
-        return found
+            return self._long.get(key)
+
+    def track(self, key: LongKey, ref: SourceRef, length: timedelta, now: datetime) -> None:
+        """Keep `key` on the refresher's list and mark it used by a build at `now`."""
+        with self._lock:
+            job = self._jobs.get(key)
+            if job is None:
+                found = self._long.get(key)
+                self._jobs[key] = _Job(ref, length, now, found.refresh_at if found else now)
+            elif now > job.used_at:
+                job.used_at = now
 
     def store_long(self, key: LongKey, now: datetime, value: Availability, generation: int | None = None) -> bool:
         """Whether the stored value changed what a page shows."""
@@ -133,9 +133,6 @@ class SourceHistory:
     def backlog(self, now: datetime) -> list[LongKey]:
         """Due keys in refresh order: never-computed first, then oldest due time (which carries the jitter)."""
         with self._lock:
-            for key in [k for k, job in self._jobs.items() if now - job.used_at > LONG_IDLE]:
-                del self._jobs[key]
-                self._long.pop(key, None)
             due = [(key not in self._long, job.due_at, key) for key, job in self._jobs.items() if job.due_at <= now]
         due.sort(key=lambda d: (not d[0], d[1]))
         return [key for _, _, key in due]
@@ -155,7 +152,11 @@ class SourceHistory:
         self._warn_backlog(now, due)
         key = due[0]
         with self._lock:
-            job, generation = self._jobs.get(key), self.generation
+            job, generation, entry = self._jobs.get(key), self.generation, self._long.get(key)
+            if job is not None and entry is not None and job.used_at < entry.computed_at:
+                del self._jobs[key]
+                del self._long[key]
+                return True
         if job is None:
             return True
 
