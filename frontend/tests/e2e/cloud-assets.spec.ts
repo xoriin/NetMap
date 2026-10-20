@@ -29,14 +29,12 @@ for (const theme of ['light', 'dark'] as const) {
   await expect(table.getByText('8.8.4.4',{exact:true})).toBeVisible();
   await expect(table.getByText('8.8.8.8',{exact:true})).toBeHidden();
   await page.getByRole('textbox',{name:'Search cloud assets'}).fill('');
-  await page.screenshot({path:`/tmp/netmap-cloud-${theme}.png`});
   await page.getByRole('link',{name:'Devices',exact:true}).click();
   await expect(page.locator('.inventory-table')).toBeVisible();
   await page.goBack(); await expect(table).toBeVisible();
   await page.reload(); await expect(table).toBeVisible();
   await page.setViewportSize({width:780,height:850});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({path:`/tmp/netmap-cloud-${theme}-narrow.png`});
  });
 }
 
@@ -66,7 +64,6 @@ for (const theme of ['light','dark'] as const) {
   await expect(page.getByText('Retained gateway',{exact:true})).toBeVisible();
   await expect(page.getByText('Original description',{exact:true})).toBeVisible();
   await expect(page.getByText('Not monitored',{exact:true})).toBeVisible();
-  await page.screenshot({path:`/tmp/netmap-saved-assets-${theme}.png`});
  });
 }
 
@@ -106,14 +103,12 @@ for (const theme of ['light','dark'] as const) {
   const devices=await design('.inventory-row');
   await page.locator('.inventory-row').first().hover();
   const deviceHover=await styles('.inventory-row',['background-color','box-shadow','border-left-color']);
-  await page.screenshot({path:`/tmp/netmap-canonical-devices-${theme}.png`});
   await page.getByRole('link',{name:'Cloud assets',exact:true}).click();
   await expect(page.locator('[data-cloud-record]')).toBeVisible();
   await page.mouse.move(0,0);
   expect(await design('[data-cloud-record]')).toEqual(devices);
   await page.locator('[data-cloud-record]').first().hover();
   expect(await styles('[data-cloud-record]',['background-color','box-shadow','border-left-color'])).toEqual(deviceHover);
-  await page.screenshot({path:`/tmp/netmap-canonical-cloud-${theme}.png`});
   const handle=page.locator('.inventory-col-resize-handle').first();
   const box=await handle.boundingBox();
   const before=await page.locator('.inventory-th').first().evaluate(el=>el.getBoundingClientRect().width);
@@ -127,7 +122,6 @@ for (const theme of ['light','dark'] as const) {
   const layout = await page.locator('.inventory-stats').evaluate(el => ({width:el.clientWidth,scroll:el.scrollWidth,columns:getComputedStyle(el).gridTemplateColumns.split(' ').length}));
   expect(layout.scroll).toBeLessThanOrEqual(layout.width); expect(layout.columns).toBe(2);
   expect(await page.locator('.inventory-table-header').evaluate(el=>el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(1200);
-  await page.screenshot({path:`/tmp/netmap-canonical-cloud-${theme}-narrow.png`});
  });
 }
 
@@ -149,7 +143,6 @@ for (const theme of ['light','dark'] as const) {
    expect(await neutral.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe('rgb(237, 243, 247)');
    expect(await page.locator('.status-pill.unknown').first().evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe('rgb(237, 243, 247)');
   }
-  await page.screenshot({path:`/tmp/netmap-cloud-workspace-${theme}.png`});
  });
 }
 
@@ -232,12 +225,10 @@ for (const theme of ['light','dark'] as const) {
   await expect(sidebar.locator('.inventory-device-sidebar-header')).toHaveCSS('min-height','44px');
   const toolbar=await page.locator('.inventory-panel-header').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth}));
   expect(toolbar.scroll).toBeLessThanOrEqual(toolbar.width);
-  await page.screenshot({path:`/tmp/netmap-asset-sidebar-${theme}.png`});
   await page.setViewportSize({width:780,height:850});
   await expect(sidebar).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await sidebar.scrollIntoViewIfNeeded();
-  await page.screenshot({path:`/tmp/netmap-asset-sidebar-${theme}-narrow.png`});
   await sidebar.getByRole('link',{name:'Manage external IPs'}).scrollIntoViewIfNeeded();
   await expect(sidebar.getByRole('link',{name:'Manage external IPs'})).toBeVisible();
   await page.getByRole('button',{name:'Close asset overview'}).click();

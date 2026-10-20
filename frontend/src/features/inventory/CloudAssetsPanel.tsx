@@ -120,9 +120,10 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   function options(field: "provider" | "location" | "kind", label: string) {
     return [{value:"all",label}, ...[...new Set(records.map(row => row[field]))].sort().map(value => ({value, label:value || "Unassigned"}))];
   }
-  const ipamLink = <SpaLink className="nm-btn nm-btn--secondary" href="/ipam#external" onNavigate={() => {
+  const ipamLinkFor = (className: string) => <SpaLink className={className} href="/ipam#external" onNavigate={() => {
     onNavigate?.("/ipam"); window.history.replaceState(null, "", "/ipam#external"); window.dispatchEvent(new Event("hashchange"));
   }}>Manage external IPs</SpaLink>;
+  const ipamLink = ipamLinkFor("nm-btn nm-btn--secondary");
   function openRow(row: CloudRow) {
     setDetailKey(row.key);
     onOpenDevice(row.device?.id ?? null);
@@ -132,7 +133,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
     latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
     onShowInDevices={id => {window.history.replaceState({...(window.history.state ?? {}), cloudAsset: detail.key}, ""); onShowInDevices(id);}}
-    deviceDetails={deviceDetails} externalIpAction={ipamLink} onClose={() => {
+    deviceDetails={deviceDetails} externalIpAction={ipamLinkFor("nm-btn nm-btn--sm nm-btn--secondary")} onClose={() => {
       if (restoreKey()) window.history.replaceState({...(window.history.state ?? {}), cloudAsset: undefined}, "");
       setDetailKey(null); onOpenDevice(null);
     }} onLinkChange={onOpenDevice}

@@ -34,7 +34,6 @@ for(const theme of ['light','dark'] as const) {
   await expect(pill).toBeVisible();
   const rowPill=page.locator('[data-cloud-record="address-1"] .status-pill');
   expect(await pill.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe(await rowPill.evaluate(el=>getComputedStyle(el).backgroundColor));
-  await page.screenshot({path:`/tmp/netmap-cloud-context-${theme}.png`});
   await sidebar.getByRole('button',{name:'Show in Devices',exact:true}).click();
   await expect(page).toHaveURL(/inventory#devices$/);
   const device=page.getByRole('complementary',{name:'Device overview'});

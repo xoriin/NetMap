@@ -36,6 +36,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
+import { editableField } from "../../utils/editableField";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 
 export type CloudAssetRecord =
@@ -266,7 +267,8 @@ export function CloudAssetDetails({
   const current = fields.find((field) => field.label === editing);
 
   function start(field: Field) {
-    if (!canWrite || busy || !field.save) return;
+    if (!canWrite || busy || !field.save || editing === field.label) return;
+    if (current && draft !== current.value) return;
     setEditing(field.label);
     setDraft(field.value);
     setError(null);
@@ -422,10 +424,7 @@ export function CloudAssetDetails({
               {fields.map((field) => (
                 <Fragment key={field.label}>
                   <dt><span className="details-field-icon"><FieldIcon label={field.label} /></span>{field.label}</dt>
-                  <dd
-                    className={canWrite && field.save && editing !== field.label ? "editable-dd" : undefined}
-                    onDoubleClick={() => start(field)}
-                  >
+                  <dd {...editableField(canWrite && Boolean(field.save) && !busy, () => start(field))}>
                     {editing === field.label ? (
                       <form
                         className="cloud-asset-field-edit"
@@ -446,49 +445,32 @@ export function CloudAssetDetails({
                           <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={stopEditing}>Cancel</button>
                         </div>
                       </form>
-                    ) : (
-                      <span className="cloud-asset-field-value">
-                        <span>{display(field)}</span>
-                        {canWrite && field.save && (
-                          <button
-                            type="button"
-                            className="nm-btn nm-btn--sm nm-btn--ghost nm-btn--icon"
-                            aria-label={`Edit ${field.label}`}
-                            title={`Edit ${field.label}`}
-                            disabled={busy}
-                            onClick={() => start(field)}
-                          >
-                            <Pencil size={12} />
-                          </button>
-                        )}
-                      </span>
-                    )}
+                    ) : display(field)}
                   </dd>
                 </Fragment>
               ))}
             </dl>
-            <div className="detail-actions detail-actions--device">
-              {device && deviceDetails && (
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => setShowDevice(true)}>Open linked device</button>
-              )}
-              {device && (
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => onShowInDevices(device.id)}>Show in Devices</button>
-              )}
-              {canWrite && deviceId === null && canCreate && (
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={startCreate}>Add to Inventory</button>
-              )}
-              {canWrite && deviceId === null && (
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => start(fields[0])}>Link device</button>
-              )}
-            </div>
-            {((canWrite && deviceId !== null) || record.type === "address") && (
+            {(device || canWrite || record.type === "address") && (
               <div className="detail-actions detail-actions--device">
+                {canWrite && deviceId === null && canCreate && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={startCreate}>Add to Inventory</button>
+                )}
+                {canWrite && deviceId === null && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => start(fields[0])}>Link device</button>
+                )}
+                {device && deviceDetails && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => setShowDevice(true)}>Open linked device</button>
+                )}
+                {device && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => onShowInDevices(device.id)}>Show in Devices</button>
+                )}
                 {canWrite && deviceId !== null && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => void unlink()}>Unlink device</button>
                 )}
                 {record.type === "address" && externalIpAction}
               </div>
             )}
+            {canWrite && <p className="details-edit-hint">Double-click any field to edit</p>}
           </>
         )}
       </InventoryDetailsPanel>
