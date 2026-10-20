@@ -968,3 +968,18 @@ def test_alert_rule_changes_refresh_every_page(api, db):
     api.calls.clear()
     assert api.delete(f"/api/v1/alerts/rules/{created.json()['id']}").status_code == 204
     assert api.calls == [pages]
+
+
+def test_service_check_enable_and_disable_refresh_the_pages_showing_it(api, db):
+    host = _device(db)
+    target = seed_service_check(db, host.id, port=443, label="HTTPS")
+    page = seed_page(db, "main", items=[(SourceRef("service_check", device_id=host.id, port_target_id=target.id), "Web")])
+    seed_page(db, "other", items=[(_ref(_device(db)), "Other")])
+    body = {"device_id": host.id, "port": 443, "label": "HTTPS", "check_type": "tcp"}
+    for enabled in (False, True):
+        api.calls.clear()
+        assert api.put(f"/api/v1/monitoring/service-checks/{target.id}", json={**body, "enabled": enabled}).status_code == 200
+        assert page.id in sum(api.calls, [])
+    api.calls.clear()
+    assert api.put(f"/api/v1/monitoring/service-checks/{target.id}", json={**body, "label": "Web"}).status_code == 200
+    assert page.id not in sum(api.calls, [])

@@ -34,6 +34,7 @@ from app.schemas.monitoring import (
 from app.services.monitoring.health import observed_health, observed_is_healthy
 from app.services.status_pages import evaluator as status_evaluator
 from app.services.status_pages import events as status_page_events
+from app.services.status_pages.sources import pages_with_items
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 SERVICE_CHECK_ORDER_MODE_KEY = "service_check_order_mode"
@@ -638,6 +639,7 @@ def update_port_target(
     if payload.device_id is not None and db.get(Device, payload.device_id) is None:
         raise HTTPException(status_code=404, detail="Device not found")
     is_http = payload.check_type in ("http", "https")
+    enabled_changed = target.enabled != payload.enabled
     target.device_id = payload.device_id
     target.port = payload.port
     target.label = payload.label
@@ -657,6 +659,8 @@ def update_port_target(
         pages = status_evaluator.remove_items_where(
             db, StatusPageItem.port_target_id == target.id, StatusPageItem.device_id != target.device_id,
         )
+    if enabled_changed:
+        pages.update(pages_with_items(db, StatusPageItem.port_target_id == target.id))
     db.commit()
     status_page_events.notify_pages_changed(pages)
     db.refresh(target)
