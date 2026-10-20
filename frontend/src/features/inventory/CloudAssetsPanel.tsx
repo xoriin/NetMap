@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Cloud, Globe, Link2, Search, Server, Star, Unlink } from "lucide-react";
+import { Cloud, Link2, Search, Server, Star, Unlink } from "lucide-react";
+import { IconWifiOff } from "@tabler/icons-react";
 import { api, type Device } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
@@ -16,19 +17,21 @@ import { useInventoryTableColumns } from "./useInventoryTableColumns";
 type CloudRow = {
   key: string; name: string; ip: string; kind: string; purpose: string;
   provider: string; location: string; lifecycle: string; device?: Device; deviceId: number | null;
-  record: CloudAssetRecord; health: DeviceHealth; monitoring: string; details: [string, string][];
+  record: CloudAssetRecord; health: DeviceHealth; monitoring: string; latency: string; details: [string, string][];
 };
-const headings = ["Asset", "IP", "Kind", "Purpose", "Monitoring", "Address state", "Provider", "Location / account"];
+const headings = ["Asset", "IP", "Kind", "Purpose", "Monitoring", "Latency", "Address state", "Provider", "Location / account"];
+const restoreKey = () => (window.history.state as { cloudAsset?: string } | null)?.cloudAsset ?? null;
 
 /** Current addresses and retained resources remain independent records; linking never enables probes. */
 export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteIds, onToggleFavourite,
   onOpenDevice, selectedDeviceId, deviceDetails, healthFor, livePingEnabled, mutationError, canWriteIpam,
-  canCreateDevice, deviceFormOptions, onDeviceCreated }: {
+  canCreateDevice, deviceFormOptions, latencyFor, onDeviceCreated, onShowInDevices }: {
   accessToken: string; devices: Device[]; onNavigate?: (route: AppRoute) => void;
   favouriteIds: Set<number>; onToggleFavourite: (id: number) => void;
   onOpenDevice: (id: number | null) => void; selectedDeviceId: number | null;
   deviceDetails: ReactNode; canWriteIpam: boolean; healthFor: (device: Device) => DeviceHealth; livePingEnabled: boolean; mutationError: string | null;
-  canCreateDevice: boolean; deviceFormOptions: CloudDeviceFormOptions; onDeviceCreated: (device: Device) => void;
+  canCreateDevice: boolean; deviceFormOptions: CloudDeviceFormOptions; latencyFor: (id: number) => number | null;
+  onDeviceCreated: (device: Device) => void; onShowInDevices: (id: number) => void;
 }) {
   const query = useApiQuery(async () => {
     const [addresses, locations, accounts, providers, assets] = await Promise.all([
@@ -43,12 +46,12 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const [kindFilter, setKindFilter] = useState("all");
   const [monitorFilter, setMonitorFilter] = useState("all");
   const [favouritesOnly, setFavouritesOnly] = useState(false);
-  const [detailKey, setDetailKey] = useState<string | null>(null);
+  const [detailKey, setDetailKey] = useState<string | null>(restoreKey);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [sort, setSort] = useState(0);
   const [ascending, setAscending] = useState(true);
-  const { widths, headerRef, startResize, reset } = useInventoryTableColumns({ count: 8, leadingColumns: 1, storageKey: "netmap.cloud_asset_columns_v2" });
+  const { widths, headerRef, startResize, reset } = useInventoryTableColumns({ count: 9, leadingColumns: 1, storageKey: "netmap.cloud_asset_columns_v3" });
   const records = useMemo<CloudRow[]>(() => {
     if (!query.data) return [];
     const { addresses, locations, accounts, providers, assets } = query.data;
@@ -58,7 +61,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     const providerById = new Map(providers.map(provider => [provider.id, provider.name]));
     function monitoring(deviceId: number | null, device?: Device) {
       const health = device ? healthFor(device) : "unknown";
-      return { device, deviceId, health, monitoring: device
+      const rtt = device ? latencyFor(device.id) : null;
+      return { device, deviceId, health, latency: rtt != null ? `${rtt.toFixed(1)} ms` : "", monitoring: device
         ? deviceHealthLabel(device, { observed: device.monitor_status ?? device.status, paused: health === "paused" || !livePingEnabled })
         : deviceId !== null ? "Unknown" : "Not monitored" };
     }
@@ -90,8 +94,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         };
       }),
     ];
-  }, [query.data, devices, healthFor, livePingEnabled]);
-  const values = (row: CloudRow) => [row.name, row.ip, row.kind, row.purpose, row.monitoring, row.lifecycle, row.provider, row.location];
+  }, [query.data, devices, healthFor, livePingEnabled, latencyFor]);
+  const values = (row: CloudRow) => [row.name, row.ip, row.kind, row.purpose, row.monitoring, row.latency, row.lifecycle, row.provider, row.location];
   const filtered = records.filter(row =>
     (providerFilter === "all" || row.provider === providerFilter) &&
     (locationFilter === "all" || row.location === locationFilter) &&
@@ -105,7 +109,14 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const detail = records.find(row => row.key === detailKey);
   const linkedCount = new Set(records.flatMap(row => row.deviceId !== null ? [row.deviceId] : [])).size;
-  const providerCount = new Set(records.map(row => row.provider).filter(Boolean)).size;
+  const offlineCount = records.filter(row => row.device && row.health === "offline").length;
+  useEffect(() => {
+    if (!query.data || !detailKey || detailKey !== restoreKey()) return;
+    const restored = records.find(row => row.key === detailKey);
+    if (restored?.device) onOpenDevice(restored.device.id);
+    // Only the first load after returning from Devices restores the linked device.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.data]);
   function options(field: "provider" | "location" | "kind", label: string) {
     return [{value:"all",label}, ...[...new Set(records.map(row => row[field]))].sort().map(value => ({value, label:value || "Unassigned"}))];
   }
@@ -119,8 +130,12 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const activeOverview = detail && query.data ? <CloudAssetDetails key={detail.key}
     record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
-    canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
-    deviceDetails={deviceDetails} externalIpAction={ipamLink} onClose={() => {setDetailKey(null);onOpenDevice(null);}} onLinkChange={onOpenDevice}
+    latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
+    onShowInDevices={id => {window.history.replaceState({...(window.history.state ?? {}), cloudAsset: detail.key}, ""); onShowInDevices(id);}}
+    deviceDetails={deviceDetails} externalIpAction={ipamLink} onClose={() => {
+      if (restoreKey()) window.history.replaceState({...(window.history.state ?? {}), cloudAsset: undefined}, "");
+      setDetailKey(null); onOpenDevice(null);
+    }} onLinkChange={onOpenDevice}
     onAddressChange={value => query.setData(current => current && ({...current,addresses:current.addresses.map(row=>row.id===value.id ? value : row)}))}
     onResourceChange={value => query.setData(current => current && ({...current,assets:current.assets.map(row=>row.id===value.id ? value : row)}))}
   /> : null;
@@ -129,8 +144,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     <div className="dash-stats inventory-stats nm-summary-band">
       <DashStat label="Cloud assets" value={query.error ? "—" : records.length} icon={<Cloud size={20} />} accent="teal" />
       <DashStat label="Linked devices" value={query.error ? "—" : linkedCount} icon={<Link2 size={20} />} accent="green" />
+      <DashStat label="Offline" value={query.error ? "—" : offlineCount} icon={<IconWifiOff size={20} />} accent={offlineCount > 0 ? "red" : "green"} onClick={() => setMonitorFilter(value => value === "offline" ? "all" : "offline")} active={monitorFilter === "offline"} />
       <DashStat label="Not linked" value={query.error ? "—" : records.filter(row => row.deviceId === null).length} icon={<Unlink size={20} />} accent="amber" onClick={() => setMonitorFilter(value => value === "unlinked" ? "all" : "unlinked")} active={monitorFilter === "unlinked"} />
-      <DashStat label="Providers" value={query.error ? "—" : providerCount} icon={<Globe size={20} />} accent="purple" />
     </div>
     {mutationError && <div className="form-error" role="alert">{mutationError}</div>}
     <div className={activeOverview ? "topology-content details-open" : "topology-content"}>
@@ -147,7 +162,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         onSort={() => { if (sort === index) setAscending(value => !value); else { setSort(index); setAscending(true); } }}
         onResize={index < headings.length - 1 ? event => startResize(index,event) : undefined} onReset={reset}>{label}</InventoryColumnHeading>)}</>}
         headerRef={headerRef} fixed={widths !== null}
-        tableStyle={{ "--inv-grid-template": widths ? `48px ${widths.map(width => `${width}px`).join(" ")}` : "48px minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.3fr)" } as CSSProperties}
+        tableStyle={{ "--inv-grid-template": widths ? `48px ${widths.map(width => `${width}px`).join(" ")}` : "48px minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.3fr)" } as CSSProperties}
         footer={filtered.length > 0 && <InventoryPagination total={filtered.length} page={currentPage} pageSize={pageSize} noun="records" onPageChange={setPage} onPageSizeChange={setPageSize} />}>
         {query.error ? <div className="inventory-empty" role="alert">{query.error}<button className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void query.reload()}>Retry</button></div>
           : !filtered.length ? <div className="inventory-empty">{records.length ? "No cloud assets match the current filters." : "No external IPs tracked yet. Add an external IP in IPAM to get started."}</div>
@@ -162,6 +177,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
             <span><EntityChip label={row.kind} icon={<Server size={13} />} /></span>
             <span className="inventory-row-os" title={row.purpose}>{row.purpose || "—"}</span>
             <span className={`status-pill ${row.health}`} title={row.monitoring}><span className="status-pill-text">{row.monitoring}</span></span>
+            <span>{row.latency || "—"}</span>
             <span>{row.lifecycle ? <span className="nm-status nm-status--unknown">{row.lifecycle}</span> : <EntityChipEmpty />}</span>
             <span>{row.provider ? <EntityChip label={row.provider} /> : <EntityChipEmpty />}</span>
             <span>{row.location ? <EntityChip label={row.location} /> : <EntityChipEmpty />}</span>

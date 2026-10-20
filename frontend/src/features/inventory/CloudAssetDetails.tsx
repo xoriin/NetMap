@@ -1,8 +1,8 @@
 import { Fragment, useState, type ReactNode } from "react";
-import { Activity, Cloud, FileText, Globe, Link2, MapPin, Network, Pencil, Server, Tag, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, Clock, Cloud, FileText, Gauge, Globe, Link2, MapPin, Network, Pencil, Server, Tag, UserRound, type LucideIcon } from "lucide-react";
 import type { DeviceHealth } from "../../utils/deviceHealth";
 import { api, type Device, type DevicePayload, type ExternalIpAddress, type ExternalIpAddressPayload, type ExternalLocation, type ExternalProviderAccount, type CloudProviderOption, type SavedCloudAsset, type Site, type SnmpProfile, type TopologyGroup } from "../../api/client";
-import { deviceLabel } from "../../utils/format";
+import { deviceLabel, formatEventTime } from "../../utils/format";
 import { PickOrCreate } from "../../components/PickOrCreate";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
@@ -14,7 +14,7 @@ export type CloudAssetRecord = { type: "address"; value: ExternalIpAddress } | {
 export type CloudDeviceFormOptions = { deviceTypes: Parameters<typeof DeviceForm>[0]["deviceTypes"]; groups: TopologyGroup[]; snmpProfiles: SnmpProfile[]; sites: Site[] };
 type Choice = { value: string; label: string };
 type Field = { label: string; value: string; node?: ReactNode; choices?: Choice[]; multiline?: boolean; required?: boolean; device?: boolean; save?: (value: string) => Promise<void> };
-const fieldIcons: Record<string, LucideIcon> = {"Inventory device":Server,Monitoring:Activity,"IP address":Network,Purpose:FileText,"Address state":Tag,Location:MapPin,Provider:Globe,Account:UserRound,Owner:UserRound,Tags:Tag,Notes:FileText,URL:Link2,Name:Pencil,Kind:Server,Region:MapPin,Description:FileText};
+const fieldIcons: Record<string, LucideIcon> = {"Inventory device":Server,Monitoring:Activity,Latency:Gauge,"Last checked":Clock,"IP address":Network,Purpose:FileText,"Address state":Tag,Location:MapPin,Provider:Globe,Account:UserRound,Owner:UserRound,Tags:Tag,Notes:FileText,URL:Link2,Name:Pencil,Kind:Server,Region:MapPin,Description:FileText};
 function FieldIcon({label}:{label:string}) { const Icon=fieldIcons[label] || Pencil; return <Icon size={12} />; }
 const nullable = (value: string) => value.trim() || null;
 const kinds = ["ec2", "vm", "load_balancer", "nat_gateway", "k8s_ingress", "database", "storage", "cdn", "other"];
@@ -22,12 +22,12 @@ const splitTags = (tags: string | null) => (tags ?? "").split(",").map(tag => ta
 
 /** Cloud metadata stays editable even when the record is linked to a real device. */
 export function CloudAssetDetails({ record, name, canWrite, canCreateDevice, accessToken, devices, providers, locations, accounts,
-  deviceDetails, deviceFormOptions, externalIpAction, health, monitoring, onClose, onAddressChange, onResourceChange, onLinkChange, onDeviceCreated }: {
-  health: DeviceHealth; monitoring: string; record: CloudAssetRecord; name: string; canWrite: boolean; canCreateDevice: boolean; accessToken: string;
+  deviceDetails, deviceFormOptions, externalIpAction, health, monitoring, latency, onClose, onAddressChange, onResourceChange, onLinkChange, onDeviceCreated, onShowInDevices }: {
+  health: DeviceHealth; monitoring: string; latency: string | null; record: CloudAssetRecord; name: string; canWrite: boolean; canCreateDevice: boolean; accessToken: string;
   devices: Device[]; providers: CloudProviderOption[]; locations: ExternalLocation[]; accounts: ExternalProviderAccount[];
   deviceDetails: ReactNode; deviceFormOptions: CloudDeviceFormOptions; externalIpAction: ReactNode; onClose: () => void;
   onAddressChange: (value: ExternalIpAddress) => void; onResourceChange: (value: SavedCloudAsset) => void;
-  onLinkChange: (id: number | null) => void; onDeviceCreated: (device: Device) => void;
+  onLinkChange: (id: number | null) => void; onDeviceCreated: (device: Device) => void; onShowInDevices: (id: number) => void;
 }) {
   const confirmAction = useConfirm();
   const toast = useToast();
@@ -85,8 +85,12 @@ export function CloudAssetDetails({ record, name, canWrite, canCreateDevice, acc
   const deviceOptions = [...devices.map(row=>({id:row.id,label:`${deviceLabel(row)} · ${row.ip_address || "No address"}`})),...(deviceId !== null && !device ? [{id:deviceId,label:"Linked device unavailable"}] : [])];
   const context: Field[] = [
     {label:"Inventory device",value:deviceId?.toString() || "",device:true,save:value=>link(value ? Number(value) : null)},
-    {label:"Monitoring",value:monitoring},
+    {label:"Monitoring",value:monitoring,node:deviceId !== null ? <span className={`status-pill ${health}`} title={monitoring}><span className="status-pill-text">{monitoring}</span></span> : undefined},
   ];
+  if (device) context.push(
+    {label:"Latency",value:latency || "—"},
+    {label:"Last checked",value:device.last_monitored_at ? formatEventTime(device.last_monitored_at) : "Never"},
+  );
   fields.unshift(...context);
   const current = fields.find(field => field.label === editing);
   function start(field: Field) {
@@ -168,6 +172,7 @@ export function CloudAssetDetails({ record, name, canWrite, canCreateDevice, acc
       </Fragment>)}</dl>
       <div className="detail-actions detail-actions--device">
         {device && deviceDetails && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={()=>setShowDevice(true)}>Open linked device</button>}
+        {device && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={()=>onShowInDevices(device.id)}>Show in Devices</button>}
         {canWrite && deviceId === null && canCreate && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={startCreate}>Add to Inventory</button>}
         {canWrite && deviceId === null && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={()=>start(fields[0])}>Link device</button>}
       </div>

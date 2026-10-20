@@ -7,6 +7,7 @@ import { InventoryTableFrame, InventoryColumnHeading, InventoryPagination } from
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import {
   INVENTORY_VIEW_CHANGE_EVENT,
+  navigateToInventoryView,
   readInventoryViewFromLocation,
   type InventoryViewId,
 } from "./inventoryNavigation";
@@ -98,6 +99,7 @@ export function InventoryWorkspace({
   const deviceTypesQuery = useDeviceTypes(accessToken);
   const deviceTypeOptions = deviceTypesQuery.options;
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
+  const pendingDeviceRef = useRef<number | null>(null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
   const [selectedSiteFilter, setSelectedSiteFilter] = useState('all');
@@ -606,6 +608,7 @@ export function InventoryWorkspace({
   const invOnlineCount = graph.devices.filter((d) => healthFor(d) === "online").length;
   const invOfflineCount = graph.devices.filter((d) => healthFor(d) === "offline").length;
 
+  const latencyFor = useCallback((id: number) => monitorSummaryByDeviceId.get(id)?.avg_rtt_24h ?? null, [monitorSummaryByDeviceId]);
   const selectedDeviceLive = selectedDevice && livePingEnabled ? (liveStatusByDeviceId.get(selectedDevice.id) ?? null) : null;
   const setTopbarNote = useContext(TopbarNoteCtx);
 
@@ -633,7 +636,8 @@ export function InventoryWorkspace({
 
   // A selection belongs to the subview where it was made, including history navigation.
   useEffect(() => {
-    setSelectedDeviceId(null);
+    setSelectedDeviceId(pendingDeviceRef.current);
+    pendingDeviceRef.current = null;
     setSelectedDeviceIds(new Set());
     setBulkMenuOpen(false);
   }, [inventoryView]);
@@ -663,6 +667,7 @@ export function InventoryWorkspace({
     favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} onOpenDevice={setSelectedDeviceId}
     selectedDeviceId={selectedDeviceId} deviceDetails={deviceDetails} canWriteIpam={canWriteIpam} healthFor={healthFor}
     canCreateDevice={canWrite} deviceFormOptions={{ deviceTypes: deviceTypeOptions, groups, snmpProfiles, sites }} onDeviceCreated={onDeviceChange}
+    latencyFor={latencyFor} onShowInDevices={id => { pendingDeviceRef.current = id; navigateToInventoryView("devices"); }}
     livePingEnabled={livePingEnabled} mutationError={inventoryError} />;
 
   return (
