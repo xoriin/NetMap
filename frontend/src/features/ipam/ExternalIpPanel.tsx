@@ -197,6 +197,12 @@ function addressSortKey(ip: string) {
   return ip;
 }
 
+function sameIp(left: string | null | undefined, right: string | null | undefined) {
+  const a = parseIp((left ?? "").trim());
+  const b = parseIp((right ?? "").trim());
+  return a !== null && b !== null && a.version === b.version && a.value === b.value;
+}
+
 function deviceLabel(address: ExternalIpAddress) {
   const device = address.device;
   if (!device) return null;
@@ -276,6 +282,8 @@ export function ExternalIpPanel({
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
   const [seededAddressId, setSeededAddressId] = useState<number | null>(null);
   const [deviceBusy, setDeviceBusy] = useState(false);
+  // Keep a successfully created device across link retries.
+  const [createdDevice, setCreatedDevice] = useState<Device | null>(null);
   const deviceMetadataQuery = useApiQuery(
     deviceSeed === null ? null : async () => {
       const [groups, sites, snmpProfiles, deviceTypes] = await Promise.all([
@@ -515,17 +523,9 @@ export function ExternalIpPanel({
       if (editing === "new") {
         const created = await api.createExternalAddresses(accessToken, cleaned);
         toast.success(created.length === 1 ? "External IP tracked" : `${created.length} external IPs tracked`);
-        if (addToInventory && created.length === 1) {
+        if (addToInventory && !cleaned.device_id && created.length === 1) {
           const address = created[0];
-          setSeededAddressId(address.id);
-          setDeviceSeed({
-            display_name: address.label,
-            hostname: null,
-            ip_address: address.ip_address,
-            tags: splitTags(address.tags),
-            notes: address.notes,
-            monitoring_paused: false,
-          });
+          await startInventory(address);
         }
       } else if (editing) {
         const patch = diffPatch(cleaned, editing);
@@ -639,23 +639,50 @@ export function ExternalIpPanel({
     } catch (error) { toast.error(error instanceof Error ? error.message : "Failed to delete location"); }
   }
 
+  async function startInventory(address: ExternalIpAddress) {
+    if (!canWrite || !canCreateDevice || address.device_id !== null) return;
+    setCreatedDevice(null);
+    setSeededAddressId(address.id);
+    setDeviceSeed({ display_name: address.label, hostname: null, ip_address: address.ip_address,
+      tags: splitTags(address.tags), notes: address.notes, monitoring_paused: false });
+  }
+
   async function createInventoryDevice(payload: DevicePayload) {
+    if (!canWrite || !canCreateDevice || seededAddressId === null || !deviceSeed) return;
     setDeviceBusy(true);
     try {
-      const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
-      if (!created) return;
-      // Link the address to the device it just produced — that link is what shows
-      // the device alongside the address in this register.
-      if (seededAddressId !== null) {
-        await api.updateExternalAddress(accessToken, seededAddressId, { device_id: created.id });
-        setSeededAddressId(null);
+      // This action monitors the selected address. A different probe target must
+      // be created explicitly in Inventory and linked with the existing selector.
+      if (!sameIp(payload.ip_address, deviceSeed.ip_address ?? "")) {
+        throw new Error("Keep this external IP as the device address, or cancel and link an existing device.");
       }
-      onDeviceChange?.(created);
+      const graph = await api.topologyGraph(accessToken);
+      const matching = graph.devices.filter(device => sameIp(device.ip_address, payload.ip_address));
+      if (!createdDevice && matching.length > 1) {
+        throw new Error("Several Inventory devices use this address. Cancel and select the existing device in Edit.");
+      }
+      let device = createdDevice ?? matching[0];
+      if (!createdDevice && device && !await confirmAction({
+        title: "Link existing Inventory device?",
+        message: `${device.display_name || device.hostname || device.ip_address} already uses this address.`,
+        confirmLabel: "Link device",
+      })) return;
+      if (!device) {
+        const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
+        if (!created) return;
+        device = created;
+        setCreatedDevice(created);
+        onDeviceChange?.(created);
+      }
+      await api.updateExternalAddress(accessToken, seededAddressId, { device_id: device.id });
+      onDeviceChange?.(device);
       setDeviceSeed(null);
+      setSeededAddressId(null);
+      setCreatedDevice(null);
       await query.reload();
-      toast.success("Device added to Inventory and linked to this address");
+      toast.success("Device linked to this address in Inventory and Monitoring");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create device");
+      toast.error(error instanceof Error ? error.message : "Failed to add address to Inventory");
     } finally { setDeviceBusy(false); }
   }
 
@@ -859,6 +886,7 @@ export function ExternalIpPanel({
                             <td className={`external-ip-actions${alt}`} onClick={(event) => event.stopPropagation()}>
                               {canWrite && (
                                 <span className="nm-table-actions">
+                                  {canCreateDevice && address.device_id === null && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={deviceBusy} onClick={() => void startInventory(address)}>Add to Inventory</button>}
                                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openEdit(address)}><Pencil size={13} /> Edit</button>
                                   <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void remove(address)}><Trash2 size={13} /> Delete</button>
                                 </span>
@@ -894,21 +922,7 @@ export function ExternalIpPanel({
                   Mark available
                 </button>
               )}
-              {isNew && canCreateDevice && !isRange && (
-                <div className="external-ip-footer-lead external-ip-inventory-toggle">
-                  <span>Also add to Inventory and Monitoring</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={addToInventory}
-                    aria-label="Also add to Inventory and Monitoring"
-                    className={`external-ip-device-switch${addToInventory ? " is-on" : ""}`}
-                    onClick={() => setAddToInventory((enabled) => !enabled)}
-                  >
-                    <span />
-                  </button>
-                </div>
-              )}
+
               <ModalFooterActions
                 onCancel={closeAddressModal}
                 primaryLabel={primaryLabel}
@@ -948,6 +962,22 @@ export function ExternalIpPanel({
                 />
               </label>
             </div>
+
+              {isNew && canCreateDevice && !isRange && !form.device_id && (
+                <div className="external-ip-footer-lead external-ip-inventory-toggle">
+                  <span>Also add to Inventory and Monitoring</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={addToInventory}
+                    aria-label="Also add to Inventory and Monitoring"
+                    className={`external-ip-device-switch${addToInventory ? " is-on" : ""}`}
+                    onClick={() => setAddToInventory((enabled) => !enabled)}
+                  >
+                    <span />
+                  </button>
+                </div>
+              )}
 
             {locationDraftOpen && (
               // Inline, inside this same modal — a second Modal would put the
@@ -1129,6 +1159,8 @@ export function ExternalIpPanel({
       {deviceSeed && deviceMetadataQuery.data && (
         <DeviceForm
           busy={deviceBusy}
+          title={createdDevice ? "Device created — link external IP" : "Add device"}
+          submitLabel={createdDevice ? "Retry link" : undefined}
           device={null}
           cloneSource={null}
           initialValues={deviceSeed}
@@ -1136,7 +1168,7 @@ export function ExternalIpPanel({
           groups={deviceMetadataQuery.data.groups}
           snmpProfiles={deviceMetadataQuery.data.snmpProfiles}
           sites={deviceMetadataQuery.data.sites}
-          onCancel={() => { setDeviceSeed(null); setSeededAddressId(null); }}
+          onCancel={() => { setDeviceSeed(null); setSeededAddressId(null); setCreatedDevice(null); void query.reload(); }}
           onSubmit={createInventoryDevice}
         />
       )}
