@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 
 from app.models.alert_rule import AlertRule
+from app.models.monitor import Monitor
+from app.models.port_target import DevicePortTarget
 from app.models.status_page import (
     StatusBreachStreak,
     StatusIdempotencyKey,
@@ -22,7 +24,7 @@ from app.models.status_page import (
 from app.services.status_pages import cache as cache_module
 from app.services.status_pages import retention
 from app.services.status_pages.cache import StatusSnapshotCache
-from tests.status_page_helpers import seed_page
+from tests.status_page_helpers import seed_device, seed_page
 from tests.test_status_cache import factory  # noqa: F401
 
 NOW = datetime(2026, 10, 17, 12, 0, 0, tzinfo=timezone.utc)
@@ -96,7 +98,8 @@ def test_closed_records_pruned_after_365_days(factory):  # noqa: F811
         db.add(StatusIdempotencyKey(token_id=token.id, operation="o", key="new", created_at=NOW - timedelta(hours=23)))
         db.add(StatusBreachStreak(rule_id=rule.id, source_key="device:1", page_id=page.id))
         db.add(StatusBreachStreak(rule_id=rule.id + 99, source_key="device:2", page_id=page.id))
-        db.add(StatusMaintenanceExit(source_key="device:9", maintenance_id=old_window.id, created_at=OLD))
+        live = seed_device(db)
+        db.add(StatusMaintenanceExit(source_key=f"device:{live.id}", maintenance_id=old_window.id, created_at=NOW))
         db.commit()
         old_id, recent_id = old.id, recent.id
         old_window_id, recent_window_id = old_window.id, recent_window.id
@@ -118,6 +121,7 @@ def test_closed_records_pruned_after_365_days(factory):  # noqa: F811
     assert old_id != recent_id and old_window_id != recent_window_id
     assert result == {
         "incidents": 1, "notices": 1, "maintenance": 1, "idempotency_keys": 1, "breach_streaks": 1,
+        "maintenance_exits": 0,
     }
 
 
@@ -202,3 +206,44 @@ def test_timer_prunes_at_most_once_per_day_and_survives_errors(factory, monkeypa
         cache.maybe_prune(NOW + timedelta(hours=24, minutes=1))
         assert len(calls) == 2
     assert "Status page retention" in caplog.text
+
+
+def test_maintenance_exits_pruned_when_source_is_gone_or_older_than_30_days(factory):  # noqa: F811
+    with factory() as db:
+        device, gone = seed_device(db), seed_device(db)
+        monitor = Monitor(name="m", url="https://example.test")
+        target = DevicePortTarget(device_id=device.id, port=443, label="https")
+        shared = DevicePortTarget(device_id=None, port=22, label="ssh")
+        db.add_all([monitor, target, shared])
+        db.flush()
+        fresh = NOW - timedelta(days=1)
+        keep = {
+            f"device:{device.id}": fresh,
+            f"monitor:{monitor.id}": fresh,
+            f"service:{device.id}:{target.id}": fresh,
+            f"service:{device.id}:{shared.id}": NOW - timedelta(days=29),
+        }
+        drop = {
+            f"device:{gone.id}": fresh,
+            f"monitor:{monitor.id + 50}": fresh,
+            f"service:{device.id}:{target.id + 50}": fresh,
+            f"service:{gone.id}:{shared.id}": fresh,
+            f"service:{gone.id}:{target.id}": fresh,
+            "bogus": fresh,
+        }
+        db.delete(gone)
+        db.commit()
+        for key, at in {**keep, **drop}.items():
+            db.add(StatusMaintenanceExit(source_key=key, maintenance_id=None, created_at=at))
+        db.commit()
+        db.execute(StatusMaintenanceExit.__table__.update().where(
+            StatusMaintenanceExit.source_key == f"device:{device.id}"
+        ).values(created_at=NOW - timedelta(days=31)))
+        db.commit()
+        keep.pop(f"device:{device.id}")
+
+    result = retention.prune(factory, NOW)
+
+    with factory() as db:
+        assert set(db.scalars(select(StatusMaintenanceExit.source_key))) == set(keep)
+    assert result["maintenance_exits"] == len(drop) + 1
