@@ -610,11 +610,11 @@ for (const theme of ["light", "dark"] as const) {
     expect(await groupCell.evaluate((node) => getComputedStyle(node).backgroundColor))
       .toBe(await resolveToken(groupCell, "--nm-modal-header"));
 
-    // Canonical hover: soft tint plus the 3px teal left edge.
+    // Canonical hover: soft tint, plus the 3px teal left edge in dark mode only.
     const row = page.locator(".external-ip-address-row").first();
     await row.hover();
     expect(await row.locator("td").first().evaluate((node) => getComputedStyle(node).boxShadow))
-      .toContain("29, 154, 176");
+      .toContain(theme === "dark" ? "29, 154, 176" : "rgba(0, 0, 0, 0)");
 
     // Every data row fills the same columns as the header.
     const headerCells = await table.locator("thead th").count();
@@ -678,10 +678,10 @@ for (const theme of ["light", "dark"] as const) {
     // Status lives in the pill, and only there.
     await expect(tracked.locator(".nm-status")).toHaveText("In use");
 
-    // Hover still produces the canonical teal edge, unobstructed.
+    // Hover still produces the canonical edge (teal in dark, none in light), unobstructed.
     await tracked.hover();
     const shadow = await tracked.locator("td").first().evaluate((n) => getComputedStyle(n).boxShadow);
-    expect(shadow).toContain("rgba(29, 154, 176, 0.3)");
+    expect(shadow).toContain(theme === "dark" ? "rgba(29, 154, 176, 0.3)" : "rgba(0, 0, 0, 0)");
   });
 }
 

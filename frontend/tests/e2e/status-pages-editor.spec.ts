@@ -351,7 +351,7 @@ for (const theme of ["light", "dark"] as const) {
     const cell = row.locator("td").first();
     expect(await computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-table-row-bg"));
     await row.hover();
-    expect(await computed(cell, "boxShadow")).toContain("29, 154, 176");
+    expect(await computed(cell, "boxShadow")).toBe(`${await resolveToken(cell, "--nm-row-hover-edge")} 3px 0px 0px 0px inset`);
     expect(await computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-row-hover"));
 
     await openEditor(page, "Ops");

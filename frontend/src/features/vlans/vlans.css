@@ -189,9 +189,9 @@ body.theme-dark .vlan-workspace .vlan-row {
 
 .vlan-workspace .vlan-row:hover,
 body.theme-dark .vlan-workspace .vlan-row:hover {
-  border-left-color: var(--nm-tab-active-border);
+  border-left-color: var(--nm-row-hover-edge);
   background: var(--nm-row-hover);
-  box-shadow: inset 3px 0 0 var(--nm-tab-active-border);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .vlan-workspace .vlan-name-primary,

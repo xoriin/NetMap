@@ -510,7 +510,7 @@
 .admin-layout .admin-data-table td { background: var(--nm-table-row-bg); }
 .admin-layout .admin-data-table td strong { color: var(--nm-text); }
 .admin-layout .admin-data-table tbody tr:hover td { background: var(--nm-row-hover); }
-.admin-layout .admin-data-table tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3); }
+.admin-layout .admin-data-table tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--nm-row-hover-edge); }
 .admin-layout .admin-table-nowrap { white-space: nowrap; }
 
 .admin-layout .admin-users-header,
@@ -539,7 +539,7 @@
 .admin-layout .notif-method-row:hover,
 .admin-layout .entity-colors-row:hover {
   background: var(--nm-row-hover);
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .admin-layout .admin-users-row--editing {

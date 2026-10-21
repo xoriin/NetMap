@@ -372,13 +372,13 @@
 .audit-log-row:hover,
 .admin-users-row:hover,
 .icon-mgr-pack-row:hover {
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .mon-row:hover td:first-child,
 .ipam-addr-row:hover td:first-child,
 .nm-table tbody tr:hover td:first-child {
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .nm-table--selectable tbody tr { cursor: pointer; }
@@ -1152,7 +1152,7 @@ body:not(.theme-dark) .topology-details-panel .details-heading {
 
 .device-icons-row:hover {
   background: var(--nm-row-hover);
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .device-icons-meta {

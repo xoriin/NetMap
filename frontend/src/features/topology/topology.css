@@ -874,7 +874,7 @@ body.theme-dark .topo-entity-row {
 .topo-entity-row--group:hover,
 body.theme-dark .topo-entity-row:hover,
 body.theme-dark .topo-entity-row--group:hover {
-  border-left-color: var(--nm-tab-active-border);
+  border-left-color: var(--nm-row-hover-edge);
   background: var(--nm-row-hover);
   box-shadow: none;
 }

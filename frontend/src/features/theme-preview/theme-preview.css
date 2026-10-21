@@ -470,7 +470,7 @@ body.theme-dark .theme-lab-search input:focus {
 }
 
 .theme-lab-table tbody tr:hover td:first-child {
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .theme-lab-table code {

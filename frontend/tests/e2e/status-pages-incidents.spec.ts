@@ -274,7 +274,7 @@ async function expectCanonicalTable(page: Page, tableClass: string) {
   expect(await computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-table-row-bg"));
   await cell.hover();
   await expect.poll(() => computed(cell, "backgroundColor")).toBe(await resolveToken(cell, "--nm-row-hover"));
-  expect(await cell.evaluate((node) => getComputedStyle(node).boxShadow)).toBe("rgba(29, 154, 176, 0.3) 3px 0px 0px 0px inset");
+  expect(await cell.evaluate((node) => getComputedStyle(node).boxShadow)).toBe(`${await resolveToken(cell, "--nm-row-hover-edge")} 3px 0px 0px 0px inset`);
 }
 
 async function expectCanonicalPanel(panel: Locator) {

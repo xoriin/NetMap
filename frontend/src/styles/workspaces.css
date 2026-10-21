@@ -1797,8 +1797,8 @@ body.theme-dark .topology-overlay-label {
 
 .inventory-row:hover {
   background: var(--nm-row-hover);
-  border-left-color: rgba(29, 154, 176, 0.3);
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.28);
+  border-left-color: var(--nm-row-hover-edge);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 .inventory-row.active {
@@ -1842,8 +1842,8 @@ body:not(.theme-dark) .inventory-row:not(.active) {
 
 body:not(.theme-dark) .inventory-row:hover:not(.active) {
   background: var(--nm-row-hover);
-  border-left-color: rgba(29, 154, 176, 0.35);
-  box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.28);
+  border-left-color: var(--nm-row-hover-edge);
+  box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
 body:not(.theme-dark) .inventory-row.active {
@@ -2110,7 +2110,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 
 .vlan-row:hover {
   background: var(--nm-row-hover);
-  border-left-color: rgba(29, 154, 176, 0.3);
+  border-left-color: var(--nm-row-hover-edge);
 }
 
 .vlan-row--selected {
@@ -3771,7 +3771,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 }
 
 .security-row-group:hover {
-  border-left-color: rgba(29, 154, 176, 0.3);
+  border-left-color: var(--nm-row-hover-edge);
 }
 
 .security-row {

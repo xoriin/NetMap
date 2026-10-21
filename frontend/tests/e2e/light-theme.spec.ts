@@ -168,6 +168,22 @@ test("light tables use slate column headers, near-white rows and a slate selecte
   await expect(selected).toHaveCSS("border-left-color", "rgb(29, 154, 176)");
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`row hover ${theme === "light" ? "drops" : "keeps"} the teal edge in ${theme} mode while selection keeps its edge`, async ({ page }) => {
+    await openInventory(page, theme);
+    const rows = page.locator(".inventory-row");
+    await rows.first().click();
+    await rows.nth(1).hover();
+    const hovered = rows.nth(1);
+    if (theme === "light") await expect(hovered).toHaveCSS("background-color", "rgb(239, 241, 243)");
+    await expect.poll(() => hovered.evaluate((el) => { const cs = getComputedStyle(el); return `${cs.borderLeftColor} ${cs.boxShadow}`.includes("29, 154, 176"); })).toBe(theme === "dark");
+    if (theme === "light") {
+      await rows.first().hover();
+      await expect(page.locator(".inventory-row.active")).toHaveCSS("border-left-color", "rgb(29, 154, 176)");
+    }
+  });
+}
+
 test("the VLAN table shares the light column header", async ({ page }) => {
   await setupCoreMocks(page);
   await setupTopologyMocks(page, [mockDevice({ topology_group: "Servers" })]);
