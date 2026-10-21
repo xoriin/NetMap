@@ -10,6 +10,7 @@ export function editableField(enabled: boolean, start: () => void) {
     tabIndex: 0,
     onDoubleClick: (event: MouseEvent<HTMLElement>) => {
       if ((event.target as HTMLElement).closest(EDITOR_SELECTOR)) return;
+      window.getSelection()?.removeAllRanges();
       start();
     },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
