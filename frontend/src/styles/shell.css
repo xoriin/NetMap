@@ -980,7 +980,7 @@ body.route-locations .topology-content {
 }
 
 .auth-theme-toggle:hover {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-color: rgba(100, 130, 155, 0.55);
 }
 

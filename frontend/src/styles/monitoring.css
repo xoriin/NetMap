@@ -1008,24 +1008,24 @@ body:not(.theme-dark) .toolbar-label {
 
 body:not(.theme-dark) .toolbar-select {
   border-color: rgba(120, 150, 172, 0.5);
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   color: #1e3547;
   color-scheme: light;
 }
 
 body:not(.theme-dark) .toolbar-select option {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   color: #1e3547;
 }
 
 body:not(.theme-dark) .toolbar-btn {
   border-color: rgba(100, 135, 162, 0.4);
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   color: #2a4d65;
 }
 
 body:not(.theme-dark) .toolbar-btn:hover:not(:disabled) {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-color: rgba(100, 135, 162, 0.65);
   color: #17344d;
 }
@@ -1622,7 +1622,7 @@ body.theme-dark .mon-mini-sparkline-line { stroke: #4db8cc; opacity: 0.75; }
 .mon-ports-form-col {
   flex: 0 0 380px;
   padding: 18px 20px;
-  border-right: 1px solid var(--nm-shell-text);
+  border-right: 1px solid var(--nm-surface-tint);
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -1701,7 +1701,7 @@ body.theme-dark .mon-ports-checkbox-label { color: #a9c3d1; }
 }
 
 .mon-checks-list {
-  border-top: 1px solid var(--nm-shell-text);
+  border-top: 1px solid var(--nm-surface-tint);
   padding-top: 16px !important;
 }
 body.theme-dark .mon-checks-list { border-top-color: var(--nm-border); }

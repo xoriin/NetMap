@@ -81,7 +81,7 @@
 
 /* ── Light-mode table headers ─────────────────────────────────────────────── */
 body:not(.theme-dark) .inventory-table-header {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   color: #4e6e82;
   border-bottom-color: rgba(170, 200, 218, 0.7);
 }
@@ -91,7 +91,7 @@ body:not(.theme-dark) .inventory-sort-btn.active { color: var(--nm-accent-strong
 
 /* ── Light-mode panel headers ────────────────────────────────────────────── */
 body:not(.theme-dark) .dash-panel-header {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-bottom-color: rgba(145, 174, 196, 0.72);
 }
 body:not(.theme-dark) .dash-panel-title  { color: #2a4860; }
@@ -966,7 +966,7 @@ body.route-overview .dash-panel {
   width: 100%;
 }
 
-.dash-nav-btn:hover { background: var(--nm-shell-text); }
+.dash-nav-btn:hover { background: var(--nm-surface-tint); }
 .dash-nav-btn:hover .dash-nav-btn-arrow { color: var(--nm-accent); transform: translateX(2px); }
 
 .dash-nav-btn-icon {

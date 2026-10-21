@@ -718,7 +718,7 @@ body.route-topology .graph-surface {
   top: -2px;
   right: 0;
   z-index: 3;
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 999px;
   padding: 4px 10px;
   color: #4f6474;
@@ -1817,11 +1817,11 @@ body:not(.theme-dark) .inv-header-main {
 
 body:not(.theme-dark) .inv-filter-row,
 body:not(.theme-dark) .inv-pagination {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
 }
 
 body:not(.theme-dark) .inventory-table {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-color: rgba(155, 185, 208, 0.78);
 }
 
@@ -1847,7 +1847,7 @@ body:not(.theme-dark) .inventory-row:hover:not(.active) {
 }
 
 body:not(.theme-dark) .inventory-row.active {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
 }
 
 body:not(.theme-dark) .inventory-row.active:hover {
@@ -1976,7 +1976,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .group-settings-row {
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 6px;
   padding: 8px;
   background: var(--nm-surface-soft);
@@ -2114,7 +2114,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .vlan-row--selected {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-left-color: var(--nm-accent);
 }
 
@@ -2225,7 +2225,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
   font-size: 10px;
   font-weight: 700;
   color: #6b7f8e;
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   border-radius: 4px;
   padding: 2px 6px;
   text-transform: uppercase;
@@ -2546,7 +2546,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 
 .status-pill.disabled {
   color: var(--nm-shell-muted);
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   text-decoration: line-through;
   opacity: 0.75;
 }
@@ -2560,7 +2560,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
   display: grid;
   gap: 12px;
   margin-bottom: 18px;
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
   padding-bottom: 18px;
 }
 
@@ -2618,7 +2618,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .saved-layout-row {
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 6px;
   padding: 8px;
   background: var(--nm-surface-soft);
@@ -3013,7 +3013,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .admin-users-header {
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
   color: #587183;
   background: #f5f7f9;
   font-size: 12px;
@@ -3149,7 +3149,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 .tool-target-strip {
   display: flex;
   gap: 10px;
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 8px;
   padding: 12px 14px;
   background: #ecf1f6;
@@ -3434,7 +3434,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 .tool-result-list li,
 .tool-hop-row,
 .tool-status {
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 6px;
   padding: 9px 10px;
   background: var(--nm-surface-soft);
@@ -3460,7 +3460,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 .tool-output {
   margin: 0;
   overflow: auto;
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 6px;
   padding: 10px 12px;
   color: #263b4b;
@@ -3724,7 +3724,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 }
 
 .security-results-meta {
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
 }
 
 .security-table {
@@ -3746,7 +3746,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   z-index: 2;
   min-width: 1330px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
   background: #f5f7f9;
   color: #587183;
   font-size: 12px;
@@ -3890,7 +3890,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 }
 
 .security-pagination {
-  border-top: 1px solid var(--nm-shell-text);
+  border-top: 1px solid var(--nm-surface-tint);
 }
 
 .security-pagination button:disabled {
@@ -4275,7 +4275,7 @@ textarea.details-inline-input {
   padding: 3px 8px;
   border: 1px solid #b7c4ce;
   border-radius: 4px;
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
   color: #314656;
   cursor: pointer;
 }
@@ -4323,7 +4323,7 @@ textarea.details-inline-input {
   gap: 8px;
   align-items: center;
   min-height: 34px;
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 6px;
   padding: 7px 9px;
   color: #263b4b;
@@ -4355,7 +4355,7 @@ textarea.details-inline-input {
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px;
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
 }
 
 .modal-header button:not(.nm-btn):not(.nm-btn--primary) {
@@ -4409,7 +4409,7 @@ textarea.details-inline-input {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  border: 1px solid var(--nm-shell-text);
+  border: 1px solid var(--nm-surface-tint);
   border-radius: 8px;
   padding: 12px 14px;
   background: #ecf1f6;
@@ -4644,7 +4644,7 @@ textarea.details-inline-input {
   align-items: center;
   gap: 7px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--nm-shell-text);
+  border-bottom: 1px solid var(--nm-surface-tint);
   background: var(--nm-input-surface);
 }
 
@@ -4708,7 +4708,7 @@ textarea.details-inline-input {
 }
 
 .ep-option--selected.ep-option--hl {
-  background: var(--nm-shell-text);
+  background: var(--nm-surface-tint);
 }
 
 .ep-badge {
@@ -4826,14 +4826,14 @@ body.theme-dark .ep-empty { color: #3a5a70; }
 }
 
 .scan-results {
-  border-top: 1px solid var(--nm-shell-text);
+  border-top: 1px solid var(--nm-surface-tint);
   padding: 0 20px 20px;
 }
 
 .scan-schedule-panel {
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--nm-shell-text);
+  border-top: 1px solid var(--nm-surface-tint);
   padding: 18px 20px;
   background: rgba(236, 241, 246, 0.55);
 }
