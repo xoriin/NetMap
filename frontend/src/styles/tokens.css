@@ -112,7 +112,7 @@
      read as one product. Values are Inventory's, which is the reference treatment. */
   --nm-table-row-bg: #fefefe;
   --nm-table-divider: #e6edf2;
-  --nm-row-selected: #d9eef2;
+  --nm-row-selected: #e4e7eb;
   --nm-table-header-bg: #eef1f4;
   --nm-table-header-text: #3b4d60;
   --nm-table-header-border: #d6dce3;

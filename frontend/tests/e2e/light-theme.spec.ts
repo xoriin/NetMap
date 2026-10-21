@@ -149,7 +149,7 @@ test("the Topology ribbon carries the same light band as every panel header", as
   expect(low).toEqual([]);
 });
 
-test("light tables use slate column headers, near-white rows and a teal selected row", async ({ page }) => {
+test("light tables use slate column headers, near-white rows and a slate selected row", async ({ page }) => {
   await openInventory(page, "light");
   expect(await resolve(page, "--nm-table-header-bg", "backgroundColor")).toBe("rgb(238, 241, 244)");
   const header = page.locator(".inventory-table-header");
@@ -162,7 +162,7 @@ test("light tables use slate column headers, near-white rows and a teal selected
   await expect(row).toHaveCSS("border-bottom-color", "rgb(230, 237, 242)");
   await page.locator(".inventory-row").first().click();
   const selected = page.locator(".inventory-row.active");
-  await expect(selected).toHaveCSS("background-color", "rgb(217, 238, 242)");
+  await expect(selected).toHaveCSS("background-color", "rgb(228, 231, 235)");
   await expect(selected).toHaveCSS("border-left-color", "rgb(29, 154, 176)");
 });
 
