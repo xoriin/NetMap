@@ -113,9 +113,15 @@ summary:focus-visible { outline: 3px solid var(--sp-page-accent, var(--sp-accent
 
 .sp-strip {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
-  margin-bottom: 12px; padding: 14px 20px;
-  border: 1px solid var(--sp-border); border-radius: 16px; background: var(--sp-surface-soft);
-  font-size: 13px; overflow-wrap: anywhere;
+  margin-bottom: 12px; padding: 16px 20px;
+  border: 1px solid var(--sp-border); border-left: 4px solid var(--sp-border); border-radius: 16px; background: var(--sp-surface);
+  font-size: 14px; line-height: 1.6; overflow-wrap: anywhere;
+}
+.sp-strip[data-tone="info"] { background: var(--sp-info-soft); border-color: var(--sp-info-text); }
+.sp-strip[data-tone="warning"], .sp-strip[data-tone="maintenance"] { background: var(--sp-warning-soft); border-color: var(--sp-warning-text); }
+.sp-strip[data-tone="danger"] { background: var(--sp-danger-soft); border-color: var(--sp-danger); }
+.sp-strip .sp-strip-body, .sp-strip .sp-strip-meta { color: var(--sp-text); }
+.sp-strip .sp-strip-meta { font-size: 13px;
 }
 .sp-strip-title { font-weight: 600; }
 .sp-strip-body, .sp-strip-meta { color: var(--sp-text-muted); }

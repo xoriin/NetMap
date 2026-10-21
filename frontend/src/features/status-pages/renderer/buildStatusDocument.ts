@@ -333,6 +333,7 @@ function groupSection(b: Builder, group: StatusPageGroupPayload, window: string)
 
 function strip(b: Builder, label: string, tone: string, title: string, extra: Array<Node | null>): HTMLElement {
   const node = b.el("div", "sp-strip");
+  node.dataset.tone = tone;
   const pill = b.el("span", "sp-pill", label);
   pill.dataset.tone = tone;
   node.append(pill, b.el("span", "sp-strip-title", title));
