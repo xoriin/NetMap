@@ -468,7 +468,7 @@ export function CloudAssetDetails({
               ))}
             </dl>
             {(device || canWrite || record.type === "address") && (
-              <div className="detail-actions detail-actions--device">
+              <div className="detail-actions detail-actions--device detail-actions--inline">
                 {canWrite && deviceId === null && canCreate && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => startCreate()}>Add to Inventory</button>
                 )}
@@ -476,13 +476,13 @@ export function CloudAssetDetails({
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => start(fields[0])}>Link device</button>
                 )}
                 {device && deviceDetails && (
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => setShowDevice(true)}>Open linked device</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => setShowDevice(true)}>Open device</button>
                 )}
                 {device && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => onShowInDevices(device.id)}>Show in Devices</button>
                 )}
                 {canWrite && deviceId !== null && (
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => void unlink()}>Unlink device</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => void unlink()}>Unlink</button>
                 )}
                 {record.type === "address" && externalIpAction}
               </div>

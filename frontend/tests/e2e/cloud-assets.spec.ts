@@ -168,7 +168,7 @@ for (const theme of ['light','dark'] as const) {
   await expect(page.locator('[data-cloud-record]')).toHaveCount(1);
   await page.getByRole('button',{name:'Open Public server details'}).focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('button',{name:'Open linked device'}).click();
+  await page.getByRole('button',{name:'Open device',exact:true}).click();
  await expect(page.getByRole('complementary',{name:'Device overview'})).toBeVisible();
   await page.getByRole('button',{name:'Close device overview'}).click();
   await page.getByRole('button',{name:'Filter by provider'}).click();
@@ -230,8 +230,8 @@ for (const theme of ['light','dark'] as const) {
   await expect(sidebar).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await sidebar.scrollIntoViewIfNeeded();
-  await sidebar.getByRole('link',{name:'Manage external IPs'}).scrollIntoViewIfNeeded();
-  await expect(sidebar.getByRole('link',{name:'Manage external IPs'})).toBeVisible();
+  await sidebar.getByRole('link',{name:'External IPs',exact:true}).scrollIntoViewIfNeeded();
+  await expect(sidebar.getByRole('link',{name:'External IPs',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Close asset overview'}).click();
   await expect(sidebar).toHaveCount(0);
  });
@@ -243,7 +243,7 @@ test('linked addresses, unlinked addresses and retained resources replace one de
  }});
  await page.goto('/inventory#cloud-assets');
  await page.getByRole('button',{name:'Open Public server details'}).click();
- await page.getByRole('button',{name:'Open linked device'}).click();
+ await page.getByRole('button',{name:'Open device',exact:true}).click();
  await expect(page.getByRole('complementary',{name:'Device overview'})).toBeVisible();
  await page.getByRole('button',{name:'Open Unlinked address details'}).click();
  await expect(page.getByRole('complementary',{name:'Device overview'})).toHaveCount(0);

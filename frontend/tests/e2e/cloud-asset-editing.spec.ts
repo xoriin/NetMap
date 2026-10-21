@@ -48,12 +48,12 @@ for(const theme of ['light','dark'] as const) {
   await pickDevice(page,'Existing server');
   expect(state.addressPatches.at(-1)).toEqual([1,{device_id:7}]);
   await expect(field(page,'Purpose')).toHaveClass(/editable-dd/);
-  await page.getByRole('button',{name:'Open linked device'}).click();
+  await page.getByRole('button',{name:'Open device',exact:true}).click();
   await expect(page.getByRole('complementary',{name:'Device overview'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Resume',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Back to asset'}).click();
   await pickDevice(page,'Not linked');
-  await expect(page.getByRole('button',{name:'Open linked device'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Open device',exact:true})).toHaveCount(0);
   expect(state.addresses[0]).toMatchObject({device_id:null,ip_address:'2606:4700:4700::1111',label:'Updated purpose',owner:'Operations',status:'reserved',location_id:1});
   await page.reload();
   await page.getByRole('button',{name:'Open Updated purpose details'}).click();

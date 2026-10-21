@@ -4100,6 +4100,16 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   justify-content: flex-start;
   flex-wrap: wrap;
 }
+.detail-actions--inline {
+  flex-wrap: nowrap;
+  gap: var(--nm-space-2);
+}
+.detail-actions--inline .nm-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--nm-space-2);
+  white-space: nowrap;
+}
 .detail-actions--device .vlan-action-btn {
   flex: 1;
   text-align: center;

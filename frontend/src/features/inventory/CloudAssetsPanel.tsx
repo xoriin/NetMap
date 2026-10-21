@@ -113,9 +113,9 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   function options(field: "provider" | "location" | "kind", label: string) {
     return [{value:"all",label}, ...[...new Set(records.map(row => row[field]))].sort().map(value => ({value, label:value || "Unassigned"}))];
   }
-  const ipamLinkFor = (className: string) => <SpaLink className={className} href="/ipam#external" onNavigate={() => {
+  const ipamLinkFor = (className: string, label = "Manage external IPs") => <SpaLink className={className} href="/ipam#external" onNavigate={() => {
     onNavigate?.("/ipam"); window.history.replaceState(null, "", "/ipam#external"); window.dispatchEvent(new Event("hashchange"));
-  }}>Manage external IPs</SpaLink>;
+  }}>{label}</SpaLink>;
   const ipamLink = ipamLinkFor("nm-btn nm-btn--secondary");
   function openRow(row: CloudRow) {
     setDetailKey(row.key);
@@ -126,7 +126,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
     latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
     onShowInDevices={id => {rememberCloudAssetReturn(detail.key, id); onShowInDevices(id);}}
-    deviceDetails={deviceDetails} externalIpAction={ipamLinkFor("nm-btn nm-btn--sm nm-btn--secondary")} onClose={() => {setDetailKey(null); onOpenDevice(null);}} onLinkChange={onOpenDevice}
+    deviceDetails={deviceDetails} externalIpAction={ipamLinkFor("nm-btn nm-btn--sm nm-btn--secondary", "External IPs")} onClose={() => {setDetailKey(null); onOpenDevice(null);}} onLinkChange={onOpenDevice}
     onAddressChange={value => query.setData(current => current && ({...current,addresses:current.addresses.map(row=>row.id===value.id ? value : row)}))}
     onResourceChange={value => query.setData(current => current && ({...current,assets:current.assets.map(row=>row.id===value.id ? value : row)}))}
   /> : null;

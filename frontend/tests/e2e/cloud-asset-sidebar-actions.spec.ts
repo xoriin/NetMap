@@ -12,6 +12,13 @@ async function open(page:Page,theme:'light'|'dark',width:number) {
  await page.goto('/inventory#cloud-assets');
 }
 
+async function expectOneRow(page:Page) {
+ const boxes=await page.locator('.inventory-device-sidebar .detail-actions--device').last().locator('.nm-btn').evaluateAll(els=>els.map(el=>({top:Math.round(el.getBoundingClientRect().top),clipped:el.scrollWidth>el.clientWidth})));
+ expect(boxes.length).toBeGreaterThan(1);
+ expect(new Set(boxes.map(box=>box.top)).size).toBe(1);
+ expect(boxes.some(box=>box.clipped)).toBe(false);
+}
+
 for(const theme of ['light','dark'] as const) {
  test(`editable sidebar fields hover with the shared tab hover tint in ${theme}`,async({page})=>{
   await open(page,theme,1440);
@@ -23,5 +30,13 @@ for(const theme of ['light','dark'] as const) {
    const want=getComputedStyle(probe).backgroundColor; probe.remove();
    return getComputedStyle(el).backgroundColor===want;
   })).toBe(true);
+ });
+
+ for(const width of [1440,1100]) test(`asset sidebar actions sit on one row at ${width}px in ${theme}`,async({page})=>{
+  await open(page,theme,width);
+  await page.getByRole('button',{name:'Open Public server details'}).click();
+  await expectOneRow(page);
+  await page.getByRole('button',{name:'Open Spare details'}).click();
+  await expectOneRow(page);
  });
 }

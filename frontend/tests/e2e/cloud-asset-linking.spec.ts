@@ -54,12 +54,12 @@ for(const theme of ['light','dark'] as const) {
   await expect(form).toBeHidden();
   expect(posts).toBe(1);
   expect(state.addressPatches.at(-1)).toEqual([1,{device_id:88}]);
-  await expect(sidebar.getByRole('button',{name:'Open linked device'})).toBeVisible();
+  await expect(sidebar.getByRole('button',{name:'Open device',exact:true})).toBeVisible();
   await pickDevice(page,'Not linked');
   expect(state.addressPatches.at(-1)).toEqual([1,{device_id:null}]);
   await pickDevice(page,'Existing server');
   expect(state.addressPatches.at(-1)).toEqual([1,{device_id:7}]);
-  await sidebar.getByRole('button',{name:'Unlink device',exact:true}).click();
+  await sidebar.getByRole('button',{name:'Unlink',exact:true}).click();
   expect(state.addressPatches.at(-1)).toEqual([1,{device_id:null}]);
   await expect(sidebar.getByRole('button',{name:'Add to Inventory',exact:true})).toBeVisible();
  });
@@ -131,10 +131,10 @@ test('Inventory-only writers can inspect linked context but cannot edit or relin
  await page.getByRole('button',{name:'Open Spare details'}).click();
  await expect(sidebar.locator('.editable-dd')).toHaveCount(0);
  await expect(sidebar.locator('.details-edit-hint')).toHaveCount(0);
- for(const name of ['Add to Inventory','Link device','Unlink device']) await expect(sidebar.getByRole('button',{name,exact:true})).toHaveCount(0);
+ for(const name of ['Add to Inventory','Link device','Unlink']) await expect(sidebar.getByRole('button',{name,exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Open Existing server details'}).click();
  await expect(sidebar.getByRole('button',{name:'Show in Devices',exact:true})).toBeVisible();
- await expect(sidebar.getByRole('button',{name:'Unlink device',exact:true})).toHaveCount(0);
+ await expect(sidebar.getByRole('button',{name:'Unlink',exact:true})).toHaveCount(0);
  await expect(sidebar.locator('.editable-dd')).toHaveCount(0);
 });
 
