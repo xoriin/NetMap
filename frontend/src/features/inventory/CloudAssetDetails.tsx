@@ -157,7 +157,7 @@ export function CloudAssetDetails({
   const [showDevice, setShowDevice] = useState(false);
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
   const [failedLink, setFailedLink] = useState<Device | null>(null);
-  const { listRef } = useEditableFieldFocus(editing);
+  const { listRef, focusEditor } = useEditableFieldFocus(editing);
 
   const deviceId = record.value.device_id;
   const device = devices.find((row) => row.id === deviceId);
@@ -270,11 +270,18 @@ export function CloudAssetDetails({
   const current = fields.find((field) => field.label === editing);
 
   function start(field: Field) {
-    if (!canWrite || busy || !field.save || editing === field.label) return;
-    if (current && draft !== current.value) return;
+    if (!canWrite || busy || !field.save) return;
+    if (editing === field.label || hasDirtyDraft()) {
+      focusEditor();
+      return;
+    }
     setEditing(field.label);
     setDraft(field.value);
     setError(null);
+  }
+
+  function hasDirtyDraft() {
+    return Boolean(current && draft !== current.value);
   }
 
   function stopEditing() {
@@ -312,8 +319,12 @@ export function CloudAssetDetails({
     }
   }
 
-  function startCreate() {
+  function startCreate(fromEditor = false) {
     if (!canCreate || busy) return;
+    if (!fromEditor && hasDirtyDraft()) {
+      focusEditor();
+      return;
+    }
     stopEditing();
     setFailedLink(null);
     setDeviceSeed(record.type === "address"
@@ -376,7 +387,7 @@ export function CloudAssetDetails({
           createLabel="Create device…"
           disabled={busy}
           onChange={(id) => setDraft(id === null ? "" : String(id))}
-          onCreateRequested={canCreate ? startCreate : undefined}
+          onCreateRequested={canCreate ? () => startCreate(true) : undefined}
         />
       );
     }
@@ -458,7 +469,7 @@ export function CloudAssetDetails({
             {(device || canWrite || record.type === "address") && (
               <div className="detail-actions detail-actions--device">
                 {canWrite && deviceId === null && canCreate && (
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={startCreate}>Add to Inventory</button>
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => startCreate()}>Add to Inventory</button>
                 )}
                 {canWrite && deviceId === null && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => start(fields[0])}>Link device</button>

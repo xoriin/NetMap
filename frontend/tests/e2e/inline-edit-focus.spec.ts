@@ -55,6 +55,21 @@ test('closing a Cloud field editor returns focus to the field',async({page})=>{
  expect(state.addresses[0].owner).toBe('Keyboard owner');
 });
 
+test('a dirty Cloud draft is kept and focused by other fields, Link device and Add to Inventory',async({page})=>{
+ await openCloud(page);
+ await field(page,'Owner').dblclick();
+ const owner=page.getByRole('textbox',{name:'Edit Owner'});
+ await owner.fill('Draft owner');
+ await field(page,'Tags').dblclick();
+ await expect(owner).toBeFocused();
+ await page.getByRole('button',{name:'Link device',exact:true}).click();
+ await expect(owner).toBeFocused();
+ await page.getByRole('button',{name:'Add to Inventory',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Add device',exact:true})).toHaveCount(0);
+ await expect(owner).toBeFocused();
+ await expect(owner).toHaveValue('Draft owner');
+});
+
 test('double-clicking a field to edit clears the text selection in Cloud and Devices',async({page})=>{
  await openCloud(page);
  await field(page,'Inventory device').dblclick();
