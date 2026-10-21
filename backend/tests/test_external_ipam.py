@@ -14,7 +14,7 @@ from app.api.v1.ipam import (
     external_ip_summary,
 )
 from app.db.session import Base
-from app.models.cloud import CloudAsset, CloudProvider
+from app.models.cloud import CloudAsset, CloudAssetType, CloudProvider
 from app.models.device import Device
 from app.models.external_ip import ExternalIpAddress, ExternalIpAssignment, ExternalIpPool, ExternalIpRange, ExternalProviderAccount, ExternalLocation
 from app.models.system_setting import SystemSetting
@@ -29,7 +29,7 @@ from app.schemas.ipam import (
 def _session():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine, tables=[
-        CloudProvider.__table__, CloudAsset.__table__, Device.__table__, ExternalProviderAccount.__table__, ExternalLocation.__table__,
+        CloudProvider.__table__, CloudAsset.__table__, CloudAssetType.__table__, Device.__table__, ExternalProviderAccount.__table__, ExternalLocation.__table__,
         ExternalIpPool.__table__, ExternalIpRange.__table__, ExternalIpAssignment.__table__, ExternalIpAddress.__table__,
         SystemSetting.__table__,
     ])

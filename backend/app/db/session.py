@@ -187,6 +187,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0079_user_totp", _migrate_user_totp)
         _run_migration(conn, inspector, "0080_idle_timeout_preserve", _migrate_idle_timeout_preserve)
         _run_migration(conn, inspector, "0081_status_pages", _migrate_status_pages)
+        _run_migration(conn, inspector, "0082_cloud_asset_types", _migrate_cloud_asset_types)
 
 
 
@@ -1452,6 +1453,51 @@ def _migrate_status_pages(conn, inspector) -> None:
             "ON monitor_check_history (monitor_id, checked_at, status, response_time_ms)"
         ))
     _append_network_admin_permission(conn, "status_page_manage")
+
+
+_LEGACY_CLOUD_ASSET_KINDS = {
+    "ec2": "server",
+    "vm": "server",
+    "load_balancer": "load_balancer",
+    "nat_gateway": "network",
+    "k8s_ingress": "network",
+    "cdn": "network",
+    "database": "database",
+    "storage": "storage",
+    "other": "other",
+}
+
+
+def _migrate_cloud_asset_types(conn, inspector) -> None:
+    """Map old fixed kinds onto the plain built-in types; keep any other value as a custom type."""
+    from app.models.cloud import BUILT_IN_CLOUD_ASSET_TYPE_VALUES, normalize_cloud_asset_type_value
+
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS cloud_asset_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            value VARCHAR(40) NOT NULL,
+            label VARCHAR(80) NOT NULL,
+            created_at DATETIME NOT NULL
+        )
+    """))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_cloud_asset_types_value ON cloud_asset_types (value)"))
+    if "cloud_assets" not in _live_tables(conn):
+        return
+    custom = {row[0] for row in conn.execute(text("SELECT value FROM cloud_asset_types")).fetchall()}
+    kinds = [row[0] for row in conn.execute(text("SELECT DISTINCT kind FROM cloud_assets WHERE kind IS NOT NULL")).fetchall()]
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ")
+    for kind in kinds:
+        cleaned = " ".join(kind.split())
+        target = _LEGACY_CLOUD_ASSET_KINDS.get(cleaned.lower()) or normalize_cloud_asset_type_value(cleaned) or None
+        if target and target not in BUILT_IN_CLOUD_ASSET_TYPE_VALUES and target not in custom:
+            label = cleaned.replace("_", " ")
+            conn.execute(
+                text("INSERT INTO cloud_asset_types (value, label, created_at) VALUES (:value, :label, :now)"),
+                {"value": target, "label": (label[:1].upper() + label[1:])[:80], "now": now},
+            )
+            custom.add(target)
+        if target != kind:
+            conn.execute(text("UPDATE cloud_assets SET kind = :target WHERE kind = :kind"), {"target": target, "kind": kind})
 
 
 def _append_network_admin_permission(conn, permission: str) -> None:

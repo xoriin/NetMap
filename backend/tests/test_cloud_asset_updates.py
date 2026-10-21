@@ -34,7 +34,7 @@ def test_edit_and_link_resource_without_modifying_device_or_addresses(context):
     db.add_all([device, provider])
     db.commit()
     result = client.patch(f"/ipam/external/assets/{asset_id}", json={
-        "name": "Updated VM", "kind": "ec2", "provider_id": provider.id,
+        "name": "Updated VM", "kind": "server", "provider_id": provider.id,
         "account": "New account", "region": "au-east", "description": "Updated notes", "device_id": device.id,
     })
     assert result.status_code == 200, result.text
@@ -119,7 +119,7 @@ def test_create_links_existing_device_without_enabling_monitoring(context):
     provider = CloudProvider(key='example', name='Example', icon='cloud')
     db.add_all([device, provider])
     db.commit()
-    payload = {'name': 'Gateway', 'kind': 'nat_gateway', 'provider_id': provider.id,
+    payload = {'name': 'Gateway', 'kind': 'network', 'provider_id': provider.id,
                'account': 'Production', 'region': 'Sydney', 'description': 'Useful notes', 'device_id': device.id}
     result = client.post('/ipam/external/assets', json=payload)
     assert result.status_code == 201, result.text

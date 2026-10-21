@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -9,20 +10,31 @@ from app.db.session import Base
 # Icon identifiers accepted for a cloud provider. `custom` pairs with `icon_data`.
 CLOUD_PROVIDER_ICONS = ("aws", "azure", "google_cloud", "cloudflare", "cloud", "globe", "custom")
 
-# Asset kinds. Fixed rather than user-extensible, mirroring the built-in device-type
-# constants in `api/v1/admin.py` — a free-text kind is what produced the original
-# "EC2 typed into the account field" problem this table exists to fix.
-CLOUD_ASSET_KINDS = (
-    "ec2",
-    "vm",
-    "load_balancer",
-    "nat_gateway",
-    "k8s_ingress",
-    "database",
-    "storage",
-    "cdn",
-    "other",
+# Built-in asset types plus normalised user-added custom types (`cloud_asset_types`), like device types.
+BUILT_IN_CLOUD_ASSET_TYPES = (
+    ("server", "Server"),
+    ("load_balancer", "Load balancer"),
+    ("database", "Database"),
+    ("storage", "Storage"),
+    ("network", "Network"),
+    ("other", "Other"),
 )
+BUILT_IN_CLOUD_ASSET_TYPE_VALUES = frozenset(value for value, _ in BUILT_IN_CLOUD_ASSET_TYPES)
+
+
+def normalize_cloud_asset_type_value(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")[:40].strip("_")
+
+
+class CloudAssetType(Base):
+    __tablename__ = "cloud_asset_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    value: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
 
 class CloudProvider(Base):

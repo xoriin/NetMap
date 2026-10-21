@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.cloud import normalize_cloud_asset_type_value
+
 
 class SubnetCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -259,6 +261,27 @@ class ExternalMigrationReport(BaseModel):
     migrated: int
     declined: list[ExternalMigrationDecline]
     skipped: list[ExternalMigrationSkip] = []
+
+
+class CloudAssetTypeOut(BaseModel):
+    id: int | None = None
+    value: str
+    label: str
+    is_builtin: bool = False
+
+
+class CloudAssetTypeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(max_length=80)
+
+    @field_validator("label")
+    @classmethod
+    def clean_label(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if not normalize_cloud_asset_type_value(cleaned):
+            raise ValueError("Enter a type name with at least one letter or number")
+        return cleaned
 
 
 class SavedCloudAssetOut(BaseModel):

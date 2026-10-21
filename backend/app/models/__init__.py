@@ -3,7 +3,7 @@
 from app.models.alert_event import AlertEvent
 from app.models.api_key import ApiKey, ApiKeyThrottleState
 from app.models.audit_log import AuditLog
-from app.models.cloud import CloudAsset, CloudProvider
+from app.models.cloud import CloudAsset, CloudAssetType, CloudProvider
 from app.models.auth_session import LoginThrottleState, RefreshTokenState
 from app.models.device import Device, DeviceStatus
 from app.models.device_type import DeviceType
@@ -30,6 +30,7 @@ __all__ = [
     "ApiKeyThrottleState",
     "AuditLog",
     "CloudAsset",
+    "CloudAssetType",
     "CloudProvider",
     "IpReservation",
     "NotificationProfile",

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import delete, func, select
@@ -17,10 +17,17 @@ from app.api.deps import get_current_user, require_ipam_write
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.dhcp_lease import DhcpLease
-from app.models.cloud import CLOUD_ASSET_KINDS, CloudAsset, CloudProvider
+from app.models.cloud import (
+    BUILT_IN_CLOUD_ASSET_TYPE_VALUES,
+    BUILT_IN_CLOUD_ASSET_TYPES,
+    CloudAsset,
+    CloudAssetType,
+    CloudProvider,
+    normalize_cloud_asset_type_value,
+)
 from app.models.external_ip import ExternalIpAddress, ExternalProviderAccount, ExternalLocation
 from app.models.system_setting import SystemSetting
-from app.schemas.ipam import ExternalAccountCreate, ExternalAccountOut, ExternalLocationCreate, ExternalLocationOut
+from app.schemas.ipam import CloudAssetTypeCreate, CloudAssetTypeOut, ExternalAccountCreate, ExternalAccountOut, ExternalLocationCreate, ExternalLocationOut
 from app.models.ip_reservation import IpReservation
 from app.models.subnet import Subnet
 from app.models.user import User
@@ -1057,9 +1064,61 @@ def list_saved_cloud_assets(
     return [SavedCloudAssetOut.model_validate(row) for row in rows]
 
 
+def _cloud_asset_types(db: Session) -> list[CloudAssetTypeOut]:
+    custom = db.scalars(select(CloudAssetType).order_by(func.lower(CloudAssetType.label), CloudAssetType.id)).all()
+    return [
+        *(CloudAssetTypeOut(value=value, label=label, is_builtin=True) for value, label in BUILT_IN_CLOUD_ASSET_TYPES),
+        *(CloudAssetTypeOut(id=row.id, value=row.value, label=row.label) for row in custom if row.value not in BUILT_IN_CLOUD_ASSET_TYPE_VALUES),
+    ]
+
+
+def _matching_cloud_asset_type(db: Session, label: str) -> CloudAssetTypeOut | None:
+    value = normalize_cloud_asset_type_value(label)
+    key = label.casefold()
+    return next((row for row in _cloud_asset_types(db) if row.value == value or row.label.casefold() == key), None)
+
+
+@router.get("/external/asset-types", response_model=list[CloudAssetTypeOut])
+def list_cloud_asset_types(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[CloudAssetTypeOut]:
+    return _cloud_asset_types(db)
+
+
+@router.post("/external/asset-types", response_model=CloudAssetTypeOut, status_code=201)
+def create_cloud_asset_type(
+    payload: CloudAssetTypeCreate,
+    response: Response,
+    user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> CloudAssetTypeOut:
+    """Add a custom type; a name matching an existing type returns that type instead."""
+    existing = _matching_cloud_asset_type(db, payload.label)
+    if existing is not None:
+        response.status_code = 200
+        return existing
+    row = CloudAssetType(value=normalize_cloud_asset_type_value(payload.label), label=payload.label)
+    db.add(row)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = _matching_cloud_asset_type(db, payload.label)
+        if existing is None:
+            raise
+        response.status_code = 200
+        return existing
+    db.refresh(row)
+    return CloudAssetTypeOut(id=row.id, value=row.value, label=row.label)
+
+
 def _validate_cloud_asset_references(db: Session, fields: dict[str, object]) -> None:
-    if fields.get("kind") is not None and fields["kind"] not in CLOUD_ASSET_KINDS:
-        raise HTTPException(status_code=422, detail="Choose a supported asset kind")
+    kind = fields.get("kind")
+    if kind is not None and kind not in BUILT_IN_CLOUD_ASSET_TYPE_VALUES and db.scalar(
+        select(CloudAssetType.id).where(CloudAssetType.value == kind)
+    ) is None:
+        raise HTTPException(status_code=422, detail="Choose a supported asset type")
     if fields.get("provider_id") is not None and db.get(CloudProvider, fields["provider_id"]) is None:
         raise HTTPException(status_code=404, detail="Provider not found")
     if fields.get("device_id") is not None and db.get(Device, fields["device_id"]) is None:
