@@ -118,7 +118,7 @@
 .inventory-layout .inventory-row,
 body:not(.theme-dark) .inventory-layout .inventory-row:not(.active) {
   border-bottom-color: var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }
 
