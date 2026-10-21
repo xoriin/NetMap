@@ -6,10 +6,11 @@ import { PickOrCreate } from "../../components/PickOrCreate";
 import { deviceLabel } from "../../utils/format";
 import { CloudAssetTypePicker } from "./CloudAssetTypePicker";
 
-export function CloudAssetForm({ accessToken, providers, devices, types, onTypeCreated, onCreated, onCancel }: {
+export function CloudAssetForm({ accessToken, providers, devices, types, canCreateDevice, onTypeCreated, onCreated, onCancel }: {
+  canCreateDevice: boolean;
   types: CloudAssetType[]; onTypeCreated: (type: CloudAssetType) => void;
   accessToken: string; providers: CloudProviderOption[]; devices: Device[];
-  onCreated: (asset: SavedCloudAsset) => void; onCancel: () => void;
+  onCreated: (asset: SavedCloudAsset, addToInventory: boolean) => void; onCancel: () => void;
 }) {
   const formId = useId();
   const [name, setName] = useState("");
@@ -19,6 +20,7 @@ export function CloudAssetForm({ accessToken, providers, devices, types, onTypeC
   const [account, setAccount] = useState("");
   const [region, setRegion] = useState("");
   const [description, setDescription] = useState("");
+  const [addToInventory, setAddToInventory] = useState(canCreateDevice);
   const [deviceId, setDeviceId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +34,9 @@ export function CloudAssetForm({ accessToken, providers, devices, types, onTypeC
       const asset = await api.createSavedCloudAsset(accessToken, {
         name: name.trim(), kind: kind || null, provider_id: provider ? Number(provider) : null,
         account: account.trim() || null, region: region.trim() || null,
-        description: description.trim() || null, device_id: deviceId,
+        description: description.trim() || null, device_id: addToInventory && canCreateDevice ? null : deviceId,
       });
-      onCreated(asset);
+      onCreated(asset, addToInventory && canCreateDevice);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add cloud asset");
       setBusy(false);
@@ -54,10 +56,16 @@ export function CloudAssetForm({ accessToken, providers, devices, types, onTypeC
       <label className="nm-field">Provider<select className="nm-select" aria-label="Provider" value={provider} disabled={busy} onChange={event => setProvider(event.target.value)}>
         <option value="">Unassigned</option>{providers.filter(item => item.id != null).map(item => <option key={item.id} value={item.id ?? ""}>{item.name}</option>)}
       </select></label>
-      <div className="inventory-cloud-device-field"><label htmlFor={`${formId}-device`}>Inventory device</label><PickOrCreate id={`${formId}-device`} ariaLabel="Inventory device" value={deviceId} disabled={busy}
+      {canCreateDevice && <div className="inventory-cloud-inventory-toggle">
+        <label htmlFor={`${formId}-inventory`}>Add to Inventory</label>
+        <button id={`${formId}-inventory`} type="button" role="switch" aria-label="Add to Inventory" aria-checked={addToInventory}
+          className={`nm-switch${addToInventory ? " is-on" : ""}`} disabled={busy} onClick={() => setAddToInventory(value => !value)}><span /></button>
+      </div>}
+      {(!canCreateDevice || !addToInventory) && (<div className="inventory-cloud-device-field"><label htmlFor={`${formId}-device`}>Inventory device</label><PickOrCreate id={`${formId}-device`} ariaLabel="Inventory device" value={deviceId} disabled={busy}
         emptyLabel="Not linked" createLabel="Create device…" onChange={setDeviceId}
         options={devices.map(device => ({ id: device.id, label: deviceLabel(device), group: device.ip_address }))} />
-      </div>
+      </div>)}
+
       <div className="nm-form-row">
         <label className="nm-field">Account<input className="nm-input" maxLength={120} value={account} disabled={busy} onChange={event => setAccount(event.target.value)} /></label>
         <label className="nm-field">Region<input className="nm-input" maxLength={120} value={region} disabled={busy} onChange={event => setRegion(event.target.value)} /></label>

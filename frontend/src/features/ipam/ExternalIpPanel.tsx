@@ -909,7 +909,7 @@ export function ExternalIpPanel({
                     role="switch"
                     aria-checked={addToInventory}
                     aria-label="Also add to Inventory and Monitoring"
-                    className={`external-ip-device-switch${addToInventory ? " is-on" : ""}`}
+                    className={`nm-switch${addToInventory ? " is-on" : ""}`}
                     onClick={() => setAddToInventory((enabled) => !enabled)}
                   >
                     <span />

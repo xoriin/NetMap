@@ -44,6 +44,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   }, [accessToken]);
   const toast = useToast();
   const [creating, setCreating] = useState(false);
+  const [createDeviceFor, setCreateDeviceFor] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -129,6 +130,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     query.setData(current => current && ({ ...current, types: current.types.some(item => item.value === type.value) ? current.types.map(item => item.value === type.value ? type : item) : [...current.types, type] }));
   }
   const activeOverview = detail && query.data ? <CloudAssetDetails key={detail.key}
+    createDeviceOnOpen={detail.record.type === "resource" && createDeviceFor === detail.record.value.id} onCreateStarted={() => setCreateDeviceFor(null)}
     types={query.data.types} onTypeCreated={typeCreated} record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
     latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
@@ -184,10 +186,11 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       {activeOverview}
     </div>
 
-    {creating && query.data && <CloudAssetForm types={query.data.types} onTypeCreated={typeCreated} accessToken={accessToken} providers={query.data.providers} devices={devices}
-      onCancel={() => setCreating(false)} onCreated={asset => {
+    {creating && query.data && <CloudAssetForm canCreateDevice={canCreateDevice} types={query.data.types} onTypeCreated={typeCreated} accessToken={accessToken} providers={query.data.providers} devices={devices}
+      onCancel={() => setCreating(false)} onCreated={(asset, addToInventory) => {
         query.setData(current => current && ({ ...current, assets: [...current.assets, asset] }));
         setSearch(""); setProviderFilter("all"); setLocationFilter("all"); setKindFilter("all"); setMonitorFilter("all"); setFavouritesOnly(false);
+        setCreateDeviceFor(addToInventory ? asset.id : null);
         setPage(1); setDetailKey(`saved-${asset.id}`); onOpenDevice(asset.device_id); setCreating(false);
         toast.success("Cloud asset added", { detail: asset.name });
       }} />}

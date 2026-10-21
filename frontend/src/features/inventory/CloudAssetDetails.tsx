@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useState, type ReactNode } from "react";
 import {
   Activity,
   Clock,
@@ -106,6 +106,8 @@ const splitTags = (tags: string | null) => (tags ?? "").split(",").map((tag) => 
 /** Cloud metadata stays editable even when the record is linked to a real device. */
 export function CloudAssetDetails({
   record,
+  createDeviceOnOpen,
+  onCreateStarted,
   types,
   onTypeCreated,
   name,
@@ -130,6 +132,8 @@ export function CloudAssetDetails({
   onShowInDevices,
 }: {
   record: CloudAssetRecord;
+  createDeviceOnOpen: boolean;
+  onCreateStarted: () => void;
   types: CloudAssetType[];
   onTypeCreated: (type: CloudAssetType) => void;
   name: string;
@@ -346,6 +350,12 @@ export function CloudAssetDetails({
         }
       : { display_name: record.value.name, hostname: null, notes: record.value.description, monitoring_paused: false });
   }
+
+  useEffect(() => {
+    if (!createDeviceOnOpen) return;
+    startCreate();
+    onCreateStarted();
+  }, [createDeviceOnOpen]);
 
   async function createAndLink(payload: DevicePayload | null) {
     if (!canCreate) return;

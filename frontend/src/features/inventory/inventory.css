@@ -304,3 +304,5 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 .inventory-cloud-type-picker, .inventory-cloud-type-create { display: grid; gap: var(--nm-space-2); min-width: 0; }
 .inventory-cloud-type-create { padding-top: var(--nm-space-2); }
 .inventory-cloud-type-actions { display: flex; justify-content: flex-end; gap: var(--nm-space-2); }
+
+.inventory-cloud-inventory-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--nm-space-2); }

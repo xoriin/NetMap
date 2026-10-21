@@ -1684,3 +1684,46 @@ body.theme-dark .nm-pick-filter input {
   font-size: var(--nm-text-xs);
   text-align: center;
 }
+
+/* Shared switch: live preview geometry; used by External IPAM and Cloud assets. */
+.nm-switch {
+  display: flex;
+  align-items: center;
+  width: 36px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid var(--nm-border-strong);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--nm-modal-input);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.nm-switch > span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--nm-text-faint);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.nm-switch:hover {
+  border-color: color-mix(in srgb, var(--nm-accent) 60%, var(--nm-border-strong));
+}
+
+.nm-switch:focus-visible {
+  outline: 2px solid var(--nm-accent);
+  outline-offset: 2px;
+}
+
+.nm-switch.is-on {
+  border-color: var(--nm-accent);
+  background: var(--nm-accent-soft);
+}
+
+.nm-switch.is-on > span {
+  transform: translateX(16px);
+  background: var(--nm-accent-strong);
+}
+
+.nm-switch:disabled { opacity: 0.6; cursor: not-allowed; }

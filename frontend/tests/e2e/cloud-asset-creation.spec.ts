@@ -24,6 +24,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Add cloud asset", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Add cloud asset", exact: true });
     await expect(dialog.getByRole("button", { name: "Add asset", exact: true })).toBeDisabled();
+    await dialog.getByRole("switch", { name: "Add to Inventory", exact: true }).click();
     await dialog.getByLabel("Name", { exact: true }).fill("Production gateway");
     await dialog.getByRole("button", { name: "Type", exact: true }).click();
     await page.getByRole("option", { name: "Network", exact: true }).click();
