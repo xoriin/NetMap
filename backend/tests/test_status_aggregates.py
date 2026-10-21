@@ -407,6 +407,20 @@ def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch,
     assert all("boom" in r.getMessage() or r.exc_info for r in failures)
 
 
+def test_never_computed_job_unused_since_it_failed_is_dropped(monkeypatch):
+    history = aggregates.SourceHistory()
+    key = ("device:1", "7d", 60, ())
+    history.track(key, SourceRef("device", device_id=1), timedelta(days=7), NOW)
+    order = []
+    _recording_compute(monkeypatch, order, failing={1})
+    failed_at = NOW + timedelta(seconds=1)
+    assert history.refresh_once(failed_at, lambda: None) is True
+    assert history.refresh_once(failed_at + aggregates.LONG_RETRY, lambda: None) is True
+    assert order == [1]
+    assert history.backlog(NOW + timedelta(hours=1)) == []
+    assert key not in history._failed
+
+
 def test_value_past_the_hard_cap_is_served_flagged_and_warned(cache, factory, monkeypatch, caplog):
     ids = _devices(factory, 1)
     page_id = _page(factory, "media", ids)

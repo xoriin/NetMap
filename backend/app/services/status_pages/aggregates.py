@@ -162,9 +162,11 @@ class SourceHistory:
         key = due[0]
         with self._lock:
             job, generation, entry = self._jobs.get(key), self.generation, self._long.get(key)
-            if job is not None and entry is not None and job.used_at < entry.computed_at:
+            last = entry.computed_at if entry is not None else self._failed.get(key)
+            if job is not None and last is not None and job.used_at < last:
                 del self._jobs[key]
-                del self._long[key]
+                self._long.pop(key, None)
+                self._failed.pop(key, None)
                 return True
         if job is None:
             return True
