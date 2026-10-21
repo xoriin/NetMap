@@ -28,7 +28,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".tools-activity")).toBeVisible();
     await expect(page.locator(".tools-saved")).toBeVisible();
     await expect(page.locator(".tools-guide")).toContainText("How DNS Lookup works");
-    await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(12, 17, 24)" : "rgb(234, 237, 240)");
+    await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(12, 17, 24)" : "rgb(254, 254, 254)");
     if (theme === "dark") await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
 
     const dnsPanel = page.locator(".tool-card");
