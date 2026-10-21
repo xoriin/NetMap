@@ -894,6 +894,27 @@ body.theme-dark .nm-alert--warning { color: #e8b040; }
 .nm-status--disabled { border-color: var(--nm-border); border-style: dashed; background: transparent; color: var(--nm-text-muted); }
 body.theme-dark .nm-status--warning { color: #e8b040; }
 
+/* Richer semantic pills in light mode; neutral and disabled states stay neutral. */
+body:not(.theme-dark) .nm-status--online,
+body:not(.theme-dark) .status-pill.online {
+  background: color-mix(in srgb, var(--nm-success) 22%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-success) 65%, var(--nm-text));
+}
+body:not(.theme-dark) .nm-status--offline,
+body:not(.theme-dark) .status-pill.offline {
+  background: color-mix(in srgb, var(--nm-danger) 18%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-danger) 65%, var(--nm-text));
+}
+body:not(.theme-dark) .nm-status--warning,
+body:not(.theme-dark) .status-pill.warning {
+  background: color-mix(in srgb, var(--nm-warning) 24%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-warning) 60%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-warning) 45%, var(--nm-text));
+}
+
+
 /* ── Canonical application panel hierarchy ──────────────────────────────── */
 .nm-app-panel {
   overflow: hidden;

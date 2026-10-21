@@ -1410,6 +1410,20 @@ span.mon-device-ip { display: block; }
 .mon-uptime-warn { color: #7a5000; background: rgba(224,144,48,0.12); }
 .mon-uptime-bad  { color: #8a2020; background: rgba(224,80,80,0.12); }
 
+/* UptimeBadge is shared by Overview and Monitoring. */
+body:not(.theme-dark) .mon-uptime-good {
+  background: color-mix(in srgb, var(--nm-success) 22%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-success) 65%, var(--nm-text));
+}
+body:not(.theme-dark) .mon-uptime-warn {
+  background: color-mix(in srgb, var(--nm-warning) 24%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-warning) 45%, var(--nm-text));
+}
+body:not(.theme-dark) .mon-uptime-bad {
+  background: color-mix(in srgb, var(--nm-danger) 18%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-danger) 65%, var(--nm-text));
+}
+
 /* Port badges in table */
 .mon-port-badges { display: flex; gap: 4px; flex-wrap: wrap; }
 .mon-port-badge {
