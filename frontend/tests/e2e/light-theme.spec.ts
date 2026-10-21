@@ -79,6 +79,7 @@ test("light mode paints the tinted page, near-white panels and the page header b
   await openInventory(page, "light");
   expect(await resolve(page, "--nm-bg", "backgroundColor")).toBe("rgb(254, 254, 254)");
   await expect(page.locator(".app-main")).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  expect(await resolve(page, "--nm-modal-shell", "backgroundColor")).toBe("rgb(245, 245, 246)");
 
   const panel = page.locator(".inventory-surface.nm-app-panel");
   await expect(panel).toHaveCSS("background-color", "rgb(254, 254, 254)");
