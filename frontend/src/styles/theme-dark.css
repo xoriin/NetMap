@@ -458,10 +458,6 @@ body:not(.theme-dark) .graph-surface {
   background-size: 28px 28px;
 }
 
-body.theme-dark .editable-dd:hover {
-  background: rgba(74, 163, 255, 0.12);
-}
-
 body.theme-dark .device-detail-tabs { border-color: rgba(40,70,90,0.7); }
 body.theme-dark .device-detail-tab { color: #4a6a80; }
 body.theme-dark .device-detail-tab:hover { color: #c8dae8; }
