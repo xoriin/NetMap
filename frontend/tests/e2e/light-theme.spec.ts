@@ -148,13 +148,13 @@ test("the Topology ribbon carries the same light band as every panel header", as
   expect(low).toEqual([]);
 });
 
-test("light tables use teal-tinted column headers, near-white rows and a teal selected row", async ({ page }) => {
+test("light tables use slate column headers, near-white rows and a teal selected row", async ({ page }) => {
   await openInventory(page, "light");
-  expect(await resolve(page, "--nm-table-header-bg", "backgroundColor")).toBe("rgb(230, 241, 244)");
+  expect(await resolve(page, "--nm-table-header-bg", "backgroundColor")).toBe("rgb(238, 241, 244)");
   const header = page.locator(".inventory-table-header");
-  await expect(header).toHaveCSS("background-color", "rgb(230, 241, 244)");
-  await expect(header).toHaveCSS("color", "rgb(29, 100, 114)");
-  await expect(header).toHaveCSS("border-bottom-color", "rgb(197, 223, 229)");
+  await expect(header).toHaveCSS("background-color", "rgb(238, 241, 244)");
+  await expect(header).toHaveCSS("color", "rgb(59, 77, 96)");
+  await expect(header).toHaveCSS("border-bottom-color", "rgb(214, 220, 227)");
 
   const row = page.locator(".inventory-row").nth(1);
   await expect(row).toHaveCSS("background-color", "rgb(254, 254, 254)");
@@ -172,8 +172,8 @@ test("the VLAN table shares the light column header", async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/vlans");
   const vlanHeader = page.locator(".vlan-table-header");
-  await expect(vlanHeader).toHaveCSS("background-color", "rgb(230, 241, 244)");
-  await expect(vlanHeader).toHaveCSS("color", "rgb(29, 100, 114)");
+  await expect(vlanHeader).toHaveCSS("background-color", "rgb(238, 241, 244)");
+  await expect(vlanHeader).toHaveCSS("color", "rgb(59, 77, 96)");
 });
 
 test("light summary cards are tinted per status with a deep top line and a solid icon square", async ({ page }) => {

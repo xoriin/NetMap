@@ -113,9 +113,9 @@
   --nm-table-row-bg: #fefefe;
   --nm-table-divider: #e6edf2;
   --nm-row-selected: #d9eef2;
-  --nm-table-header-bg: #e6f1f4;
-  --nm-table-header-text: #1d6472;
-  --nm-table-header-border: #c5dfe5;
+  --nm-table-header-bg: #eef1f4;
+  --nm-table-header-text: #3b4d60;
+  --nm-table-header-border: #d6dce3;
   --nm-table-header-weight: 600;
   --nm-row-hover: #e7edf2;
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
