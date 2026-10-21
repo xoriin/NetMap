@@ -234,17 +234,17 @@ test("create page, add device with alias, save, preview shows alias not hostname
     { id: null, name: "Core network", collapsed_by_default: false, items: [{ id: null, source: { device: 1 }, display_name: "Edge router", extras: NO_EXTRAS }] },
   ]);
 
-  await page.getByRole("tab", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   const frame = page.locator("iframe.status-page-frame");
   await expect(page.frameLocator("iframe.status-page-frame").locator(".sp-row-name")).toHaveText("Edge router");
   const doc = (await frame.getAttribute("srcdoc")) ?? "";
   expect(doc).not.toContain("router-core-01");
   expect(doc).not.toContain("192.168.100.1");
-  expect(api.previewAudiences).toEqual(["public", "public"]);
+  expect(api.previewAudiences.every(audience => audience === "public")).toBe(true);
 
   await page.getByRole("button", { name: "Private", exact: true }).click();
   await expect(page.getByRole("button", { name: "Private", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => api.previewAudiences).toEqual(["public", "public", "private"]);
+  await expect.poll(() => api.previewAudiences.at(-1)).toBe("private");
 });
 
 test("cannot save item without display name", async ({ page }) => {
@@ -430,12 +430,14 @@ async function openLayout(page: Page, api: StatusPagesApi) {
 }
 
 test("drag moves an item into another group and a cancelled drag reverts", async ({ page }) => {
+  await page.setViewportSize({ width: 1560, height: 1200 });
   const api = new StatusPagesApi();
   api.seed(twoGroupPage());
   await openLayout(page, api);
 
   const row = (name: string) => page.locator(".status-layout-item", { has: page.locator(`input[value='${name}']`) });
-  await page.getByRole("button", { name: "Drag Alpha to reorder" }).dragTo(row("Charlie"), { targetPosition: { x: 40, y: 30 } });
+  const targetHeight = (await row("Charlie").boundingBox())!.height;
+  await page.getByRole("button", { name: "Drag Alpha to reorder" }).dragTo(row("Charlie"), { targetPosition: { x: 40, y: targetHeight - 4 } });
   await expect.poll(() => layoutOrder(page)).toEqual([
     { group: "Services", items: ["Bravo"] },
     { group: "Office", items: ["Charlie", "Alpha"] },
@@ -587,3 +589,29 @@ test("settings preview reports load errors and retries without losing the CSS dr
   await expect(page.frameLocator("iframe.status-page-frame").locator(".sp-title")).toHaveCSS("color", "rgb(120, 90, 200)");
   expect(api.pages[0].custom_css).toBeNull();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`preview keeps its frame and equal column across all editor tabs in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1560, height: 1000 });
+    const api = new StatusPagesApi(); api.seed({ ...twoGroupPage(), name: "Persistent preview" });
+    await openApp(page, theme); await api.install(page);
+    await page.route(/\/api\/v1\/status-pages\/(incidents|maintenance|tokens|1\/notices)$/, route => route.fulfill({ json: [] }));
+    await openStatusPages(page); await openEditor(page, "Persistent preview");
+    const iframe = page.locator("iframe.status-page-frame");
+    await expect(page.frameLocator("iframe.status-page-frame").locator(".sp-title")).toHaveText("Persistent preview");
+    await iframe.evaluate(n => n.setAttribute("data-persistence-check", "original"));
+    await page.getByRole("button", { name: "Private", exact: true }).click();
+    for (const tab of ["Layout", "Incidents", "Notices", "Maintenance", "Tokens", "Settings"]) {
+      await page.getByRole("tab", { name: tab, exact: true }).click();
+      await expect(iframe).toHaveCount(1);
+      await expect(iframe).toHaveAttribute("data-persistence-check", "original");
+      await expect(page.getByRole("button", { name: "Private", exact: true })).toHaveAttribute("aria-pressed", "true");
+      const controls = await page.locator(".status-editor-controls").boundingBox();
+      const preview = await page.locator(".status-editor-preview-panel").boundingBox();
+      expect(controls).not.toBeNull(); expect(preview).not.toBeNull();
+      expect(Math.abs(controls!.width - preview!.width)).toBeLessThanOrEqual(1);
+      expect(preview!.x).toBeGreaterThan(controls!.x + controls!.width);
+      expect(await page.locator(".status-editor-stage").evaluate(n => n.scrollWidth <= n.clientWidth)).toBe(true);
+    }
+  });
+}

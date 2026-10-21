@@ -20,7 +20,7 @@ import {
   type StatusPageDetail, type StatusPageSettings, type StatusPreviewAudience, type StatusSources,
 } from "./statusPagesEditorApi";
 
-type EditorTab = "settings" | "layout" | "incidents" | "notices" | "maintenance" | "tokens" | "preview";
+type EditorTab = "settings" | "layout" | "incidents" | "notices" | "maintenance" | "tokens";
 
 const EDITOR_TABS: { id: EditorTab; label: string; Icon: typeof SlidersHorizontal }[] = [
   { id: "settings", label: "Settings", Icon: SlidersHorizontal },
@@ -29,7 +29,6 @@ const EDITOR_TABS: { id: EditorTab; label: string; Icon: typeof SlidersHorizonta
   { id: "notices", label: "Notices", Icon: Megaphone },
   { id: "maintenance", label: "Maintenance", Icon: CalendarClock },
   { id: "tokens", label: "Tokens", Icon: KeyRound },
-  { id: "preview", label: "Preview", Icon: Eye },
 ];
 
 const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -262,8 +261,8 @@ function SettingsForm({
   );
 }
 
-function PreviewPanel({ accessToken, pageId, stale, draft }: {
-  accessToken: string; pageId: number; stale: boolean; draft?: SettingsDraft;
+function PreviewPanel({ accessToken, pageId, stale, draft, revision }: {
+  accessToken: string; pageId: number; stale: boolean; draft?: SettingsDraft; revision: string;
 }) {
   const { theme } = useTheme();
   const [audience, setAudience] = useState<StatusPreviewAudience>("public");
@@ -294,7 +293,7 @@ function PreviewPanel({ accessToken, pageId, stale, draft }: {
       .catch((err) => { if (!cancelled) { setPayload(null); setError(err instanceof Error ? err.message : "Unable to build the preview"); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [accessToken, pageId, audience, nonce]);
+  }, [accessToken, pageId, audience, nonce, revision]);
 
   return (
     <section className="nm-app-panel status-editor-panel status-editor-preview-panel">
@@ -350,6 +349,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
   const [savingLayout, setSavingLayout] = useState(false);
   const [sources, setSources] = useState<StatusSources | null>(null);
   const [sourcesError, setSourcesError] = useState<string | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
 
   const adopt = useCallback((detail: StatusPageDetail) => {
     const nextGroups = draftFromDetail(detail);
@@ -385,6 +385,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
       const next = { ...page, ...saved };
       setPage(next);
       setDraft(settingsDraft(next));
+      setPreviewRevision(value => value + 1);
       toast.success("Settings saved");
     } catch (err) {
       const problems = cssErrors(err);
@@ -401,6 +402,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
     setSavingLayout(true);
     try {
       adopt(await statusPagesEditorApi.saveLayout(accessToken, page.id, layoutPayload(groups)));
+      setPreviewRevision(value => value + 1);
       toast.success("Layout saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unable to save the layout");
@@ -463,44 +465,45 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
           </button>
         ))}
       </div>
-      <div className="nm-workspace-stage status-editor-stage" id="status-editor-stage" role="tabpanel" aria-labelledby={`status-editor-tab-${tab}`}>
-        {tab === "settings" && (
-          <div className="status-editor-panels status-editor-settings-panels">
-            <SettingsForm
-              draft={draft}
-              setDraft={(update) => setDraft((current) => (current ? update(current) : current))}
-              saving={savingSettings}
-              dirty={settingsDirty}
-              slugError={slugError}
-              onSlugEdit={() => setSlugError(null)}
-              cssErrors={cssProblems}
-              onCssEdit={() => setCssProblems([])}
-              onSave={() => void saveSettings()}
-              onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); setCssProblems([]); }}
-            />
-            <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft} stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
+      <div className="nm-workspace-stage status-editor-stage">
+        <div className="status-editor-panels status-editor-split">
+          <div className="status-editor-controls" id="status-editor-stage" role="tabpanel" aria-labelledby={`status-editor-tab-${tab}`}>
+            {tab === "settings" && (
+              <div className="status-editor-panels">
+                <SettingsForm
+                  draft={draft}
+                  setDraft={(update) => setDraft((current) => (current ? update(current) : current))}
+                  saving={savingSettings}
+                  dirty={settingsDirty}
+                  slugError={slugError}
+                  onSlugEdit={() => setSlugError(null)}
+                  cssErrors={cssProblems}
+                  onCssEdit={() => setCssProblems([])}
+                  onSave={() => void saveSettings()}
+                  onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); setCssProblems([]); }}
+                />
+              </div>
+            )}
+            {tab === "layout" && (
+              <StatusPageLayoutEditor
+                groups={groups}
+                setGroups={setGroups}
+                sources={sources}
+                sourcesError={sourcesError}
+                dirty={layoutDirty}
+                saving={savingLayout}
+                onSave={() => void saveLayout()}
+              />
+            )}
+            {tab === "incidents" && <StatusIncidentsPanel accessToken={accessToken} page={page} />}
+            {tab === "notices" && <StatusNoticesPanel accessToken={accessToken} page={page} />}
+            {tab === "maintenance" && <StatusMaintenancePanel accessToken={accessToken} page={page} canManageAlerts={canManageAlerts} />}
+            {tab === "tokens" && <StatusTokensPanel accessToken={accessToken} page={page} />}
           </div>
-        )}
-        {tab === "layout" && (
-          <StatusPageLayoutEditor
-            groups={groups}
-            setGroups={setGroups}
-            sources={sources}
-            sourcesError={sourcesError}
-            dirty={layoutDirty}
-            saving={savingLayout}
-            onSave={() => void saveLayout()}
-          />
-        )}
-        {tab === "incidents" && <StatusIncidentsPanel accessToken={accessToken} page={page} />}
-        {tab === "notices" && <StatusNoticesPanel accessToken={accessToken} page={page} />}
-        {tab === "maintenance" && <StatusMaintenancePanel accessToken={accessToken} page={page} canManageAlerts={canManageAlerts} />}
-        {tab === "tokens" && <StatusTokensPanel accessToken={accessToken} page={page} />}
-        {tab === "preview" && (
-          <div className="status-editor-panels">
-            <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft} stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
-          </div>
-        )}
+          <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft}
+            revision={`${tab}:${previewRevision}`}
+            stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
+        </div>
       </div>
     </div>
   );

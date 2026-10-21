@@ -323,7 +323,7 @@ test("internal update marked in private preview and absent in public preview", a
   expect(posted).toMatchObject({ is_public: false, page_id: 1, message: "Root cause: expired relay certificate" });
   await dialog.getByRole("button", { name: "Close" }).first().click();
 
-  await page.getByRole("tab", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   const frame = page.frameLocator(".status-editor-preview-frame iframe");
   await frame.getByText("Incident log").click();
   await expect(frame.getByText("We are looking into it.")).toBeVisible();

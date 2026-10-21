@@ -64,7 +64,7 @@ test("custom css styles rows inside frame only", async ({ page }) => {
   await expect(panel).toBeVisible();
   const before = { panel: await computed(panel, "backgroundColor"), body: await computed(page.locator("body"), "backgroundColor") };
 
-  await page.getByRole("tab", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   const frame = frameOf(page);
   await expect(frame.locator(".sp-row").first()).toBeVisible();
   expect(await computed(frame.locator(".sp-row").first(), "backgroundColor")).toBe("rgb(1, 2, 3)");
@@ -185,9 +185,9 @@ test("editor css field shows line and column errors and keeps the draft", async 
   await expect.poll(() => stored.custom_css).toBe(".sp-row{color:rgb(1, 2, 3)}");
   expect(patches.at(-1)).toEqual({ custom_css: ".sp-row{color:rgb(1, 2, 3)}" });
 
-  await page.getByRole("tab", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(frameOf(page).locator(".sp-row").first()).toBeVisible();
-  expect(await computed(frameOf(page).locator(".sp-row").first(), "color")).toBe("rgb(1, 2, 3)");
+  await expect(frameOf(page).locator(".sp-row").first()).toHaveCSS("color", "rgb(1, 2, 3)");
 });
 
 const ADMIN_SETTINGS = {
