@@ -261,8 +261,9 @@ function SettingsForm({
   );
 }
 
-function PreviewPanel({ accessToken, pageId, stale, draft, revision }: {
-  accessToken: string; pageId: number; stale: boolean; draft?: SettingsDraft; revision: string;
+function PreviewPanel({ accessToken, pageId, draft, revision, groups, layoutDirty, savedHeartbeat }: {
+  accessToken: string; pageId: number; draft: SettingsDraft; revision: string;
+  groups: DraftGroup[]; layoutDirty: boolean; savedHeartbeat: string;
 }) {
   const { theme } = useTheme();
   const [audience, setAudience] = useState<StatusPreviewAudience>("public");
@@ -270,30 +271,28 @@ function PreviewPanel({ accessToken, pageId, stale, draft, revision }: {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
-  const [appearance, setAppearance] = useState(draft);
+  const requestDraft = useMemo(() => layoutDirty || draft.heartbeat_window !== savedHeartbeat ? {
+    heartbeat_window: draft.heartbeat_window,
+    ...(layoutDirty && layoutProblems(groups).length === 0 ? { groups: layoutPayload(groups) } : {}),
+  } : undefined, [layoutDirty, groups, draft.heartbeat_window, savedHeartbeat]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setAppearance(draft), 200);
-    return () => window.clearTimeout(timer);
-  }, [draft]);
-
-  const shown = useMemo(() => payload && appearance ? {
+  const shown = useMemo(() => payload && draft ? {
     ...payload,
-    title: appearance.title.trim() || appearance.name.trim(),
-    logo: appearance.logo,
-    accent: isValidAccent(appearance.accent) ? appearance.accent : null,
-    custom_css: appearance.custom_css,
-  } : payload, [payload, appearance]);
+    title: draft.title.trim() || draft.name.trim(),
+    logo: draft.logo,
+    accent: isValidAccent(draft.accent) ? draft.accent : null,
+    custom_css: draft.custom_css,
+  } : payload, [payload, draft]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    statusPagesEditorApi.preview(accessToken, pageId, audience)
+    statusPagesEditorApi.preview(accessToken, pageId, audience, requestDraft)
       .then((next) => { if (!cancelled) { setPayload(next); setError(null); } })
       .catch((err) => { if (!cancelled) { setPayload(null); setError(err instanceof Error ? err.message : "Unable to build the preview"); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [accessToken, pageId, audience, nonce, revision]);
+  }, [accessToken, pageId, audience, nonce, revision, requestDraft]);
 
   return (
     <section className="nm-app-panel status-editor-panel status-editor-preview-panel">
@@ -316,7 +315,6 @@ function PreviewPanel({ accessToken, pageId, stale, draft, revision }: {
         </button>
       </StatusEditorPanelHeader>
       <div className="status-editor-preview-body">
-        {stale && <div className="nm-alert nm-alert--info">The preview uses the last saved layout and monitoring settings.</div>}
         {error && <div className="nm-alert nm-alert--error" role="alert">{error}</div>}
         {loading && !shown ? <PanelSkeleton lines={6} /> : shown && (
           <div className="status-editor-preview-frame">
@@ -501,7 +499,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
           </div>
           <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft}
             revision={`${tab}:${previewRevision}`}
-            stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
+            groups={groups} layoutDirty={layoutDirty} savedHeartbeat={page.heartbeat_window} />
         </div>
       </div>
     </div>

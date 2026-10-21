@@ -286,3 +286,40 @@ def test_failed_mutation_does_not_notify(env, monkeypatch):
     env.post("/api/v1/status-pages", json={"name": "A", "slug": "Bad Slug"})
     assert env.put("/api/v1/status-pages/1/layout", json={"groups": []}).status_code == 404
     assert calls == []
+
+
+def test_draft_preview_uses_unsaved_layout_and_window_without_writing(env):
+    page = _page(env, "draft-preview")
+    pid = page["id"]
+    with env.Session() as db:
+        device = seed_device(db)
+        did = device.id
+    original = env.get(f"/api/v1/status-pages/{pid}").json()
+    groups = [{"name": "Unsaved group", "collapsed_by_default": True, "items": [
+        {"source": {"device": did}, "display_name": "Draft alias", "extras": {"last_check": True, "rtt_graph": True}},
+    ]}]
+    result = env.post(f"/api/v1/status-pages/{pid}/preview?audience=public", json={"groups": groups, "heartbeat_window": "24h"})
+    assert result.status_code == 200, result.text
+    shown = result.json()
+    assert shown["heartbeat_window"] == "24h"
+    assert shown["groups"][0]["name"] == "Unsaved group"
+    assert shown["groups"][0]["collapsed"] is True
+    item = shown["groups"][0]["items"][0]
+    assert item["name"] == "Draft alias"
+    assert len(item["heartbeats"]) == 60
+    assert item["response"] is not None
+    assert "last_check" in item["metrics"]
+    assert env.get(f"/api/v1/status-pages/{pid}").json() == original
+    assert env.get(f"/api/v1/status-pages/{pid}/preview").json()["groups"] == []
+    # Repeated/empty previews are read-only, never persist negative transient IDs or audits.
+    assert env.post(f"/api/v1/status-pages/{pid}/preview", json={"groups": []}).json()["groups"] == []
+    with env.Session() as db:
+        assert db.query(StatusPageGroup).count() == 0
+        assert db.query(StatusPageItem).count() == 0
+    for bad in ({"heartbeat_window": "7d"}, {"groups": [{"id": 999, "name": "Foreign", "items": []}]},
+                {"groups": [{"name": "Duplicate", "items": groups[0]["items"] * 2}]},
+                {"groups": [{"name": "Bad source", "items": [{"source": {"device": 9999}, "display_name": "No"}]}]}):
+        assert env.post(f"/api/v1/status-pages/{pid}/preview", json=bad).status_code == 422
+    assert env.post("/api/v1/status-pages/99999/preview", json={}).status_code == 404
+    env.as_user("viewer")
+    assert env.post(f"/api/v1/status-pages/{pid}/preview", json={}).status_code == 403

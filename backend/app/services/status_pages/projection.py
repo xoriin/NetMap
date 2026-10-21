@@ -180,13 +180,16 @@ def _bounds(page: StatusPage, now: datetime) -> tuple[datetime, datetime]:
     return end - WINDOWS[page.heartbeat_window], end
 
 
-def load_page(db: Session, page: StatusPage, now: datetime, cycle: BuildCycle) -> PageInputs:
+def load_page(
+    db: Session, page: StatusPage, now: datetime, cycle: BuildCycle, *,
+    groups: list[StatusPageGroup] | None = None, items: list[StatusPageItem] | None = None,
+) -> PageInputs:
     now = _utc(now)
     start, end = _bounds(page, now)
-    groups = list(db.scalars(
+    groups = groups if groups is not None else list(db.scalars(
         select(StatusPageGroup).where(StatusPageGroup.page_id == page.id).order_by(StatusPageGroup.sort_order, StatusPageGroup.id)
     ))
-    items = list(db.scalars(
+    items = items if items is not None else list(db.scalars(
         select(StatusPageItem).where(StatusPageItem.page_id == page.id).order_by(StatusPageItem.sort_order, StatusPageItem.id)
     ))
     refs = {item.id: SourceRef.from_item(item) for item in items}

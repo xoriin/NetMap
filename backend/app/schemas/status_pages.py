@@ -430,3 +430,10 @@ class IncidentBoardVisibility(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     visible: bool
+
+
+class StatusPreviewDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    heartbeat_window: HeartbeatWindow | None = None
+    groups: list[LayoutGroup] | None = Field(default=None, max_length=100)

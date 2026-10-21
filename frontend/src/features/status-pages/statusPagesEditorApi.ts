@@ -93,8 +93,8 @@ export const statusPagesEditorApi = {
   saveLayout: (token: string, id: number, groups: StatusLayoutGroup[]) =>
     apiRequest<StatusPageDetail>(`${BASE}/${id}/layout`, { method: "PUT", token, body: json({ groups }) }),
   sources: (token: string) => apiRequest<StatusSources>(`${BASE}/sources`, { token }),
-  preview: (token: string, id: number, audience: StatusPreviewAudience) =>
-    apiRequest<StatusPagePayload>(`${BASE}/${id}/preview?audience=${audience}`, { token }),
+  preview: (token: string, id: number, audience: StatusPreviewAudience, draft?: { heartbeat_window: StatusHeartbeatWindow; groups?: StatusLayoutGroup[] }) =>
+    apiRequest<StatusPagePayload>(`${BASE}/${id}/preview?audience=${audience}`, draft ? { method: "POST", token, body: json(draft) } : { token }),
 };
 
 export function sourceKey(source: StatusItemSource): string {

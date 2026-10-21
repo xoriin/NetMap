@@ -44,6 +44,7 @@ from app.schemas.status_pages import (
     StatusPageDetail,
     StatusPageRead,
     StatusPageUpdate,
+    StatusPreviewDraft,
     TokenCreate,
     TokenCreated,
     TokenRead,
@@ -60,7 +61,7 @@ from app.services.status_pages.incidents import (
     PersonActor,
     Ticket,
 )
-from app.services.status_pages.projection import build_page_payload
+from app.services.status_pages.projection import build_page_payload, load_page, project_page
 from app.services.status_pages.sources import SourceRef, iso, source_dict
 
 router = APIRouter(prefix="/status-pages", tags=["status-pages"])
@@ -497,6 +498,48 @@ def view_page(slug: str, request: Request, _: Annotated[User, Depends(get_curren
 @router.get("/{page_id}/preview")
 def preview_page(page_id: int, _: CurrentUser, db: Db, audience: Literal["public", "private"] = "public") -> dict:
     return build_page_payload(db, _get_page(db, page_id), audience, datetime.now(timezone.utc), status_cache.history.cycle())
+
+
+@router.post("/{page_id}/preview")
+def preview_draft(
+    page_id: int, payload: StatusPreviewDraft, _: CurrentUser, db: Db,
+    audience: Literal["public", "private"] = "public",
+) -> dict:
+    saved = _get_page(db, page_id)
+    # Transient copies only: never flush draft layout or modify the saved page/cache.
+    page = StatusPage(**{column.key: getattr(saved, column.key) for column in StatusPage.__table__.columns})
+    if payload.heartbeat_window is not None:
+        page.heartbeat_window = payload.heartbeat_window
+    groups, items = None, None
+    if payload.groups is not None:
+        owned_groups = set(db.scalars(select(StatusPageGroup.id).where(StatusPageGroup.page_id == page_id)))
+        owned_items = {i.id: i for i in db.scalars(select(StatusPageItem).where(StatusPageItem.page_id == page_id))}
+        groups, items, seen_groups, seen_items, keys, refs = [], [], set(), set(), set(), []
+        for order, group in enumerate(payload.groups):
+            if group.id is not None and (group.id not in owned_groups or group.id in seen_groups):
+                raise _unprocessable("Group does not belong to this page or appears twice")
+            if group.id is not None:
+                seen_groups.add(group.id)
+            gid = group.id if group.id is not None else -(order + 1)
+            groups.append(StatusPageGroup(id=gid, page_id=page_id, name=group.name,
+                                          collapsed_by_default=group.collapsed_by_default, sort_order=order))
+            for item_order, item in enumerate(group.items):
+                if item.id is not None and (item.id not in owned_items or item.id in seen_items):
+                    raise _unprocessable("Item does not belong to this page or appears twice")
+                if item.id is not None:
+                    seen_items.add(item.id)
+                ref = item.source.to_ref()
+                if ref.key in keys:
+                    raise _unprocessable("A source can appear only once on a page")
+                keys.add(ref.key)
+                refs.append(ref)
+                iid = item.id if item.id is not None else -(len(items) + 1)
+                items.append(StatusPageItem(id=iid, page_id=page_id, group_id=gid, kind=ref.kind,
+                                            device_id=ref.device_id, monitor_id=ref.monitor_id, port_target_id=ref.port_target_id,
+                                            display_name=item.display_name, extras=item.extras.model_dump(), sort_order=item_order))
+        _validate_sources(db, refs)
+    cycle = status_cache.history.cycle()
+    return project_page(load_page(db, page, datetime.now(timezone.utc), cycle, groups=groups, items=items), audience, cycle)
 
 
 @router.get("/{page_id}", response_model=StatusPageDetail)

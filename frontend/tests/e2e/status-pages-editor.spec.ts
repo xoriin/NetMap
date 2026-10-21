@@ -123,7 +123,8 @@ class StatusPagesApi {
     }
     if (parts[1] === "preview") {
       this.previewAudiences.push(url.searchParams.get("audience") ?? "");
-      return route.fulfill({ json: previewPayload(target) });
+      const draft = method === "POST" ? request.postDataJSON() : {};
+      return route.fulfill({ json: previewPayload({ ...target, ...draft }) });
     }
     if (method === "GET") return route.fulfill({ json: this.detail(target) });
     if (method === "PATCH") {
@@ -227,6 +228,8 @@ test("create page, add device with alias, save, preview shows alias not hostname
   const displayName = page.getByLabel("Display name for router-core-01");
   await expect(displayName).toHaveValue("");
   await displayName.fill("Edge router");
+  await expect(page.frameLocator("iframe.status-page-frame").locator(".sp-row-name")).toHaveText("Edge router");
+  expect(api.pages[0].groups).toEqual([]);
   await page.getByRole("button", { name: "Save layout" }).click();
   await expect(page.getByText("Layout saved")).toBeVisible();
   expect(api.layoutPuts).toHaveLength(1);
@@ -559,6 +562,12 @@ for (const theme of ["light", "dark"] as const) {
     expect(preview!.x).toBeGreaterThan(settings!.x + settings!.width);
     const parentBefore = await page.locator(".status-editor-preview-panel").evaluate(n => getComputedStyle(n).backgroundColor);
     const originalTitleSize = await frame.locator(".sp-title").evaluate(n => getComputedStyle(n).fontSize);
+    const title = page.getByRole("textbox", { name: /^Title/ });
+    const typing = title.pressSequentially("Streaming preview title", { delay: 60 });
+    await expect(frame.locator(".sp-title")).toContainText("Streaming", { timeout: 900 });
+    await typing;
+    await expect(frame.locator(".sp-title")).toHaveText("Streaming preview title");
+    expect(stored.title).toBeNull();
     const field = page.getByLabel("Custom CSS");
     await field.fill("body { background: rgb(25, 35, 45); } .sp-title { color: rgb(120, 90, 200); font-size: 36px; }");
     await expect(frame.locator("body")).toHaveCSS("background-color", "rgb(25, 35, 45)");
@@ -615,3 +624,22 @@ for (const theme of ["light", "dark"] as const) {
     }
   });
 }
+
+
+test("preview renders draft group names and heartbeat window without saving", async ({ page }) => {
+  const api = new StatusPagesApi();
+  const stored = api.seed(twoGroupPage());
+  const savedGroups = JSON.stringify(stored.groups);
+  await openApp(page); await api.install(page); await openStatusPages(page); await openEditor(page, stored.name);
+  const frame = page.frameLocator("iframe.status-page-frame");
+  await page.getByRole("tab", { name: "Layout", exact: true }).click();
+  await page.getByLabel("Group name", { exact: true }).first().fill("Draft renamed group");
+  await expect(frame.locator(".sp-group-label").first()).toHaveText("Draft renamed group");
+  expect(JSON.stringify(stored.groups)).toBe(savedGroups);
+  await page.getByRole("tab", { name: "Settings", exact: true }).click();
+  await page.getByRole("combobox", { name: /^Heartbeat window/ }).selectOption("24h");
+  await expect(frame.locator(".sp-heartbeats").first()).toHaveAttribute("aria-label", /^Last 24 hours:/);
+  expect(stored.heartbeat_window).toBe("1h");
+  expect(api.layoutPuts).toHaveLength(0);
+  await page.screenshot({ path: test.info().outputPath("draft-preview.png"), fullPage: true });
+});
