@@ -623,12 +623,17 @@ for (const [stored, os, background] of [["light", "dark", LIGHT_BG], ["dark", "l
     await page.emulateMedia({ colorScheme: os });
     await page.addInitScript((theme) => window.localStorage.setItem("netmap.theme", theme), stored);
     await blockEverythingElse(page);
-    await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload()));
+    await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({ custom_css:
+      ".sp-title { color: rgb(12, 34, 56); } @media (prefers-color-scheme: dark) { .sp-title { color: rgb(78, 90, 123); } } @supports (display: grid) { @media (prefers-color-scheme: dark) and (max-width: 600px) { .sp-title { font-style: italic; } } }",
+    })));
     await page.goto(`/status/${SLUG}`);
     await expect(statusFrame(page).locator(".sp-summary")).toBeVisible();
+    await expect(statusFrame(page).locator(".sp-title")).toHaveCSS("color", stored === "dark" ? "rgb(78, 90, 123)" : "rgb(12, 34, 56)");
     if (stored === "dark") await expect(page.locator("body")).toHaveClass(/theme-dark/);
     else await expect(page.locator("body")).not.toHaveClass(/theme-dark/);
     expect(await frameBackground(page)).toBe(background);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await expect(statusFrame(page).locator(".sp-title")).toHaveCSS("font-style", stored === "dark" ? "italic" : "normal");
   });
 }
 

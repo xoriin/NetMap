@@ -1,7 +1,6 @@
 import {
   createContext, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
-import { STATUS_SLUG_PATTERN } from "../utils/statusRoute";
 import { storageKeys, readString, writeString } from "../utils/storage";
 
 export type Theme = "light" | "dark";
@@ -29,8 +28,7 @@ function systemTheme(): Theme {
 function initialTheme(): { theme: Theme; source: ThemeSource } {
   const stored = readString(storageKeys.theme);
   if (stored === "light" || stored === "dark") return { theme: stored, source: "stored" };
-  if (STATUS_SLUG_PATTERN.test(window.location.pathname)) return { theme: systemTheme(), source: "system" };
-  return { theme: "dark", source: "stored" };
+  return { theme: systemTheme(), source: "system" };
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

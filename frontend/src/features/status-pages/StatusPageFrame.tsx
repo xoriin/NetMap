@@ -31,6 +31,7 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
     <iframe
       ref={frameRef}
       className={className ? `status-page-frame ${className}` : "status-page-frame"}
+      style={{ colorScheme: colorScheme ?? "normal" }}
       sandbox="allow-popups allow-popups-to-escape-sandbox"
       referrerPolicy="no-referrer"
       title={title}
