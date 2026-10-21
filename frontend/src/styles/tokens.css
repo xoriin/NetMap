@@ -33,9 +33,10 @@
   --nm-modal-shell: var(--nm-bg-elevated);
   --nm-modal-header: var(--nm-surface);
   --nm-modal-section: var(--nm-surface);
-  --nm-modal-input: #ffffff;
+  --nm-input-surface: #fefefe;
+  --nm-modal-input: var(--nm-input-surface);
   --nm-modal-label: var(--nm-text);
-  --nm-popup-section-bg: #ffffff;
+  --nm-popup-section-bg: var(--nm-input-surface);
   --nm-popup-section-border: rgba(209, 220, 230, 0.7);
   --nm-popup-section-title: #3a5468;
   --nm-popup-section-title-border: rgba(209, 220, 230, 0.5);

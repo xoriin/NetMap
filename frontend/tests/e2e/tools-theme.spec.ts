@@ -52,7 +52,7 @@ for (const theme of ["light", "dark"] as const) {
     expect(Math.abs(panelBox!.width - headerBox!.width)).toBeLessThanOrEqual(1);
     await expect(dnsPanel.locator(".tool-card-header")).toHaveCSS("min-height", "44px");
     await expect(dnsPanel.locator(".tool-panel-identity")).toContainText("DNS lookup");
-    await expect(dnsPanel.locator("input")).toHaveCSS("background-color", theme === "dark" ? "rgb(10, 21, 32)" : "rgb(255, 255, 255)");
+    await expect(dnsPanel.locator("input")).toHaveCSS("background-color", theme === "dark" ? "rgb(10, 21, 32)" : "rgb(254, 254, 254)");
 
     await page.getByRole("tab", { name: "Ping Test" }).click();
     await expect(page.getByRole("tab", { name: "Ping Test" })).toHaveClass(/tools-nav-item--active/);
