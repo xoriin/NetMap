@@ -916,6 +916,46 @@ body.theme-dark .nm-status--warning { color: #e8b040; }
   background: var(--nm-modal-header);
 }
 
+.nm-app-panel-header,
+.topology-toolbar--ribbon,
+.inventory-device-sidebar-header {
+  --nm-modal-header: var(--nm-panel-head-bg);
+  --nm-border: var(--nm-panel-head-border);
+  --nm-text: var(--nm-panel-head-text);
+  --nm-modal-label: var(--nm-panel-head-label);
+  --nm-text-muted: var(--nm-panel-head-muted);
+  --nm-text-faint: var(--nm-panel-head-faint);
+  --nm-accent: var(--nm-panel-head-icon-fg);
+  --nm-accent-soft: var(--nm-panel-head-icon-bg);
+  --nm-accent-strong: var(--nm-panel-head-accent);
+  --nm-tab-hover-text: var(--nm-panel-head-tab-hover-text);
+  --nm-tab-active-text: var(--nm-panel-head-tab-active-text);
+}
+
+body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) {
+  color: var(--nm-panel-head-text);
+}
+
+:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) :is(.nm-btn--ghost, .dash-panel-link) {
+  color: var(--nm-panel-head-link);
+}
+
+.nm-app-panel-header .inv-fav-filter.active {
+  color: var(--nm-panel-head-favourite);
+}
+
+:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, .inv-bulk-menu, [role="menu"], [role="listbox"]) {
+  --nm-modal-header: var(--nm-base-modal-header);
+  --nm-border: var(--nm-base-border);
+  --nm-text: var(--nm-base-text);
+  --nm-modal-label: var(--nm-base-modal-label);
+  --nm-text-muted: var(--nm-base-text-muted);
+  --nm-text-faint: var(--nm-base-text-faint);
+  --nm-accent: var(--nm-base-accent);
+  --nm-accent-soft: var(--nm-base-accent-soft);
+  --nm-accent-strong: var(--nm-base-accent-strong);
+}
+
 .nm-app-panel-header--copy {
   min-height: 58px;
 }

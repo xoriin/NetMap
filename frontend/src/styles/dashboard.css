@@ -95,7 +95,7 @@ body:not(.theme-dark) .dash-panel-header {
   border-bottom-color: rgba(145, 174, 196, 0.72);
 }
 body:not(.theme-dark) .dash-panel-title  { color: #2a4860; }
-body:not(.theme-dark) .dash-panel-meta   { color: #5a7a8a; }
+body:not(.theme-dark) .dash-panel-meta   { color: var(--nm-text-muted); }
 body:not(.theme-dark) .dash-panel-link   { color: var(--nm-accent-strong); }
 body:not(.theme-dark) .dash-panel-link:hover { color: #155060; }
 

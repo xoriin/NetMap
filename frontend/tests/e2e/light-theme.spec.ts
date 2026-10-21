@@ -28,6 +28,39 @@ function resolve(page: Page, token: string, property: "color" | "backgroundColor
   }, [token, property] as const);
 }
 
+/** Every text run painted directly on a panel header band, with its contrast against the band. */
+function headerTextContrast(page: Page) {
+  return page.evaluate(() => {
+    const channels = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
+    const luminance = ([r, g, b]: number[]) => {
+      const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const painted = (el: Element | null): string => {
+      for (let node = el; node; node = node.parentElement) {
+        const bg = getComputedStyle(node).backgroundColor;
+        const [, , , alpha = 1] = channels(bg);
+        if (bg !== "transparent" && alpha >= 0.5) return bg;
+      }
+      return "rgb(255, 255, 255)";
+    };
+    const results: { text: string; className: string; ratio: number }[] = [];
+    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header"))) {
+      for (const el of Array.from(header.querySelectorAll("*"))) {
+        const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
+        if (!own || (el as HTMLElement).offsetParent === null || el.tagName === "OPTION") continue;
+        const surface = painted(el);
+        if (surface !== getComputedStyle(header).backgroundColor) continue;
+        const fg = luminance(channels(getComputedStyle(el).color));
+        const bg = luminance(channels(surface));
+        const ratio = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+        results.push({ text: own.slice(0, 30), className: String((el as HTMLElement).className), ratio: Math.round(ratio * 100) / 100 });
+      }
+    }
+    return results;
+  });
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`sidebar text uses the brightened shell tokens in ${theme} mode`, async ({ page }) => {
     await openInventory(page, theme);
@@ -61,4 +94,55 @@ test("light mode paints the tinted page, near-white panels and the page header b
   const icon = topbar.locator(".app-topbar-icon");
   await expect(icon).toHaveCSS("background-color", "rgb(43, 122, 136)");
   await expect(icon).toHaveCSS("color", "rgb(255, 255, 255)");
+});
+
+test("light panel headers are navy bands with light text and a solid teal icon chip", async ({ page }) => {
+  await openInventory(page, "light");
+  expect(await resolve(page, "--nm-panel-head-bg", "backgroundColor")).toBe("rgb(29, 46, 64)");
+  const header = page.locator(".inventory-panel-header.nm-app-panel-header");
+  await expect(header).toHaveCSS("background-color", await resolve(page, "--nm-panel-head-bg", "backgroundColor"));
+  await expect(header).toHaveCSS("border-bottom-color", "rgb(24, 40, 58)");
+  await expect(header.locator(".inv-panel-title > span:not([class])")).toHaveCSS("color", "rgb(241, 245, 249)");
+  await expect(header.locator(".inv-panel-count")).toHaveCSS("color", "rgb(177, 188, 199)");
+  const chip = header.locator(".inv-panel-title-icon");
+  await expect(chip).toHaveCSS("background-color", "rgb(43, 122, 136)");
+  await expect(chip).toHaveCSS("color", "rgb(255, 255, 255)");
+
+  // Toolbar controls keep their light style on the band.
+  await expect(header.locator(".inv-search-box input")).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  await expect(header.locator(".inv-search-box input")).toHaveCSS("color", "rgb(19, 32, 44)");
+  const secondary = header.getByRole("button", { name: "Import" });
+  await expect(secondary).toHaveCSS("color", "rgb(19, 32, 44)");
+
+  const low = (await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5);
+  expect(low).toEqual([]);
+
+  await page.locator(".inventory-row").first().click();
+  const sidebarHeader = page.locator(".inventory-device-sidebar-header");
+  await expect(sidebarHeader).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
+});
+
+test("Overview panel headers share the band and keep their links readable", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, devices);
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/overview");
+  const headers = page.locator(".overview-panel-header.nm-app-panel-header");
+  await expect(headers.first()).toBeVisible();
+  for (const header of await headers.all()) await expect(header).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  const low = (await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5);
+  expect(low).toEqual([]);
+});
+
+test("the Topology ribbon carries the same light band as every panel header", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, devices);
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/topology");
+  const ribbon = page.locator(".topology-toolbar--ribbon");
+  await expect(ribbon).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(ribbon.locator(".topology-ribbon-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
+  const low = (await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5);
+  expect(low).toEqual([]);
 });

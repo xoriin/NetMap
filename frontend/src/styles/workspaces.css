@@ -272,7 +272,7 @@
   background: transparent;
   font-size: 12px;
   font-weight: 600;
-  color: #5b7c91;
+  color: var(--nm-text-muted);
   cursor: pointer;
   transition: all 0.15s;
   min-height: unset;

@@ -993,13 +993,17 @@ body.theme-dark .profile-avatar-upload-btn:hover {
 
 /* ── Light mode: ribbon toolbar overrides ── */
 body:not(.theme-dark) .topology-toolbar--ribbon {
-  background: rgba(248, 250, 251, 0.92);
-  border-top: 1px solid rgba(120, 150, 172, 0.28);
+  background: var(--nm-modal-header);
+  border-top: 1px solid var(--nm-border);
   border-bottom-color: var(--nm-border);
 }
 
+body:not(.theme-dark) .topology-toolbar--ribbon .inv-stat-chip {
+  background-color: var(--nm-input-surface);
+}
+
 body:not(.theme-dark) .toolbar-label {
-  color: #42617a;
+  color: var(--nm-text-muted);
 }
 
 body:not(.theme-dark) .toolbar-select {
@@ -1039,11 +1043,11 @@ body:not(.theme-dark) .toolbar-btn--active:hover {
 }
 
 body:not(.theme-dark) .toolbar-toggle {
-  color: #3a5c74;
+  color: var(--nm-text-muted);
 }
 
 body:not(.theme-dark) .toolbar-toggle:hover {
-  color: #17344d;
+  color: var(--nm-text);
 }
 
 body:not(.theme-dark) .toolbar-divider {
