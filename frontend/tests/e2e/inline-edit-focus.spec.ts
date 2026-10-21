@@ -28,6 +28,33 @@ async function openDevice(page:Page) {
 
 const selection=(page:Page)=>page.evaluate(()=>window.getSelection()?.toString() ?? '');
 
+test('the Cloud device picker takes focus when opened from the keyboard or Link device',async({page})=>{
+ await openCloud(page);
+ const trigger=page.getByRole('button',{name:'Inventory device',exact:true});
+ await field(page,'Inventory device').focus();
+ await page.keyboard.press('Enter');
+ await expect(trigger).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(trigger).toHaveCount(0);
+ await expect(field(page,'Inventory device')).toBeFocused();
+ await page.getByRole('button',{name:'Link device',exact:true}).click();
+ await expect(trigger).toBeFocused();
+});
+
+test('closing a Cloud field editor returns focus to the field',async({page})=>{
+ const state=await openCloud(page);
+ await field(page,'Owner').focus();
+ await page.keyboard.press('Enter');
+ await page.keyboard.press('Escape');
+ await expect(field(page,'Owner')).toBeFocused();
+ await page.keyboard.press('Enter');
+ await page.getByRole('textbox',{name:'Edit Owner'}).fill('Keyboard owner');
+ await page.keyboard.press('Enter');
+ await expect(page.getByRole('textbox',{name:'Edit Owner'})).toHaveCount(0);
+ await expect(field(page,'Owner')).toBeFocused();
+ expect(state.addresses[0].owner).toBe('Keyboard owner');
+});
+
 test('double-clicking a field to edit clears the text selection in Cloud and Devices',async({page})=>{
  await openCloud(page);
  await field(page,'Inventory device').dblclick();
@@ -37,4 +64,15 @@ test('double-clicking a field to edit clears the text selection in Cloud and Dev
  await page.getByRole('button',{name:'Open Existing server details'}).click();
  await page.getByRole('complementary',{name:'Device overview'}).locator('dt:has-text("Vendor") + dd').dblclick();
  expect(await selection(page)).toBe('');
+});
+
+test('closing a Devices field editor with Escape returns focus to the field',async({page})=>{
+ const hostname=await openDevice(page);
+ await hostname.focus();
+ await page.keyboard.press('Enter');
+ const input=hostname.locator('input');
+ await expect(input).toBeFocused();
+ await input.press('Escape');
+ await expect(input).toHaveCount(0);
+ await expect(hostname).toBeFocused();
 });

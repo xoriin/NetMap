@@ -37,7 +37,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
 import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
-import { editableField } from "../../utils/editableField";
+import { editableField, useEditableFieldFocus } from "../../utils/editableField";
 import { sameIp } from "../../utils/ipParse";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 
@@ -157,6 +157,7 @@ export function CloudAssetDetails({
   const [showDevice, setShowDevice] = useState(false);
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
   const [failedLink, setFailedLink] = useState<Device | null>(null);
+  const { listRef } = useEditableFieldFocus(editing);
 
   const deviceId = record.value.device_id;
   const device = devices.find((row) => row.id === deviceId);
@@ -424,11 +425,11 @@ export function CloudAssetDetails({
             <div className="device-detail-tabs">
               <button type="button" className="device-detail-tab active">Details</button>
             </div>
-            <dl>
+            <dl ref={listRef}>
               {fields.map((field) => (
                 <Fragment key={field.label}>
                   <dt><span className="details-field-icon"><FieldIcon label={field.label} /></span>{field.label}</dt>
-                  <dd {...editableField(canWrite && Boolean(field.save) && !busy, () => start(field))}>
+                  <dd {...editableField(canWrite && Boolean(field.save) && !busy, () => start(field), field.label)}>
                     {editing === field.label ? (
                       <form
                         className="cloud-asset-field-edit"

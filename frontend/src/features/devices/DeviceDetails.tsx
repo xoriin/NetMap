@@ -36,7 +36,7 @@ import { EntityChip } from "../../components/EntityChip";
 import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
-import { editableField } from "../../utils/editableField";
+import { editableField, useEditableFieldFocus } from "../../utils/editableField";
 
 export function DeviceDetails({
   canViewSecurity,
@@ -87,6 +87,7 @@ export function DeviceDetails({
   const [snmpBusy, setSnmpBusy] = useState(false);
   const [snmpError, setSnmpError] = useState<string | null>(null);
   const committingRef = useRef(false);
+  const { listRef } = useEditableFieldFocus(editingField);
 
   useEffect(() => {
     setEditingField(null);
@@ -121,6 +122,7 @@ export function DeviceDetails({
   }
 
   const editHint = canWrite && !disabled;
+  const editable = (field: string, value: string) => editableField(editHint, () => startEdit(field, value), field);
   const monitoringPaused = isDeviceMonitoringPaused(device);
   const observedStatus = monitorSummary?.status ?? liveStatus?.status ?? device.monitor_status ?? device.status;
   const monitorHealth = monitoringPaused ? "paused" : (monitorSummary?.health_status ?? observedStatus);
@@ -205,10 +207,10 @@ export function DeviceDetails({
       </div>
 
       {activeTab === "details" && (<>
-      <dl>
+      <dl ref={listRef}>
         <dt><span className="details-field-icon"><Pencil size={12} /></span>Display name</dt>
         <dd
-          {...editableField(editHint, () => startEdit("display_name", device.display_name ?? ""))}
+          {...editable("display_name", device.display_name ?? "")}
         >
           {editingField === "display_name" ? (
             <input
@@ -226,7 +228,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconServer size={12} /></span>Hostname</dt>
         <dd
-          {...editableField(editHint, () => startEdit("hostname", device.hostname ?? ""))}
+          {...editable("hostname", device.hostname ?? "")}
         >
           {editingField === "hostname" ? (
             <input
@@ -244,7 +246,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><Network size={12} /></span>IP address</dt>
         <dd
-          {...editableField(editHint, () => startEdit("ip_address", device.ip_address ?? ""))}
+          {...editable("ip_address", device.ip_address ?? "")}
         >
           {editingField === "ip_address" ? (
             <input
@@ -262,7 +264,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconFingerprint size={12} /></span>MAC address</dt>
         <dd
-          {...editableField(editHint, () => startEdit("mac_address", device.mac_address ?? ""))}
+          {...editable("mac_address", device.mac_address ?? "")}
         >
           {editingField === "mac_address" ? (
             <input
@@ -280,7 +282,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconBuildingStore size={12} /></span>Vendor</dt>
         <dd
-          {...editableField(editHint, () => startEdit("vendor", device.vendor ?? ""))}
+          {...editable("vendor", device.vendor ?? "")}
         >
           {editingField === "vendor" ? (
             <input
@@ -298,7 +300,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconTerminal2 size={12} /></span>OS</dt>
         <dd
-          {...editableField(editHint, () => startEdit("os", device.os ?? ""))}
+          {...editable("os", device.os ?? "")}
         >
           {editingField === "os" ? (
             <input
@@ -317,7 +319,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconDeviceDesktop size={12} /></span>Type</dt>
         <dd
-          {...editableField(editHint, () => startEdit("device_type", device.device_type ?? ""))}
+          {...editable("device_type", device.device_type ?? "")}
         >
           {editingField === "device_type" ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -367,7 +369,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconPalette size={12} /></span>Color</dt>
         <dd
-          {...editableField(editHint, () => startEdit("color", device.color ?? ""))}
+          {...editable("color", device.color ?? "")}
         >
           {editingField === "color" ? (
             <div className="details-inline-color">
@@ -389,7 +391,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconMap size={12} /></span>VLAN / Group</dt>
         <dd
-          {...editableField(editHint, () => startEdit("topology_group_id", String(device.topology_group_id ?? "")))}
+          {...editable("topology_group_id", String(device.topology_group_id ?? ""))}
         >
           {editingField === "topology_group_id" ? (
             <select
@@ -417,7 +419,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><MapPin size={12} /></span>Location</dt>
         <dd
-          {...editableField(editHint, () => startEdit("site_id", String(device.site_id ?? "")))}
+          {...editable("site_id", String(device.site_id ?? ""))}
         >
           {editingField === "site_id" ? (
             <select
@@ -444,7 +446,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>SNMP profile</dt>
         <dd
-          {...editableField(editHint, () => startEdit("snmp_profile_id", String(device.snmp_profile_id ?? "")))}
+          {...editable("snmp_profile_id", String(device.snmp_profile_id ?? ""))}
         >
           {editingField === "snmp_profile_id" ? (
             <select
@@ -467,7 +469,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconRoute size={12} /></span>Subnet</dt>
         <dd
-          {...editableField(editHint, () => startEdit("subnet", device.subnet ?? ""))}
+          {...editable("subnet", device.subnet ?? "")}
         >
           {editingField === "subnet" ? (
             <input
@@ -486,7 +488,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconTag size={12} /></span>Tags</dt>
         <dd
-          {...editableField(editHint, () => startEdit("tags", device.tags.join(", ")))}
+          {...editable("tags", device.tags.join(", "))}
         >
           {editingField === "tags" ? (
             <input
@@ -507,7 +509,7 @@ export function DeviceDetails({
         </dd>
         <dt><span className="details-field-icon"><IconNote size={12} /></span>Notes</dt>
         <dd
-          {...editableField(editHint, () => startEdit("notes", device.notes ?? ""))}
+          {...editable("notes", device.notes ?? "")}
         >
           {editingField === "notes" ? (
             <textarea
