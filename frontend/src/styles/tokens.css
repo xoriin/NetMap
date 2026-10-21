@@ -6,7 +6,7 @@
   --nm-bg: #fefefe;
   --nm-bg-elevated: #f5f5f6;
   --nm-surface: #fefefe;
-  --nm-surface-soft: #eef4f8;
+  --nm-surface-soft: #f1f2f4;
   --nm-border: #d3dde5;
   --nm-border-strong: #b9c9d4;
   --nm-text: #13202c;
@@ -111,13 +111,13 @@
      .mon-table, Inventory's .inventory-table-header — renders these, so the pages
      read as one product. Values are Inventory's, which is the reference treatment. */
   --nm-table-row-bg: #fefefe;
-  --nm-table-divider: #e6edf2;
+  --nm-table-divider: #e9ebee;
   --nm-row-selected: #e4e7eb;
   --nm-table-header-bg: #eef1f4;
   --nm-table-header-text: #3b4d60;
   --nm-table-header-border: #d6dce3;
   --nm-table-header-weight: 600;
-  --nm-row-hover: #e7edf2;
+  --nm-row-hover: #eff1f3;
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
      still reads on a banded row, and --alt-soft is weaker again for nested rows. */
   --nm-row-alt: rgba(15, 23, 42, 0.035);

@@ -159,7 +159,9 @@ test("light tables use slate column headers, near-white rows and a slate selecte
 
   const row = page.locator(".inventory-row").nth(1);
   await expect(row).toHaveCSS("background-color", "rgb(254, 254, 254)");
-  await expect(row).toHaveCSS("border-bottom-color", "rgb(230, 237, 242)");
+  await expect(row).toHaveCSS("border-bottom-color", "rgb(233, 235, 238)");
+  expect(await resolve(page, "--nm-row-hover", "backgroundColor")).toBe("rgb(239, 241, 243)");
+  expect(await resolve(page, "--nm-surface-soft", "backgroundColor")).toBe("rgb(241, 242, 244)");
   await page.locator(".inventory-row").first().click();
   const selected = page.locator(".inventory-row.active");
   await expect(selected).toHaveCSS("background-color", "rgb(228, 231, 235)");
