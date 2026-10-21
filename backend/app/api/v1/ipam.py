@@ -46,6 +46,7 @@ from app.schemas.ipam import (
     ExternalMigrationReport,
     CloudProviderOut,
     SavedCloudAssetOut,
+    SavedCloudAssetCreate,
     SavedCloudAssetUpdate,
     ExternalIpDeviceOut,
 )
@@ -1056,6 +1057,35 @@ def list_saved_cloud_assets(
     return [SavedCloudAssetOut.model_validate(row) for row in rows]
 
 
+def _validate_cloud_asset_references(db: Session, fields: dict[str, object]) -> None:
+    if fields.get("kind") is not None and fields["kind"] not in CLOUD_ASSET_KINDS:
+        raise HTTPException(status_code=422, detail="Choose a supported asset kind")
+    if fields.get("provider_id") is not None and db.get(CloudProvider, fields["provider_id"]) is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if fields.get("device_id") is not None and db.get(Device, fields["device_id"]) is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+
+@router.post("/external/assets", response_model=SavedCloudAssetOut, status_code=201)
+def create_saved_cloud_asset(
+    payload: SavedCloudAssetCreate,
+    user: Annotated[User, Depends(require_ipam_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> SavedCloudAssetOut:
+    """Record a cloud resource with an optional link to an existing Inventory device."""
+    fields = payload.model_dump()
+    _validate_cloud_asset_references(db, fields)
+    row = CloudAsset(**fields)
+    db.add(row)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An asset with this name already exists in this provider account") from exc
+    db.refresh(row)
+    return SavedCloudAssetOut.model_validate(row)
+
+
 @router.patch("/external/assets/{asset_id}", response_model=SavedCloudAssetOut)
 def update_saved_cloud_asset(
     asset_id: int,
@@ -1068,13 +1098,8 @@ def update_saved_cloud_asset(
     if row is None:
         raise HTTPException(status_code=404, detail="Cloud asset not found")
     fields = payload.model_dump(exclude_unset=True)
-    if fields.get("kind") is not None and fields["kind"] not in CLOUD_ASSET_KINDS:
-        raise HTTPException(status_code=422, detail="Choose a supported asset kind")
-    # Validate new references, while preserving untouched legacy/dangling values.
-    if fields.get("provider_id") is not None and db.get(CloudProvider, fields["provider_id"]) is None:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    if fields.get("device_id") is not None and db.get(Device, fields["device_id"]) is None:
-        raise HTTPException(status_code=404, detail="Device not found")
+    # Sparse updates preserve untouched legacy/dangling references.
+    _validate_cloud_asset_references(db, fields)
     for field, value in fields.items():
         setattr(row, field, value)
     try:

@@ -319,7 +319,7 @@ def test_saved_cloud_resources_remain_readable_without_assignments_or_devices(se
     assert [(row.id, row.name, row.device_id) for row in session.query(CloudAsset).order_by(CloudAsset.id)] == before
 
 
-def test_saved_cloud_resource_api_requires_auth_and_is_read_only(session):
+def test_saved_cloud_resource_api_requires_auth_and_write_permission(session):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from app.api.deps import get_current_user
@@ -337,5 +337,5 @@ def test_saved_cloud_resource_api_requires_auth_and_is_read_only(session):
     response = client.get("/ipam/external/assets")
     assert response.status_code == 200
     assert response.json()[0]["name"] == "Visible to Inventory readers"
-    assert client.post("/ipam/external/assets", json={"name": "Not supported"}).status_code == 405
+    assert client.post("/ipam/external/assets", json={"name": "Denied"}).status_code == 403
     assert session.query(CloudAsset).count() == 1

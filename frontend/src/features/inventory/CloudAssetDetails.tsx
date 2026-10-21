@@ -39,6 +39,7 @@ import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { editableField, useEditableFieldFocus } from "../../utils/editableField";
 import { sameIp } from "../../utils/ipParse";
+import { cloudAssetKinds as kinds } from "./cloudAssetKinds";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 
 export type CloudAssetRecord =
@@ -91,8 +92,6 @@ const addressStates: Choice[] = [
   { value: "reserved", label: "Reserved" },
   { value: "available", label: "Available" },
 ];
-
-const kinds = ["ec2", "vm", "load_balancer", "nat_gateway", "k8s_ingress", "database", "storage", "cdn", "other"];
 
 function FieldIcon({ label }: { label: string }) {
   const Icon = fieldIcons[label] || Pencil;

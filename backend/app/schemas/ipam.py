@@ -293,3 +293,7 @@ class SavedCloudAssetUpdate(BaseModel):
         if value is None or not value.strip():
             raise ValueError("Enter an asset name")
         return value.strip()
+
+
+class SavedCloudAssetCreate(SavedCloudAssetUpdate):
+    name: str = Field(min_length=1, max_length=120)

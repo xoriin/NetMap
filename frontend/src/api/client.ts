@@ -2215,6 +2215,8 @@ export const api = {
   listExternalLocations: (token: string) => request<ExternalLocation[]>("/api/v1/ipam/external/locations", { token }),
   saveExternalLocation: (token: string, payload: Omit<ExternalLocation, "id">, id?: number) => request<ExternalLocation>(`/api/v1/ipam/external/locations${id ? `/${id}` : ""}`, { token, method: id ? "PUT" : "POST", body: JSON.stringify(payload) }),
   deleteExternalLocation: (token: string, id: number) => request<void>(`/api/v1/ipam/external/locations/${id}`, { token, method: "DELETE" }),
+  createSavedCloudAsset: (token: string, payload: Pick<SavedCloudAsset, "name"> & Partial<Omit<SavedCloudAsset, "id" | "name">>) =>
+    request<SavedCloudAsset>("/api/v1/ipam/external/assets", { token, method: "POST", body: JSON.stringify(payload) }),
   updateSavedCloudAsset: (token: string, id: number, payload: Partial<Omit<SavedCloudAsset, "id">>) =>
     request<SavedCloudAsset>(`/api/v1/ipam/external/assets/${id}`, { token, method: "PATCH", body: JSON.stringify(payload) }),
   listSavedCloudAssets: (token: string) => request<SavedCloudAsset[]>("/api/v1/ipam/external/assets", { token }),

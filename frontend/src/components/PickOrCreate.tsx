@@ -33,6 +33,7 @@ export type PickOrCreateOption = { id: number; label: string; group?: string };
  * contiguous run.
  */
 export function PickOrCreate({
+  id,
   value,
   options,
   emptyLabel,
@@ -42,6 +43,7 @@ export function PickOrCreate({
   disabled = false,
   ariaLabel,
 }: {
+  id?: string;
   value: number | null;
   options: PickOrCreateOption[];
   emptyLabel: string;
@@ -280,6 +282,7 @@ export function PickOrCreate({
     <div className="nm-pick" ref={containerRef}>
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         className="nm-pick-trigger"
         disabled={disabled}

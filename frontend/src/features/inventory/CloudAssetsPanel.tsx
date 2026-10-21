@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Cloud, Link2, Search, Server, Star, Unlink } from "lucide-react";
+import { Cloud, Link2, Plus, Search, Server, Star, Unlink } from "lucide-react";
 import { IconWifiOff } from "@tabler/icons-react";
 import { api, type Device } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
 import { CloudAssetDetails, type CloudAssetRecord, type CloudDeviceFormOptions } from "./CloudAssetDetails";
+import { CloudAssetForm } from "./CloudAssetForm";
+import { useToast } from "../../components/Toast";
 import { WorkspaceSkeleton } from "../../components/Skeleton";
 import { SpaLink } from "../../components/SpaLink";
 import { SwatchSelect } from "../../components/SwatchSelect";
@@ -40,6 +42,8 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     ]);
     return { addresses, locations, accounts, providers, assets };
   }, [accessToken]);
+  const toast = useToast();
+  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -148,6 +152,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         <SwatchSelect ariaLabel="Filter by monitoring" value={monitorFilter} options={[{value:"all",label:"All monitoring"},{value:"unlinked",label:"Not linked"}, ...["online","offline","warning","unknown","paused","disabled"].map(value => ({value,label:value[0].toUpperCase()+value.slice(1)}))]} onChange={setMonitorFilter} />
         <button type="button" className={`inv-status-tab inv-fav-filter${favouritesOnly ? " active" : ""}`} onClick={() => setFavouritesOnly(value => !value)} title={favouritesOnly ? "Show all assets" : "Show favourites only"}><Star size={13} />Favs</button>
         <span className="inv-sep" />{ipamLink}
+        {canWriteIpam && <button type="button" className="nm-btn nm-btn--primary" disabled={Boolean(query.error)} onClick={() => setCreating(true)}><Plus size={14} />Add cloud asset</button>}
         <div className="inv-search-box nm-search"><Search size={14} className="nm-search-icon" /><input className="nm-input" aria-label="Search cloud assets" placeholder="Search assets or addresses…" value={search} onChange={event => setSearch(event.target.value)} /></div>
       </>} header={<><span aria-hidden="true" />{headings.map((label,index) => <InventoryColumnHeading key={label} active={sort === index} ascending={ascending}
         onSort={() => { if (sort === index) setAscending(value => !value); else { setSort(index); setAscending(true); } }}
@@ -156,7 +161,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         tableStyle={{ "--inv-grid-template": widths ? `48px ${widths.map(width => `${width}px`).join(" ")}` : "48px minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.2fr)" } as CSSProperties}
         footer={filtered.length > 0 && <InventoryPagination total={filtered.length} page={currentPage} pageSize={pageSize} noun="records" onPageChange={setPage} onPageSizeChange={setPageSize} />}>
         {query.error ? <div className="inventory-empty" role="alert">{query.error}<button className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void query.reload()}>Retry</button></div>
-          : !filtered.length ? <div className="inventory-empty">{records.length ? "No cloud assets match the current filters." : "No external IPs tracked yet. Add an external IP in IPAM to get started."}</div>
+          : !filtered.length ? <div className="inventory-empty">{records.length ? "No cloud assets match the current filters." : "No cloud assets yet. Add a cloud asset here or manage external IPs in IPAM."}</div>
           : visible.map(row => <div key={row.key} className={`inventory-row${row.key === detailKey && (!row.device || row.device.id === selectedDeviceId) ? " active" : ""}`} data-cloud-record={row.key}
             onClick={() => openRow(row)}>
             <span className="inventory-row-check">{row.device && <button type="button" className={`fav-btn${favouriteIds.has(row.device.id) ? " fav-btn--active" : ""}`} title={favouriteIds.has(row.device.id) ? "Remove from favourites" : "Add to favourites"}
@@ -176,5 +181,12 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       {activeOverview}
     </div>
 
+    {creating && query.data && <CloudAssetForm accessToken={accessToken} providers={query.data.providers} devices={devices}
+      onCancel={() => setCreating(false)} onCreated={asset => {
+        query.setData(current => current && ({ ...current, assets: [...current.assets, asset] }));
+        setSearch(""); setProviderFilter("all"); setLocationFilter("all"); setKindFilter("all"); setMonitorFilter("all"); setFavouritesOnly(false);
+        setPage(1); setDetailKey(`saved-${asset.id}`); onOpenDevice(asset.device_id); setCreating(false);
+        toast.success("Cloud asset added", { detail: asset.name });
+      }} />}
   </section>;
 }

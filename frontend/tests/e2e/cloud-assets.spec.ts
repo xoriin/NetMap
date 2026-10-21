@@ -42,12 +42,12 @@ test('Cloud assets has empty, failed and retry states', async ({page})=>{
  await setupExternalIps(page);
  await page.route('**/api/v1/admin/device-types', route=>route.fulfill({json:[]}));
   await page.goto('/inventory#cloud-assets');
- await expect(page.getByText('No external IPs tracked yet.',{exact:false})).toBeVisible();
+ await expect(page.getByText('No cloud assets yet.',{exact:false})).toBeVisible();
  let fail=true;
  await page.route('**/api/v1/ipam/external/addresses', route=>route.fulfill(fail?{status:500,json:{detail:'Register unavailable'}}:{json:[]}));
  await page.reload(); await expect(page.getByRole('alert')).toContainText('Register unavailable');
  fail=false; await page.getByRole('button',{name:'Retry',exact:true}).click();
- await expect(page.getByText('No external IPs tracked yet.',{exact:false})).toBeVisible();
+ await expect(page.getByText('No cloud assets yet.',{exact:false})).toBeVisible();
  await page.getByRole('link',{name:'Manage external IPs'}).click();
  await expect(page).toHaveURL(/ipam#external$/);
  await expect(page.getByRole('button',{name:'Add external IP'}).first()).toBeVisible();

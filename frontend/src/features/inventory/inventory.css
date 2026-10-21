@@ -297,3 +297,6 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   gap: 8px;
   min-width: 0;
 }
+
+/* Keep the picker outside its label: menu option clicks must not activate the trigger again. */
+.inventory-cloud-device-field { display: grid; gap: var(--nm-space-1); }

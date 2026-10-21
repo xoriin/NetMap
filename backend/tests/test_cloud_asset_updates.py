@@ -98,3 +98,57 @@ def test_duplicate_identity_and_missing_asset(context):
     assert client.patch("/ipam/external/assets/123456", json={"name": "Missing"}).status_code == 404
     db.expire_all()
     assert db.get(CloudAsset, asset_id).name == "Retained VM"
+
+
+def test_create_requires_only_name_and_is_persisted(context):
+    client, db, _, _ = context
+    result = client.post('/ipam/external/assets', json={'name': '  New resource  '})
+    assert result.status_code == 201, result.text
+    asset = result.json()
+    assert asset['name'] == 'New resource'
+    assert asset['device_id'] is None
+    assert asset['provider_id'] is None
+    assert any(row['id'] == asset['id'] for row in client.get('/ipam/external/assets').json())
+    assert db.query(Device).count() == 0
+    assert db.query(ExternalIpAddress).count() == 0
+
+
+def test_create_links_existing_device_without_enabling_monitoring(context):
+    client, db, _, _ = context
+    device = Device(hostname='Existing', ip_address='203.0.113.10', monitoring_paused=True)
+    provider = CloudProvider(key='example', name='Example', icon='cloud')
+    db.add_all([device, provider])
+    db.commit()
+    payload = {'name': 'Gateway', 'kind': 'nat_gateway', 'provider_id': provider.id,
+               'account': 'Production', 'region': 'Sydney', 'description': 'Useful notes', 'device_id': device.id}
+    result = client.post('/ipam/external/assets', json=payload)
+    assert result.status_code == 201, result.text
+    assert result.json() == {'id': result.json()['id'], **payload}
+    db.refresh(device)
+    assert device.monitoring_paused is True
+    assert db.query(Device).count() == 1
+    assert db.query(ExternalIpAddress).count() == 0
+    assert client.post('/ipam/external/assets', json=payload).status_code == 409
+    assert db.query(CloudAsset).count() == 2
+    # A conflict rolls back cleanly; a later create still succeeds.
+    assert client.post('/ipam/external/assets', json={'name': 'After conflict'}).status_code == 201
+
+
+@pytest.mark.parametrize('payload,code', [
+    ({}, 422), ({'name': None}, 422), ({'name': '  '}, 422), ({'name': 'x' * 121}, 422),
+    ({'name': 'New', 'kind': 'invented'}, 422), ({'name': 'New', 'provider_id': 9876}, 404),
+    ({'name': 'New', 'device_id': 9876}, 404), ({'name': 'New', 'id': 99}, 422),
+])
+def test_invalid_create_changes_nothing(context, payload, code):
+    client, db, _, _ = context
+    assert client.post('/ipam/external/assets', json=payload).status_code == code
+    assert db.query(CloudAsset).count() == 1
+
+
+def test_create_requires_ipam_write_and_auth(context):
+    client, db, actor, _ = context
+    actor['user'] = _reader()
+    assert client.post('/ipam/external/assets', json={'name': 'Denied'}).status_code == 403
+    client.app.dependency_overrides.pop(get_current_user)
+    assert client.post('/ipam/external/assets', json={'name': 'Denied'}).status_code == 401
+    assert db.query(CloudAsset).count() == 1
