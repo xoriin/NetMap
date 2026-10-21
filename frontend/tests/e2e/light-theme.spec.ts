@@ -83,13 +83,14 @@ test("light mode paints the tinted page, near-white panels and the page header b
 
   const panel = page.locator(".inventory-surface.nm-app-panel");
   await expect(panel).toHaveCSS("background-color", "rgb(254, 254, 254)");
-  await expect(panel).toHaveCSS("border-top-color", "rgb(211, 221, 229)");
+  await expect(panel).toHaveCSS("border-top-color", "rgb(216, 220, 225)");
+  expect(await resolve(page, "--nm-border-strong", "backgroundColor")).toBe("rgb(188, 195, 203)");
   await expect(panel).toHaveCSS("border-radius", "10px");
   await expect(panel).toHaveCSS("box-shadow", "rgba(15, 35, 52, 0.06) 0px 1px 2px 0px, rgba(15, 35, 52, 0.06) 0px 2px 6px 0px");
 
   const topbar = page.locator(".app-topbar");
   await expect(topbar).toHaveCSS("background-color", "rgb(254, 254, 254)");
-  await expect(topbar).toHaveCSS("border-bottom-color", "rgb(211, 221, 229)");
+  await expect(topbar).toHaveCSS("border-bottom-color", "rgb(216, 220, 225)");
   await expect(topbar.locator(".app-topbar-copy strong")).toHaveCSS("color", "rgb(15, 61, 71)");
   await expect(topbar.locator(".app-topbar-copy small")).toHaveCSS("color", "rgb(82, 98, 114)");
   const icon = topbar.locator(".app-topbar-icon");
@@ -314,6 +315,6 @@ test("light buttons: soft danger and neutral secondary are a step stronger and r
   });
   expect(ratio).toBeGreaterThanOrEqual(4.5);
   const secondary = page.getByRole("button", { name: "Reset PW" }).first();
-  await expect(secondary).toHaveCSS("background-color", "rgb(231, 238, 243)");
-  await expect(secondary).toHaveCSS("border-top-color", "rgb(166, 184, 197)");
+  await expect(secondary).toHaveCSS("background-color", "rgb(236, 238, 241)");
+  await expect(secondary).toHaveCSS("border-top-color", "rgb(170, 179, 189)");
 });

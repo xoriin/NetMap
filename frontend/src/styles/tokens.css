@@ -7,8 +7,8 @@
   --nm-bg-elevated: #f5f5f6;
   --nm-surface: #fefefe;
   --nm-surface-soft: #f1f2f4;
-  --nm-border: #d3dde5;
-  --nm-border-strong: #b9c9d4;
+  --nm-border: #d8dce1;
+  --nm-border-strong: #bcc3cb;
   --nm-text: #13202c;
   --nm-text-muted: #526272;
   --nm-text-faint: #8a97a7;
@@ -61,8 +61,8 @@
   --nm-kpi-indigo-border: #cdd2ec;
   --nm-kpi-line: 3px;
   --nm-on-deep: #ffffff;
-  --nm-btn-secondary-bg: #e7eef3;
-  --nm-btn-secondary-border: #a6b8c5;
+  --nm-btn-secondary-bg: #eceef1;
+  --nm-btn-secondary-border: #aab3bd;
   --nm-btn-danger-bg: #f8e0e0;
   --nm-btn-danger-border: #e2a3a3;
   --nm-btn-danger-text: #ae3838;
