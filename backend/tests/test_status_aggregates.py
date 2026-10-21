@@ -400,11 +400,42 @@ def test_failing_refresh_is_retried_later_without_blocking_the_rest(monkeypatch,
     assert history.refresh_once(NOW, lambda: None) is False
     retry = aggregates.LONG_RETRY
     for at in (NOW + retry, NOW + 2 * retry, NOW + aggregates.LONG_REFRESH + 2 * retry):
+        history.track(("device:1", "7d", 60, ()), SourceRef("device", device_id=1), timedelta(days=7), at)
         assert history.refresh_once(at, lambda: None) is True
     assert order == [1, 2, 1, 1, 1]
     failures = [r for r in caplog.records if "device:1" in r.getMessage()]
     assert [r.exc_info is not None for r in failures] == [True, False]
     assert all("boom" in r.getMessage() or r.exc_info for r in failures)
+
+
+def test_repeat_refresh_failures_collapse_into_one_warning_per_refresh_period(monkeypatch, caplog):
+    history = aggregates.SourceHistory()
+    refs = [SourceRef("device", device_id=n) for n in (1, 2)]
+    order = []
+    _recording_compute(monkeypatch, order, failing={1, 2})
+    caplog.set_level("WARNING", logger=aggregates.logger.name)
+    for at in (NOW, NOW + aggregates.LONG_RETRY, NOW + aggregates.LONG_REFRESH + aggregates.LONG_RETRY):
+        for ref in refs:
+            history.track((ref.key, "7d", 60, ()), ref, timedelta(days=7), at)
+        while history.refresh_once(at, lambda: None):
+            pass
+    assert order == [1, 2] * 3
+    assert [r.exc_info is not None for r in caplog.records] == [True, True, False]
+    assert "2 values" in caplog.records[-1].getMessage()
+
+
+def test_failure_after_a_concurrent_clear_is_not_remembered(monkeypatch):
+    history = aggregates.SourceHistory()
+    key = ("device:1", "7d", 60, ())
+    history.track(key, SourceRef("device", device_id=1), timedelta(days=7), NOW)
+
+    def compute(fetch, ref, key, length, now):
+        history.clear()
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(aggregates, "compute_long", compute)
+    assert history.refresh_once(NOW, lambda: None) is True
+    assert history._failed == {}
 
 
 def test_never_computed_job_unused_since_it_failed_is_dropped(monkeypatch):

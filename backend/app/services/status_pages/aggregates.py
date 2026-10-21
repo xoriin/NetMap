@@ -88,6 +88,7 @@ class SourceHistory:
         self.wake = threading.Event()
         self._warned_at: datetime | None = None
         self._failed: dict[LongKey, datetime] = {}
+        self._failure_warned_at: datetime | None = None
 
     def cycle(self, sessions: Callable[[], Session] | None = None, capped: bool = False, budget: InlineBudget | None = None) -> BuildCycle:
         return BuildCycle(self, sessions, capped, budget)
@@ -97,6 +98,7 @@ class SourceHistory:
             self._long.clear()
             self._jobs.clear()
             self._failed.clear()
+            self._failure_warned_at = None
             self.generation += 1
 
     def jitter(self, key: LongKey) -> timedelta:
@@ -179,17 +181,26 @@ class SourceHistory:
             value = compute_long(fetch, job.ref, key, job.length, now)
         except Exception as exc:
             with self._lock:
-                if self._jobs.get(key) is job:
-                    job.due_at = now + LONG_RETRY
-                logged = self._failed.get(key)
-                if logged is None or now - logged >= LONG_REFRESH:
-                    self._failed[key] = now
-                else:
+                if self._jobs.get(key) is not job:
                     return True
-            if logged is None:
+                job.due_at = now + LONG_RETRY
+                first = key not in self._failed
+                self._failed[key] = now
+                warned = self._failure_warned_at
+                if first:
+                    self._failure_warned_at = warned or now
+                elif warned is not None and now - warned < LONG_REFRESH:
+                    return True
+                else:
+                    self._failure_warned_at = now
+                failing = len(self._failed)
+            if first:
                 logger.exception("Status page long-period refresh failed for %s %s", key[0], key[1])
             else:
-                logger.warning("Status page long-period refresh still failing for %s %s: %r", key[0], key[1], exc)
+                logger.warning(
+                    "Status page long-period refresh still failing for %d values, latest %s %s: %r",
+                    failing, key[0], key[1], exc,
+                )
             return True
         with self._lock:
             self._failed.pop(key, None)
