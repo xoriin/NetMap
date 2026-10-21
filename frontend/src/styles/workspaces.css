@@ -5233,8 +5233,29 @@ body:not(.theme-dark) .modal .modal-header .mon-device-ip {
   color: var(--nm-panel-head-muted);
 }
 
-/* Light mode A: table footers repeat the column-header tint so the table outline closes. */
-body:not(.theme-dark) .app-main :is(.inv-pagination, .audit-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer) {
+body:not(.theme-dark) .app-main .audit-pagination {
   border-top: 1px solid var(--nm-table-header-border);
   background: var(--nm-table-header-bg);
+}
+
+/* Light mode A: table footers carry the panel header's navy band. */
+body:not(.theme-dark) .app-main :is(.inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer) {
+  --nm-border: var(--nm-panel-head-border);
+  --nm-text: var(--nm-panel-head-text);
+  --nm-text-muted: var(--nm-panel-head-muted);
+  --nm-text-faint: var(--nm-panel-head-faint);
+  border-top: 1px solid var(--nm-panel-head-border);
+  background: var(--nm-panel-head-bg);
+  color: var(--nm-panel-head-muted);
+}
+
+body:not(.theme-dark) .app-main :is(.inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer) :is(.inv-pagination-info, strong, b) {
+  color: var(--nm-panel-head-muted);
+}
+
+body:not(.theme-dark) .app-main :is(.inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer) :is(button, select, input, .nm-btn, .nm-select) {
+  --nm-border: var(--nm-base-border);
+  --nm-text: var(--nm-base-text);
+  --nm-text-muted: var(--nm-base-text-muted);
+  --nm-text-faint: var(--nm-base-text-faint);
 }

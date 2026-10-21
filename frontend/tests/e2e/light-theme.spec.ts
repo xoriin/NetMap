@@ -45,7 +45,7 @@ function headerTextContrast(page: Page) {
       return "rgb(255, 255, 255)";
     };
     const results: { text: string; className: string; ratio: number }[] = [];
-    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading"))) {
+    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading, .inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer"))) {
       for (const el of Array.from(header.querySelectorAll("*"))) {
         const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
         if (!own || (el as HTMLElement).offsetParent === null || el.tagName === "OPTION") continue;
@@ -247,11 +247,13 @@ test("light Topology device and link detail headings share the navy band", async
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
 
-test("light table footers carry the column-header tint so the table outline closes", async ({ page }) => {
+test("light table footers carry the same navy band as the panel header", async ({ page }) => {
   await openInventory(page, "light");
   const footer = page.locator(".inv-pagination").first();
-  await expect(footer).toHaveCSS("background-color", "rgb(230, 241, 244)");
-  await expect(footer).toHaveCSS("border-top-color", "rgb(197, 223, 229)");
+  await expect(footer).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(footer).toHaveCSS("border-top-color", "rgb(24, 40, 58)");
+  await expect(footer.locator(".inv-pagination-info")).toHaveCSS("color", "rgb(177, 188, 199)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
 
 test("light Admin users and schedule headers carry the navy band", async ({ page }) => {
