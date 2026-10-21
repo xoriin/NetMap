@@ -23,7 +23,7 @@
 /* Shared table primitives own structure and interaction; the workspace owns the
    surrounding panel surface and column layout. */
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
-.external-ip-table { min-width: 1200px; table-layout: fixed; background: var(--nm-modal-section); }
+.external-ip-table { min-width: 980px; table-layout: fixed; background: var(--nm-modal-section); }
 /* Headers and data rows use the shared table tokens. The containing panel keeps
    its modal-section surface; structural group rows use modal-header below. */
 .external-ip-table thead th { background: var(--nm-table-header-bg); }

@@ -72,3 +72,20 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+for (const theme of ["light", "dark"] as const) {
+  for (const width of [1440, 1280]) {
+    test(`external IP table fits its panel without hiding actions at ${width}px in ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await setupExternalIps(page, { theme, addresses: [mockAddress({ label: "Public service" })] });
+      for (const grouping of ["location", "provider", "status", "none"]) {
+        await page.getByLabel("Group by").selectOption(grouping);
+        const wrap = page.locator(".external-ip-table-wrap");
+        expect(await wrap.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+        const box = await wrap.boundingBox();
+        const remove = await page.locator(".external-ip-address-row").first().getByRole("button", { name: /Delete/ }).boundingBox();
+        expect(remove!.x + remove!.width).toBeLessThanOrEqual(box!.x + box!.width);
+      }
+    });
+  }
+}
