@@ -446,10 +446,9 @@ html {
    and border derive from it so a single value drives light and dark mode. */
 .nm-chip {
   --nm-chip-color: var(--nm-accent);
-  /* Pastel rendition of the stored hue — the raw palette colours read too
-     saturated at chip size. Light mode softens toward white; dark mode lightens
-     (darkening a hue reads muddy, not pastel). */
-  --nm-chip-swatch: color-mix(in srgb, var(--nm-chip-color) 58%, white);
+  /* Keep light-mode colour marks rich enough to read against pale rows.
+     Dark mode retains its softened rendition below. */
+  --nm-chip-swatch: color-mix(in srgb, var(--nm-chip-color) 90%, white);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -459,8 +458,8 @@ html {
   font-size: var(--nm-text-sm);
   font-weight: 600;
   color: var(--nm-text);
-  background: color-mix(in srgb, var(--nm-chip-color) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--nm-chip-color) 12%, transparent);
+  background: color-mix(in srgb, var(--nm-chip-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nm-chip-color) 32%, transparent);
 }
 
 .nm-chip-swatch {
@@ -477,9 +476,8 @@ html {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  /* Softened less than --nm-chip-swatch: a thin icon stroke washes out at the
-     swatch's mix, where a solid 9px square still reads. */
-  color: color-mix(in srgb, var(--nm-chip-color) 80%, white);
+  /* A thin icon stroke needs more depth than a solid swatch. */
+  color: color-mix(in srgb, var(--nm-chip-color) 80%, var(--nm-text));
 }
 
 body.theme-dark .nm-chip-icon {
@@ -552,13 +550,13 @@ body.theme-dark .nm-chip:not(.nm-chip--empty):not(.nm-chip--nocolor) {
   border-color: var(--nm-accent);
 }
 
-/* Same pastel derivation as .nm-chip-swatch so filters match the table chips. */
+/* Same colour derivation as .nm-chip-swatch so filters match the table chips. */
 .nm-swatch-dot {
   flex: 0 0 auto;
   width: 9px;
   height: 9px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--nm-chip-color) 58%, white);
+  background: color-mix(in srgb, var(--nm-chip-color) 90%, white);
 }
 
 body.theme-dark .nm-swatch-dot:not(.nm-swatch-dot--none) {
