@@ -19,13 +19,13 @@
 .external-ip-panel-header { flex-wrap: wrap; display: flex; min-height: 44px; align-items: center; gap: 16px; padding: 6px 14px; }
 .external-ip-panel-header .ipam-panel-meta { overflow: hidden; text-overflow: ellipsis; }
 .external-ip-panel-actions { flex-wrap: wrap; display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
-.external-ip-header-controls { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
+.external-ip-header-controls { display: flex; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
 /* Structure and behaviour come from the canonical `.nm-table` rules (sticky uppercase
    header, borders, hover + teal edge). Surfaces follow the IPAM workspace hierarchy so
    this table matches its sibling Internal networks table (`.ipam-data-table`) rather
    than the component's darker `--nm-surface` default, which read as a separate app. */
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
-.external-ip-table { min-width: 980px; table-layout: fixed; background: var(--nm-modal-section); }
+.external-ip-table { min-width: 1200px; table-layout: fixed; background: var(--nm-modal-section); }
 /* Two different rules meet here and both are kept:
    - `thead th` keeps the canonical `--nm-table-header-bg` so every table header in the app
      reads the same (docs/UI_THEME_RULES.md § Data-table headers, guarded by "Inventory and
@@ -36,16 +36,13 @@
      around it. Light mode aliases it to --nm-surface, so that problem is dark-mode-only. */
 .external-ip-table thead th { background: var(--nm-table-header-bg); }
 .external-ip-table tbody td { background: var(--nm-modal-section); }
-.external-ip-table .external-ip-col-address { width: 16%; }
-.external-ip-table .external-ip-col-location { width: 14%; }
-.external-ip-table .external-ip-col-purpose { width: 18%; }
-.external-ip-table .external-ip-col-device { width: 16%; }
-.external-ip-table .external-ip-col-status { width: 11%; }
-.external-ip-table .external-ip-col-owner { width: 13%; }
-.external-ip-table .external-ip-col-tags { width: 15%; }
-.external-ip-table .external-ip-col-actions { width: 11%; }
+/* Keep the full action set on one line. The remaining metadata columns share the
+   available space, including when Group by adds the Location column. */
+.external-ip-table .external-ip-col-address { width: 160px; }
+.external-ip-table .external-ip-col-status { width: 106px; }
+.external-ip-table .external-ip-col-actions { width: 300px; }
 .external-ip-search { min-width: 220px; max-width: 520px; flex: 0 1 420px; }
-.external-ip-status-filter { display: flex; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
+.external-ip-status-filter { display: flex; flex-shrink: 0; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
 .external-ip-status-filter .nm-select { width: 130px; }
 
 .external-ip-tree-toggle { position: relative; z-index: 1; display: inline-flex; width: 18px; height: 24px; flex: 0 0 auto; align-items: center; justify-content: center; border: 0; padding: 0; background: transparent; color: var(--nm-accent-strong); cursor: pointer; }
@@ -57,12 +54,13 @@
    (see the Actions column in design-system-preview.html). */
 .external-ip-table td.external-ip-actions > .nm-table-actions,
 .external-ip-table td.external-ip-actions > .nm-btn { display: inline-flex; }
-/* `text-align: right` on the cell is what places the shrink-wrapped inline-flex
-   action group; `justify-content` here would be a no-op. Wrapping is the only
-   behaviour this rule needs to add. */
-.external-ip-table td.external-ip-actions .nm-table-actions { flex-wrap: wrap; }
+.external-ip-table td.external-ip-actions .nm-table-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
 /* The canonical `.nm-table-actions .nm-btn--sm { flex: 1 }` is sized for the preview's
-   narrow two-button column; here it would stretch four buttons across a wide column and
+   narrow two-button column; here it would stretch buttons across a wide column and
    defeat the right alignment. Natural widths, flush right. */
 .external-ip-table td.external-ip-actions .nm-table-actions .nm-btn--sm { flex: 0 0 auto; }
 .external-ip-table td.external-ip-actions .nm-btn { white-space: nowrap; }
@@ -920,6 +918,3 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
     gap: 1px;
   }
 }
-
-/* Account/location actions wrap within their column instead of overlapping counts. */
-.external-ip-table .nm-table-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
