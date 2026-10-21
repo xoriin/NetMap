@@ -17,7 +17,7 @@ export const POPUP_SECTION_COLOURS = {
 };
 
 export const POPUP_HEADER_COLOURS = {
-  light: { headerBackground: "rgb(254, 254, 254)", headerBorder: "rgba(209, 220, 230, 0.7)" },
+  light: { headerBackground: "rgb(29, 46, 64)", headerBorder: "rgb(24, 40, 58)" },
   dark: { headerBackground: "rgb(24, 38, 53)", headerBorder: "rgb(45, 61, 82)" },
 };
 
@@ -30,11 +30,14 @@ const SECTION_TOKENS = {
   rowBorder: "--nm-popup-divider",
 };
 
-const HEADER_TOKENS = { headerBackground: "--nm-popup-section-bg", headerBorder: "--nm-popup-section-border" };
+const HEADER_TOKENS = {
+  light: { headerBackground: "--nm-panel-head-bg", headerBorder: "--nm-panel-head-border" },
+  dark: { headerBackground: "--nm-popup-section-bg", headerBorder: "--nm-popup-section-border" },
+};
 
 /** The rules that paint popup sections and the popup header; every colour in them must be a token. */
 const TOKENISED_SELECTORS = [
-  ".mon-hero-header", "body.theme-dark .mon-hero-header",
+  ".mon-hero-header", "body.theme-dark .mon-hero-header", "body:not(.theme-dark) .mon-hero-header",
   ".mon-hero-section", "body.theme-dark .mon-hero-section",
   ".mon-hero-section-title", "body.theme-dark .mon-hero-section-title",
   ".mon-analysis-row:not(:last-child)", "body.theme-dark .mon-analysis-row",
@@ -80,7 +83,7 @@ export async function expectPopupHeaderColours(header: Locator, theme: Theme) {
       values: { headerBackground: h.backgroundColor, headerBorder: h.borderBottomColor },
       tokens: resolve(node, tokenMap),
     };
-  }, [HEADER_TOKENS, resolveTokens.toString()] as const);
+  }, [HEADER_TOKENS[theme], resolveTokens.toString()] as const);
   expect(values).toEqual(POPUP_HEADER_COLOURS[theme]);
   expect(tokens).toEqual(values);
 }

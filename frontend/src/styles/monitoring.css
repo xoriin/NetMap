@@ -2131,6 +2131,27 @@ tr.mon-port-sort-row.is-drag-over > td:not(:last-child)::before { right: 0; bord
 }
 .mon-hero-close:hover { background: rgba(78, 104, 120, 0.22); color: #1a2c38; }
 
+/* Light mode A: the popup header carries the navy panel band; the status line stays on top. */
+body:not(.theme-dark) .mon-hero-header {
+  --nm-border: var(--nm-panel-head-border);
+  --nm-text: var(--nm-panel-head-text);
+  --nm-text-muted: var(--nm-panel-head-muted);
+  --nm-text-faint: var(--nm-panel-head-faint);
+  border-bottom-color: var(--nm-panel-head-border);
+  background: var(--nm-panel-head-bg);
+  color: var(--nm-panel-head-text);
+}
+body:not(.theme-dark) .mon-hero-header .mon-hero-name { color: var(--nm-panel-head-text); }
+body:not(.theme-dark) .mon-hero-header :is(.mon-hero-sub, .mon-hero-sub .mon-cell-mono) { color: var(--nm-panel-head-muted); }
+body:not(.theme-dark) .mon-hero-header .mon-hero-close { background: transparent; color: var(--nm-panel-head-text); }
+body:not(.theme-dark) .mon-hero-header .mon-hero-close:hover { background: var(--nm-panel-head-icon-bg); color: var(--nm-on-deep); }
+body:not(.theme-dark) .mon-hero-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active), .nm-pill) {
+  --nm-border: var(--nm-base-border);
+  --nm-text: var(--nm-base-text);
+  --nm-text-muted: var(--nm-base-text-muted);
+  --nm-text-faint: var(--nm-base-text-faint);
+}
+
 /* Stat strip */
 .mon-hero-stats {
   display: flex;

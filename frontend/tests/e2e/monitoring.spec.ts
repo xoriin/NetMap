@@ -617,5 +617,12 @@ for (const theme of ["light", "dark"] as const) {
     await expectPopupSectionColours(section, theme);
     await expectPopupHeaderColours(page.locator(".mon-hero-header"), theme);
     await expectPopupRulesUseTokens(page);
+    if (theme === "light") {
+      const header = page.locator(".mon-hero-header");
+      await expect(header.locator(".mon-hero-name")).toHaveCSS("color", "rgb(241, 245, 249)");
+      await expect(header.locator(".mon-hero-sub")).toHaveCSS("color", "rgb(177, 188, 199)");
+      await expect(header.locator(".mon-hero-sub .mon-cell-mono")).toHaveCSS("color", "rgb(177, 188, 199)");
+      await expect(header.locator(".mon-hero-close")).toHaveCSS("color", "rgb(241, 245, 249)");
+    }
   });
 }

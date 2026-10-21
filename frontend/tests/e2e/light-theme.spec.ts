@@ -45,7 +45,7 @@ function headerTextContrast(page: Page) {
       return "rgb(255, 255, 255)";
     };
     const results: { text: string; className: string; ratio: number }[] = [];
-    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading, .inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer"))) {
+    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading, .mon-hero-header, .inv-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer"))) {
       for (const el of Array.from(header.querySelectorAll("*"))) {
         const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
         if (!own || (el as HTMLElement).offsetParent === null || el.tagName === "OPTION") continue;
