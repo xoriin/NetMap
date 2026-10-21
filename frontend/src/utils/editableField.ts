@@ -4,12 +4,13 @@ const EDITOR_SELECTOR = "input, textarea, select, button, form";
 const FOCUSABLE_SELECTOR = "input, textarea, select, button";
 
 /** Props for a sidebar `<dd>` that starts inline editing on double-click or Enter. */
-export function editableField(enabled: boolean, start: () => void, field?: string) {
+export function editableField(enabled: boolean, start: () => void, field?: string, hintId?: string) {
   if (!enabled) return {};
   return {
     className: "editable-dd",
     tabIndex: 0,
     "data-edit-field": field,
+    "aria-describedby": hintId,
     onDoubleClick: (event: MouseEvent<HTMLElement>) => {
       if ((event.target as HTMLElement).closest(EDITOR_SELECTOR)) return;
       window.getSelection()?.removeAllRanges();

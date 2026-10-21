@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
 import {
   Activity,
   Clock,
@@ -158,6 +158,7 @@ export function CloudAssetDetails({
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
   const [failedLink, setFailedLink] = useState<Device | null>(null);
   const { listRef, focusEditor } = useEditableFieldFocus(editing);
+  const hintId = useId();
 
   const deviceId = record.value.device_id;
   const device = devices.find((row) => row.id === deviceId);
@@ -440,7 +441,7 @@ export function CloudAssetDetails({
               {fields.map((field) => (
                 <Fragment key={field.label}>
                   <dt><span className="details-field-icon"><FieldIcon label={field.label} /></span>{field.label}</dt>
-                  <dd {...editableField(canWrite && Boolean(field.save) && !busy, () => start(field), field.label)}>
+                  <dd {...editableField(canWrite && Boolean(field.save) && !busy, () => start(field), field.label, hintId)}>
                     {editing === field.label ? (
                       <form
                         className="cloud-asset-field-edit"
@@ -486,7 +487,7 @@ export function CloudAssetDetails({
                 {record.type === "address" && externalIpAction}
               </div>
             )}
-            {canWrite && <p className="details-edit-hint">Double-click any field to edit</p>}
+            {canWrite && <p id={hintId} className="details-edit-hint">Double-click any field to edit</p>}
           </>
         )}
       </InventoryDetailsPanel>

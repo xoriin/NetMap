@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { Network, Pencil, Activity, MapPin } from "lucide-react";
 import {
   IconServer,
@@ -88,6 +88,7 @@ export function DeviceDetails({
   const [snmpError, setSnmpError] = useState<string | null>(null);
   const committingRef = useRef(false);
   const { listRef } = useEditableFieldFocus(editingField);
+  const hintId = useId();
 
   useEffect(() => {
     setEditingField(null);
@@ -122,7 +123,7 @@ export function DeviceDetails({
   }
 
   const editHint = canWrite && !disabled;
-  const editable = (field: string, value: string) => editableField(editHint, () => startEdit(field, value), field);
+  const editable = (field: string, value: string) => editableField(editHint, () => startEdit(field, value), field, hintId);
   const monitoringPaused = isDeviceMonitoringPaused(device);
   const observedStatus = monitorSummary?.status ?? liveStatus?.status ?? device.monitor_status ?? device.status;
   const monitorHealth = monitoringPaused ? "paused" : (monitorSummary?.health_status ?? observedStatus);
@@ -557,7 +558,7 @@ export function DeviceDetails({
           )}
         </div>
       )}
-      {editHint && <p className="details-edit-hint">Double-click any field to edit</p>}
+      {editHint && <p id={hintId} className="details-edit-hint">Double-click any field to edit</p>}
       </>)}
 
       {activeTab === "activity" && canViewSecurity && (

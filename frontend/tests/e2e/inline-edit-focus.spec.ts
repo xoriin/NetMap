@@ -101,3 +101,15 @@ test('Devices fields ignore Enter on the field while it is editing',async({page}
  await hostname.evaluate(el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
  await expect(input).toHaveValue('Draft hostname');
 });
+
+test('Cloud and Devices fields are described by the edit hint',async({page})=>{
+ await openCloud(page);
+ const hintId=await field(page,'Owner').getAttribute('aria-describedby');
+ expect(hintId).toBeTruthy();
+ await expect(page.locator(`[id="${hintId}"]`)).toHaveText('Double-click any field to edit');
+ await page.goto('/inventory#devices');
+ await page.getByRole('button',{name:'Open Existing server details'}).click();
+ const deviceHint=await page.getByRole('complementary',{name:'Device overview'}).locator('dt:has-text("Hostname") + dd').getAttribute('aria-describedby');
+ expect(deviceHint).toBeTruthy();
+ await expect(page.locator(`[id="${deviceHint}"]`)).toHaveText('Double-click any field to edit');
+});
