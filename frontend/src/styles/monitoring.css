@@ -4181,50 +4181,6 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .monitor-form-modal .monitor-form .nm-input::placeholder {
   color: var(--nm-text-faint);
 }
-.monitor-form-intro {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--nm-border);
-  border-radius: var(--nm-radius-lg);
-  background: var(--nm-surface-soft);
-}
-.monitor-form-intro-icon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 12px;
-  color: var(--nm-accent-strong);
-  background: color-mix(in srgb, var(--nm-accent) 9%, var(--nm-surface));
-  border: 1px solid color-mix(in srgb, var(--nm-accent) 20%, var(--nm-border));
-}
-.monitor-form-intro strong,
-.monitor-form-intro span {
-  display: block;
-}
-.monitor-form-intro > div:nth-child(2) > strong {
-  margin-bottom: 3px;
-  color: var(--nm-text);
-  font-size: 14px;
-}
-.monitor-form-intro > div:nth-child(2) > span {
-  color: var(--nm-text-muted);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-.monitor-form-state--enabled {
-  color: var(--nm-success);
-  background: var(--nm-success-soft);
-  border-color: color-mix(in srgb, var(--nm-success) 28%, transparent);
-}
-.monitor-form-state--paused {
-  color: var(--nm-text-muted);
-  background: var(--nm-surface-soft);
-  border-color: var(--nm-border);
-}
 .monitor-form-tabbed-window {
   display: flex;
   flex: 1 1 auto;
@@ -4334,7 +4290,6 @@ body.theme-dark .monitor-form-modal .modal-header {
 body.theme-dark .monitor-form-modal .monitor-form {
   background: var(--nm-modal-shell);
 }
-body.theme-dark .monitor-form-intro,
 body.theme-dark .monitor-form-window,
 body.theme-dark .monitor-form-section {
   background: var(--nm-modal-section);
@@ -4385,13 +4340,7 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
   .monitor-form-nav .monitor-form-nav-item {
     padding-inline: 10px;
   }
-  .monitor-form-intro {
-    grid-template-columns: 42px minmax(0, 1fr);
-  }
-  .monitor-form-intro > .nm-pill {
-    grid-column: 2;
-    justify-self: start;
-  }
+
 }
 
 .monitors-heartbeat-strip {

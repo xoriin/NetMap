@@ -1,5 +1,4 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Globe2 } from "lucide-react";
 import type {
   HttpMethod,
   Monitor,
@@ -93,14 +92,6 @@ export function MonitorFormFields({ form, setForm, editingMonitor, httpMethods, 
   ];
 
   return <div className="monitor-form-shell">
-    <div className="monitor-form-intro">
-      <div className="monitor-form-intro-icon"><Globe2 size={21} /></div>
-      <div>
-        <strong>{editingMonitor ? "Configure endpoint check" : "Create an endpoint check"}</strong>
-        <span>Start with the target, then add only the request and validation options this endpoint needs.</span>
-      </div>
-      <span className={`nm-pill ${form.enabled ? "monitor-form-state--enabled" : "monitor-form-state--paused"}`}>{form.enabled ? "Enabled" : "Paused"}</span>
-    </div>
     <div className="monitor-form-tabbed-window">
       <nav className="mon-panel-tabs monitor-form-nav" role="tablist" aria-label="Endpoint settings sections">
         {sections.map(({ id, label }) => <button
