@@ -156,7 +156,7 @@ export function CloudAssetDetails({
   const [error, setError] = useState<string | null>(null);
   const [showDevice, setShowDevice] = useState(false);
   const [deviceSeed, setDeviceSeed] = useState<Partial<Device> | null>(null);
-  const [createdDevice, setCreatedDevice] = useState<Device | null>(null);
+  const [failedLink, setFailedLink] = useState<Device | null>(null);
 
   const deviceId = record.value.device_id;
   const device = devices.find((row) => row.id === deviceId);
@@ -314,7 +314,7 @@ export function CloudAssetDetails({
   function startCreate() {
     if (!canCreate || busy) return;
     stopEditing();
-    setCreatedDevice(null);
+    setFailedLink(null);
     setDeviceSeed(record.type === "address"
       ? {
           display_name: record.value.label,
@@ -330,8 +330,9 @@ export function CloudAssetDetails({
   async function createAndLink(payload: DevicePayload | null) {
     if (!canCreate) return;
     setBusy(true);
+    let created: Device | null = null;
     try {
-      let target = createdDevice;
+      let target = failedLink;
       if (!target && payload) {
         const existing = devices.find((row) => sameIp(row.ip_address, payload.ip_address));
         if (existing && await confirmAction({
@@ -345,18 +346,18 @@ export function CloudAssetDetails({
         }
       }
       if (!target && payload) {
-        const created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
+        created = await createDeviceWithReservationConfirmation(accessToken, payload, confirmAction);
         if (!created) return;
         target = created;
-        setCreatedDevice(created);
         onDeviceCreated(created);
       }
       if (!target) return;
       await link(target.id);
       setDeviceSeed(null);
-      setCreatedDevice(null);
+      setFailedLink(null);
       toast.success("Device linked in Inventory and Monitoring", { detail: deviceLabel(target) });
     } catch (err) {
+      if (created) setFailedLink(created);
       toast.error(err instanceof Error ? err.message : "Unable to add this asset to Inventory");
     } finally {
       setBusy(false);
@@ -477,7 +478,7 @@ export function CloudAssetDetails({
           </>
         )}
       </InventoryDetailsPanel>
-      {deviceSeed && !createdDevice && (
+      {deviceSeed && !failedLink && (
         <DeviceForm
           busy={busy}
           title="Add device"
@@ -492,13 +493,13 @@ export function CloudAssetDetails({
           onSubmit={createAndLink}
         />
       )}
-      {deviceSeed && createdDevice && (
+      {deviceSeed && failedLink && (
         <Modal
           title="Link the created device"
-          onCancel={() => { if (!busy) { setDeviceSeed(null); setCreatedDevice(null); } }}
+          onCancel={() => { if (!busy) { setDeviceSeed(null); setFailedLink(null); } }}
           footer={(
             <>
-              <button type="button" className="nm-btn" disabled={busy} onClick={() => { setDeviceSeed(null); setCreatedDevice(null); }}>Cancel</button>
+              <button type="button" className="nm-btn" disabled={busy} onClick={() => { setDeviceSeed(null); setFailedLink(null); }}>Cancel</button>
               <button type="button" className="nm-btn nm-btn--primary" disabled={busy} onClick={() => void createAndLink(null)}>
                 {busy ? "Linking…" : "Retry link"}
               </button>
@@ -506,7 +507,7 @@ export function CloudAssetDetails({
           )}
         >
           <p>
-            {deviceLabel(createdDevice)} was added to Inventory, but linking it to {name} failed.
+            {deviceLabel(failedLink)} was added to Inventory, but linking it to {name} failed.
             Retry the link, or cancel to keep the device without this link.
           </p>
         </Modal>

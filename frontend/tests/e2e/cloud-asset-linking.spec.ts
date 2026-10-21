@@ -153,3 +153,29 @@ test('an Inventory device with an equivalent IPv6 spelling is offered instead of
  expect(posts).toBe(0);
  expect(state.addressPatches.at(-1)).toEqual([1,{device_id:12}]);
 });
+
+test('a successful create-and-link never shows the retry dialog while the link is saving',async({page})=>{
+ let release=()=>{}; const held=new Promise<void>(resolve=>{release=resolve;}); let patching=false;
+ const state=await setupExternalIps(page,{addresses:[mockAddress({label:'Public service'})],beforeGoto:async page=>{
+  await common(page);
+  await page.route('**/api/v1/topology/devices',route=>route.request().method()==='POST'?route.fulfill({json:mockDevice({id:95,...route.request().postDataJSON()})}):route.fallback());
+  await page.route('**/api/v1/ipam/external/addresses/1',async route=>{patching=true; await held; await route.fallback();});
+ }});
+ await page.addInitScript(()=>{
+  new MutationObserver(()=>{
+   if(document.body?.textContent?.includes('Link the created device')) (window as unknown as {retrySeen:boolean}).retrySeen=true;
+  }).observe(document,{childList:true,subtree:true,characterData:true});
+ });
+ await page.goto('/inventory#cloud-assets');
+ await page.getByRole('button',{name:'Open Public service details'}).click();
+ await page.getByRole('button',{name:'Add to Inventory',exact:true}).click();
+ const form=page.getByRole('dialog',{name:'Add device',exact:true});
+ await form.getByRole('button',{name:'Save',exact:true}).click();
+ await expect.poll(()=>patching).toBe(true);
+ await page.waitForTimeout(150);
+ await expect(page.getByRole('dialog',{name:'Link the created device'})).toHaveCount(0);
+ release();
+ await expect(form).toBeHidden();
+ expect(state.addressPatches.at(-1)).toEqual([1,{device_id:95}]);
+ expect(await page.evaluate(()=>(window as unknown as {retrySeen?:boolean}).retrySeen ?? false)).toBe(false);
+});
