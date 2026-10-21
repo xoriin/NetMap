@@ -99,7 +99,7 @@ export function DeviceDetails({
   }, [device.id]);
 
   function startEdit(field: string, currentValue: string) {
-    if (!canWrite || disabled) return;
+    if (!canWrite || disabled || editingField === field) return;
     setEditingField(field);
     setFieldDraft(currentValue);
   }

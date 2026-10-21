@@ -91,3 +91,13 @@ test('closing a Devices field editor with Escape returns focus to the field',asy
  await expect(input).toHaveCount(0);
  await expect(hostname).toBeFocused();
 });
+
+test('Devices fields ignore Enter on the field while it is editing',async({page})=>{
+ const hostname=await openDevice(page);
+ await hostname.focus();
+ await page.keyboard.press('Enter');
+ const input=hostname.locator('input');
+ await input.fill('Draft hostname');
+ await hostname.evaluate(el=>el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
+ await expect(input).toHaveValue('Draft hostname');
+});
