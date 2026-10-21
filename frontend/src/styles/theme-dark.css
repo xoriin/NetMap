@@ -41,6 +41,14 @@ body.theme-dark {
   --nm-warning-soft: rgba(212, 145, 44, 0.15);
   --nm-success-soft: rgba(45, 157, 120, 0.15);
   --nm-table-row-bg: #131e28;
+  --nm-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --nm-tone-teal-deep: #22c0cf;
+  --nm-on-deep: #ffffff;
+  --nm-page-head-bg: rgba(14, 28, 42, 0.94);
+  --nm-page-head-title: var(--nm-text);
+  --nm-page-head-icon-bg: var(--nm-accent-soft);
+  --nm-page-head-icon-border: rgba(34, 192, 207, 0.24);
+  --nm-page-head-icon-fg: var(--nm-accent-strong);
   --nm-table-header-bg: #1e2e3c;
   --nm-table-header-text: #9db0bf;
   --nm-table-header-border: #2b3946;

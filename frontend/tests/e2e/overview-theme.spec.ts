@@ -65,7 +65,7 @@ for (const theme of ["light", "dark"] as const) {
     const panels = page.locator(".overview-panel");
     await expect(panels).toHaveCount(5);
     await expect(panels.first()).toHaveCSS("background-image", "none");
-    await expect(panels.first()).toHaveCSS("background-color", theme === "dark" ? "rgb(21, 33, 46)" : "rgb(249, 251, 253)");
+    await expect(panels.first()).toHaveCSS("background-color", theme === "dark" ? "rgb(21, 33, 46)" : "rgb(254, 254, 254)");
 
     const headers = page.locator(".overview-panel-header");
     await expect(headers).toHaveCount(5);

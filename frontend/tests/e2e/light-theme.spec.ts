@@ -41,3 +41,24 @@ for (const theme of ["light", "dark"] as const) {
     await expect(sidebar.locator(".sidebar-section-label").first()).toHaveCSS("color", "rgb(163, 175, 188)");
   });
 }
+
+test("light mode paints the tinted page, near-white panels and the page header bar", async ({ page }) => {
+  await openInventory(page, "light");
+  expect(await resolve(page, "--nm-bg", "backgroundColor")).toBe("rgb(230, 237, 242)");
+  await expect(page.locator(".app-main")).toHaveCSS("background-color", "rgb(230, 237, 242)");
+
+  const panel = page.locator(".inventory-surface.nm-app-panel");
+  await expect(panel).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  await expect(panel).toHaveCSS("border-top-color", "rgb(211, 221, 229)");
+  await expect(panel).toHaveCSS("border-radius", "10px");
+  await expect(panel).toHaveCSS("box-shadow", "rgba(15, 35, 52, 0.06) 0px 1px 2px 0px, rgba(15, 35, 52, 0.06) 0px 2px 6px 0px");
+
+  const topbar = page.locator(".app-topbar");
+  await expect(topbar).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  await expect(topbar).toHaveCSS("border-bottom-color", "rgb(211, 221, 229)");
+  await expect(topbar.locator(".app-topbar-copy strong")).toHaveCSS("color", "rgb(15, 61, 71)");
+  await expect(topbar.locator(".app-topbar-copy small")).toHaveCSS("color", "rgb(82, 98, 114)");
+  const icon = topbar.locator(".app-topbar-icon");
+  await expect(icon).toHaveCSS("background-color", "rgb(43, 122, 136)");
+  await expect(icon).toHaveCSS("color", "rgb(255, 255, 255)");
+});

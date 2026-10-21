@@ -6,7 +6,7 @@ type Theme = "light" | "dark";
 export const POPUP_SECTION_COLOURS = {
   light: {
     sectionBackground: "rgb(254, 254, 254)", sectionBorder: "rgba(209, 220, 230, 0.7)",
-    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(249, 251, 253)", titleBorder: "rgba(209, 220, 230, 0.5)",
+    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(254, 254, 254)", titleBorder: "rgba(209, 220, 230, 0.5)",
     rowBorder: "rgba(209, 220, 230, 0.4)",
   },
   dark: {

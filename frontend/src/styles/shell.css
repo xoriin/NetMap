@@ -459,7 +459,7 @@ body.route-ipam .workspace > :last-child {
   min-height: var(--nm-topbar-height);
   padding: 0 28px;
   border-bottom: 1px solid var(--nm-border);
-  background: rgba(248, 250, 251, 0.92);
+  background: var(--nm-page-head-bg);
   backdrop-filter: blur(14px);
 }
 
@@ -482,10 +482,10 @@ body.route-ipam .workspace > :last-child {
   justify-content: center;
   width: 46px;
   height: 46px;
-  border: 1px solid rgba(29, 154, 176, 0.2);
+  border: 1px solid var(--nm-page-head-icon-border);
   border-radius: var(--nm-radius-md);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent-strong);
+  background: var(--nm-page-head-icon-bg);
+  color: var(--nm-page-head-icon-fg);
   flex: 0 0 auto;
 }
 
@@ -496,7 +496,7 @@ body.route-ipam .workspace > :last-child {
 }
 
 .app-topbar-copy strong {
-  color: var(--nm-text);
+  color: var(--nm-page-head-title);
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -746,10 +746,6 @@ body.route-inventory .workspace {
   height: calc(100dvh - var(--nm-topbar-height));
   overflow: hidden;
   padding: 0;
-}
-
-body.route-inventory .app-topbar {
-  border-bottom-color: transparent;
 }
 
 body.route-inventory .topology-layout {
