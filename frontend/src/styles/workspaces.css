@@ -5233,3 +5233,9 @@ body:not(.theme-dark) .modal .modal-header .ipam-cidr {
 body:not(.theme-dark) .modal .modal-header .mon-device-ip {
   color: var(--nm-panel-head-muted);
 }
+
+/* Light mode A: table footers repeat the column-header tint so the table outline closes. */
+body:not(.theme-dark) .app-main :is(.inv-pagination, .audit-pagination, .security-pagination, .vlan-table-footer, .locations-panel-footer) {
+  border-top: 1px solid var(--nm-table-header-border);
+  background: var(--nm-table-header-bg);
+}

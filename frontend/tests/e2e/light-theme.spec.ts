@@ -245,3 +245,10 @@ test("light Topology device and link detail headings share the navy band", async
   await expect(linkHeading.locator(".relationship-detail__heading-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
+
+test("light table footers carry the column-header tint so the table outline closes", async ({ page }) => {
+  await openInventory(page, "light");
+  const footer = page.locator(".inv-pagination").first();
+  await expect(footer).toHaveCSS("background-color", "rgb(230, 241, 244)");
+  await expect(footer).toHaveCSS("border-top-color", "rgb(197, 223, 229)");
+});
