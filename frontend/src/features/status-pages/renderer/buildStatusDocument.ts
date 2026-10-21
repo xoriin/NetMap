@@ -19,14 +19,6 @@ const ITEM_STATE_LABELS: Record<StatusItemState, string> = {
   unknown: "Unknown",
 };
 
-const COUNT_LABELS: Record<StatusItemState, string> = {
-  operational: "operational",
-  degraded: "degraded",
-  down: "down",
-  maintenance: "under maintenance",
-  unknown: "unknown",
-};
-
 const GROUP_STATE_LABELS: Record<StatusSummaryState, string> = {
   empty: "No systems configured",
   major: "Major outage",
@@ -166,17 +158,6 @@ function availabilityTone(availability: StatusAvailability): string {
 
 function formatMs(value: number | null | undefined): string {
   return value == null ? "Unavailable" : `${Math.round(value)} ms`;
-}
-
-function summaryCounts(payload: StatusPagePayload): string {
-  const counts = payload.summary.counts ?? {};
-  const parts = (Object.keys(COUNT_LABELS) as StatusItemState[])
-    .filter((state) => (counts[state] ?? 0) > 0)
-    .map((state) => `${counts[state]} ${COUNT_LABELS[state]}`);
-  const open = payload.incidents.filter((incident) => incident.status !== "resolved").length;
-  if (open) parts.push(`${open} ${open === 1 ? "incident" : "incidents"}`);
-  if (payload.notices.length) parts.push(`${payload.notices.length} ${payload.notices.length === 1 ? "notice" : "notices"}`);
-  return parts.join(" · ");
 }
 
 function heartbeatLabel(beats: StatusBeat[], window: string): string {
@@ -487,8 +468,6 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   const dot = b.el("span", "sp-summary-dot");
   dot.setAttribute("aria-hidden", "true");
   summary.append(dot, b.el("h2", "sp-summary-label", payload.summary.label));
-  const counts = summaryCounts(payload);
-  if (counts) summary.append(b.el("span", "sp-summary-counts", counts));
   page.append(summary);
 
   payload.incidents.filter((incident) => incident.status !== "resolved").forEach((incident) => page.append(incidentStrip(b, incident)));

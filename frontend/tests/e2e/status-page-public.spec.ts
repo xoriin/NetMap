@@ -164,7 +164,7 @@ test("notices, open incidents and past incidents render in their places as text"
   await expect(ticket).toHaveAttribute("href", "https://tickets.example.com/INC-1042");
   await expect(ticket).toHaveAttribute("rel", "noopener noreferrer");
   await expect(frame.locator('.sp-notice[data-level="critical"]')).toContainText("Datacentre power");
-  await expect(frame.locator(".sp-summary-counts")).toContainText("1 incident · 1 notice");
+  await expect(frame.locator(".sp-summary-counts")).toHaveCount(0);
 
   const log = frame.locator("details.sp-log");
   await expect(log).not.toHaveAttribute("open", "");
