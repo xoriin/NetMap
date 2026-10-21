@@ -48,7 +48,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(ribbon.locator(".topology-ribbon-identity")).toContainText("Network map");
     const graph = frame.locator(".graph-surface");
     await expect(graph).toBeVisible();
-    await expect(graph).toHaveCSS("background-color", theme === "dark" ? "rgb(8, 21, 33)" : "rgb(232, 240, 245)");
+    await expect(graph).toHaveCSS("background-color", theme === "dark" ? "rgb(8, 21, 33)" : "rgb(241, 242, 244)");
     const canvasControls = graph.locator(".topology-canvas-controls");
     await expect(canvasControls).toBeVisible();
     await expect(canvasControls.getByRole("button", { name: "Find" })).toBeVisible();

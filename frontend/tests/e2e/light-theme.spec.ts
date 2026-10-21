@@ -146,6 +146,7 @@ test("the Topology ribbon carries the same light band as every panel header", as
   const ribbon = page.locator(".topology-toolbar--ribbon");
   await expect(ribbon).toHaveCSS("background-color", "rgb(29, 46, 64)");
   await expect(ribbon.locator(".topology-ribbon-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
+  await expect(page.locator(".topology-workspace-frame .graph-surface")).toHaveCSS("background-color", "rgb(241, 242, 244)");
   expect(await resolve(page, "--nm-surface-tint", "backgroundColor")).toBe("rgb(236, 238, 241)");
   await expect(page.locator("select.toolbar-select").first()).toHaveCSS("background-color", "rgb(236, 238, 241)");
   const low = (await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5);
