@@ -60,6 +60,13 @@
   --nm-kpi-indigo-border: #cdd2ec;
   --nm-kpi-line: 3px;
   --nm-on-deep: #ffffff;
+  --nm-btn-secondary-bg: #e7eef3;
+  --nm-btn-secondary-border: #a6b8c5;
+  --nm-btn-danger-bg: #f8e0e0;
+  --nm-btn-danger-border: #e2a3a3;
+  --nm-btn-danger-text: #ae3838;
+  --nm-btn-danger-hover-bg: #f3d0d0;
+  --nm-btn-danger-hover-border: #d48a8a;
   --nm-page-head-bg: #fefefe;
   --nm-page-head-title: #0f3d47;
   --nm-page-head-icon-bg: var(--nm-tone-teal-deep);

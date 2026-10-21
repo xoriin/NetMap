@@ -65,6 +65,13 @@ body.theme-dark {
   --nm-kpi-indigo-border: var(--nm-border);
   --nm-kpi-line: 2px;
   --nm-on-deep: #ffffff;
+  --nm-btn-secondary-bg: #1e3047;
+  --nm-btn-secondary-border: #3a5068;
+  --nm-btn-danger-bg: var(--nm-danger-soft);
+  --nm-btn-danger-border: rgba(217, 75, 75, 0.35);
+  --nm-btn-danger-text: #e57272;
+  --nm-btn-danger-hover-bg: rgba(217, 75, 75, 0.22);
+  --nm-btn-danger-hover-border: rgba(217, 75, 75, 0.5);
   --nm-page-head-bg: rgba(14, 28, 42, 0.94);
   --nm-page-head-title: var(--nm-text);
   --nm-page-head-icon-bg: var(--nm-accent-soft);

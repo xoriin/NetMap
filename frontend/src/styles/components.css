@@ -640,9 +640,9 @@ body.theme-dark .nm-swatch-option--hl {
   gap: var(--nm-space-2);
   height: var(--nm-control-md);
   padding: 0 var(--nm-space-4);
-  border: 1px solid var(--nm-border-strong);
+  border: 1px solid var(--nm-btn-secondary-border);
   border-radius: var(--nm-radius-md);
-  background: var(--nm-surface-soft);
+  background: var(--nm-btn-secondary-bg);
   color: var(--nm-text);
   font-size: var(--nm-text-sm);
   font-weight: 600;
@@ -680,8 +680,8 @@ body.theme-dark .nm-swatch-option--hl {
 }
 
 .nm-btn--secondary {
-  border-color: var(--nm-border-strong);
-  background: var(--nm-surface-soft);
+  border-color: var(--nm-btn-secondary-border);
+  background: var(--nm-btn-secondary-bg);
   color: var(--nm-text);
 }
 
@@ -698,15 +698,15 @@ body.theme-dark .nm-swatch-option--hl {
 }
 
 .nm-btn--danger {
-  border-color: rgba(217, 75, 75, 0.3);
-  background: var(--nm-danger-soft);
-  color: var(--nm-danger);
+  border-color: var(--nm-btn-danger-border);
+  background: var(--nm-btn-danger-bg);
+  color: var(--nm-btn-danger-text);
 }
 
 .nm-btn--danger:hover:not(:disabled) {
-  border-color: rgba(217, 75, 75, 0.45);
-  background: rgba(217, 75, 75, 0.18);
-  color: var(--nm-danger);
+  border-color: var(--nm-btn-danger-hover-border);
+  background: var(--nm-btn-danger-hover-bg);
+  color: var(--nm-btn-danger-text);
 }
 
 .nm-btn--ghost {

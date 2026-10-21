@@ -270,3 +270,26 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await expect(schedules.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
   await expect(schedules.locator("span").first()).toHaveCSS("color", "rgb(177, 188, 199)");
 });
+
+test("light buttons: soft danger and neutral secondary are a step stronger and readable", async ({ page }) => {
+  await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page);
+  await page.route("**/api/v1/auth/users", (route) => route.fulfill({ json: [{ ...mockUser, display_name: "Admin", avatar_data: null, auth_source: "local", entity_colors_enabled: true }] }));
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/admin#users");
+  const danger = page.getByRole("button", { name: "Logout" }).first();
+  await expect(danger).toHaveCSS("background-color", "rgb(248, 224, 224)");
+  await expect(danger).toHaveCSS("border-top-color", "rgb(226, 163, 163)");
+  await expect(danger).toHaveCSS("color", "rgb(174, 56, 56)");
+  const ratio = await danger.evaluate((el) => {
+    const ch = (v: string) => (v.match(/[\d.]+/g) ?? []).map(Number);
+    const lum = ([r, g, b]: number[]) => [r, g, b].map((c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const cs = getComputedStyle(el); const a = lum(ch(cs.color)); const b = lum(ch(cs.backgroundColor));
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+  const secondary = page.getByRole("button", { name: "Reset PW" }).first();
+  await expect(secondary).toHaveCSS("background-color", "rgb(231, 238, 243)");
+  await expect(secondary).toHaveCSS("border-top-color", "rgb(166, 184, 197)");
+});
