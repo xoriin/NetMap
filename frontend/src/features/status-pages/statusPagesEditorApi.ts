@@ -146,6 +146,7 @@ export type ManagedIncident = {
   resolved_at: string | null;
   ticket: { url: string; label: string | null } | null;
   page_ids: number[];
+  hidden_page_ids?: number[];
   items: { page_id: number; source_key: string; display_name: string }[];
   updates: ManagedIncidentUpdate[];
   breaching: boolean;
@@ -250,6 +251,8 @@ export const statusManageApi = {
     apiRequest<ManagedIncident>(`${BASE}/incidents/${id}/updates`, { method: "POST", token, body: json(body) }),
   resolve: (token: string, id: number, reason: string | null) =>
     apiRequest<ManagedIncident>(`${BASE}/incidents/${id}/resolve`, { method: "POST", token, body: json({ reason }) }),
+  boardVisibility: (token: string, id: number, pageId: number, visible: boolean) =>
+    apiRequest<ManagedIncident>(`${BASE}/incidents/${id}/pages/${pageId}/visibility`, { method: "PUT", token, body: json({ visible }) }),
   publish: (token: string, id: number, pageIds: number[]) =>
     apiRequest<ManagedIncident>(`${BASE}/incidents/${id}/publish`, { method: "POST", token, body: json({ page_ids: pageIds }) }),
   notices: (token: string, pageId: number) => apiRequest<ManagedNotice[]>(`${BASE}/${pageId}/notices`, { token }),

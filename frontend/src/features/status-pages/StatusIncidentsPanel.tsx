@@ -391,11 +391,13 @@ function IncidentDetailModal({
   );
 }
 
-export function StatusIncidentsPanel({ accessToken, page }: { accessToken: string; page: StatusPageDetail }) {
+export function StatusIncidentsPanel({ accessToken, page, onChanged }: { accessToken: string; page: StatusPageDetail; onChanged?: () => void }) {
   const toast = useToast();
   const { pages, error: pagesError } = useStatusPageCatalog(accessToken);
   const [incidents, setIncidents] = useState<ManagedIncident[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRemoved, setShowRemoved] = useState(false);
+  const [changingId, setChangingId] = useState<number | null>(null);
   const [opening, setOpening] = useState(false);
   const [viewingId, setViewingId] = useState<number | null>(null);
 
@@ -411,13 +413,25 @@ export function StatusIncidentsPanel({ accessToken, page }: { accessToken: strin
   useEffect(() => { void load(); }, [load]);
 
   const shown = useMemo(
-    () => (incidents ?? []).filter((incident) => incident.page_ids.includes(page.id))
+    () => (incidents ?? []).filter((incident) => incident.page_ids.includes(page.id) && (showRemoved || !incident.hidden_page_ids?.includes(page.id)))
       .sort((a, b) => Number(a.status === "resolved") - Number(b.status === "resolved")),
-    [incidents, page.id],
+    [incidents, page.id, showRemoved],
   );
   const activeCount = shown.filter((incident) => incident.status !== "resolved").length;
   const viewing = incidents?.find((incident) => incident.id === viewingId) ?? null;
   const replace = (next: ManagedIncident) => setIncidents((current) => current?.map((i) => (i.id === next.id ? next : i)) ?? [next]);
+
+  async function toggleBoard(incident: ManagedIncident) {
+    setChangingId(incident.id);
+    try {
+      const visible = incident.hidden_page_ids?.includes(page.id) ?? false;
+      replace(await statusManageApi.boardVisibility(accessToken, incident.id, page.id, visible));
+      onChanged?.();
+      toast.success(visible ? "Incident restored to this board" : "Incident removed from this board. History retained.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Unable to change board visibility"));
+    } finally { setChangingId(null); }
+  }
 
   return (
     <div className="status-editor-panels">
@@ -429,6 +443,7 @@ export function StatusIncidentsPanel({ accessToken, page }: { accessToken: strin
         </StatusEditorPanelHeader>
         <div className="status-layout-intro">
           {(error || pagesError) && <div className="nm-alert nm-alert--error" role="alert">{error ?? pagesError}</div>}
+          <label className="tool-form-inline-check"><input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)} /> Show removed incidents</label>
           <small className="status-editor-hint">Incidents opened by NetMap's alert rules appear here automatically. {AUTHOR_NOTE}</small>
         </div>
         {!incidents ? (
@@ -455,12 +470,13 @@ export function StatusIncidentsPanel({ accessToken, page }: { accessToken: strin
                       <strong>{incident.title}</strong>
                       <small className="status-editor-sub">{SOURCE_LABELS[incident.source]}</small>
                     </td>
-                    <td><StatusPill status={incident.status} /></td>
+                    <td><StatusPill status={incident.status} />{incident.hidden_page_ids?.includes(page.id) && <small className="status-editor-sub">Removed from board</small>}</td>
                     <td>{SEVERITY_LABELS[incident.severity]}</td>
                     <td>{incident.page_ids.map((id) => pageName(pages, id)).join(", ")}</td>
                     <td>{formatWhen(incident.opened_at)}</td>
                     <td className="status-pages-actions">
                       <div className="nm-table-actions">
+                        {incident.status === "resolved" && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={changingId !== null} onClick={() => void toggleBoard(incident)}>{changingId === incident.id ? "Updating…" : incident.hidden_page_ids?.includes(page.id) ? "Restore to board" : "Remove from board"}</button>}
                         <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={!pages} onClick={() => setViewingId(incident.id)}>View</button>
                       </div>
                     </td>
@@ -480,6 +496,7 @@ export function StatusIncidentsPanel({ accessToken, page }: { accessToken: strin
           onOpened={(incident) => {
             setOpening(false);
             setIncidents((current) => [incident, ...(current ?? [])]);
+            onChanged?.();
             toast.success("Incident opened");
           }}
         />
@@ -490,7 +507,7 @@ export function StatusIncidentsPanel({ accessToken, page }: { accessToken: strin
           page={page}
           pages={pages}
           incident={viewing}
-          onChange={replace}
+          onChange={incident => { replace(incident); onChanged?.(); }}
           onClose={() => setViewingId(null)}
         />
       )}

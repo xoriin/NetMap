@@ -28,6 +28,7 @@ from app.models.status_page import (
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.status_pages import (
+    IncidentBoardVisibility,
     IncidentCreate,
     IncidentPublish,
     IncidentResolve,
@@ -200,6 +201,7 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
     items: dict[int, list[dict]] = {i: [] for i in ids}
     updates: dict[int, list[dict]] = {i: [] for i in ids}
     breaching = incidents.breaching_incident_ids(db, ids)
+    hidden = incidents.hidden_page_ids(db, ids)
     if ids:
         for row in db.scalars(select(StatusIncidentPage).where(StatusIncidentPage.incident_id.in_(ids))):
             pages[row.incident_id].append(row.page_id)
@@ -210,6 +212,7 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
         for row in db.scalars(
             select(StatusIncidentUpdate).where(
                 StatusIncidentUpdate.incident_id.in_(ids), StatusIncidentUpdate.event_code.is_distinct_from(PUBLISHED_EVENT),
+                StatusIncidentUpdate.event_code.is_distinct_from(incidents.BOARD_VISIBILITY_EVENT),
             ).order_by(StatusIncidentUpdate.id)
         ):
             updates[row.incident_id].append({
@@ -222,7 +225,8 @@ def _incident_detail(db: Session, rows: list[StatusIncident]) -> list[dict]:
             "id": row.id, "title": row.title, "severity": row.severity, "status": row.status, "source": row.source,
             "opened_at": iso(row.opened_at), "resolved_at": iso(row.resolved_at),
             "ticket": {"url": row.ticket_url, "label": row.ticket_label} if row.ticket_url else None,
-            "page_ids": sorted(pages[row.id]), "items": items[row.id], "updates": updates[row.id],
+            "page_ids": sorted(pages[row.id]), "hidden_page_ids": sorted(hidden[row.id]),
+            "items": items[row.id], "updates": updates[row.id],
             "breaching": row.id in breaching,
         }
         for row in rows
@@ -281,6 +285,18 @@ def resolve_incident(incident_id: int, payload: IncidentResolve, current_user: C
 def publish_incident(incident_id: int, payload: IncidentPublish, current_user: CurrentUser, db: Db) -> dict:
     try:
         incidents.publish_to_pages(db, PersonActor(current_user), incident_id, payload.page_ids)
+    except (IncidentError, IncidentNotFound) as exc:
+        db.rollback()
+        raise _service_error(exc)
+    return _one_incident(db, incident_id)
+
+
+@router.put("/incidents/{incident_id}/pages/{page_id}/visibility")
+def set_incident_board_visibility(
+    incident_id: int, page_id: int, payload: IncidentBoardVisibility, current_user: CurrentUser, db: Db,
+) -> dict:
+    try:
+        incidents.set_board_visibility(db, PersonActor(current_user), incident_id, page_id, payload.visible)
     except (IncidentError, IncidentNotFound) as exc:
         db.rollback()
         raise _service_error(exc)

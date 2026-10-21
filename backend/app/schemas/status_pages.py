@@ -424,3 +424,9 @@ class IntegrationMaintenanceUpdate(BaseModel):
         if value is None:
             raise ValueError("This field cannot be cleared")
         return value
+
+
+class IncidentBoardVisibility(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    visible: bool

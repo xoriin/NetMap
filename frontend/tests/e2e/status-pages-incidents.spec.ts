@@ -11,7 +11,7 @@ type Update = {
 };
 type Incident = {
   id: number; title: string; severity: string; status: string; source: string; opened_at: string; resolved_at: string | null;
-  ticket: { url: string; label: string | null } | null; page_ids: number[];
+  ticket: { url: string; label: string | null } | null; page_ids: number[]; hidden_page_ids?: number[];
   items: { page_id: number; source_key: string; display_name: string }[]; updates: Update[]; breaching: boolean;
 };
 type Notice = {
@@ -126,6 +126,11 @@ class ManageApi {
       }
       const incident = this.incidents.find((i) => i.id === Number(parts[1]));
       if (!incident) return json({ detail: "Incident not found" }, 404);
+      if (parts[2] === "pages" && parts[4] === "visibility" && method === "PUT") {
+        const pid = Number(parts[3]);
+        incident.hidden_page_ids = body.visible ? (incident.hidden_page_ids ?? []).filter(id => id !== pid) : [...(incident.hidden_page_ids ?? []), pid];
+        return json(incident);
+      }
       if (parts[2] === "updates") {
         if (body.status_change) incident.status = body.status_change;
         incident.updates.push({ id: this.nextId++, at: iso(0), page_id: body.page_id ?? null, author: "Ada Admin", author_kind: "person", is_public: body.is_public, status: body.status_change ?? null, message: body.message ?? null, event_code: null });
@@ -707,3 +712,39 @@ for (const theme of ["light", "dark"] as const) {
     await expect(secret).toHaveCSS("font-family", /JetBrains Mono|monospace/);
   });
 }
+
+
+for (const theme of ["light", "dark"] as const) {
+  test(`resolved incidents can leave and return to the board with history intact in ${theme}`, async ({ page }) => {
+    const api = new ManageApi();
+    api.incidents.push({ id: 90, title: "Resolved mail outage", severity: "partial", status: "resolved", source: "person",
+      opened_at: iso(-60), resolved_at: iso(-10), ticket: null, page_ids: [1, 2], items: [], updates: [], breaching: false });
+    await openTab(page, api, "Incidents", { theme });
+    await page.getByRole("button", { name: "Remove from board", exact: true }).click();
+    await expect(page.getByText("No incidents on this page.", { exact: true })).toBeVisible();
+    expect(api.incidents[0].page_ids).toEqual([1, 2]);
+    expect(api.incidents[0].hidden_page_ids).toEqual([1]);
+    await page.screenshot({ path: test.info().outputPath(`board-removed-${theme}.png`), fullPage: true });
+    await page.getByLabel("Show removed incidents").check();
+    await expect(page.getByText("Removed from board", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "View", exact: true }).click();
+    await expect(page.getByRole("dialog")).toContainText("Timeline");
+    await page.getByRole("dialog").locator(".modal-close-btn").click();
+    await page.getByRole("button", { name: "Restore to board", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Remove from board", exact: true })).toBeVisible();
+    expect(api.incidents[0].hidden_page_ids).toEqual([]);
+  });
+}
+
+
+test("failed board removal keeps the resolved incident and reports the failure", async ({ page }) => {
+  const api = new ManageApi();
+  api.incidents.push({ id: 90, title: "Retain after failure", severity: "partial", status: "resolved", source: "person",
+    opened_at: iso(-60), resolved_at: iso(-10), ticket: null, page_ids: [1], items: [], updates: [], breaching: false });
+  await openTab(page, api, "Incidents");
+  await page.route("**/incidents/90/pages/1/visibility", route => route.fulfill({ status: 503, json: { detail: "Board temporarily unavailable" } }));
+  await page.getByRole("button", { name: "Remove from board", exact: true }).click();
+  await expect(page.getByText("Board temporarily unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove from board", exact: true })).toBeEnabled();
+  expect(api.incidents[0].hidden_page_ids).toBeUndefined();
+});

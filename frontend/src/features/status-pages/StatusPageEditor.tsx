@@ -494,7 +494,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
                 onSave={() => void saveLayout()}
               />
             )}
-            {tab === "incidents" && <StatusIncidentsPanel accessToken={accessToken} page={page} />}
+            {tab === "incidents" && <StatusIncidentsPanel accessToken={accessToken} page={page} onChanged={() => setPreviewRevision(value => value + 1)} />}
             {tab === "notices" && <StatusNoticesPanel accessToken={accessToken} page={page} />}
             {tab === "maintenance" && <StatusMaintenancePanel accessToken={accessToken} page={page} canManageAlerts={canManageAlerts} />}
             {tab === "tokens" && <StatusTokensPanel accessToken={accessToken} page={page} />}

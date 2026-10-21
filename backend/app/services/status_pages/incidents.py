@@ -37,6 +37,7 @@ SEVERITIES = ("performance", "partial", "major")
 STATUSES = ("investigating", "identified", "monitoring", "resolved")
 MANUAL_FAMILY = "manual"
 PUBLISHED_EVENT = "published"
+BOARD_VISIBILITY_EVENT = "board_visibility"
 PAST_WINDOW = timedelta(days=30)
 PAGE_DELETED_REASON = "Status page deleted"
 PUBLIC_PERSON_LABEL = "Status team"
@@ -345,6 +346,35 @@ def publish_to_pages(
     commit_and_notify(db, added)
 
 
+def hidden_page_ids(db: Session, incident_ids: Iterable[int]) -> dict[int, set[int]]:
+    hidden: dict[int, set[int]] = defaultdict(set)
+    for update in db.scalars(select(StatusIncidentUpdate).where(
+        StatusIncidentUpdate.incident_id.in_(list(incident_ids)),
+        StatusIncidentUpdate.event_code == BOARD_VISIBILITY_EVENT,
+    ).order_by(StatusIncidentUpdate.id)):
+        if update.page_id is not None:
+            if (update.event_data or {}).get("visible"):
+                hidden[update.incident_id].discard(update.page_id)
+            else:
+                hidden[update.incident_id].add(update.page_id)
+    return hidden
+
+
+def set_board_visibility(db: Session, actor: PersonActor, incident_id: int, page_id: int, visible: bool) -> None:
+    incident = get_incident(db, incident_id)
+    if incident.status != "resolved":
+        raise IncidentConflict("Resolve the incident before removing it from the board")
+    if page_id not in audience_page_ids(db, incident_id):
+        raise IncidentNotFound("Incident is not published on this page")
+    if (page_id not in hidden_page_ids(db, [incident_id])[incident_id]) == visible:
+        return
+    db.add(_update_row(incident_id, actor, now_or_utc(None), is_public=False, page_id=page_id,
+                       event_code=BOARD_VISIBILITY_EVENT, event_data={"visible": visible}))
+    audit(db, actor, "status_incident.board_visibility", f"status_incident:{incident_id}",
+          f"page={page_id} visible={visible}")
+    commit_and_notify(db, [page_id])
+
+
 def delete_page_records(db: Session, page_id: int, *, now: datetime | None = None) -> None:
     now = now_or_utc(now)
     open_ids = list(db.scalars(
@@ -416,7 +446,7 @@ def load_page_incidents(db: Session, page_id: int, now: datetime) -> list[Loaded
         loaded = found[update.incident_id]
         if update.event_code == PUBLISHED_EVENT:
             loaded.marks[page_id] = update.id
-        else:
+        elif update.event_code != BOARD_VISIBILITY_EVENT:
             loaded.updates.append(update)
     for alias in db.scalars(
         select(StatusIncidentAlias).where(StatusIncidentAlias.incident_id.in_(ids), StatusIncidentAlias.page_id == page_id)
@@ -430,7 +460,8 @@ def load_page_incidents(db: Session, page_id: int, now: datetime) -> list[Loaded
         keys = found[source.incident_id].sources[page_id]
         if source.source_key not in keys:
             keys.append(source.source_key)
-    return sorted(found.values(), key=lambda li: (_utc(li.incident.opened_at), li.incident.id), reverse=True)
+    hidden = hidden_page_ids(db, found)
+    return sorted((li for li in found.values() if page_id not in hidden[li.incident.id]), key=lambda li: (_utc(li.incident.opened_at), li.incident.id), reverse=True)
 
 
 def _is_automatic(incident: StatusIncident) -> bool:

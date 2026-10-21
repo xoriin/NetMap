@@ -640,3 +640,35 @@ def test_deleting_a_page_resolves_incidents_it_was_the_only_audience_of():
     assert any(u.message == incidents.PAGE_DELETED_REASON and not u.is_public for u in notes)
     assert shared.status == "investigating"
     assert [s.page_id for s in db.scalars(select(StatusBreachStreak))] == [other.id]
+
+
+def test_resolved_incident_board_removal_is_page_scoped_reversible_and_preserves_history(api):
+    a, b = _api_page(api, "board-a"), _api_page(api, "board-b")
+    incident = api.post("/api/v1/status-pages/incidents", json={
+        "title": "Closed incident", "severity": "partial", "message": "Investigating", "is_public": True,
+        "page_ids": [a, b], "items": [],
+    }).json()
+    iid = incident["id"]
+    url = f"/api/v1/status-pages/incidents/{iid}/pages/{a}/visibility"
+    assert api.put(url, json={"visible": False}).status_code == 409
+    assert api.post(f"/api/v1/status-pages/incidents/{iid}/resolve", json={}).status_code == 200
+    api.calls.clear()
+    removed = api.put(url, json={"visible": False})
+    assert removed.status_code == 200, removed.text
+    assert removed.json()["hidden_page_ids"] == [a]
+    assert removed.json()["page_ids"] == [a, b]
+    assert api.calls == [[a]]
+    for audience in ("public", "private"):
+        assert not api.get(f"/api/v1/status-pages/{a}/preview?audience={audience}").json()["past"]
+        assert len(api.get(f"/api/v1/status-pages/{b}/preview?audience={audience}").json()["past"]) == 1
+    assert len(removed.json()["updates"]) == 2
+    assert all(u["event_code"] != "board_visibility" for u in removed.json()["updates"])
+    assert api.put(url, json={"visible": False}).status_code == 200  # idempotent
+    assert api.put(url.replace(f"pages/{a}", "pages/9999"), json={"visible": False}).status_code == 404
+    api.as_user("viewer")
+    assert api.put(url, json={"visible": True}).status_code == 403
+    api.as_user("admin")
+    restored = api.put(url, json={"visible": True})
+    assert restored.status_code == 200
+    assert restored.json()["hidden_page_ids"] == []
+    assert len(api.get(f"/api/v1/status-pages/{a}/preview").json()["past"]) == 1
