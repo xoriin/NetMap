@@ -14,6 +14,9 @@ body.theme-dark {
   --nm-shell-border: rgba(255, 255, 255, 0.075);
   --nm-shell-text: #e7edf2;
   --nm-shell-muted: #7c8795;
+  --nm-sidebar-text: #f1f5f9;
+  --nm-sidebar-active: #8fe0ee;
+  --nm-sidebar-label: #a3afbc;
   --nm-accent: #22c0cf;
   --nm-accent-strong: #55d6e1;
   --nm-accent-soft: rgba(34, 192, 207, 0.12);
@@ -160,23 +163,23 @@ body.theme-dark .sidebar {
 }
 
 body.theme-dark .sidebar-section-label {
-  color: var(--nm-shell-muted);
+  color: var(--nm-sidebar-label);
 }
 
 body.theme-dark .sidebar-link {
-  color: var(--nm-shell-muted);
+  color: var(--nm-sidebar-text);
 }
 
 body.theme-dark .sidebar-link:hover {
   background: linear-gradient(90deg, rgba(29, 154, 176, 0.16) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
   border-left-color: rgba(29, 154, 176, 0.4);
-  color: var(--nm-shell-text);
+  color: var(--nm-sidebar-text);
 }
 
 body.theme-dark .sidebar-link.active {
   background: linear-gradient(90deg, rgba(29, 154, 176, 0.3) 0%, rgba(29, 154, 176, 0.07) 65%, transparent 100%);
   border-left-color: #1d9ab0;
-  color: var(--nm-accent-strong);
+  color: var(--nm-sidebar-active);
 }
 
 body.theme-dark .sidebar-docs-link,
@@ -1450,7 +1453,7 @@ body.theme-dark .topology-toolbar-right button:hover {
 	    border-left-color: var(--nm-accent);
 	    border-bottom-color: transparent;
 	    padding-left: 8px;
-	    color: #5bc8da;
+	    color: var(--nm-sidebar-active);
 	  }
 
   .sidebar-footer-actions {
@@ -1749,7 +1752,7 @@ body.theme-dark .topology-toolbar-right button:hover {
 	    border-left-color: var(--nm-accent);
     border-bottom-color: transparent;
     border-top-color: transparent;
-    color: #5bc8da;
+    color: var(--nm-sidebar-active);
     padding-left: 6px;
   }
 

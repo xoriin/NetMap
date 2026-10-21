@@ -17,6 +17,9 @@
   --nm-shell-border: rgba(255, 255, 255, 0.08);
   --nm-shell-text: #e7edf2;
   --nm-shell-muted: #828b98;
+  --nm-sidebar-text: #f1f5f9;
+  --nm-sidebar-active: #8fe0ee;
+  --nm-sidebar-label: #a3afbc;
   --nm-accent: #1d9ab0;
   --nm-accent-strong: #1d6472;
   --nm-accent-soft: rgba(29, 154, 176, 0.12);
