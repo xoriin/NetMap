@@ -607,3 +607,31 @@ def test_first_build_budget_carries_across_cycle_renewals_in_one_batch(cache, fa
     cache.drain()
     assert len(budgets) >= 3 and all(b is budgets[0] for b in budgets)
     assert len(refreshed) == aggregates.FIRST_BUILD_SOURCES_PER_CYCLE
+
+
+def test_pending_key_never_serves_a_sibling_excluding_another_pages_announced_window(cache, factory, monkeypatch):
+    from app.models.status_page import StatusMaintenance, StatusMaintenanceItem, StatusMaintenancePage
+
+    ids = _devices(factory, 1, minutes=8 * 1440)
+    with factory() as db:
+        db.execute(
+            update(DeviceMonitorHistory)
+            .where(DeviceMonitorHistory.checked_at >= NOW - timedelta(days=3), DeviceMonitorHistory.checked_at < NOW - timedelta(days=2))
+            .values(is_healthy=False, status="offline")
+        )
+        db.commit()
+    announced = _page(factory, "announced", ids, period="7d")
+    other = _page(factory, "other", ids, period="7d")
+    with factory() as db:
+        window = StatusMaintenance(title="Swap", starts_at=NOW - timedelta(days=3), ends_at=NOW - timedelta(days=2), suppress_alerts=False)
+        db.add(window)
+        db.flush()
+        db.add(StatusMaintenanceItem(maintenance_id=window.id, kind="device", device_id=ids[0]))
+        db.add(StatusMaintenancePage(maintenance_id=window.id, page_id=announced))
+        db.commit()
+    assert _uptimes(_build(cache, [announced])[announced])[0]["label"] == "ok"
+    monkeypatch.setattr(aggregates, "FIRST_BUILD_SOURCES_PER_CYCLE", 0)
+    assert _uptimes(_build(cache, [other])[other])[0]["label"] == "no_data"
+    _settle(cache)
+    shown = _build(cache, [announced, other])
+    assert _uptimes(shown[other])[0]["percent"] < _uptimes(shown[announced])[0]["percent"]

@@ -109,9 +109,10 @@ class SourceHistory:
             return self._long.get(key)
 
     def latest(self, key: LongKey) -> LongEntry | None:
-        """The newest value for the same source and period under any interval or maintenance exclusions."""
+        """The newest value for the same source and period whose maintenance exclusions are a subset of `key`'s."""
+        wanted = set(key[3])
         with self._lock:
-            siblings = [e for k, e in self._long.items() if k[:2] == key[:2]]
+            siblings = [e for k, e in self._long.items() if k[:2] == key[:2] and set(k[3]) <= wanted]
         return max(siblings, key=lambda e: e.computed_at, default=None)
 
     def track(self, key: LongKey, ref: SourceRef, length: timedelta, now: datetime) -> None:
