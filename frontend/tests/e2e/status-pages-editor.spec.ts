@@ -240,11 +240,11 @@ test("create page, add device with alias, save, preview shows alias not hostname
   const doc = (await frame.getAttribute("srcdoc")) ?? "";
   expect(doc).not.toContain("router-core-01");
   expect(doc).not.toContain("192.168.100.1");
-  expect(api.previewAudiences).toEqual(["public"]);
+  expect(api.previewAudiences).toEqual(["public", "public"]);
 
   await page.getByRole("button", { name: "Private", exact: true }).click();
   await expect(page.getByRole("button", { name: "Private", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => api.previewAudiences).toEqual(["public", "private"]);
+  await expect.poll(() => api.previewAudiences).toEqual(["public", "public", "private"]);
 });
 
 test("cannot save item without display name", async ({ page }) => {
@@ -537,4 +537,53 @@ test("a slug conflict clears as soon as the slug is edited", async ({ page }) =>
   await slug.press("Backspace");
   await expect(conflict).toHaveCount(0);
   await expect(slug).not.toHaveAttribute("aria-invalid", "true");
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`settings preview shows unsaved appearance beside the form in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1560, height: 1000 });
+    await page.emulateMedia({ colorScheme: theme });
+    const api = new StatusPagesApi();
+    const stored = api.seed(newPage(1, { name: "Live preview" }));
+    await openApp(page, theme);
+    await api.install(page);
+    await openStatusPages(page);
+    await openEditor(page, "Live preview");
+    const frame = page.frameLocator("iframe.status-page-frame");
+    await expect(frame.locator(".sp-title")).toHaveText("Live preview");
+    const settings = await page.locator(".status-editor-settings").boundingBox();
+    const preview = await page.locator(".status-editor-preview-panel").boundingBox();
+    expect(settings).not.toBeNull(); expect(preview).not.toBeNull();
+    expect(preview!.x).toBeGreaterThan(settings!.x + settings!.width);
+    const parentBefore = await page.locator(".status-editor-preview-panel").evaluate(n => getComputedStyle(n).backgroundColor);
+    const originalTitleSize = await frame.locator(".sp-title").evaluate(n => getComputedStyle(n).fontSize);
+    const field = page.getByLabel("Custom CSS");
+    await field.fill("body { background: rgb(25, 35, 45); } .sp-title { color: rgb(120, 90, 200); font-size: 36px; }");
+    await expect(frame.locator("body")).toHaveCSS("background-color", "rgb(25, 35, 45)");
+    await expect(frame.locator(".sp-title")).toHaveCSS("color", "rgb(120, 90, 200)");
+    await expect(frame.locator(".sp-title")).toHaveCSS("font-size", "36px");
+    expect(stored.custom_css).toBeNull();
+    expect(await page.locator(".status-editor-preview-panel").evaluate(n => getComputedStyle(n).backgroundColor)).toBe(parentBefore);
+    await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+    await expect(field).toHaveValue("");
+    await expect(frame.locator(".sp-title")).toHaveCSS("font-size", originalTitleSize);
+    await page.setViewportSize({ width: 780, height: 1000 });
+    const narrowSettings = await page.locator(".status-editor-settings").boundingBox();
+    const narrowPreview = await page.locator(".status-editor-preview-panel").boundingBox();
+    expect(narrowPreview!.y).toBeGreaterThan(narrowSettings!.y + narrowSettings!.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+test("settings preview reports load errors and retries without losing the CSS draft", async ({ page }) => {
+  const api = new StatusPagesApi(); api.seed(newPage(1, { name: "Retry preview" }));
+  await openApp(page); await api.install(page);
+  await page.route("**/api/v1/status-pages/1/preview?**", route => route.fulfill({ status: 503, json: { detail: "Preview temporarily unavailable" } }));
+  await openStatusPages(page); await openEditor(page, "Retry preview");
+  await expect(page.locator(".status-editor-preview-panel [role=alert]")).toContainText("Preview temporarily unavailable");
+  await page.getByLabel("Custom CSS").fill(".sp-title { color: rgb(120, 90, 200); }");
+  await page.unroute("**/api/v1/status-pages/1/preview?**");
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.frameLocator("iframe.status-page-frame").locator(".sp-title")).toHaveCSS("color", "rgb(120, 90, 200)");
+  expect(api.pages[0].custom_css).toBeNull();
 });

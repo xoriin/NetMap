@@ -262,13 +262,29 @@ function SettingsForm({
   );
 }
 
-function PreviewPanel({ accessToken, pageId, stale }: { accessToken: string; pageId: number; stale: boolean }) {
+function PreviewPanel({ accessToken, pageId, stale, draft }: {
+  accessToken: string; pageId: number; stale: boolean; draft?: SettingsDraft;
+}) {
   const { theme } = useTheme();
   const [audience, setAudience] = useState<StatusPreviewAudience>("public");
   const [payload, setPayload] = useState<StatusPagePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
+  const [appearance, setAppearance] = useState(draft);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppearance(draft), 200);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
+
+  const shown = useMemo(() => payload && appearance ? {
+    ...payload,
+    title: appearance.title.trim() || appearance.name.trim(),
+    logo: appearance.logo,
+    accent: isValidAccent(appearance.accent) ? appearance.accent : null,
+    custom_css: appearance.custom_css,
+  } : payload, [payload, appearance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,11 +317,12 @@ function PreviewPanel({ accessToken, pageId, stale }: { accessToken: string; pag
         </button>
       </StatusEditorPanelHeader>
       <div className="status-editor-preview-body">
-        {stale && <div className="nm-alert nm-alert--info">The preview shows the last saved version. Save your changes to see them here.</div>}
+        {draft && <p className="status-editor-hint">Appearance updates as you type. Save settings to publish your changes.</p>}
+        {stale && <div className="nm-alert nm-alert--info">The preview uses the last saved layout and monitoring settings.</div>}
         {error && <div className="nm-alert nm-alert--error" role="alert">{error}</div>}
-        {loading && !payload ? <PanelSkeleton lines={6} /> : payload && (
+        {loading && !shown ? <PanelSkeleton lines={6} /> : shown && (
           <div className="status-editor-preview-frame">
-            <StatusPageFrame payload={payload} css={payload.custom_css} title={`Preview of ${payload.title || "status page"}`} colorScheme={theme} />
+            <StatusPageFrame payload={shown} css={shown.custom_css} title={`Preview of ${shown.title || "status page"}`} colorScheme={theme} />
           </div>
         )}
       </div>
@@ -448,7 +465,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
       </div>
       <div className="nm-workspace-stage status-editor-stage" id="status-editor-stage" role="tabpanel" aria-labelledby={`status-editor-tab-${tab}`}>
         {tab === "settings" && (
-          <div className="status-editor-panels">
+          <div className="status-editor-panels status-editor-settings-panels">
             <SettingsForm
               draft={draft}
               setDraft={(update) => setDraft((current) => (current ? update(current) : current))}
@@ -461,6 +478,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
               onSave={() => void saveSettings()}
               onReset={() => { setDraft(settingsDraft(page)); setSlugError(null); setCssProblems([]); }}
             />
+            <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft} stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
           </div>
         )}
         {tab === "layout" && (
@@ -480,7 +498,7 @@ export function StatusPageEditor({ accessToken, pageId, canManageAlerts, onClose
         {tab === "tokens" && <StatusTokensPanel accessToken={accessToken} page={page} />}
         {tab === "preview" && (
           <div className="status-editor-panels">
-            <PreviewPanel accessToken={accessToken} pageId={page.id} stale={settingsDirty || layoutDirty} />
+            <PreviewPanel accessToken={accessToken} pageId={page.id} draft={draft} stale={layoutDirty || draft.heartbeat_window !== page.heartbeat_window} />
           </div>
         )}
       </div>

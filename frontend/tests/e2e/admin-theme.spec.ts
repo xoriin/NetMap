@@ -924,6 +924,11 @@ for (const theme of ["light", "dark"] as const) {
       if (path === "") return route.fulfill({ json: [statusPage] });
       if (path === "sources") return route.fulfill({ json: { devices: [], monitors: [] } });
       if (path === "1") return route.fulfill({ json: { ...statusPage, groups: [] } });
+      if (path === "1/preview") return route.fulfill({ json: {
+        ...statusPage, title: "Ops", groups: [], incidents: [], notices: [], maintenance: [], past: [],
+        summary: { state: "empty", label: "No systems configured", counts: {} },
+        generated_at: new Date().toISOString(), valid_until: new Date(Date.now() + 30_000).toISOString(),
+      } });
       return route.fulfill({ json: [] });
     });
     await page.addInitScript((t) => window.localStorage.setItem("netmap.theme", t), theme);

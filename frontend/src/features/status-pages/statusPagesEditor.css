@@ -157,6 +157,16 @@
   min-width: 0;
 }
 
+.status-editor-settings-panels {
+  grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+}
+
+.status-editor-settings-panels .status-editor-preview-panel {
+  position: sticky;
+  top: 0;
+}
+
 .status-editor-settings {
   display: grid;
   gap: var(--nm-space-4);
@@ -350,6 +360,16 @@
 
 .status-token-secret.totp-key-note {
   margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .status-editor-settings-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .status-editor-settings-panels .status-editor-preview-panel {
+    position: static;
+  }
 }
 
 @media (max-width: 720px) {
