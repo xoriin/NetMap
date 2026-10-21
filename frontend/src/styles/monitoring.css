@@ -4018,9 +4018,8 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .monitors-table .monitors-col-rtt { width: 112px; }
 .monitors-table .monitors-col-checked { width: 180px; }
 .monitors-table .monitors-col-actions { width: 220px; }
-.monitors-table td:nth-child(2),
-.monitors-table td:nth-child(4),
-.monitors-table td:nth-child(8) {
+/* Text columns stay left aligned and clipped independently of column order. */
+.monitors-table .monitors-text-cell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4050,12 +4049,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .monitors-table-wrap table.nm-table .nm-table-num {
   text-align: center;
 }
-/* Uptime 24h / Uptime 7d / Avg RTT headers — align with their centered data cells. */
-.monitors-table-wrap table.nm-table th:nth-child(5),
-.monitors-table-wrap table.nm-table th:nth-child(6),
-.monitors-table-wrap table.nm-table th:nth-child(7) {
-  text-align: center;
-}
+/* Numeric headers and values share nm-table-num; never infer them from column order. */
 .monitors-heartbeat-cell .heartbeat-bar--sm {
   width: 100%;
   justify-content: flex-start;

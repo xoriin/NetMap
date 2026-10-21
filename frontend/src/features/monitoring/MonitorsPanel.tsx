@@ -396,9 +396,9 @@ export function MonitorsPanel({
                   <th>Name</th>
                   <th>Heartbeat</th>
                   <th>URL</th>
-                  <th>Uptime 24h</th>
-                  <th>Uptime 7d</th>
-                  <th>Avg RTT</th>
+                  <th className="nm-table-num">Uptime 24h</th>
+                  <th className="nm-table-num">Uptime 7d</th>
+                  <th className="nm-table-num">Avg RTT</th>
                   <th>Last checked</th>
                   <th></th>
                 </tr>
@@ -424,7 +424,7 @@ export function MonitorsPanel({
                       </button>
                     </td>
                     <td className="monitors-dot-cell"><span className={`mon-dot mon-dot-${monitor.last_status ?? "unknown"}`} /></td>
-                    <td>{monitor.name}</td>
+                    <td className="monitors-text-cell" title={monitor.name}>{monitor.name}</td>
                     <td className="monitors-heartbeat-cell">
                       {monitor.heartbeat.length > 0 ? (
                         <HeartbeatBar beats={monitor.heartbeat} size="sm" />
@@ -432,11 +432,11 @@ export function MonitorsPanel({
                         <span className="monitors-heartbeat-empty">Awaiting checks</span>
                       )}
                     </td>
-                    <td className="nm-table-mono">{monitor.url}</td>
+                    <td className="nm-table-mono monitors-text-cell" title={monitor.url}>{monitor.url}</td>
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_24h)}</td>
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_7d)}</td>
                     <td className="nm-table-num">{fmtMonitorRtt(monitor.avg_response_time_24h)}</td>
-                    <td>{fmtMonitorWhen(monitor.last_checked_at)}</td>
+                    <td className="monitors-text-cell">{fmtMonitorWhen(monitor.last_checked_at)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {canWrite && (
                         <div className="nm-table-actions">
