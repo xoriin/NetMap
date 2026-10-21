@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockDevice, mockRelationship, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, mockRelationship, mockUser, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 type Theme = "light" | "dark";
 
@@ -251,4 +251,22 @@ test("light table footers carry the column-header tint so the table outline clos
   const footer = page.locator(".inv-pagination").first();
   await expect(footer).toHaveCSS("background-color", "rgb(230, 241, 244)");
   await expect(footer).toHaveCSS("border-top-color", "rgb(197, 223, 229)");
+});
+
+test("light Admin users and schedule headers carry the navy band", async ({ page }) => {
+  await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page);
+  await page.route("**/api/v1/auth/users", (route) => route.fulfill({ json: [{ ...mockUser, display_name: "Admin", avatar_data: null, auth_source: "local", entity_colors_enabled: true }] }));
+  await page.route("**/api/v1/audit/logs*", (route) => route.fulfill({ json: { total: 0, limit: 50, offset: 0, records: [] } }));
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/admin#users");
+  const usersHeader = page.locator(".admin-users-header").first();
+  await expect(usersHeader).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(usersHeader).toHaveCSS("color", "rgb(241, 245, 249)");
+  await page.goto("/admin#automation");
+  const schedules = page.locator(".admin-schedule-library-header").first();
+  await expect(schedules).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(schedules.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
+  await expect(schedules.locator("span").first()).toHaveCSS("color", "rgb(177, 188, 199)");
 });

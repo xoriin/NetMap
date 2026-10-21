@@ -1175,3 +1175,24 @@
 .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header--copy {
   min-height: 44px;
 }
+
+/* Light mode A panel header band (UI_THEME_RULES.md § Light mode A). */
+.admin-layout .admin-users-header,
+.admin-layout .admin-schedule-library-header {
+  --nm-modal-header: var(--nm-panel-head-bg);
+  --nm-border: var(--nm-panel-head-border);
+  --nm-text: var(--nm-panel-head-text);
+  --nm-modal-label: var(--nm-panel-head-label);
+  --nm-text-muted: var(--nm-panel-head-muted);
+  --nm-text-faint: var(--nm-panel-head-faint);
+}
+
+body:not(.theme-dark) .admin-layout .admin-users-header {
+  border-bottom-color: var(--nm-panel-head-border);
+  background: var(--nm-panel-head-bg);
+  color: var(--nm-panel-head-text);
+}
+
+body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
+  color: var(--nm-panel-head-text);
+}
