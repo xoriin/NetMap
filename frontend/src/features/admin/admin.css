@@ -507,6 +507,7 @@
   text-transform: uppercase;
 }
 
+.admin-layout .admin-data-table td { background: var(--nm-table-row-bg); }
 .admin-layout .admin-data-table td strong { color: var(--nm-text); }
 .admin-layout .admin-data-table tbody tr:hover td { background: var(--nm-row-hover); }
 .admin-layout .admin-data-table tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 rgba(29, 154, 176, 0.3); }
@@ -523,7 +524,7 @@
 .admin-layout .audit-log-row,
 .admin-layout .notif-method-row {
   border-bottom-color: var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
   color: var(--nm-text-muted);
 }
 
@@ -567,7 +568,6 @@
 
 .admin-layout .notif-methods-table { margin-top: 0; }
 
-.admin-layout .notif-method-row,
 .admin-layout .entity-colors-row {
   border-color: var(--nm-border);
   background: var(--nm-modal-section);
@@ -1004,7 +1004,7 @@
 .cloud-provider-create > button { justify-self: end; }
 .cloud-provider-list { display: flex; flex-direction: column; background: var(--nm-modal-section); }
 .cloud-provider-list > .tool-note { padding: 16px; }
-.cloud-provider-row { display: grid; grid-template-columns: 38px minmax(180px, 1fr) auto; gap: 10px; align-items: center; min-height: 58px; padding: 10px 16px; border-top: 1px solid var(--nm-border); background: var(--nm-modal-section); }
+.cloud-provider-row { display: grid; grid-template-columns: 38px minmax(180px, 1fr) auto; gap: 10px; align-items: center; min-height: 58px; padding: 10px 16px; border-top: 1px solid var(--nm-border); background: var(--nm-table-row-bg); }
 .cloud-provider-row:hover { background: var(--nm-row-hover); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--nm-accent) 50%, transparent); }
 .cloud-provider-row:first-child { border-top: 0; }
 .cloud-provider-logo { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 1px solid var(--nm-border); border-radius: var(--nm-radius-sm); background: var(--nm-modal-input); }

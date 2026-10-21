@@ -358,7 +358,7 @@ body.theme-dark .admin-users-row--editing {
   border-left-color: #4db8cc;
 }
 body.theme-dark .notif-method-row {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--nm-table-row-bg);
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 body.theme-dark .notif-method-name { color: #c8dae8; }

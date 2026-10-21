@@ -131,6 +131,10 @@ for (const theme of ["light", "dark"] as const) {
 
     for (const [section, selector] of [
       ["Users", ".admin-users-table--accounts .admin-users-row"],
+      ["Cloud providers", ".cloud-provider-row"],
+      ["Notifications", ".notif-method-row"],
+      ["Alerts", ".admin-data-table tbody td"],
+      ["Security", ".audit-log-row"],
     ] as const) {
       test(`Admin ${section} (${selector})`, async ({ page }) => {
         await setupAdmin(page);
