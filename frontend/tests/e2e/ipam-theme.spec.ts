@@ -99,31 +99,33 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+async function mockIpamRows(page: Page) {
+  await page.route("**/api/v1/ipam/reservations", (route) => route.fulfill({ json: [{
+    id: 1,
+    ip_address: "10.30.20.30",
+    subnet_id: 1,
+    label: "Printer allocation",
+    mac_address: null,
+    notes: "Office printer",
+    reserved_by: "Network team",
+    expires_at: null,
+    created_at: "2026-08-01T00:00:00Z",
+    updated_at: "2026-08-01T00:00:00Z",
+  }] }));
+  await page.route("**/api/v1/ipam/dhcp-leases", (route) => route.fulfill({ json: [{
+    id: 1,
+    ip_address: "10.30.20.20",
+    mac_address: "00:aa:bb:cc:dd:20",
+    hostname: "workstation-20",
+    expires_at: "2026-08-25T00:00:00Z",
+    is_active: true,
+    source: "test",
+    imported_at: "2026-08-24T00:00:00Z",
+  }] }));
+}
+
 test("Internal IPAM tables own canonical typography independently of Monitoring", async ({ page }) => {
-  await setupIpam(page, "dark", async () => {
-    await page.route("**/api/v1/ipam/reservations", (route) => route.fulfill({ json: [{
-      id: 1,
-      ip_address: "10.30.20.30",
-      subnet_id: 1,
-      label: "Printer allocation",
-      mac_address: null,
-      notes: "Office printer",
-      reserved_by: "Network team",
-      expires_at: null,
-      created_at: "2026-08-01T00:00:00Z",
-      updated_at: "2026-08-01T00:00:00Z",
-    }] }));
-    await page.route("**/api/v1/ipam/dhcp-leases", (route) => route.fulfill({ json: [{
-      id: 1,
-      ip_address: "10.30.20.20",
-      mac_address: "00:aa:bb:cc:dd:20",
-      hostname: "workstation-20",
-      expires_at: "2026-08-25T00:00:00Z",
-      is_active: true,
-      source: "test",
-      imported_at: "2026-08-24T00:00:00Z",
-    }] }));
-  });
+  await setupIpam(page, "dark", () => mockIpamRows(page));
 
   await page.locator(".ipam-reservations-panel").getByRole("button", { name: "Show" }).click();
   const tables = page.locator(".ipam-data-table");
@@ -583,7 +585,7 @@ for (const theme of ["light", "dark"] as const) {
 for (const theme of ["light", "dark"] as const) {
   test(`the address register wears the workspace surfaces in ${theme} mode`, async ({ page }) => {
     // The ruled contract: header cells take --nm-table-header-bg (so the header matches
-    // Inventory), ordinary body cells take the workspace's own --nm-modal-section, and a
+    // Inventory), ordinary body cells take the shared --nm-table-row-bg, and a
     // group header takes --nm-modal-header. The project's theming doc contradicted itself
     // on this; these three assertions are what settled it.
     await setupIpam(page, theme, async () => { await mockExternal(page); });
@@ -602,7 +604,7 @@ for (const theme of ["light", "dark"] as const) {
     // First row of a group is never banded, so it shows the base cell surface.
     const bodyCell = page.locator(".external-ip-address-row td").first();
     expect(await bodyCell.evaluate((node) => getComputedStyle(node).backgroundColor))
-      .toBe(await resolveToken(bodyCell, "--nm-modal-section"));
+      .toBe(await resolveToken(bodyCell, "--nm-table-row-bg"));
 
     const groupCell = page.locator(".external-ip-group-row td").first();
     expect(await groupCell.evaluate((node) => getComputedStyle(node).backgroundColor))
@@ -868,3 +870,27 @@ test("signing out resets remembered sidebar menu states", async ({ page }) => {
   await expect.poll(() => page.evaluate((keys) => keys.map((key) => window.localStorage.getItem(key)), menuKeys))
     .toEqual([null, null, null, null]);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`all Internal IPAM table families use the shared row surface in ${theme}`, async ({page}) => {
+    await setupIpam(page, theme, () => mockIpamRows(page));
+    await page.locator(".ipam-reservations-panel").getByRole("button", {name:"Show", exact:true}).click();
+    for (const selector of [".ipam-subnets-table", ".ipam-reservations-table", ".ipam-dhcp-table"]) {
+      const cell = page.locator(`${selector} tbody td`).first();
+      await cell.scrollIntoViewIfNeeded(); await page.mouse.move(0,0);
+      await expect(cell).toHaveCSS("background-color", await resolveToken(cell,"--nm-table-row-bg"));
+      await cell.hover();
+      await expect(cell).toHaveCSS("background-color", await resolveToken(cell,"--nm-row-hover"));
+    }
+    await page.screenshot({path:`/tmp/netmap-handoff-ipam-internal-${theme}.png`});
+    await page.locator(".ipam-subnet-row").click();
+    const dialog = page.getByRole("dialog", {name:"Core network"});
+    await dialog.locator(".ipam-addr-tab").filter({hasText:"Devices"}).click();
+    const cell = dialog.locator(".ipam-addr-table tbody td").first();
+    await page.mouse.move(0,0);
+    await expect(cell).toHaveCSS("background-color", await resolveToken(cell,"--nm-table-row-bg"));
+    await cell.hover();
+    await expect(cell).toHaveCSS("background-color", await resolveToken(cell,"--nm-row-hover"));
+    await page.screenshot({path:`/tmp/netmap-handoff-ipam-detail-${theme}.png`});
+  });
+}

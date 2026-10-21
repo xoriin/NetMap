@@ -20,22 +20,14 @@
 .external-ip-panel-header .ipam-panel-meta { overflow: hidden; text-overflow: ellipsis; }
 .external-ip-panel-actions { flex-wrap: wrap; display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
 .external-ip-header-controls { display: flex; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: var(--nm-space-2); }
-/* Structure and behaviour come from the canonical `.nm-table` rules (sticky uppercase
-   header, borders, hover + teal edge). Surfaces follow the IPAM workspace hierarchy so
-   this table matches its sibling Internal networks table (`.ipam-data-table`) rather
-   than the component's darker `--nm-surface` default, which read as a separate app. */
+/* Shared table primitives own structure and interaction; the workspace owns the
+   surrounding panel surface and column layout. */
 .external-ip-table-wrap { border: 0; border-radius: 0; background: var(--nm-modal-section); }
 .external-ip-table { min-width: 1200px; table-layout: fixed; background: var(--nm-modal-section); }
-/* Two different rules meet here and both are kept:
-   - `thead th` keeps the canonical `--nm-table-header-bg` so every table header in the app
-     reads the same (docs/UI_THEME_RULES.md § Data-table headers, guarded by "Inventory and
-     IPAM render the same table header" in ipam-theme.spec.ts). Restated, not overridden,
-     so the intent survives any future `.nm-table` change.
-   - `tbody td` takes the workspace's own `--nm-modal-section`, the within-page depth rule
-     written about this very page, so the register does not sit deeper than the panel
-     around it. Light mode aliases it to --nm-surface, so that problem is dark-mode-only. */
+/* Headers and data rows use the shared table tokens. The containing panel keeps
+   its modal-section surface; structural group rows use modal-header below. */
 .external-ip-table thead th { background: var(--nm-table-header-bg); }
-.external-ip-table tbody td { background: var(--nm-modal-section); }
+.external-ip-table tbody td { background: var(--nm-table-row-bg); }
 /* Reserve the full action set, then divide the remaining width equally between
    every data column, including Location when the grouping lens shows it. */
 .external-ip-table .external-ip-col-actions { width: 300px; }
@@ -110,9 +102,7 @@
 .external-ip-url { color: var(--nm-accent-strong); font-size: var(--nm-text-xs); font-weight: 600; }
 .external-ip-muted { color: var(--nm-text-faint); }
 .external-ip-tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
-/* `--nm-surface-soft` is *darker* than the `--nm-modal-section` cell behind it in dark mode,
-   which makes a pill read as a hole. The panel-header surface sits above the cell in both
-   themes, so the tag reads as a raised chip. */
+/* Tags use the panel-header surface above the shared table row surface. */
 .external-ip-tag {
   border: 1px solid var(--nm-border);
   border-radius: 999px;
@@ -350,7 +340,7 @@
 .ipam-workspace .ipam-data-table td {
   border-right: 0;
   border-bottom: 1px solid var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }
 
@@ -558,7 +548,7 @@
 
 .ipam-detail-modal .ipam-addr-table td {
   border-bottom-color: var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
 }
 
 .ipam-detail-modal .ipam-addr-row:hover,
