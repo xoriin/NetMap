@@ -328,7 +328,7 @@ body.route-security .security-row,
 body.theme-dark.route-security .security-row {
   min-height: 42px;
   border-color: var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-table-row-bg);
   color: var(--nm-text);
   font-size: var(--nm-text-xs);
 }
