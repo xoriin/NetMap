@@ -83,7 +83,10 @@ for(const theme of ['light','dark'] as const) {
   await page.goto('/inventory#cloud-assets');
   await page.getByRole('button',{name:'Open Retained VM details'}).click();
   await edit(page,'Name','Restored VM');
-  await edit(page,'Kind','ec2',true);
+  await field(page,'Type').dblclick();
+  await page.getByRole('complementary',{name:'Asset overview'}).getByRole('button',{name:'Type',exact:true}).click();
+  await page.getByRole('option',{name:'Server',exact:true}).click();
+  await page.getByRole('button',{name:'Save',exact:true}).click();
   await edit(page,'Provider','1',true);
   await edit(page,'Account','Infrastructure');
   await edit(page,'Region','au-east');

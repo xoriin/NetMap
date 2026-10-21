@@ -55,8 +55,24 @@ export function mockRelationship(overrides: Record<string, unknown> = {}) {
 
 // Sets up the auth bootstrap mocks so the app reaches the dashboard.
 // Route order matters: register before page.goto().
+export const BUILT_IN_CLOUD_ASSET_TYPES = [
+  ["server", "Server"], ["load_balancer", "Load balancer"], ["database", "Database"],
+  ["storage", "Storage"], ["network", "Network"], ["other", "Other"],
+].map(([value, label]) => ({ id: null as number | null, value, label, is_builtin: true }));
+
 export async function setupCoreMocks(page: Page, announcement: string | null = null) {
   await page.route("**/api/v1/ipam/external/assets", route => route.fulfill({ json: [] }));
+  const assetTypes = [...BUILT_IN_CLOUD_ASSET_TYPES];
+  await page.route("**/api/v1/ipam/external/asset-types", route => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: assetTypes });
+    const label = String((route.request().postDataJSON() as { label: string }).label).trim().replace(/\s+/g, " ");
+    const value = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const existing = assetTypes.find(type => type.value === value || type.label.toLowerCase() === label.toLowerCase());
+    if (existing) return route.fulfill({ status: 200, json: existing });
+    const created = { id: assetTypes.length + 100, value, label, is_builtin: false };
+    assetTypes.push(created);
+    return route.fulfill({ status: 201, json: created });
+  });
   await page.route("**/api/v1/admin/runtime-security", (route) => route.fulfill({ json: { warnings: [] } }));
   await page.route("**/api/v1/ipam/external/accounts", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/ipam/external/locations", (route) => route.fulfill({ json: [] }));

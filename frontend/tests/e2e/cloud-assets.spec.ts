@@ -135,7 +135,7 @@ for (const theme of ['light','dark'] as const) {
   }});
   await page.goto('/inventory#cloud-assets');
   await expect(page.locator('.inventory-stats .dash-stat')).toHaveCount(4);
-  for(const name of ['Filter by provider','Filter by cloud location','Filter by asset kind','Filter by monitoring']) await expect(page.getByRole('button',{name})).toBeVisible();
+  for(const name of ['Filter by provider','Filter by cloud location','Filter by asset type','Filter by monitoring']) await expect(page.getByRole('button',{name})).toBeVisible();
   await expect(page.locator('.inventory-row')).toHaveCount(4);
   await expect(page.locator('[data-cloud-record="address-1"]')).not.toContainText('online');
   const neutral=page.locator('[data-cloud-record="address-2"] .nm-status--unknown').first();

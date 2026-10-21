@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Cloud, Link2, Plus, Search, Server, Star, Unlink } from "lucide-react";
 import { IconWifiOff } from "@tabler/icons-react";
-import { api, type Device } from "../../api/client";
+import { api, type Device, type CloudAssetType } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
 import { CloudAssetDetails, type CloudAssetRecord, type CloudDeviceFormOptions } from "./CloudAssetDetails";
@@ -22,7 +22,7 @@ type CloudRow = {
   provider: string; location: string; lifecycle: string; device?: Device; deviceId: number | null;
   record: CloudAssetRecord; health: DeviceHealth; monitoring: string; latency: string; details: [string, string][];
 };
-const headings = ["Asset", "IP", "Kind", "Monitoring", "Latency", "State", "Provider", "Location"];
+const headings = ["Asset", "IP", "Type", "Monitoring", "Latency", "State", "Provider", "Location"];
 
 /** Current addresses and retained resources remain independent records; linking never enables probes. */
 export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteIds, onToggleFavourite,
@@ -36,11 +36,11 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   onDeviceCreated: (device: Device) => void; onShowInDevices: (id: number) => void;
 }) {
   const query = useApiQuery(async () => {
-    const [addresses, locations, accounts, providers, assets] = await Promise.all([
+    const [addresses, locations, accounts, providers, assets, types] = await Promise.all([
       api.listExternalAddresses(accessToken), api.listExternalLocations(accessToken),
-      api.listExternalAccounts(accessToken), api.listCloudProviders(accessToken), api.listSavedCloudAssets(accessToken),
+      api.listExternalAccounts(accessToken), api.listCloudProviders(accessToken), api.listSavedCloudAssets(accessToken), api.listCloudAssetTypes(accessToken),
     ]);
-    return { addresses, locations, accounts, providers, assets };
+    return { addresses, locations, accounts, providers, assets, types };
   }, [accessToken]);
   const toast = useToast();
   const [creating, setCreating] = useState(false);
@@ -58,7 +58,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const { widths, headerRef, startResize, reset } = useInventoryTableColumns({ count: 8, leadingColumns: 1, storageKey: "netmap.cloud_asset_columns_v4" });
   const records = useMemo<CloudRow[]>(() => {
     if (!query.data) return [];
-    const { addresses, locations, accounts, providers, assets } = query.data;
+    const { addresses, locations, accounts, providers, assets, types } = query.data;
     const deviceById = new Map(devices.map(device => [device.id, device]));
     const locationById = new Map(locations.map(location => [location.id, location]));
     const accountById = new Map(accounts.map(account => [account.id, account]));
@@ -91,7 +91,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         const device = deviceById.get(asset.device_id ?? -1);
         return {
           key: `saved-${asset.id}`, record: {type: "resource" as const,value:asset}, name: asset.name, ip: device?.ip_address || "",
-          kind: asset.kind?.replace(/_/g, " ") || "Resource", purpose: asset.description || "",
+          kind: types.find(type => type.value === asset.kind)?.label || asset.kind?.replace(/_/g, " ") || "Resource", purpose: asset.description || "",
           provider: providerById.get(asset.provider_id ?? -1) || "",
           location: [asset.account, asset.region].filter(Boolean).join(" · "), lifecycle: "",
           ...monitoring(asset.device_id, device), details: [["Description", asset.description || "—"]] as [string,string][],
@@ -125,8 +125,11 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
     setDetailKey(row.key);
     onOpenDevice(row.device?.id ?? null);
   }
+  function typeCreated(type: CloudAssetType) {
+    query.setData(current => current && ({ ...current, types: current.types.some(item => item.value === type.value) ? current.types.map(item => item.value === type.value ? type : item) : [...current.types, type] }));
+  }
   const activeOverview = detail && query.data ? <CloudAssetDetails key={detail.key}
-    record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
+    types={query.data.types} onTypeCreated={typeCreated} record={detail.record} name={detail.name} health={detail.health} monitoring={detail.monitoring} canWrite={canWriteIpam} accessToken={accessToken}
     devices={devices} providers={query.data.providers} locations={query.data.locations} accounts={query.data.accounts}
     latency={detail.latency || null} canCreateDevice={canCreateDevice} deviceFormOptions={deviceFormOptions} onDeviceCreated={onDeviceCreated}
     onShowInDevices={id => {rememberCloudAssetReturn(detail.key, id); onShowInDevices(id);}}
@@ -148,7 +151,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
         <span className="inv-panel-title"><span className="inv-panel-title-icon" aria-hidden="true"><Cloud size={17} /></span><span>Cloud assets</span><span className="inv-panel-count">{filtered.length === records.length ? records.length : `${filtered.length} of ${records.length}`}</span></span>
         <SwatchSelect ariaLabel="Filter by provider" value={providerFilter} options={options("provider","All providers")} onChange={setProviderFilter} />
         <SwatchSelect ariaLabel="Filter by cloud location" value={locationFilter} options={options("location","All locations")} onChange={setLocationFilter} />
-        <SwatchSelect ariaLabel="Filter by asset kind" value={kindFilter} options={options("kind","All kinds")} onChange={setKindFilter} />
+        <SwatchSelect ariaLabel="Filter by asset type" value={kindFilter} options={options("kind","All types")} onChange={setKindFilter} />
         <SwatchSelect ariaLabel="Filter by monitoring" value={monitorFilter} options={[{value:"all",label:"All monitoring"},{value:"unlinked",label:"Not linked"}, ...["online","offline","warning","unknown","paused","disabled"].map(value => ({value,label:value[0].toUpperCase()+value.slice(1)}))]} onChange={setMonitorFilter} />
         <button type="button" className={`inv-status-tab inv-fav-filter${favouritesOnly ? " active" : ""}`} onClick={() => setFavouritesOnly(value => !value)} title={favouritesOnly ? "Show all assets" : "Show favourites only"}><Star size={13} />Favs</button>
         <span className="inv-sep" />{ipamLink}
@@ -181,7 +184,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       {activeOverview}
     </div>
 
-    {creating && query.data && <CloudAssetForm accessToken={accessToken} providers={query.data.providers} devices={devices}
+    {creating && query.data && <CloudAssetForm types={query.data.types} onTypeCreated={typeCreated} accessToken={accessToken} providers={query.data.providers} devices={devices}
       onCancel={() => setCreating(false)} onCreated={asset => {
         query.setData(current => current && ({ ...current, assets: [...current.assets, asset] }));
         setSearch(""); setProviderFilter("all"); setLocationFilter("all"); setKindFilter("all"); setMonitorFilter("all"); setFavouritesOnly(false);

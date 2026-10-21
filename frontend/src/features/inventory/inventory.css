@@ -300,3 +300,7 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 
 /* Keep the picker outside its label: menu option clicks must not activate the trigger again. */
 .inventory-cloud-device-field { display: grid; gap: var(--nm-space-1); }
+
+.inventory-cloud-type-picker, .inventory-cloud-type-create { display: grid; gap: var(--nm-space-2); min-width: 0; }
+.inventory-cloud-type-create { padding-top: var(--nm-space-2); }
+.inventory-cloud-type-actions { display: flex; justify-content: flex-end; gap: var(--nm-space-2); }

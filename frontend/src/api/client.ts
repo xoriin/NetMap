@@ -1093,6 +1093,8 @@ export type IpamSummary = {
   reservation_count: number;
 };
 
+export type CloudAssetType = { id: number | null; value: string; label: string; is_builtin: boolean };
+
 export type SavedCloudAsset = {
   id: number; name: string; kind: string | null; provider_id: number | null;
   account: string | null; region: string | null; device_id: number | null; description: string | null;
@@ -2215,6 +2217,8 @@ export const api = {
   listExternalLocations: (token: string) => request<ExternalLocation[]>("/api/v1/ipam/external/locations", { token }),
   saveExternalLocation: (token: string, payload: Omit<ExternalLocation, "id">, id?: number) => request<ExternalLocation>(`/api/v1/ipam/external/locations${id ? `/${id}` : ""}`, { token, method: id ? "PUT" : "POST", body: JSON.stringify(payload) }),
   deleteExternalLocation: (token: string, id: number) => request<void>(`/api/v1/ipam/external/locations/${id}`, { token, method: "DELETE" }),
+  listCloudAssetTypes: (token: string) => request<CloudAssetType[]>("/api/v1/ipam/external/asset-types", { token }),
+  createCloudAssetType: (token: string, label: string) => request<CloudAssetType>("/api/v1/ipam/external/asset-types", { token, method: "POST", body: JSON.stringify({ label }) }),
   createSavedCloudAsset: (token: string, payload: Pick<SavedCloudAsset, "name"> & Partial<Omit<SavedCloudAsset, "id" | "name">>) =>
     request<SavedCloudAsset>("/api/v1/ipam/external/assets", { token, method: "POST", body: JSON.stringify(payload) }),
   updateSavedCloudAsset: (token: string, id: number, payload: Partial<Omit<SavedCloudAsset, "id">>) =>

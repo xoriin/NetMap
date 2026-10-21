@@ -18,6 +18,7 @@ import {
 import type { DeviceHealth } from "../../utils/deviceHealth";
 import {
   api,
+  type CloudAssetType,
   type CloudProviderOption,
   type Device,
   type DevicePayload,
@@ -39,7 +40,7 @@ import { DeviceForm } from "../devices/DeviceForm";
 import { createDeviceWithReservationConfirmation } from "../devices/createDevice";
 import { editableField, useEditableFieldFocus } from "../../utils/editableField";
 import { sameIp } from "../../utils/ipParse";
-import { cloudAssetKinds as kinds } from "./cloudAssetKinds";
+import { CloudAssetTypePicker } from "./CloudAssetTypePicker";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
 
 export type CloudAssetRecord =
@@ -63,6 +64,7 @@ type Field = {
   multiline?: boolean;
   required?: boolean;
   device?: boolean;
+  assetType?: boolean;
   save?: (value: string) => Promise<void>;
 };
 
@@ -82,7 +84,7 @@ const fieldIcons: Record<string, LucideIcon> = {
   Notes: FileText,
   URL: Link2,
   Name: Pencil,
-  Kind: Server,
+  Type: Server,
   Region: MapPin,
   Description: FileText,
 };
@@ -104,6 +106,8 @@ const splitTags = (tags: string | null) => (tags ?? "").split(",").map((tag) => 
 /** Cloud metadata stays editable even when the record is linked to a real device. */
 export function CloudAssetDetails({
   record,
+  types,
+  onTypeCreated,
   name,
   canWrite,
   canCreateDevice,
@@ -126,6 +130,8 @@ export function CloudAssetDetails({
   onShowInDevices,
 }: {
   record: CloudAssetRecord;
+  types: CloudAssetType[];
+  onTypeCreated: (type: CloudAssetType) => void;
   name: string;
   canWrite: boolean;
   canCreateDevice: boolean;
@@ -150,6 +156,7 @@ export function CloudAssetDetails({
   const confirmAction = useConfirm();
   const toast = useToast();
   const [editing, setEditing] = useState<string | null>(null);
+  const [addingType, setAddingType] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,13 +248,13 @@ export function CloudAssetDetails({
     );
   } else {
     const row = record.value;
-    const kindChoices = [...new Set([...kinds, ...(row.kind ? [row.kind] : [])])];
     fields.push(
       { label: "Name", value: row.name, required: true, save: (value) => resourcePatch({ name: value }) },
       {
-        label: "Kind",
+        label: "Type",
+        assetType: true,
         value: row.kind || "",
-        choices: [{ value: "", label: "Not set" }, ...kindChoices.map((value) => ({ value, label: value.replace(/_/g, " ") }))],
+        choices: [{ value: "", label: "Not set" }, ...types.map(type => ({ value: type.value, label: type.label }))],
         save: (value) => resourcePatch({ kind: nullable(value) }),
       },
       {
@@ -286,11 +293,12 @@ export function CloudAssetDetails({
 
   function stopEditing() {
     setEditing(null);
+    setAddingType(false);
     setError(null);
   }
 
   async function save() {
-    if (!current?.save || busy || !canWrite) return;
+    if (!current?.save || busy || addingType || !canWrite) return;
     if (current.required && !draft.trim()) {
       setError(`Enter ${current.label.toLowerCase()}`);
       return;
@@ -377,6 +385,8 @@ export function CloudAssetDetails({
   }
 
   function renderEditor(field: Field) {
+    if (field.assetType) return <CloudAssetTypePicker accessToken={accessToken} value={draft || null} types={types} disabled={busy}
+      onChange={value => setDraft(value || "")} onTypeCreated={onTypeCreated} onEditingChange={setAddingType} onBusyChange={setBusy} />;
     if (field.device) {
       return (
         <PickOrCreate
@@ -455,7 +465,7 @@ export function CloudAssetDetails({
                         {renderEditor(field)}
                         {error && <span className="form-error" role="alert">{error}</span>}
                         <div className="detail-actions detail-actions--device">
-                          <button type="submit" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy || draft === field.value}>
+                          <button type="submit" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy || addingType || draft === field.value}>
                             {busy ? "Saving…" : "Save"}
                           </button>
                           <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={stopEditing}>Cancel</button>

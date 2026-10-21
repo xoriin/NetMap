@@ -25,7 +25,8 @@ for (const theme of ["light", "dark"] as const) {
     const dialog = page.getByRole("dialog", { name: "Add cloud asset", exact: true });
     await expect(dialog.getByRole("button", { name: "Add asset", exact: true })).toBeDisabled();
     await dialog.getByLabel("Name", { exact: true }).fill("Production gateway");
-    await dialog.getByLabel("Kind", { exact: true }).selectOption("nat_gateway");
+    await dialog.getByRole("button", { name: "Type", exact: true }).click();
+    await page.getByRole("option", { name: "Network", exact: true }).click();
     await dialog.getByLabel("Provider", { exact: true }).selectOption("1");
     await dialog.getByLabel("Account", { exact: true }).fill("Infrastructure");
     await dialog.getByLabel("Region", { exact: true }).fill("Sydney");
@@ -47,7 +48,7 @@ for (const theme of ["light", "dark"] as const) {
     finishCreate!();
     await expect(dialog).toBeHidden();
     expect(posts).toBe(2);
-    expect(assets[0]).toMatchObject({ name: "Production gateway", kind: "nat_gateway", provider_id: 1, device_id: 7, region: "Sydney", account: "Infrastructure" });
+    expect(assets[0]).toMatchObject({ name: "Production gateway", kind: "network", provider_id: 1, device_id: 7, region: "Sydney", account: "Infrastructure" });
     await expect(page.getByRole("complementary", { name: "Asset overview" })).toContainText("Production gateway");
     await page.reload();
     await page.getByRole("button", { name: "Open Production gateway details" }).click();
