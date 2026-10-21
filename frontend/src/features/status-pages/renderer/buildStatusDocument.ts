@@ -181,45 +181,58 @@ function heartbeatBar(b: Builder, beats: StatusBeat[], window: string): HTMLElem
   return bar;
 }
 
-function responseGraph(b: Builder, values: (number | null)[], window: string): Element {
-  const slots = values.length || 60;
+function responseGraph(b: Builder, values: (number | null)[], beats: StatusBeat[], window: string): Element {
+  const valid = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
+  if (!valid.length) return b.el("span", "sp-response sp-response-empty", "No successful responses");
+  const slots = Math.max(2, values.length);
   const svg = b.doc.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", "sp-response");
-  svg.setAttribute("viewBox", `0 0 ${slots} 24`);
+  svg.setAttribute("viewBox", "0 0 600 64");
   svg.setAttribute("preserveAspectRatio", "none");
   svg.setAttribute("role", "img");
-  const valid = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
   const name = (WINDOW_LABELS[window] ?? WINDOW_LABELS["1h"]).name;
-  svg.setAttribute("aria-label", valid.length
-    ? `${name} response time: ${Math.round(Math.min(...valid))} to ${Math.round(Math.max(...valid))} ms`
-    : `${name} response time: no successful responses`);
+  svg.setAttribute("aria-label", `${name} response time: ${Math.round(Math.min(...valid))} to ${Math.round(Math.max(...valid))} ms`);
+  const description = b.doc.createElementNS(SVG_NS, "title");
+  description.textContent = "Points show measured responses. Lines connect measurements across healthy intervals; failed or unknown intervals remain gaps.";
+  svg.append(description);
   const max = Math.max(1, ...valid) * 1.15;
-  const y = (value: number) => (22 - (value / max) * 19).toFixed(2);
+  const x = (index: number) => 8 + index / (slots - 1) * 584;
+  const y = (value: number) => 56 - value / max * 48;
+  for (const at of [8, 32, 56]) {
+    const grid = b.doc.createElementNS(SVG_NS, "line");
+    grid.setAttribute("class", "sp-response-grid");
+    grid.setAttribute("x1", "8"); grid.setAttribute("x2", "592");
+    grid.setAttribute("y1", String(at)); grid.setAttribute("y2", String(at));
+    svg.append(grid);
+  }
   const runs: Array<Array<[number, number]>> = [];
   let current: Array<[number, number]> = [];
   values.forEach((value, index) => {
     if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-      current.push([index, value]);
-    } else if (current.length) {
+      current.push([x(index), y(value)]);
+    } else if ((value !== null || beats[index] !== "healthy") && current.length) {
       runs.push(current);
       current = [];
     }
   });
   if (current.length) runs.push(current);
   runs.forEach((run) => {
-    const points = run.length === 1
-      ? [[run[0][0] + 0.15, run[0][1]], [run[0][0] + 0.85, run[0][1]]] as Array<[number, number]>
-      : run.map(([index, value]) => [index + 0.5, value] as [number, number]);
-    const line = points.map(([x, value]) => `${x.toFixed(2)},${y(value)}`).join(" ");
-    const first = points[0][0].toFixed(2);
-    const last = points[points.length - 1][0].toFixed(2);
-    const area = b.doc.createElementNS(SVG_NS, "polygon");
-    area.setAttribute("class", "sp-response-area");
-    area.setAttribute("points", `${first},24 ${line} ${last},24`);
-    const stroke = b.doc.createElementNS(SVG_NS, "polyline");
-    stroke.setAttribute("class", "sp-response-line");
-    stroke.setAttribute("points", line);
-    svg.append(area, stroke);
+    if (run.length > 1) {
+      const points = run.map(([px, py]) => `${px.toFixed(2)},${py.toFixed(2)}`).join(" ");
+      const area = b.doc.createElementNS(SVG_NS, "polygon");
+      area.setAttribute("class", "sp-response-area");
+      area.setAttribute("points", `${run[0][0].toFixed(2)},56 ${points} ${run[run.length - 1][0].toFixed(2)},56`);
+      const line = b.doc.createElementNS(SVG_NS, "polyline");
+      line.setAttribute("class", "sp-response-line");
+      line.setAttribute("points", points);
+      svg.append(area, line);
+    }
+    run.forEach(([px, py]) => {
+      const point = b.doc.createElementNS(SVG_NS, "circle");
+      point.setAttribute("class", "sp-response-point");
+      point.setAttribute("cx", px.toFixed(2)); point.setAttribute("cy", py.toFixed(2)); point.setAttribute("r", "2.2");
+      svg.append(point);
+    });
   });
   return svg;
 }
@@ -258,7 +271,11 @@ function statsList(b: Builder, item: StatusPageItemPayload): HTMLDListElement | 
   if ("last_check" in metrics) rows.push(["Last check", formatStatusTime(metrics.last_check, b.now) ?? "Never"]);
   if (!rows.length) return null;
   const list = b.el("dl", "sp-stats");
-  rows.forEach(([term, value]) => list.append(b.el("dt", null, term), b.el("dd", null, value)));
+  rows.forEach(([term, value]) => {
+    const metric = b.el("div", "sp-stat");
+    metric.append(b.el("dt", null, term), b.el("dd", null, value));
+    list.append(metric);
+  });
   return list;
 }
 
@@ -295,7 +312,7 @@ function itemRow(b: Builder, item: StatusPageItemPayload, window: string): HTMLE
   const more = b.el("div", "sp-row-more");
   more.append(stats ?? b.el("span"));
   const moreGraphs = b.el("span", "sp-graphs");
-  if (response) moreGraphs.append(lane(b, "Response", responseGraph(b, response, window)));
+  if (response) moreGraphs.append(lane(b, "Response", responseGraph(b, response, item.heartbeats ?? [], window)));
   moreGraphs.append(axis(b, window));
   more.append(moreGraphs);
   row.append(summary, more);

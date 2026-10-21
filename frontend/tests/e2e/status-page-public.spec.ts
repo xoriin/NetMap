@@ -668,7 +668,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         const responseBox = await row.locator(".sp-response").boundingBox();
         expect(beatsBox && responseBox).toBeTruthy();
         expect(Math.abs(beatsBox!.width - responseBox!.width)).toBeLessThanOrEqual(1);
-        expect(Math.abs(beatsBox!.height - responseBox!.height)).toBeLessThanOrEqual(1);
+        expect(responseBox!.height).toBeGreaterThanOrEqual(64);
+        expect(responseBox!.y - beatsBox!.y - beatsBox!.height).toBeGreaterThanOrEqual(24);
         expect(Math.abs(beatsBox!.x - responseBox!.x)).toBeLessThanOrEqual(1);
       }
 
@@ -683,4 +684,55 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(pageOverflow).toBeLessThanOrEqual(0);
     });
   }
+}
+
+
+for (const theme of ["light", "dark"] as const) {
+  test(`response charts connect measured points and keep extras inline in ${theme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.setViewportSize({ width: 1334, height: 1000 });
+    await blockEverythingElse(page);
+    const response = [10, null, 14, null, 8, null, 18, null, 12];
+    const body = payload({ groups: [{ id: 1, name: "Infra", state: "operational", collapsed: false, items: [
+      item(1, "OPNsense", true, { response, metrics: { avg_response: 12, p95_response: 18, failure_rate: 0, last_check: new Date().toISOString() } }),
+      item(2, "Failed and unknown intervals", true, { response: [10, null, null, 15, null, 20], heartbeats: ["healthy", "unhealthy", "unknown", "healthy", "healthy", "healthy"] }),
+      item(3, "Single zero sample", true, { response: [null, null, 0, null], metrics: { avg_response: 0 } }),
+      item(4, "No responses", true, { response: [null, null], metrics: {} }),
+    ] }] });
+    await page.route(PUBLIC_URL, route => fulfillPayload(route, body));
+    await page.goto(`/status/${SLUG}`);
+    const frame = statusFrame(page);
+    const rows = frame.locator("details.sp-row");
+    const first = rows.nth(0);
+    await first.locator("summary").click();
+    await expect(first.locator(".sp-response-line")).toHaveCount(1);
+    await expect(first.locator(".sp-response-point")).toHaveCount(5);
+    const points = await first.locator(".sp-response-line").getAttribute("points");
+    expect(points!.split(" ")).toHaveLength(5);
+    await expect(first.locator(".sp-response-line")).toHaveCSS("stroke-width", "2px");
+    const stats = await first.locator(".sp-stat").evaluateAll(nodes => nodes.map(n => ({ x: n.getBoundingClientRect().x, y: n.getBoundingClientRect().y })));
+    expect(stats).toHaveLength(4);
+    expect(new Set(stats.map(r => r.y)).size).toBe(1);
+    expect(stats[3].x).toBeGreaterThan(stats[0].x);
+    const beatsBox = await first.locator(".sp-heartbeats").boundingBox();
+    const graphBox = await first.locator(".sp-response").boundingBox();
+    expect(graphBox!.height).toBeGreaterThanOrEqual(64);
+    expect(graphBox!.y - beatsBox!.y - beatsBox!.height).toBeGreaterThanOrEqual(24);
+    expect(Math.abs(graphBox!.x - beatsBox!.x)).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: test.info().outputPath(`response-${theme}.png`), fullPage: true });
+    await rows.nth(1).locator("summary").click();
+    await expect(rows.nth(1).locator(".sp-response-line")).toHaveCount(1);
+    await expect(rows.nth(1).locator(".sp-response-point")).toHaveCount(3);
+    expect((await rows.nth(1).locator(".sp-response-line").getAttribute("points"))!.split(" ")).toHaveLength(2);
+    await rows.nth(2).locator("summary").click();
+    await expect(rows.nth(2).locator(".sp-response-point")).toHaveCount(1);
+    await expect(rows.nth(2).locator(".sp-response-point")).toHaveAttribute("cy", "56.00");
+    await expect(rows.nth(2).locator(".sp-response-line")).toHaveCount(0);
+    await expect(rows.nth(2).locator(".sp-stats")).toContainText("0 ms");
+    await rows.nth(3).locator("summary").click();
+    await expect(rows.nth(3).locator(".sp-response-empty")).toHaveText("No successful responses");
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await expect.poll(() => frame.locator("html").evaluate(n => n.scrollWidth - n.clientWidth)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: test.info().outputPath(`response-narrow-${theme}.png`), fullPage: true });
+  });
 }
