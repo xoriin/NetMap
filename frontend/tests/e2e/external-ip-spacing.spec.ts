@@ -32,7 +32,18 @@ for (const theme of ["light", "dark"] as const) {
       // Location omits a column; the other grouping lenses include it.
       for (const grouping of ["location", "provider", "status", "none"]) {
         await page.getByLabel("Group by").selectOption(grouping);
+        const columns = await page.locator(".external-ip-table thead th:not(.external-ip-actions)").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().width));
+        expect(Math.max(...columns) - Math.min(...columns)).toBeLessThanOrEqual(1);
         const rows = page.locator(".external-ip-address-row");
+        const headers = page.locator(".external-ip-table thead th");
+        const cells = rows.first().locator("td");
+        for (let index = 0; index < await cells.count(); index += 1) {
+          await expect(cells.nth(index)).toHaveCSS("display", "table-cell");
+          const cell = await cells.nth(index).boundingBox();
+          const heading = await headers.nth(index).boundingBox();
+          expect(Math.abs(cell!.x - heading!.x)).toBeLessThanOrEqual(1);
+          expect(Math.abs(cell!.width - heading!.width)).toBeLessThanOrEqual(1);
+        }
         await expect(rows).toHaveCount(12);
         await expect(rows.first().getByRole("button")).toHaveCount(3);
         for (const row of await rows.all()) {

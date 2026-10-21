@@ -36,10 +36,8 @@
      around it. Light mode aliases it to --nm-surface, so that problem is dark-mode-only. */
 .external-ip-table thead th { background: var(--nm-table-header-bg); }
 .external-ip-table tbody td { background: var(--nm-modal-section); }
-/* Keep the full action set on one line. The remaining metadata columns share the
-   available space, including when Group by adds the Location column. */
-.external-ip-table .external-ip-col-address { width: 160px; }
-.external-ip-table .external-ip-col-status { width: 106px; }
+/* Reserve the full action set, then divide the remaining width equally between
+   every data column, including Location when the grouping lens shows it. */
 .external-ip-table .external-ip-col-actions { width: 300px; }
 .external-ip-search { min-width: 220px; max-width: 520px; flex: 0 1 420px; }
 .external-ip-status-filter { display: flex; flex-shrink: 0; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
@@ -107,7 +105,7 @@
    The `--<status>` class stays as a behaviour/test hook and must not paint. */
 .external-ip-table .external-ip-address-row { cursor: pointer; }
 .external-ip-table .external-ip-address-row td { padding-top: 6px; padding-bottom: 6px; }
-.external-ip-address-cell { color: var(--nm-accent-strong); font-weight: 650; }
+.external-ip-address-cell { overflow-wrap: anywhere; color: var(--nm-accent-strong); font-weight: 650; }
 .external-ip-purpose-cell { display: flex; align-items: baseline; gap: 8px; }
 .external-ip-url { color: var(--nm-accent-strong); font-size: var(--nm-text-xs); font-weight: 600; }
 .external-ip-muted { color: var(--nm-text-faint); }

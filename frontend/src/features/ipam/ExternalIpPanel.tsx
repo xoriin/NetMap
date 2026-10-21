@@ -807,9 +807,11 @@ export function ExternalIpPanel({
                                 {locationCellLabel(address) ?? <span className="external-ip-muted">{UNASSIGNED}</span>}
                               </td>
                             )}
-                            <td className={`external-ip-purpose-cell${alt}`}>
-                              {address.label || <span className="external-ip-muted">—</span>}
-                              {address.url && <a className="external-ip-url" href={address.url} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Open</a>}
+                            <td className={alt.trim()}>
+                              <span className="external-ip-purpose-cell">
+                                {address.label || <span className="external-ip-muted">—</span>}
+                                {address.url && <a className="external-ip-url" href={address.url} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Open</a>}
+                              </span>
                             </td>
                             <td className={alt.trim()}>{device ?? <span className="external-ip-muted">—</span>}</td>
                             <td className={alt.trim()}>
