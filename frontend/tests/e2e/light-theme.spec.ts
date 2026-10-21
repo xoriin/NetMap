@@ -178,10 +178,11 @@ test("the VLAN table shares the light column header", async ({ page }) => {
 test("light summary cards are tinted per status with a deep top line and a solid icon square", async ({ page }) => {
   await openInventory(page, "light");
   const tones = {
-    teal: { bg: "rgb(226, 241, 244)", border: "rgb(191, 230, 237)", deep: "rgb(43, 122, 136)" },
-    green: { bg: "rgb(228, 242, 236)", border: "rgb(191, 230, 212)", deep: "rgb(47, 122, 99)" },
-    red: { bg: "rgb(247, 232, 232)", border: "rgb(245, 199, 199)", deep: "rgb(168, 72, 72)" },
+    teal: { bg: "rgb(238, 247, 249)", border: "rgb(191, 230, 237)", deep: "rgb(43, 122, 136)" },
+    green: { bg: "rgb(239, 247, 243)", border: "rgb(191, 230, 212)", deep: "rgb(47, 122, 99)" },
+    red: { bg: "rgb(251, 242, 242)", border: "rgb(245, 199, 199)", deep: "rgb(168, 72, 72)" },
   } as const;
+  expect(await resolve(page, "--nm-kpi-amber-bg", "backgroundColor")).toBe("rgb(251, 247, 238)");
   for (const [tone, expected] of Object.entries(tones)) {
     const card = page.locator(`.dash-stat--${tone}`).first();
     await expect(card).toHaveCSS("background-color", expected.bg);
