@@ -174,3 +174,22 @@ test("the VLAN table shares the light column header", async ({ page }) => {
   await expect(vlanHeader).toHaveCSS("background-color", "rgb(230, 241, 244)");
   await expect(vlanHeader).toHaveCSS("color", "rgb(29, 100, 114)");
 });
+
+test("light summary cards are tinted per status with a deep top line and a solid icon square", async ({ page }) => {
+  await openInventory(page, "light");
+  const tones = {
+    teal: { bg: "rgb(226, 241, 244)", border: "rgb(191, 230, 237)", deep: "rgb(43, 122, 136)" },
+    green: { bg: "rgb(228, 242, 236)", border: "rgb(191, 230, 212)", deep: "rgb(47, 122, 99)" },
+    red: { bg: "rgb(247, 232, 232)", border: "rgb(245, 199, 199)", deep: "rgb(168, 72, 72)" },
+  } as const;
+  for (const [tone, expected] of Object.entries(tones)) {
+    const card = page.locator(`.dash-stat--${tone}`).first();
+    await expect(card).toHaveCSS("background-color", expected.bg);
+    await expect(card).toHaveCSS("border-top-color", expected.border);
+    const line = await card.evaluate((el) => { const s = getComputedStyle(el, "::before"); return { bg: s.backgroundColor, height: s.height }; });
+    expect(line).toEqual({ bg: expected.deep, height: "3px" });
+    await expect(card.locator(".dash-stat-icon")).toHaveCSS("background-color", expected.deep);
+    await expect(card.locator(".dash-stat-icon")).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expect(card.locator(".dash-stat-value")).toHaveCSS("color", "rgb(19, 32, 44)");
+  }
+});

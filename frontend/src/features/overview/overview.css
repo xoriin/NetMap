@@ -15,9 +15,9 @@
 }
 
 body.route-overview .overview-workspace .dash-stat {
-  border-color: var(--nm-border);
+  border-color: var(--nm-kpi-border);
   border-radius: var(--nm-radius-lg);
-  background: var(--nm-modal-section);
+  background: var(--nm-kpi-bg);
   box-shadow: var(--nm-shadow-sm);
 }
 
