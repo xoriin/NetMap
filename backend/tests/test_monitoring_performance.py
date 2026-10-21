@@ -499,3 +499,66 @@ def test_alert_monitor_skips_service_checks_for_device_without_ip(monkeypatch):
     assert calls == []
     with factory() as db:
         assert db.get(Device, 1).monitor_status == "unknown"
+
+
+def test_device_monitor_keeps_configured_cadence_when_a_batch_is_slow(monkeypatch):
+    from app.services.status_pages.sources import CurrentState, SourceRef, freshness_deadline, item_state
+
+    service = alerting_service.AlertMonitorService()
+    clock = {"seconds": 0.0}
+    starts, waits = [], []
+    published = {"at": None}
+    ref = SourceRef("device", device_id=1)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    class Stop:
+        def wait(self, seconds):
+            waits.append(seconds)
+            clock["seconds"] += seconds
+            return len(starts) == 3
+
+    def check():
+        start = clock["seconds"]
+        starts.append(start)
+        clock["seconds"] += 75  # Ping + service checks finish after the batch timestamp.
+        if published["at"] is not None:
+            # A still-online result must not age out just before the next batch is persisted.
+            observed = base + timedelta(seconds=published["at"])
+            state = CurrentState(ref, "healthy", observed, freshness_deadline(observed, 120), 2, 120)
+            assert item_state(state, False, False, base + timedelta(seconds=clock["seconds"])) == "operational"
+        published["at"] = start
+
+    monkeypatch.setattr(service, "_stop", Stop())
+    monkeypatch.setattr(service, "_live_ping_enabled", lambda: True)
+    monkeypatch.setattr(service, "_get_interval", lambda: 120)
+    monkeypatch.setattr(service, "_check", check)
+    monkeypatch.setattr(alerting_service.time, "monotonic", lambda: clock["seconds"])
+    service._run()
+    assert starts == [5, 125, 245]
+    assert waits == [5, 45, 45, 45]
+
+
+def test_device_monitor_overrun_starts_next_batch_without_extra_delay(monkeypatch):
+    service = alerting_service.AlertMonitorService()
+    clock = {"seconds": 0.0}
+    starts, waits = [], []
+
+    class Stop:
+        def wait(self, seconds):
+            waits.append(seconds)
+            assert seconds >= 0
+            clock["seconds"] += seconds
+            return len(starts) == 2
+
+    def check():
+        starts.append(clock["seconds"])
+        clock["seconds"] += 150
+
+    monkeypatch.setattr(service, "_stop", Stop())
+    monkeypatch.setattr(service, "_live_ping_enabled", lambda: True)
+    monkeypatch.setattr(service, "_get_interval", lambda: 120)
+    monkeypatch.setattr(service, "_check", check)
+    monkeypatch.setattr(alerting_service.time, "monotonic", lambda: clock["seconds"])
+    service._run()
+    assert starts == [5, 155]
+    assert waits == [5, 0, 0]

@@ -95,13 +95,16 @@ class AlertMonitorService:
         if self._stop.wait(5):
             return
         while True:
+            started = time.monotonic()
             try:
                 if self._live_ping_enabled():
                     self._check()
             except Exception:
                 logger.exception("Alert monitor check failed")
             interval = self._get_interval()
-            if self._stop.wait(interval):
+            # The interval is a start-to-start cadence, not an extra delay after probes.
+            remaining = max(0.0, interval - (time.monotonic() - started))
+            if self._stop.wait(remaining):
                 break
 
     def _check(self, device_id: int | None = None) -> bool:
