@@ -343,7 +343,7 @@
   padding: 7px 10px;
   text-align: left;
   font-size: var(--nm-text-xs);
-  font-weight: 700;
+  font-weight: var(--nm-table-header-weight);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--nm-table-header-text);
@@ -354,7 +354,7 @@
 
 .nm-table tbody td {
   padding: 6px 10px;
-  border-top: 1px solid var(--nm-border);
+  border-top: 1px solid var(--nm-table-divider);
   vertical-align: middle;
 }
 

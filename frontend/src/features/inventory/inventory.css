@@ -117,7 +117,7 @@
 
 .inventory-layout .inventory-row,
 body:not(.theme-dark) .inventory-layout .inventory-row:not(.active) {
-  border-bottom-color: var(--nm-border);
+  border-bottom-color: var(--nm-table-divider);
   background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }
@@ -132,7 +132,7 @@ body:not(.theme-dark) .inventory-layout .inventory-row:hover:not(.active) {
 .inventory-layout .inventory-row.active,
 body:not(.theme-dark) .inventory-layout .inventory-row.active {
   border-left-color: var(--nm-accent);
-  background: var(--nm-accent-soft);
+  background: var(--nm-row-selected);
 }
 
 .inventory-layout .inventory-row-device {

@@ -178,7 +178,7 @@ body.theme-dark .vlan-workspace .vlan-search .nm-input:focus {
 .vlan-workspace .vlan-row,
 body.theme-dark .vlan-workspace .vlan-row {
   min-height: 52px;
-  border-bottom-color: var(--nm-border);
+  border-bottom-color: var(--nm-table-divider);
   background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }

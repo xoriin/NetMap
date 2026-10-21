@@ -82,10 +82,13 @@
   /* Shared data-table header. Every table in the app — .nm-table, Monitoring's
      .mon-table, Inventory's .inventory-table-header — renders these, so the pages
      read as one product. Values are Inventory's, which is the reference treatment. */
-  --nm-table-row-bg: #f9fbfd;
-  --nm-table-header-bg: #e7edf2;
-  --nm-table-header-text: #3f6178;
-  --nm-table-header-border: rgba(137, 168, 192, 0.86);
+  --nm-table-row-bg: #fefefe;
+  --nm-table-divider: #e6edf2;
+  --nm-row-selected: #d9eef2;
+  --nm-table-header-bg: #e6f1f4;
+  --nm-table-header-text: #1d6472;
+  --nm-table-header-border: #c5dfe5;
+  --nm-table-header-weight: 600;
   --nm-row-hover: #e7edf2;
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
      still reads on a banded row, and --alt-soft is weaker again for nested rows. */

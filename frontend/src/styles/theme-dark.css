@@ -74,6 +74,9 @@ body.theme-dark {
   --nm-table-header-bg: #1e2e3c;
   --nm-table-header-text: #9db0bf;
   --nm-table-header-border: #2b3946;
+  --nm-table-header-weight: 700;
+  --nm-table-divider: var(--nm-border);
+  --nm-row-selected: var(--nm-accent-soft);
   --nm-row-hover: #111c28;
   --nm-row-alt: rgba(255, 255, 255, 0.028);
   --nm-row-alt-soft: rgba(255, 255, 255, 0.014);

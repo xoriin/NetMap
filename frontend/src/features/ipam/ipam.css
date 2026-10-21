@@ -339,7 +339,7 @@
 
 .ipam-workspace .ipam-data-table td {
   border-right: 0;
-  border-bottom: 1px solid var(--nm-border);
+  border-bottom: 1px solid var(--nm-table-divider);
   background: var(--nm-table-row-bg);
   color: var(--nm-text);
 }
@@ -349,7 +349,7 @@
 }
 
 .ipam-workspace .ipam-data-table .mon-row--active td {
-  background: var(--nm-accent-soft);
+  background: var(--nm-row-selected);
 }
 
 .ipam-workspace .ipam-dhcp-importer,
@@ -547,7 +547,7 @@
 }
 
 .ipam-detail-modal .ipam-addr-table td {
-  border-bottom-color: var(--nm-border);
+  border-bottom-color: var(--nm-table-divider);
   background: var(--nm-table-row-bg);
 }
 

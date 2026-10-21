@@ -321,7 +321,7 @@ body.route-security .security-table--fixed .security-row {
 }
 
 body.route-security .security-row-group {
-  border-bottom-color: var(--nm-border);
+  border-bottom-color: var(--nm-table-divider);
 }
 
 body.route-security .security-row,

@@ -1160,7 +1160,7 @@ body.route-monitoring .dash-alert {
   text-align: left;
   padding: 11px 12px;
   font-size: var(--nm-text-xs);
-  font-weight: 700;
+  font-weight: var(--nm-table-header-weight);
   color: var(--nm-table-header-text);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1228,11 +1228,11 @@ body.route-monitoring .dash-alert {
 }
 
 .mon-table--fleet .mon-row--active > td {
-  background: var(--nm-accent-soft);
+  background: var(--nm-row-selected);
 }
 
 .mon-table--fleet .mon-row--active:hover > td {
-  background: var(--nm-accent-soft);
+  background: var(--nm-row-selected);
 }
 
 .mon-table th:nth-child(n+4),
@@ -1244,7 +1244,7 @@ body.route-monitoring .dash-alert {
 
 .mon-row:hover { background: var(--nm-row-hover); }
 .mon-row--active,
-.mon-row--active:hover { background: var(--nm-accent-soft); }
+.mon-row--active:hover { background: var(--nm-row-selected); }
 
 .mon-device-cell {
   display: flex;

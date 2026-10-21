@@ -168,12 +168,12 @@ test.describe("Monitoring workspace", () => {
   test("uses the shared table header treatment without losing table behaviour", async ({ page }) => {
     // Monitoring's header used to be 12px sentence case on the same surface as its own
     // rows, so it did not read as a header and the page looked unrelated to Inventory
-    // and IPAM. All three now share Inventory's treatment: 11px/700 uppercase at 0.06em
-    // on --nm-modal-header, divided from --nm-modal-section rows by --nm-border-strong.
+    // and IPAM. All three now share Inventory's treatment: 11px uppercase at 0.06em
+    // (600 in light mode A, 700 in dark), divided from the rows by the header border token.
     const header = page.locator(".mon-table--fleet th").nth(2);
     const cell = page.locator(".mon-row td").nth(2);
     await expect(header).toHaveCSS("text-transform", "uppercase");
-    await expect(header).toHaveCSS("font-weight", "700");
+    await expect(header).toHaveCSS("font-weight", "600");
     await expect(header).toHaveCSS("font-size", "11px");
     await expect(header).toHaveCSS("letter-spacing", "0.66px");
     await expect(header).toHaveCSS("border-right-width", "0px");
@@ -246,7 +246,7 @@ test.describe("Monitoring workspace", () => {
       expect(endpoints).toEqual(devices);
       expect(devices.tableHeader).toMatchObject({
         fontSize: "11px",
-        fontWeight: "700",
+        fontWeight: dark ? "700" : "600",
         textTransform: "uppercase",
       });
 

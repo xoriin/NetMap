@@ -343,7 +343,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(th).toHaveCSS("position", "sticky");
     await expect(th).toHaveCSS("text-transform", "uppercase");
     await expect(th).toHaveCSS("font-size", "11px");
-    await expect(th).toHaveCSS("font-weight", "700");
+    await expect(th).toHaveCSS("font-weight", theme === "dark" ? "700" : "600");
     expect(await computed(th, "backgroundColor")).toBe(await resolveToken(th, "--nm-table-header-bg"));
     expect(await computed(th, "color")).toBe(await resolveToken(th, "--nm-table-header-text", "color"));
 
