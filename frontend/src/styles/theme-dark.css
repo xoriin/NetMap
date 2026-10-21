@@ -2673,6 +2673,12 @@ body.theme-dark .alert-status-pill--active { background: rgba(45,157,120,0.15); 
   font-weight: 500;
 }
 
+body:not(.theme-dark) .dash-alert--announcement {
+  background: color-mix(in srgb, var(--nm-tone-purple-deep) 26%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-tone-purple-deep) 55%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-tone-purple-deep) 80%, var(--nm-text));
+}
+
 body.theme-dark .dash-alert--announcement {
   background: rgba(124, 92, 191, 0.14);
   border-color: rgba(167, 139, 250, 0.28);

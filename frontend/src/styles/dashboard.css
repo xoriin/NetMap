@@ -401,6 +401,28 @@ body.route-overview .dash-stat {
 
 .dash-alert-dot--purple { background: #7c5cbf; }
 
+/* Shared Overview/Inventory alert bars need a distinct surface on light pages. */
+body:not(.theme-dark) .dash-alert {
+  background: color-mix(in srgb, var(--nm-danger) 20%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-danger) 50%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-text));
+}
+body:not(.theme-dark) .dash-alert--changes {
+  background: color-mix(in srgb, var(--nm-warning) 20%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-warning) 55%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-warning) 40%, var(--nm-text));
+}
+body:not(.theme-dark) .dash-alert-tag:not(.dash-alert-tag--more) {
+  background: color-mix(in srgb, var(--nm-danger) 24%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-text));
+}
+body:not(.theme-dark) .dash-alert--changes .dash-alert-tag {
+  background: color-mix(in srgb, var(--nm-warning) 30%, var(--nm-surface));
+  border-color: color-mix(in srgb, var(--nm-warning) 60%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-warning) 40%, var(--nm-text));
+}
+
 /* ── Inventory quick-filter bar ───────────────────────────────────────────── */
 .inv-filter-bar {
   display: flex;
