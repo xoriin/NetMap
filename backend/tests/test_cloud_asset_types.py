@@ -162,3 +162,21 @@ def test_fresh_install_creates_cloud_asset_types_and_records_0082(monkeypatch):
     with engine.connect() as conn:
         assert conn.execute(text("SELECT COUNT(*) FROM schema_migrations WHERE name = '0082_cloud_asset_types'")).scalar() == 1
         assert conn.execute(text("PRAGMA integrity_check")).scalar() == "ok"
+
+
+def test_0082_preserves_non_ascii_and_punctuation_only_legacy_types():
+    conn = _legacy_conn()
+    _insert_assets(conn, ["服务器", "!!!", "  "])
+    before = conn.execute(text("SELECT id, name, provider_id, device_id FROM cloud_assets ORDER BY id")).fetchall()
+    _migrate_cloud_asset_types(conn, None)
+    kinds = _kinds(conn)
+    assert kinds[0] is not None and kinds[1] is not None
+    assert kinds[0] != kinds[1]
+    assert kinds[2] is None
+    labels = dict(conn.execute(text("SELECT value, label FROM cloud_asset_types")).fetchall())
+    assert labels[kinds[0]] == "服务器"
+    assert labels[kinds[1]] == "!!!"
+    assert conn.execute(text("SELECT id, name, provider_id, device_id FROM cloud_assets ORDER BY id")).fetchall() == before
+    _migrate_cloud_asset_types(conn, None)
+    assert _kinds(conn) == kinds
+    assert dict(conn.execute(text("SELECT value, label FROM cloud_asset_types")).fetchall()) == labels

@@ -1470,6 +1470,7 @@ _LEGACY_CLOUD_ASSET_KINDS = {
 
 def _migrate_cloud_asset_types(conn, inspector) -> None:
     """Map old fixed kinds onto the plain built-in types; keep any other value as a custom type."""
+    from hashlib import sha256
     from app.models.cloud import BUILT_IN_CLOUD_ASSET_TYPE_VALUES, normalize_cloud_asset_type_value
 
     conn.execute(text("""
@@ -1489,6 +1490,10 @@ def _migrate_cloud_asset_types(conn, inspector) -> None:
     for kind in kinds:
         cleaned = " ".join(kind.split())
         target = _LEGACY_CLOUD_ASSET_KINDS.get(cleaned.lower()) or normalize_cloud_asset_type_value(cleaned) or None
+        # Old records were not limited to today's ASCII type keys. Preserve a
+        # nonempty label even when normalisation produces no usable key.
+        if cleaned and target is None:
+            target = "legacy_" + sha256(cleaned.encode("utf-8")).hexdigest()[:32]
         if target and target not in BUILT_IN_CLOUD_ASSET_TYPE_VALUES and target not in custom:
             label = cleaned.replace("_", " ")
             conn.execute(
