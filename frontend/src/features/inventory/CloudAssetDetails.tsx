@@ -468,9 +468,6 @@ export function CloudAssetDetails({
             </dl>
             {(device || canWrite || record.type === "address") && (
               <div className="detail-actions detail-actions--device detail-actions--inline">
-                {canWrite && deviceId === null && canCreate && (
-                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => startCreate()}>Add to Inventory</button>
-                )}
                 {canWrite && deviceId === null && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => start(fields[0])}>Link device</button>
                 )}
@@ -484,6 +481,9 @@ export function CloudAssetDetails({
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={busy} onClick={() => void unlink()}>Unlink</button>
                 )}
                 {record.type === "address" && externalIpAction}
+                {canWrite && deviceId === null && canCreate && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => startCreate()}>Add to Inventory</button>
+                )}
               </div>
             )}
             {canWrite && <p id={hintId} className="details-edit-hint">Double-click any field to edit</p>}

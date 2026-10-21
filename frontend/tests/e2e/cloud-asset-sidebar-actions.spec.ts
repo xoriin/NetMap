@@ -38,5 +38,6 @@ for(const theme of ['light','dark'] as const) {
   await expectOneRow(page);
   await page.getByRole('button',{name:'Open Spare details'}).click();
   await expectOneRow(page);
+  await expect(page.locator('.inventory-device-sidebar .detail-actions--inline .nm-btn').last()).toHaveText('Add to Inventory');
  });
 }
