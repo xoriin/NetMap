@@ -274,3 +274,15 @@ def test_maintenance_exit_orphan_scan_is_batched_and_bounded(factory, monkeypatc
     assert retention.prune(factory, NOW, batch_size=2)["maintenance_exits"] == 1
     with factory() as db:
         assert set(db.scalars(select(StatusMaintenanceExit.source_key))) == {f"device:{d.id}" for d in live}
+
+
+def test_maintenance_exit_orphan_scan_starts_at_the_oldest_exit_still_retained(factory, monkeypatch):  # noqa: F811
+    with factory() as db:
+        for live in [seed_device(db) for _ in range(5)]:
+            db.add(StatusMaintenanceExit(source_key=f"device:{live.id}", maintenance_id=None, created_at=NOW - timedelta(days=31)))
+        db.add(StatusMaintenanceExit(source_key="device:999", maintenance_id=None, created_at=NOW))
+        db.commit()
+    monkeypatch.setattr(retention, "MAX_ROWS_PER_RUN", 4)
+    retention.prune(factory, NOW, batch_size=2)
+    with factory() as db:
+        assert "device:999" not in set(db.scalars(select(StatusMaintenanceExit.source_key)))

@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.retention import DEFAULT_BATCH_SIZE, MAX_ROWS_PER_RUN
@@ -103,8 +103,10 @@ def _orphan_exits(db: Session, rows) -> list[int]:
 
 
 def _prune_exits(db_factory: Callable[[], Session], now: datetime, batch_size: int) -> int:
-    total, scanned, after = 0, 0, 0
-    while scanned < MAX_ROWS_PER_RUN:
+    with db_factory() as db:
+        oldest = db.scalar(select(func.min(StatusMaintenanceExit.id)).where(StatusMaintenanceExit.created_at >= now - EXIT_RETENTION))
+    total, scanned, after = 0, 0, (oldest or 1) - 1
+    while oldest is not None and scanned < MAX_ROWS_PER_RUN:
         with db_factory() as db:
             rows = list(db.execute(
                 select(StatusMaintenanceExit.id, StatusMaintenanceExit.source_key)
