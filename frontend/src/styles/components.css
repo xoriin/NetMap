@@ -918,7 +918,9 @@ body.theme-dark .nm-status--warning { color: #e8b040; }
 
 .nm-app-panel-header,
 .topology-toolbar--ribbon,
-.inventory-device-sidebar-header {
+.inventory-device-sidebar-header,
+.security-results-meta,
+.tools-side-header {
   --nm-modal-header: var(--nm-panel-head-bg);
   --nm-border: var(--nm-panel-head-border);
   --nm-text: var(--nm-panel-head-text);
@@ -932,11 +934,11 @@ body.theme-dark .nm-status--warning { color: #e8b040; }
   --nm-tab-active-text: var(--nm-panel-head-tab-active-text);
 }
 
-body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) {
+body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) {
   color: var(--nm-panel-head-text);
 }
 
-:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) :is(.nm-btn--ghost, .dash-panel-link) {
+:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn--ghost, .dash-panel-link) {
   color: var(--nm-panel-head-link);
 }
 
@@ -944,7 +946,7 @@ body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inve
   color: var(--nm-panel-head-favourite);
 }
 
-:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header) :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, .inv-bulk-menu, [role="menu"], [role="listbox"]) {
+:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, .inv-bulk-menu, [role="menu"], [role="listbox"]) {
   --nm-modal-header: var(--nm-base-modal-header);
   --nm-border: var(--nm-base-border);
   --nm-text: var(--nm-base-text);

@@ -45,7 +45,7 @@ function headerTextContrast(page: Page) {
       return "rgb(255, 255, 255)";
     };
     const results: { text: string; className: string; ratio: number }[] = [];
-    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header"))) {
+    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header"))) {
       for (const el of Array.from(header.querySelectorAll("*"))) {
         const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
         if (!own || (el as HTMLElement).offsetParent === null || el.tagName === "OPTION") continue;
@@ -192,4 +192,21 @@ test("light summary cards are tinted per status with a deep top line and a solid
     await expect(card.locator(".dash-stat-icon")).toHaveCSS("color", "rgb(255, 255, 255)");
     await expect(card.locator(".dash-stat-value")).toHaveCSS("color", "rgb(19, 32, 44)");
   }
+});
+
+test("Security results and Tools side cards carry the light band too", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, devices);
+  await page.route("**/api/v1/syslog/events*", (route) => route.fulfill({ json: { retention_days: 7, total: 0, offset: 0, limit: 100, events: [] } }));
+  await page.route("**/api/v1/syslog/searches", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/syslog/status", (route) => route.fulfill({ json: { enabled: true, retention_days: 7, total_events: 0, received_packets: 0, stored_events: 0, dropped_unparsed: 0, denied_senders: 0 } }));
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/security");
+  await expect(page.locator(".security-results-meta")).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
+
+  await page.goto("/tools");
+  const sideHeaders = page.locator(".tools-side-header");
+  await expect(sideHeaders.first()).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });

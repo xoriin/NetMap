@@ -1829,7 +1829,8 @@ body:not(.theme-dark) .inventory-table-header,
 body:not(.theme-dark) .ipam-workspace .ipam-data-table th,
 body:not(.theme-dark) .ipam-detail-modal .ipam-addr-table th,
 body:not(.theme-dark) .vlan-workspace .vlan-table-header,
-body:not(.theme-dark).route-security .security-table-header {
+body:not(.theme-dark).route-security .security-table-header,
+body:not(.theme-dark) .admin-users-header {
   background: var(--nm-table-header-bg);
   border-bottom-color: var(--nm-table-header-border);
   color: var(--nm-table-header-text);
