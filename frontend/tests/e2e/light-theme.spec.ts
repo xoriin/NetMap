@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockDevice, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, mockRelationship, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 type Theme = "light" | "dark";
 
@@ -45,7 +45,7 @@ function headerTextContrast(page: Page) {
       return "rgb(255, 255, 255)";
     };
     const results: { text: string; className: string; ratio: number }[] = [];
-    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header"))) {
+    for (const header of Array.from(document.querySelectorAll(".nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading"))) {
       for (const el of Array.from(header.querySelectorAll("*"))) {
         const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
         if (!own || (el as HTMLElement).offsetParent === null || el.tagName === "OPTION") continue;
@@ -209,5 +209,39 @@ test("Security results and Tools side cards carry the light band too", async ({ 
   await page.goto("/tools");
   const sideHeaders = page.locator(".tools-side-header");
   await expect(sideHeaders.first()).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
+});
+
+test("light popup headers share the navy band with a readable title and close button", async ({ page }) => {
+  await openInventory(page, "light");
+  await page.locator("button", { hasText: /^\s*\+?\s*Device\s*$/ }).first().click();
+  const header = page.locator(".modal .modal-header").first();
+  await expect(header).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(header).toHaveCSS("border-bottom-color", "rgb(24, 40, 58)");
+  await expect(header.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
+  await expect(header.locator(".modal-close-btn")).toHaveCSS("color", "rgb(241, 245, 249)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
+});
+
+test("light Topology device and link detail headings share the navy band", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page,
+    [mockDevice({ id: 1, hostname: "router-01", topology_group: "Core" }), mockDevice({ id: 2, hostname: "switch-01", topology_group: "Core" })],
+    [mockRelationship({ id: 1, source_device_id: 1, target_device_id: 2, link_speed_mbps: 2500 })]);
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/topology");
+  const entityPanel = page.locator(".topo-entity-panel");
+  await entityPanel.locator(".topo-stat-btn--devices").click();
+  await entityPanel.locator(".topo-entity-row", { hasText: "router-01" }).click();
+  const heading = page.locator(".topology-details-panel .details-heading").first();
+  await expect(heading).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(heading.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
+  expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
+
+  await entityPanel.locator(".topo-stat-btn--relationships").click();
+  await entityPanel.locator(".topo-entity-row--relationship").click();
+  const linkHeading = page.locator(".relationship-detail__heading");
+  await expect(linkHeading).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(linkHeading.locator(".relationship-detail__heading-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });

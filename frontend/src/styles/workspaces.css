@@ -5180,3 +5180,56 @@ body.theme-dark .obs-row-type-badge--disappeared { background: rgba(224,80,80,0.
   color: #587183;
   background: #ecf1f6;
 }
+
+/* Light mode A panel header band (UI_THEME_RULES.md § Light mode A). */
+.modal .modal-header {
+  --nm-modal-header: var(--nm-panel-head-bg);
+  --nm-border: var(--nm-panel-head-border);
+  --nm-text: var(--nm-panel-head-text);
+  --nm-modal-label: var(--nm-panel-head-label);
+  --nm-text-muted: var(--nm-panel-head-muted);
+  --nm-text-faint: var(--nm-panel-head-faint);
+  --nm-accent: var(--nm-panel-head-icon-fg);
+  --nm-accent-soft: var(--nm-panel-head-icon-bg);
+  --nm-accent-strong: var(--nm-panel-head-accent);
+  --nm-tab-hover-text: var(--nm-panel-head-tab-hover-text);
+  --nm-tab-active-text: var(--nm-panel-head-tab-active-text);
+}
+
+body:not(.theme-dark) .modal .modal-header {
+  color: var(--nm-panel-head-text);
+}
+
+.modal .modal-header :is(.nm-btn--ghost, .dash-panel-link) {
+  color: var(--nm-panel-head-link);
+}
+
+.modal .modal-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.modal-close-btn), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, [role="menu"], [role="listbox"]) {
+  --nm-modal-header: var(--nm-base-modal-header);
+  --nm-border: var(--nm-base-border);
+  --nm-text: var(--nm-base-text);
+  --nm-modal-label: var(--nm-base-modal-label);
+  --nm-text-muted: var(--nm-base-text-muted);
+  --nm-text-faint: var(--nm-base-text-faint);
+  --nm-accent: var(--nm-base-accent);
+  --nm-accent-soft: var(--nm-base-accent-soft);
+  --nm-accent-strong: var(--nm-base-accent-strong);
+}
+
+body:not(.theme-dark) .modal .modal-header button.modal-close-btn {
+  background: transparent;
+  color: var(--nm-panel-head-text);
+}
+
+body:not(.theme-dark) .modal .modal-header button.modal-close-btn:hover {
+  background: var(--nm-panel-head-icon-bg);
+  color: var(--nm-on-deep);
+}
+
+body:not(.theme-dark) .modal .modal-header .ipam-cidr {
+  color: var(--nm-panel-head-link);
+}
+
+body:not(.theme-dark) .modal .modal-header .mon-device-ip {
+  color: var(--nm-panel-head-muted);
+}
