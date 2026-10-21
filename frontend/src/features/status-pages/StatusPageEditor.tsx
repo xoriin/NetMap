@@ -316,7 +316,6 @@ function PreviewPanel({ accessToken, pageId, stale, draft, revision }: {
         </button>
       </StatusEditorPanelHeader>
       <div className="status-editor-preview-body">
-        {draft && <p className="status-editor-hint">Appearance updates as you type. Save settings to publish your changes.</p>}
         {stale && <div className="nm-alert nm-alert--info">The preview uses the last saved layout and monitoring settings.</div>}
         {error && <div className="nm-alert nm-alert--error" role="alert">{error}</div>}
         {loading && !shown ? <PanelSkeleton lines={6} /> : shown && (
