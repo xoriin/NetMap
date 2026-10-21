@@ -120,6 +120,7 @@ test("light panel headers are navy bands with light text and a solid teal icon c
   await page.locator(".inventory-row").first().click();
   const sidebarHeader = page.locator(".inventory-device-sidebar-header");
   await expect(sidebarHeader).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(sidebarHeader.locator(".nm-btn--icon")).toHaveCSS("color", "rgb(177, 188, 199)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
 
