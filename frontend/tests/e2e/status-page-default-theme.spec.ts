@@ -22,6 +22,21 @@ for (const theme of ["light", "dark"] as const) {
         const result = [getComputedStyle(node).backgroundColor, getComputedStyle(probe).backgroundColor]; probe.remove(); return result;
       }, tone);
       expect(colours[0]).toBe(colours[1]);
+      const dot = banner.locator(".sp-summary-dot");
+      await expect(dot).toHaveCSS("animation-name", next === "operational" ? "sp-operational-breathe" : "none");
+      if (next === "operational") {
+        const phases = await dot.evaluate(node => {
+          const animation = node.getAnimations()[0];
+          animation.pause();
+          animation.currentTime = 0;
+          const before = getComputedStyle(node).opacity;
+          animation.currentTime = 1400;
+          const after = getComputedStyle(node).opacity;
+          animation.play();
+          return [before, after];
+        });
+        expect(phases[0]).not.toBe(phases[1]);
+      }
     }
     const frame = page.frameLocator("iframe.status-page-frame");
     await expect(frame.locator(".sp-page")).toHaveCSS("max-width", "1180px");
@@ -33,6 +48,10 @@ for (const theme of ["light", "dark"] as const) {
       }, tone);
       expect(colours[0]).toBe(colours[1]);
     }
+    state = "operational";
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/status/theme-check");
+    await expect(frame.locator(".sp-summary-dot")).toHaveCSS("animation-name", "none");
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await frame.locator("html").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   });

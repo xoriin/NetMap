@@ -97,7 +97,14 @@ summary:focus-visible { outline: 3px solid var(--sp-page-accent, var(--sp-accent
 .sp-summary[data-state="major"] { color: var(--sp-danger); background: var(--sp-danger-soft); border-color: var(--sp-danger); }
 .sp-summary[data-state="maintenance"] { color: var(--sp-maintenance); background: var(--sp-maintenance-soft); border-color: var(--sp-maintenance); }
 .sp-summary-dot { width: 12px; height: 12px; flex: none; border-radius: 50%; background: var(--sp-text-faint); }
-.sp-summary[data-state="operational"] .sp-summary-dot { background: var(--sp-success); }
+@keyframes sp-operational-breathe {
+  0%, 100% { opacity: 0.65; transform: scale(0.9); box-shadow: 0 0 0 0 var(--sp-success-soft); }
+  50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 0 5px var(--sp-success-soft); }
+}
+.sp-summary[data-state="operational"] .sp-summary-dot {
+  background: var(--sp-success);
+  animation: sp-operational-breathe 2.8s ease-in-out infinite;
+}
 .sp-summary[data-state="affected"] .sp-summary-dot { background: var(--sp-warning); }
 .sp-summary[data-state="major"] .sp-summary-dot { background: var(--sp-danger); }
 .sp-summary[data-state="maintenance"] .sp-summary-dot { background: var(--sp-maintenance); }
