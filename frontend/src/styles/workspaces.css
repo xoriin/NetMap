@@ -5182,7 +5182,7 @@ body:not(.theme-dark) .modal .modal-header button.modal-close-btn {
 }
 
 body:not(.theme-dark) .modal .modal-header button.modal-close-btn:hover {
-  background: var(--nm-panel-head-icon-bg);
+  background: var(--nm-panel-head-control-hover);
   color: var(--nm-on-deep);
 }
 

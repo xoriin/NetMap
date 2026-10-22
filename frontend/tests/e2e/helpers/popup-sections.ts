@@ -17,7 +17,7 @@ export const POPUP_SECTION_COLOURS = {
 };
 
 export const POPUP_HEADER_COLOURS = {
-  light: { headerBackground: "rgb(12, 35, 59)", headerBorder: "rgb(24, 40, 58)" },
+  light: { headerBackground: "rgb(47, 68, 91)", headerBorder: "rgb(24, 40, 58)" },
   dark: { headerBackground: "rgb(24, 38, 53)", headerBorder: "rgb(45, 61, 82)" },
 };
 

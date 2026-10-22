@@ -90,6 +90,7 @@ body.theme-dark {
   --nm-panel-head-muted: var(--nm-text-muted);
   --nm-panel-head-faint: var(--nm-text-faint);
   --nm-panel-head-icon-bg: var(--nm-accent-soft);
+  --nm-panel-head-control-hover: var(--nm-accent-soft);
   --nm-panel-head-icon-fg: var(--nm-accent);
   --nm-panel-head-accent: var(--nm-accent-strong);
   --nm-panel-head-link: var(--nm-accent-strong);

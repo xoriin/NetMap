@@ -2144,7 +2144,7 @@ body:not(.theme-dark) .mon-hero-header {
 body:not(.theme-dark) .mon-hero-header .mon-hero-name { color: var(--nm-panel-head-text); }
 body:not(.theme-dark) .mon-hero-header :is(.mon-hero-sub, .mon-hero-sub .mon-cell-mono) { color: var(--nm-panel-head-muted); }
 body:not(.theme-dark) .mon-hero-header .mon-hero-close { background: transparent; color: var(--nm-panel-head-text); }
-body:not(.theme-dark) .mon-hero-header .mon-hero-close:hover { background: var(--nm-panel-head-icon-bg); color: var(--nm-on-deep); }
+body:not(.theme-dark) .mon-hero-header .mon-hero-close:hover { background: var(--nm-panel-head-control-hover); color: var(--nm-on-deep); }
 body:not(.theme-dark) .mon-hero-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active), .nm-pill) {
   --nm-border: var(--nm-base-border);
   --nm-text: var(--nm-base-text);

@@ -77,13 +77,14 @@
   --nm-page-head-icon-bg: var(--nm-tone-teal-deep);
   --nm-page-head-icon-border: #24707d;
   --nm-page-head-icon-fg: var(--nm-on-deep);
-  --nm-panel-head-bg: #0c233b;
+  --nm-panel-head-bg: #2f445b;
   --nm-panel-head-border: #18283a;
   --nm-panel-head-text: #f1f5f9;
   --nm-panel-head-label: #f1f5f9;
   --nm-panel-head-muted: #b1bcc7;
   --nm-panel-head-faint: #b1bcc7;
-  --nm-panel-head-icon-bg: var(--nm-tone-teal-deep);
+  --nm-panel-head-icon-bg: var(--nm-panel-head-bg);
+  --nm-panel-head-control-hover: rgba(255, 255, 255, 0.12);
   --nm-panel-head-icon-fg: var(--nm-on-deep);
   --nm-panel-head-accent: var(--nm-on-deep);
   --nm-panel-head-link: #8fe0ee;
