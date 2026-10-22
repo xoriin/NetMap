@@ -1286,12 +1286,13 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
 }
 
 /* Version identity belongs to Admin; controls and status colours remain canonical. */
-.admin-version-summary { flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
-.admin-version-copy { display: grid; gap: 2px; min-width: 0; text-align: left; }
+body.route-admin .app-topbar { padding-block: var(--nm-space-2); }
+.admin-version-summary { flex-direction: column; align-items: flex-end; gap: var(--nm-space-1); max-width: 100%; }
+.admin-version-copy { display: flex; align-items: center; gap: var(--nm-space-2); min-width: 0; }
 .admin-version-caption { color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
 .admin-version-build { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
 .admin-version-build strong { color: var(--nm-text); font-size: 18px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
-.admin-version-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
+.admin-version-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--nm-space-1); }
 
 @media (min-width: 761px) and (max-width: 1100px) {
   body.route-admin .app-topbar { flex-wrap: wrap; row-gap: var(--nm-space-3); padding-block: var(--nm-space-3); }

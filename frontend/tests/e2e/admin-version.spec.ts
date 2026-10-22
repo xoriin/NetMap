@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { VersionInfo } from "../../src/api/client";
 import { mockUser, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
@@ -9,6 +9,22 @@ async function versionMocks(page: Page, info: VersionInfo) {
   await page.route("**/api/v1/auth/users", route => route.fulfill({ json: [] }));
   await page.route("**/api/v1/admin/role-permissions", route => route.fulfill({ json: { permissions: [], roles: { SuperAdmin: [], Viewer: [] } } }));
   await page.route("**/api/v1/system/version", route => route.fulfill({ json: info }));
+}
+
+async function expectVerticalVersion(summary: Locator) {
+  const rows = await summary.evaluate(node => {
+    const copy = node.querySelector(".admin-version-copy")!;
+    const actions = node.querySelector(".admin-version-actions")!;
+    return [copy, ...actions.children].map(row => {
+      const rect = row.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, right: rect.right };
+    });
+  });
+  expect(rows).toHaveLength(3);
+  for (let index = 1; index < rows.length; index++) {
+    expect(rows[index].top).toBeGreaterThanOrEqual(rows[index - 1].bottom + 4);
+    expect(Math.abs(rows[index].right - rows[0].right)).toBeLessThanOrEqual(1);
+  }
 }
 
 function versionInfo(state: "current" | "update" | "unavailable"): VersionInfo {
@@ -38,6 +54,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       await expect(summary.locator(".admin-version-build strong")).toHaveText("v1.7.0");
       await expect(summary.locator(".admin-version-build strong")).toHaveCSS("font-size", "18px");
       await expect(summary.getByText("Installed", { exact: true })).toBeVisible();
+      await expectVerticalVersion(summary);
       if (info.channel) await expect(summary.getByText(info.channel, { exact: true })).toHaveClass(/nm-status--unknown/);
       if (state === "update") {
         const link = summary.getByRole("link", { name: "v1.8.0 available" });
@@ -52,6 +69,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       await page.locator(".app-topbar").screenshot({ path: test.info().outputPath(`version-${theme}-${state}-desktop.png`) });
       for (const width of [1000, 780]) {
         await page.setViewportSize({ width, height: 950 });
+        await expectVerticalVersion(summary);
         const geometry = await summary.evaluate(node => {
           const box = node.getBoundingClientRect();
           const header = node.closest(".app-topbar")!.getBoundingClientRect();
