@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Search, Star } from "lucide-react";
+import { Globe, Search, Star } from "lucide-react";
 import { IconGauge, IconPlugConnected, IconWifi, IconWifiOff } from "@tabler/icons-react";
 import { api, type HttpMethod, type Monitor, type MonitorCheckHistoryPoint, type MonitorPayload } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
@@ -339,6 +339,7 @@ export function MonitorsPanel({
 
       <div className="dash-panel-header nm-app-panel-header monitors-table-toolbar">
         <div className="monitors-table-toolbar-meta">
+          <span className="nm-app-panel-icon" aria-hidden="true"><Globe size={18} /></span>
           <strong>HTTP/HTTPS endpoints</strong>
           <span className="dash-panel-meta">
             {filteredMonitors.length === monitors.length

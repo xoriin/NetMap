@@ -973,6 +973,19 @@ body:not(.theme-dark) .topology-details-panel .details-heading {
   color: var(--nm-panel-head-text);
 }
 
+/* Canonical panel header icon: an 18px glyph in a 30px accent well (UI_THEME_RULES.md § Panels). */
+.nm-app-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--nm-radius-sm);
+  background: var(--nm-accent-soft);
+  color: var(--nm-accent-strong);
+}
+
 :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn--ghost, .dash-panel-link),
 .modal .modal-header :is(.nm-btn--ghost, .dash-panel-link),
 .topology-details-panel .details-heading :is(.nm-btn--ghost, .dash-panel-link) {

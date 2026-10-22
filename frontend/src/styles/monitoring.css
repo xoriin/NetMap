@@ -3948,7 +3948,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 }
 .mon-table-toolbar-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
@@ -4024,7 +4024,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 }
 .monitors-table-toolbar-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   color: var(--nm-text);
   font-size: 13px;

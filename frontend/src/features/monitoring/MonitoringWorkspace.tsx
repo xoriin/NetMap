@@ -1013,6 +1013,7 @@ export function MonitoringWorkspace({
         <div key={viewTab} className={`dash-panel nm-app-panel mon-view-window mon-view-window--${viewTab}`}>
           {viewTab === "devices" && <div className="dash-panel-header nm-app-panel-header mon-device-window-header">
               <div className="mon-table-toolbar-meta">
+                <span className="nm-app-panel-icon" aria-hidden="true"><Activity size={18} /></span>
                 <strong>Devices</strong>
                 <span>
                   {filteredDevices.length === devices.length

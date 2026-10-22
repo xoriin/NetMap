@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import "./tools.css";
-import { Bookmark, CheckCircle2, Clock3, Copy, Download, Network, RotateCcw, Search, Trash2 } from "lucide-react";
+import { BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, Search, Trash2 } from "lucide-react";
 import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -1183,7 +1183,7 @@ export function ToolsWorkspace({
         <aside className="tools-support-rail" aria-label="Tool activity and guidance">
           <section className="tools-activity nm-app-panel" aria-label="Recent activity">
             <div className="tools-side-header">
-              <span>Recent activity</span>
+              <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><History size={18} /></span><span>Recent activity</span></span>
               {recentRuns.length > 0 && (
                 <button type="button" className="tools-header-action" onClick={() => setRecentRuns([])}>Clear</button>
               )}
@@ -1218,7 +1218,7 @@ export function ToolsWorkspace({
           </section>
 
           <section className="tools-saved nm-app-panel" aria-label="Saved results">
-            <div className="tools-side-header"><span>Saved results</span><small>{savedResults.length}</small></div>
+            <div className="tools-side-header"><span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><Bookmark size={18} /></span><span>Saved results</span></span><small>{savedResults.length}</small></div>
             <div className="tools-run-list">
               {savedResults.length === 0 && <p className="tools-rail-empty">Save a completed check to keep its result and inputs.</p>}
               {savedResults.slice(0, 5).map((run) => {
@@ -1243,7 +1243,7 @@ export function ToolsWorkspace({
 
           <section className="tools-guide nm-app-panel" aria-label={`${activeToolDefinition.label} guide`}>
           <div className="tools-side-header">
-            <span>How {activeToolDefinition.label} works</span>
+            <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><BookOpen size={18} /></span><span>How {activeToolDefinition.label} works</span></span>
             <span className={`tool-badge ${activeToolDefinition.passive ? "" : canRunActiveTools ? "active" : "locked"}`}>
               {activeToolDefinition.passive ? "Passive" : canRunActiveTools ? "Active" : "Restricted"}
             </span>

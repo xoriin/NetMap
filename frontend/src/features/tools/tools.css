@@ -258,6 +258,13 @@ body.theme-dark .tools-workspace .tool-target-strip strong {
   font-weight: 700;
 }
 
+.tools-side-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--nm-space-2);
+}
+
 .tools-side-header > small {
   min-width: 24px;
   border-radius: 999px;
