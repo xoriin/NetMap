@@ -161,6 +161,9 @@ test("light tables use slate column headers, near-white rows and a slate selecte
   await expect(header).toHaveCSS("color", "rgb(59, 77, 96)");
   await expect(header).toHaveCSS("border-bottom-color", "rgb(214, 220, 227)");
 
+  const table = page.locator(".inventory-table").first();
+  await expect(table).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  expect(await table.evaluate((el) => getComputedStyle(el).borderTopColor)).not.toContain("155, 185, 208");
   const row = page.locator(".inventory-row").nth(1);
   await expect(row).toHaveCSS("background-color", "rgb(254, 254, 254)");
   await expect(row).toHaveCSS("border-bottom-color", "rgb(233, 235, 238)");

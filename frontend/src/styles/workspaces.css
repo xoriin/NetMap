@@ -1820,11 +1820,6 @@ body:not(.theme-dark) .inv-pagination {
   background: var(--nm-surface-tint);
 }
 
-body:not(.theme-dark) .inventory-table {
-  background: var(--nm-surface-tint);
-  border-color: rgba(155, 185, 208, 0.78);
-}
-
 body:not(.theme-dark) .inventory-table-header,
 body:not(.theme-dark) .ipam-workspace .ipam-data-table th,
 body:not(.theme-dark) .ipam-detail-modal .ipam-addr-table th,
