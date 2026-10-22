@@ -4468,3 +4468,15 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
   height: 10px;
   border-radius: 2px;
 }
+@keyframes hb-arrive {
+  0% { transform: scale(1, 0); opacity: 0; filter: brightness(1.6); }
+  60% { transform: scale(1.2, 1.25); opacity: 1; filter: brightness(1.35); }
+  100% { transform: scale(1, 1); filter: none; }
+}
+.heartbeat-bar--lg .heartbeat-beat.is-new {
+  transform-origin: center bottom;
+  animation: hb-arrive 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat-bar--lg .heartbeat-beat.is-new { animation: none; }
+}

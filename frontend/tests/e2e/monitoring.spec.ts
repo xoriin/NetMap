@@ -714,3 +714,37 @@ test("Check now sits in the popup header with the other actions", async ({ page 
   expect((await check.boundingBox())!.height).toBe((await pause.boundingBox())!.height);
   expect(Math.abs((await check.boundingBox())!.y - (await pause.boundingBox())!.y)).toBeLessThanOrEqual(1);
 });
+
+test("a newly arrived heartbeat animates in at the end, and only that one", async ({ page }) => {
+  let count = 24;
+  await page.clock.install({ time: new Date("2026-10-22T10:00:00Z") });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+  await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+  await page.route("**/api/v1/monitoring/devices/*/history?*", (route) => route.fulfill({ json: historyPoints(count) }));
+  await page.goto("/monitoring");
+  await page.locator(".mon-row", { hasText: "Core Router" }).click();
+  const beats = page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat");
+  await expect(beats).toHaveCount(24);
+  await expect(page.locator(".mon-hero .heartbeat-beat.is-new")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const seen: { index: number; total: number; animation: string }[] = [];
+    (window as unknown as { __arrivals: typeof seen }).__arrivals = seen;
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        const el = mutation.target as HTMLElement;
+        if (!el.classList?.contains("is-new")) continue;
+        const siblings = Array.from(el.parentElement?.children ?? []);
+        seen.push({ index: siblings.indexOf(el), total: siblings.length, animation: getComputedStyle(el).animationName });
+      }
+    }).observe(document.querySelector(".mon-hero .heartbeat-bar--lg")!, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+  });
+  count = 25;
+  await page.clock.runFor(120_000);
+  await expect(beats).toHaveCount(25);
+  const arrivals = () => page.evaluate(() => (window as unknown as { __arrivals: { index: number; total: number; animation: string }[] }).__arrivals);
+  await expect.poll(async () => (await arrivals()).length).toBeGreaterThan(0);
+  for (const arrival of await arrivals()) expect(arrival).toEqual({ index: 24, total: 25, animation: "hb-arrive" });
+});

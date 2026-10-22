@@ -1,4 +1,4 @@
-import { useRef, useState, memo, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, memo, type KeyboardEvent, type MouseEvent } from "react";
 import type { MonitorHistoryPoint } from "../api/client";
 import { beatBg, sampleHistory } from "../utils/monitoring";
 
@@ -67,7 +67,22 @@ function HeartbeatTooltip({ point, anchor }: { point: MonitorHistoryPoint; ancho
 function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoint[]; hours: number }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
+  const [freshIds, setFreshIds] = useState<Set<number>>(() => new Set());
   const barRef = useRef<HTMLDivElement>(null);
+  const seenRef = useRef<Set<number> | null>(null);
+
+  useEffect(() => {
+    const ids = sampleHistory(history).map((point) => point.id);
+    const seen = seenRef.current;
+    seenRef.current = new Set(ids);
+    if (!seen) return undefined;
+    const arrived: number[] = [];
+    for (let index = ids.length - 1; index >= 0 && !seen.has(ids[index]); index -= 1) arrived.push(ids[index]);
+    if (!arrived.length || arrived.length > 3) return undefined;
+    setFreshIds(new Set(arrived));
+    const timer = window.setTimeout(() => setFreshIds(new Set()), 900);
+    return () => window.clearTimeout(timer);
+  }, [history]);
 
   if (history.length === 0) return <p className="dash-empty">No poll data yet.</p>;
 
@@ -134,7 +149,7 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
         {beats.map((h, index) => (
           <span
             key={h.id}
-            className={`heartbeat-beat heartbeat-beat--clickable${index === active ? " is-active" : ""}${index === pinnedIndex ? " is-pinned" : ""}`}
+            className={`heartbeat-beat heartbeat-beat--clickable${index === active ? " is-active" : ""}${index === pinnedIndex ? " is-pinned" : ""}${freshIds.has(h.id) ? " is-new" : ""}`}
             style={{ background: beatBg(h.is_healthy === true ? "healthy" : h.is_healthy === false ? "unhealthy" : "unknown") }}
           />
         ))}
