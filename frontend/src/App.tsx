@@ -4,11 +4,12 @@ import {
   type SystemSettings, type TokenPair, type User, type VersionInfo, api, isMfaChallenge, subscribeTokenRefresh,
 } from "./api/client";
 import { useGraphData } from "./hooks/useGraphData";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import { useTheme } from "./providers/ThemeProvider";
 import { EntityColorProvider } from "./providers/EntityColorProvider";
 import { storageKeys, readBool, writeBool } from "./utils/storage";
 import {
-  type AppRoute,
+  type AppRoute, appRoutes,
   readStoredTokens, storeTokens, readRouteFromLocation, navigateToRoute, isMethodNotAllowedError,
   routeBodyClass, routeDocumentTitle,
 } from "./routes";
@@ -18,6 +19,7 @@ import { SetupView } from "./features/auth/SetupView";
 import { LoginView } from "./features/auth/LoginView";
 import { ResetPasswordView } from "./features/auth/ResetPasswordView";
 import { Sidebar, AppTopbar, clearStickySidebarMenus } from "./Sidebar";
+import { MobileMoreSheet, MobileSectionTabs, MobileTabBar } from "./MobileNav";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 import { RuntimeSecurityAlert } from "./components/RuntimeSecurityAlert";
@@ -48,6 +50,8 @@ function WorkspaceApp() {
   const [topbarNote, setTopbarNote] = useState<ReactNode>("");
   const idleTimeoutMs = (appSettings?.idle_timeout_minutes ?? 0) * 60 * 1000;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readBool(storageKeys.sidebarCollapsed));
+  const isPhone = useMediaQuery("(max-width: 760px)");
+  const [moreOpen, setMoreOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -55,6 +59,8 @@ function WorkspaceApp() {
     const params = new URLSearchParams(window.location.search);
     return params.get("reset_token");
   });
+
+  useEffect(() => { setMoreOpen(false); }, [currentRoute, isPhone]);
 
   const accessToken = tokens?.access_token ?? null;
   const canViewSecurity = userHasPermission(user, "security_view");
@@ -406,14 +412,25 @@ function WorkspaceApp() {
     );
   }
 
+  function goToRoute(route: AppRoute) {
+    if (route === currentRoute) return;
+    navigateToRoute(route);
+    setCurrentRoute(route);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  const visibleRoutes = appRoutes
+    .filter((route) => !route.requiresSecurityRole || canViewSecurity)
+    .filter((route) => !route.requiresSuperAdmin || canAccessAdmin)
+    .filter((route) => route.href !== "/exports" || canAccessExports);
+
   return (
     <EntityColorProvider enabled={user?.entity_colors_enabled ?? true}>
-    <main className={sidebarCollapsed ? "app-shell app-shell--sidebar-collapsed" : "app-shell"}>
+    <main className={sidebarCollapsed && !isPhone ? "app-shell app-shell--sidebar-collapsed" : "app-shell"}>
       <Sidebar
         canAccessAdmin={canAccessAdmin}
         canAccessExports={canAccessExports}
         canViewSecurity={canViewSecurity}
-        collapsed={sidebarCollapsed}
+        collapsed={sidebarCollapsed && !isPhone}
         currentRoute={currentRoute}
         onLogout={() => void handleLogout("user")}
         onToggleCollapse={() => {
@@ -424,19 +441,13 @@ function WorkspaceApp() {
           });
         }}
         openObservationCount={openObservationCount}
-        onNavigate={(route) => {
-          if (route === currentRoute) {
-            return;
-          }
-          navigateToRoute(route);
-          setCurrentRoute(route);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
+        onNavigate={goToRoute}
         versionInfo={versionInfo}
         user={user}
       />
       <section className="app-main">
         <AppTopbar currentRoute={currentRoute} user={user} note={topbarNote} />
+        {isPhone && <MobileSectionTabs currentRoute={currentRoute} user={user} />}
         <TopbarNoteCtx.Provider value={setTopbarNote}>
         <section className="workspace">
           {error && <div className="error-banner">{error}</div>}
@@ -476,6 +487,25 @@ function WorkspaceApp() {
         </section>
         </TopbarNoteCtx.Provider>
       </section>
+      {isPhone && (
+        <MobileTabBar
+          routes={visibleRoutes}
+          currentRoute={currentRoute}
+          moreOpen={moreOpen}
+          openObservationCount={openObservationCount}
+          onNavigate={goToRoute}
+          onToggleMore={() => setMoreOpen((open) => !open)}
+        />
+      )}
+      {isPhone && moreOpen && (
+        <MobileMoreSheet
+          routes={visibleRoutes}
+          currentRoute={currentRoute}
+          onNavigate={(route) => { setMoreOpen(false); goToRoute(route); }}
+          onClose={() => setMoreOpen(false)}
+          onLogout={() => void handleLogout("user")}
+        />
+      )}
     </main>
     </EntityColorProvider>
   );

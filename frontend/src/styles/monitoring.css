@@ -4486,3 +4486,126 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
 @media (prefers-reduced-motion: reduce) {
   .heartbeat-bar--lg .heartbeat-beat.is-new { animation: none; }
 }
+
+/* Phone: the fleet table becomes a list of device cards. */
+@media (max-width: 760px) {
+  .mon-device-window-header.nm-app-panel-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .mon-device-window-header .mon-panel-controls {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .mon-device-window-header .mon-search-wrap {
+    order: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+
+  .mon-device-window-header .mon-search-wrap .mon-search {
+    width: 100%;
+  }
+
+  .mon-device-window-header .nm-phone-filters-btn {
+    order: 0;
+    margin-left: 0;
+  }
+
+  .mon-device-window-header .nm-phone-filter-group {
+    order: 1;
+  }
+
+  .mon-device-window-header .mon-panel-controls > .nm-btn--primary {
+    order: 2;
+  }
+
+  .mon-table-body--fleet {
+    padding: 10px;
+    background: var(--nm-panel-body-bg);
+  }
+
+  .mon-table-body--fleet .mon-table--fleet,
+  .mon-table-body--fleet .mon-table--fleet tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mon-table-body--fleet .mon-table--fleet colgroup,
+  .mon-table-body--fleet .mon-table--fleet thead {
+    display: none;
+  }
+
+  .mon-table-body--fleet .mon-table--fleet tr.mon-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-bottom: 8px;
+    padding: 12px;
+    border: 1px solid var(--nm-border);
+    border-radius: var(--nm-radius-md);
+    background: var(--nm-modal-section);
+  }
+
+  .mon-table-body--fleet .mon-table--fleet tr.mon-row--active {
+    border-color: var(--nm-accent);
+  }
+
+  .mon-table-body--fleet .mon-table--fleet tr.mon-row {
+    height: auto;
+  }
+
+  .mon-table-body--fleet .mon-table--fleet tr.mon-row > td {
+    display: block;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .mon-table-body--fleet .mon-table--fleet tr.mon-row::after {
+    content: "";
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .mon-table-body--fleet tr.mon-row > td:nth-child(1) { order: 0; }
+  .mon-table-body--fleet tr.mon-row > td:nth-child(2) { order: 0; }
+  .mon-table-body--fleet tr.mon-row > td:nth-child(3) { order: 1; flex: 1 1 0; min-width: 0; }
+  .mon-table-body--fleet tr.mon-row > td:nth-child(4),
+  .mon-table-body--fleet tr.mon-row > td:nth-child(5),
+  .mon-table-body--fleet tr.mon-row > td:nth-child(7) { order: 4; font-size: 12px; }
+  .mon-table-body--fleet tr.mon-row > td:nth-child(6),
+  .mon-table-body--fleet tr.mon-row > td:nth-child(8),
+  .mon-table-body--fleet tr.mon-row > td:nth-child(9),
+  .mon-table-body--fleet tr.mon-row > td.mon-table-filler { display: none; }
+
+  .mon-table-body--fleet .mon-device-cell {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .mon-table-body--fleet .mon-device-cell .heartbeat-bar--sm {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mon-table-body--fleet .mon-device-cell .heartbeat-beat {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+}

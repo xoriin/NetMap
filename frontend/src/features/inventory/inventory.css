@@ -312,3 +312,82 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 .inventory-cloud-type-actions { display: flex; justify-content: flex-end; gap: var(--nm-space-2); }
 
 .inventory-cloud-inventory-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--nm-space-2); }
+
+/* Phone: each device row becomes a card — name and status, then its details. */
+@media (max-width: 760px) {
+  .inventory-layout .inventory-table {
+    padding: 10px;
+    background: var(--nm-panel-body-bg);
+  }
+
+  .inventory-layout .inventory-table-header {
+    display: none;
+  }
+
+  .inventory-layout .inventory-table .inventory-row,
+  body:not(.theme-dark) .inventory-layout .inventory-table .inventory-row:not(.active) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-height: 0;
+    margin-bottom: 8px;
+    padding: 12px;
+    border: 1px solid var(--nm-border);
+    border-radius: var(--nm-radius-md);
+    background: var(--nm-modal-section);
+  }
+
+  .inventory-layout .inventory-table .inventory-row.active {
+    border-color: var(--nm-accent);
+  }
+
+  .inventory-layout .inventory-row::before {
+    content: "";
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .inventory-layout .inventory-row > :nth-child(1) { order: 0; }
+  .inventory-layout .inventory-row > :nth-child(2) { order: 1; flex: 1 1 0; min-width: 0; font-weight: 650; }
+  .inventory-layout .inventory-row > :nth-child(6) { order: 2; }
+  .inventory-layout .inventory-row > :nth-child(5) { display: none; }
+  .inventory-layout .inventory-row > :nth-child(n + 3):not(:nth-child(5)):not(:nth-child(6)) {
+    order: 4;
+    flex: 0 0 auto;
+    color: var(--nm-text-muted);
+    font-size: 12px;
+  }
+
+  .inventory-layout .inventory-row > :nth-child(3) {
+    margin-left: 52px;
+  }
+
+  .inventory-layout .inventory-panel-header.nm-app-panel-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .inventory-layout .inventory-panel-header .inv-sep {
+    display: none;
+  }
+
+  .inventory-layout .inventory-panel-header .inv-search-box {
+    order: 1;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .inventory-layout .inventory-panel-header .nm-phone-filter-group {
+    order: 2;
+  }
+
+  .inventory-layout .inventory-panel-header > .nm-btn:not(.nm-phone-filters-btn),
+  .inventory-layout .inventory-panel-header > .inv-bulk-menu {
+    order: 3;
+  }
+}
+

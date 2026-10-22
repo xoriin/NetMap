@@ -15,7 +15,7 @@ import {
 } from "./inventoryNavigation";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { Search, Star, ChevronDown } from "lucide-react";
+import { Search, Star, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -108,6 +108,7 @@ export function InventoryWorkspace({
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<InventoryStatusFilter>("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const [bulkGroupId, setBulkGroupId] = useState('');
   const [bulkDeviceType, setBulkDeviceType] = useState('');
   const [bulkSiteId, setBulkSiteId] = useState('');
@@ -723,6 +724,20 @@ export function InventoryWorkspace({
                   : graph.devices.length}
               </span>
             </span>
+            <button
+              type="button"
+              className={`nm-btn nm-btn--secondary nm-phone-filters-btn${phoneFiltersOpen ? " nm-btn--active" : ""}`}
+              aria-expanded={phoneFiltersOpen}
+              onClick={() => setPhoneFiltersOpen((open) => !open)}
+            >
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              Filters
+              {(() => {
+                const active = [selectedGroupFilter !== "all", selectedSiteFilter !== "all", selectedTypeFilter !== "all", statusFilter !== "all", favouriteFilter].filter(Boolean).length;
+                return active > 0 ? <span className="nm-phone-filters-count">{active}</span> : null;
+              })()}
+            </button>
+            <div className={`nm-phone-filter-group${phoneFiltersOpen ? " is-open" : ""}`}>
             <SwatchSelect
               ariaLabel="Filter by VLAN / group"
               value={selectedGroupFilter}
@@ -757,6 +772,7 @@ export function InventoryWorkspace({
               <Star size={13} fill={favouriteFilter ? "currentColor" : "none"} />
               Favs
             </button>
+            </div>
             {canWrite && (
               <>
                 <span className="inv-sep" />

@@ -1456,135 +1456,6 @@ body.theme-dark .topology-toolbar-right button:hover {
     --nm-topbar-height: 56px;
   }
 
-  .app-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .app-main {
-    min-height: calc(100dvh - 52px);
-  }
-
-  /* Sidebar collapses to a horizontal icon strip at the top */
-  .sidebar {
-    flex-direction: row;
-    align-items: center;
-    padding: 0 10px;
-    min-height: 52px;
-    height: auto;
-    overflow-y: visible;
-    border-right: none;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-    gap: 0;
-  }
-
-  .brand {
-    min-height: auto;
-    padding: 2px 10px 2px 4px;
-    font-size: 15px;
-    flex-shrink: 0;
-    margin-right: 2px;
-  }
-
-  .sidebar nav {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    gap: 0;
-    margin-top: 0;
-    flex: 1;
-    min-width: 0;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .sidebar nav::-webkit-scrollbar { display: none; }
-
-	  .sidebar-section-label {
-	    display: none;
-	  }
-
-	  .sidebar-section-rule {
-	    display: none;
-	  }
-
-  .sidebar-link {
-    justify-content: center;
-    font-size: 0; /* hide text labels, keep icons */
-    padding: 8px;
-    min-height: 40px;
-    width: 40px;
-    flex-shrink: 0;
-    border-left: none;
-    border-bottom: 2px solid transparent;
-    border-radius: 8px;
-  }
-
-	  .sidebar-link.active {
-	    background: linear-gradient(90deg, rgba(29, 154, 176, 0.28) 0%, rgba(29, 154, 176, 0.06) 65%, transparent 100%);
-	    border-left-color: var(--nm-accent);
-	    border-bottom-color: transparent;
-	    padding-left: 8px;
-	    color: var(--nm-sidebar-active);
-	  }
-
-  .sidebar-footer-actions {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
-    width: auto;
-    margin-top: 0;
-    flex-shrink: 0;
-  }
-
-  .sidebar-docs-link,
-  .sidebar-theme-toggle,
-  .sidebar-logout,
-  .sidebar-collapse-btn--footer {
-    font-size: 0;
-    width: 34px;
-    min-height: 34px;
-    justify-content: center;
-    padding: 6px;
-    margin-top: 0;
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-  }
-
-  .sidebar-logout {
-    margin-top: 0;
-    margin-left: 4px;
-  }
-
-  /* Workspace */
-  .app-topbar {
-    min-height: var(--nm-topbar-height);
-    padding: 0 16px;
-  }
-
-  .app-topbar-icon {
-    width: 38px;
-    height: 38px;
-  }
-
-  .app-topbar-copy strong {
-    font-size: 20px;
-  }
-
-  .app-topbar-status {
-    display: none;
-  }
-
-  .app-topbar-greeting {
-    display: none;
-  }
-
-  .app-topbar-copy small {
-    max-width: 52vw;
-  }
-
   .workspace {
     padding: 20px 16px;
   }
@@ -1641,7 +1512,7 @@ body.theme-dark .topology-toolbar-right button:hover {
   }
 
   #topology.topology-layout {
-    height: calc(100dvh - 52px - var(--nm-topbar-height) - 96px);
+    height: calc(100dvh - var(--nm-topbar-height) - 96px);
     min-height: 0;
   }
 
@@ -1651,12 +1522,12 @@ body.theme-dark .topology-toolbar-right button:hover {
 
   body.route-topology .app-main,
   body.route-security .app-main {
-    height: calc(100dvh - 52px);
+    height: 100dvh;
   }
 
   body.route-topology .workspace,
   body.route-security .workspace {
-    height: calc(100dvh - 52px - var(--nm-topbar-height));
+    height: calc(100dvh - var(--nm-topbar-height));
   }
 
   .topology-toolbar-right,
@@ -1718,10 +1589,17 @@ body.theme-dark .topology-toolbar-right button:hover {
   .scan-table-header,
   .scan-row,
   .admin-users-header,
-  .admin-users-row,
-  .inventory-table-header,
-  .inventory-row {
+  .admin-users-row {
     grid-template-columns: 1fr;
+  }
+
+  .inv-pagination {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .inv-pagination-info {
+    flex: 1 1 100%;
   }
 
   .device-event-row {
@@ -1744,156 +1622,20 @@ body.theme-dark .topology-toolbar-right button:hover {
     justify-content: flex-start;
   }
 
-  body.theme-dark .sidebar {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-  }
 }
 
-/* ── Phone (≤480px) — sidebar becomes fixed bottom navigation ─────────────── */
+/* ── Phone (≤480px) ───────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   :root {
     --nm-topbar-height: 54px;
   }
 
-  /* Cancel the grid so sidebar can be position:fixed */
-  .app-shell {
-    display: block;
-    min-height: 100dvh;
-  }
-
-  .app-main {
-    min-height: 100dvh;
-  }
-
-  /* Fixed bottom nav bar */
-  .sidebar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    flex-direction: row;
-    align-items: center;
-    padding: 0 4px env(safe-area-inset-bottom);
-    height: 56px;
-    min-height: 56px;
-    border-bottom: none;
-    border-top: 1px solid rgba(0, 0, 0, 0.28);
-    border-right: none;
-    gap: 0;
-    flex-wrap: nowrap;
-  }
-
-  .brand { display: none; }
-
-  .sidebar nav {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    gap: 0;
-    margin-top: 0;
-    flex: 1;
-    min-width: 0;
-    justify-content: space-around;
-    -webkit-overflow-scrolling: touch;
-  }
-  .sidebar nav::-webkit-scrollbar { display: none; }
-
-	  .sidebar-section-label { display: none; }
-	  .sidebar-section-rule { display: none; }
-
-  .sidebar-link {
-    flex: 1;
-    justify-content: center;
-    font-size: 0;
-    padding: 4px 6px;
-    min-height: 48px;
-    width: auto;
-    min-width: 0;
-    flex-shrink: 1;
-    border-left: none;
-    border-bottom: none;
-    border-top: 2px solid transparent;
-    border-radius: 0;
-  }
-
-	  .sidebar-link.active {
-	    background: linear-gradient(90deg, rgba(29, 154, 176, 0.24) 0%, rgba(29, 154, 176, 0.06) 65%, transparent 100%);
-	    border-left-color: var(--nm-accent);
-    border-bottom-color: transparent;
-    border-top-color: transparent;
-    color: var(--nm-sidebar-active);
-    padding-left: 6px;
-  }
-
-  .sidebar-docs-link,
-  .sidebar-theme-toggle,
-  .sidebar-logout,
-  .sidebar-collapse-btn--footer {
-    font-size: 0;
-    width: 44px;
-    min-height: 48px;
-    justify-content: center;
-    padding: 4px;
-    margin-top: 0;
-    flex-shrink: 0;
-    border: none;
-    border-radius: 0;
-    border-top: 2px solid transparent;
-  }
-  .sidebar-logout { margin-top: 0; margin-left: 0; }
-
-  .sidebar-footer-actions {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0;
-    width: auto;
-    margin-top: 0;
-    flex-shrink: 0;
-  }
-
-  /* Workspace: add bottom clearance for fixed nav */
-  .app-topbar {
-    min-height: var(--nm-topbar-height);
-    padding: 0 12px;
-  }
-
-  .app-topbar-icon {
-    width: 30px;
-    height: 30px;
-  }
-
-  .app-topbar-copy strong {
-    font-size: 18px;
-  }
-
-  .app-topbar-user {
-    max-width: 150px;
-    padding: 5px 8px;
-  }
-
-  .app-topbar-user em {
-    display: none;
-  }
-
-  .app-topbar-greeting {
-    display: none;
-  }
-
-  .app-topbar-copy small {
-    display: none;
-  }
-
   .workspace {
-    padding: 16px 12px 72px;
+    padding: 16px 12px;
     min-height: 100dvh;
     box-sizing: border-box;
   }
 
-  /* Topology route: canvas must clear the fixed nav */
   body.route-topology .app-shell {
     height: 100dvh;
     overflow: hidden;
@@ -1907,16 +1649,16 @@ body.theme-dark .topology-toolbar-right button:hover {
   body.route-topology .workspace {
     height: calc(100dvh - var(--nm-topbar-height));
     overflow: hidden;
-    padding: 10px 10px 56px;
+    padding: 10px;
   }
 
   body.route-security .workspace {
     height: calc(100dvh - var(--nm-topbar-height));
-    padding: 16px 12px 72px;
+    padding: 16px 12px;
   }
 
   #topology.topology-layout {
-    height: calc(100dvh - var(--nm-topbar-height) - 56px - 104px);
+    height: calc(100dvh - var(--nm-topbar-height) - 104px);
     min-height: 0;
   }
 
@@ -2014,9 +1756,6 @@ body.theme-dark .topology-toolbar-right button:hover {
     grid-template-columns: 1fr;
   }
 
-  body.theme-dark .sidebar {
-    border-top-color: rgba(255, 255, 255, 0.1);
-  }
 }
 
 /* Admin tabs */

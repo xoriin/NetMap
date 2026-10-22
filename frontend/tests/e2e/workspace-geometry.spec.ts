@@ -158,7 +158,7 @@ for (const theme of ["light", "dark"] as const) {
     await setupWorkspaceMocks(page, theme);
     const routes = ["/overview", "/inventory", "/locations", "/monitoring", "/ipam", "/tools", "/security", "/exports"];
 
-    for (const width of [1440, 700]) {
+    for (const width of [1440, 820]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of routes) {
         await page.goto(route);
@@ -215,7 +215,7 @@ for (const theme of ["light", "dark"] as const) {
     ] as const;
 
     const measuredGaps: Record<string, number> = {};
-    for (const width of [1440, 700]) {
+    for (const width of [1440, 820]) {
       await page.setViewportSize({ width, height: 900 });
       for (const [route, summarySelector, surfaceSelector] of routes) {
         await page.goto(route);
@@ -229,7 +229,7 @@ for (const theme of ["light", "dark"] as const) {
       }
     }
     expect(measuredGaps).toEqual(Object.fromEntries(
-      [1440, 700].flatMap((width) => routes.map(([route]) => [`${route} at ${width}px`, 16])),
+      [1440, 820].flatMap((width) => routes.map(([route]) => [`${route} at ${width}px`, 16])),
     ));
     expect(renderLoopWarnings, "workspace navigation should not trigger React render loops").toEqual([]);
   });
@@ -239,7 +239,7 @@ for (const theme of ["light", "dark"] as const) {
   test(`External IPAM keeps its cards on the shared workspace anchor in ${theme} mode`, async ({ page }) => {
     await setupExternalIps(page, { theme });
 
-    for (const width of [1440, 700]) {
+    for (const width of [1440, 820]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.locator(".external-ip-workspace")).toBeVisible();
       await expectAlignedEdges(page, ".ipam-workspace", ".external-ip-workspace", `External IPAM shell at ${width}px`);
@@ -260,7 +260,7 @@ for (const theme of ["light", "dark"] as const) {
 test("full-bleed workspaces keep their documented MOTD anchors at desktop and narrow widths", async ({ page }) => {
   await setupWorkspaceMocks(page, "dark");
 
-  for (const width of [1440, 700]) {
+  for (const width of [1440, 820]) {
     await page.setViewportSize({ width, height: 900 });
 
     await page.goto("/inventory");

@@ -100,22 +100,22 @@ for (const theme of ["light", "dark"] as const) {
   }
 }
 
-test("documentation link fits the mobile bottom bar", async ({ page }) => {
+test("documentation and theme toggle sit side by side in the phone More sheet", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await setupCoreMocks(page);
   await setupTopologyMocks(page);
   await setupMonitoringMocks(page);
   await page.goto("/overview");
-  const docs = page.locator(".sidebar-docs-link");
-  const toggle = page.locator(".sidebar-theme-toggle");
-  const [d, t] = await Promise.all([docs.boundingBox(), toggle.boundingBox()]);
+  await page.getByRole("button", { name: "More" }).click();
+  const sheet = page.getByRole("dialog", { name: "More" });
+  const [d, t] = await Promise.all([sheet.getByRole("link", { name: "Docs" }).boundingBox(), sheet.getByRole("button", { name: /mode$/ }).boundingBox()]);
   expect(d && t && Math.round(d.width) === Math.round(t.width) && Math.round(d.height) === Math.round(t.height)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 const avatar = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aShoAAAAASUVORK5CYII=";
 for (const theme of ["light", "dark"] as const) {
-  for (const mode of ["expanded", "collapsed", "mobile"] as const) {
+  for (const mode of ["expanded", "collapsed"] as const) {
     test(`Profile photo keeps sidebar geometry in ${theme} ${mode}`, async ({ page }) => {
       await page.setViewportSize({ width: mode === "mobile" ? 390 : 1280, height: 900 });
       await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);

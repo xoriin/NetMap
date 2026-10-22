@@ -1,7 +1,7 @@
 import { useToast } from "../../components/Toast";
 import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
-import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, X } from "lucide-react";
+import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, SlidersHorizontal, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
 import {
   api,
@@ -251,6 +251,7 @@ export function MonitoringWorkspace({
   const [filterDeviceType, setFilterDeviceType] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const [devicesPage, setDevicesPage] = useState(1);
   const [devicesPageSize, setDevicesPageSize] = useState(() => loadPageSize(MON_DEVICES_PAGE_SIZE_KEY));
   const deviceTypeOptions = useDeviceTypes(accessToken).options;
@@ -1023,6 +1024,20 @@ export function MonitoringWorkspace({
               </div>
               <div className="mon-panel-controls">
                 {refreshing && <span className="mon-refresh-status">Updating...</span>}
+                <button
+                  type="button"
+                  className={`nm-btn nm-btn--secondary nm-phone-filters-btn${phoneFiltersOpen ? " nm-btn--active" : ""}`}
+                  aria-expanded={phoneFiltersOpen}
+                  onClick={() => setPhoneFiltersOpen((open) => !open)}
+                >
+                  <SlidersHorizontal size={14} aria-hidden="true" />
+                  Filters
+                  {(() => {
+                    const active = [filterStatus, filterHealth, filterDeviceType, filterGroup, filterSite, filterVlan].filter((value) => value !== "all").length + (favouriteFilter ? 1 : 0);
+                    return active > 0 ? <span className="nm-phone-filters-count">{active}</span> : null;
+                  })()}
+                </button>
+                <div className={`nm-phone-filter-group${phoneFiltersOpen ? " is-open" : ""}`}>
                 <SwatchSelect
                   ariaLabel="Filter by status"
                   className="mon-filter-picker"
@@ -1063,6 +1078,7 @@ export function MonitoringWorkspace({
                   <Star size={13} fill={favouriteFilter ? "currentColor" : "none"} />
                   Favs
                 </button>
+                </div>
                 {canManagePorts && (
                   <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={() => setShowPortsModal(true)}>
                     Ports

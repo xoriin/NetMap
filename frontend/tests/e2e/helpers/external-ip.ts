@@ -291,6 +291,14 @@ export async function setupExternalIps(page: Page, options: ExternalOptions = {}
  * fallback, so the workspace boots on Internal networks.
  */
 export async function openExternalIps(page: Page) {
+  const more = page.locator(".mobile-tabbar").getByRole("button", { name: "More" });
+  if (await more.isVisible().catch(() => false)) {
+    await more.click();
+    await page.getByRole("dialog", { name: "More" }).getByRole("link", { name: "IPAM", exact: true }).click();
+    await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "External IPs" }).click();
+    await page.locator(".external-ip-panel").waitFor({ state: "visible", timeout: 10000 });
+    return;
+  }
   const link = page.getByRole("link", { name: "External IPs" });
   if (!await link.isVisible().catch(() => false)) {
     await page.getByRole("link", { name: "IPAM", exact: true }).click();
