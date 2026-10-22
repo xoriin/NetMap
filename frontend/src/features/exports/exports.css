@@ -23,6 +23,10 @@
   align-items: start;
 }
 
+.exports-console-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .exports-stack {
   display: grid;
   min-width: 0;
@@ -83,20 +87,11 @@ body.theme-dark .exports-panel.nm-app-panel {
   padding: 16px;
 }
 
-.exports-panel-copy,
-.exports-permission-note {
+.exports-panel-copy {
   margin: 0;
   color: var(--nm-text-muted);
   font-size: var(--nm-text-xs);
   line-height: 1.55;
-}
-
-.exports-permission-note {
-  border: 1px solid color-mix(in srgb, var(--nm-warning) 25%, var(--nm-border));
-  border-radius: var(--nm-radius-md);
-  padding: 9px 10px;
-  background: color-mix(in srgb, var(--nm-warning) 8%, transparent);
-  color: var(--nm-warning);
 }
 
 .exports-format-callout {

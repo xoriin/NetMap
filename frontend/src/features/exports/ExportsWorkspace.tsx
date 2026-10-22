@@ -7,13 +7,12 @@ import { triggerDownload } from "../../utils/download";
 import { userHasPermission } from "../../utils/permissions";
 import { DashStat } from "../../components/DashStat";
 
-function ExportPanelHeader({ icon, title, allowed }: { icon: ReactNode; title: string; allowed: boolean }) {
+function ExportPanelHeader({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <div className="exports-panel-header nm-app-panel-header">
       <span className="exports-panel-identity">
         <span className="exports-panel-icon">{icon}</span><span aria-hidden="true">-</span><strong>{title}</strong>
       </span>
-      <span className={`tool-badge ${allowed ? "active" : "locked"}`}>{allowed ? "Allowed" : "Restricted"}</span>
     </div>
   );
 }
@@ -27,6 +26,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
   const canExportInventory = userHasPermission(user, "inventory_export");
   const canExportFirewall = userHasPermission(user, "firewall_export");
   const canExportReport = userHasPermission(user, "report_export");
+  const hasStack = canExportInventory || canExportReport;
   const [firewallFormat, setFirewallFormat] = useState<"csv" | "json">("csv");
   const [inventoryFormat, setInventoryFormat] = useState<"csv" | "json">("csv");
   const [firewallFilters, setFirewallFilters] = useState(EMPTY_FIREWALL_FILTERS);
@@ -69,10 +69,10 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
         <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? "None yet"} valueClassName="dash-stat-value--compact" icon={<CalendarClock size={19} />} accent="purple" />
       </div>
 
-      <div className="exports-console-grid">
-        <div className="exports-stack">
-          <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<Database size={18} />} title="Device inventory" allowed={canExportInventory} />
+      <div className={`exports-console-grid${hasStack && canExportFirewall ? "" : " exports-console-grid--single"}`}>
+        {hasStack && <div className="exports-stack">
+          {canExportInventory && <section className="exports-panel nm-app-panel">
+            <ExportPanelHeader icon={<Database size={18} />} title="Device inventory" />
             <div className="exports-panel-body">
               <p className="exports-panel-copy">Download the current inventory with device identity, addressing, status and assignment fields.</p>
               <div className="exports-format-callout">
@@ -85,34 +85,32 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
                   <option value="json">JSON — Structured data</option>
                 </select>
               </label>
-              {!canExportInventory && <p className="exports-permission-note">Your role cannot export inventory data.</p>}
               <div className="exports-panel-actions">
                 <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
                   <Download size={15} />{busyKey === "inventory" ? "Preparing…" : "Download inventory"}
                 </button>
               </div>
             </div>
-          </section>
+          </section>}
 
-          <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<FileText size={18} />} title="Network report" allowed={canExportReport} />
+          {canExportReport && <section className="exports-panel nm-app-panel">
+            <ExportPanelHeader icon={<FileText size={18} />} title="Network report" />
             <div className="exports-panel-body">
               <p className="exports-panel-copy">Generate a presentation-ready report combining topology, inventory, subnet utilisation and blocked-traffic leaders.</p>
               <div className="exports-report-contents" aria-label="Report contents">
                 <span>Topology summary</span><span>Inventory snapshot</span><span>Subnet summary</span><span>Traffic leaders</span>
               </div>
-              {!canExportReport && <p className="exports-permission-note">Your role cannot generate reports.</p>}
               <div className="exports-panel-actions">
                 <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportReport || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
                   <Download size={15} />{busyKey === "report" ? "Preparing…" : "Download PDF report"}
                 </button>
               </div>
             </div>
-          </section>
-        </div>
+          </section>}
+        </div>}
 
-        <section className="exports-panel exports-panel--firewall nm-app-panel">
-          <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall events" allowed={canExportFirewall} />
+        {canExportFirewall && <section className="exports-panel exports-panel--firewall nm-app-panel">
+          <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall events" />
           <div className="exports-panel-body">
             <p className="exports-panel-copy">Export retained firewall events with optional query filters. Empty filters include all available events up to the selected limit.</p>
             <div className="exports-firewall-form">
@@ -144,7 +142,6 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
                 <input className="nm-input" placeholder="e.g. wan" disabled={!canExportFirewall} value={firewallFilters.interface} onChange={(event) => setFirewallFilters((current) => ({ ...current, interface: event.target.value }))} />
               </label>
             </div>
-            {!canExportFirewall && <p className="exports-permission-note">Your role cannot export firewall data.</p>}
             <div className="exports-filter-summary"><span>{activeFirewallFilters} active filters</span><span>Up to {(Number(firewallFilters.limit) || 5000).toLocaleString()} rows</span></div>
             <div className="exports-panel-actions exports-panel-actions--split">
               <button type="button" className="nm-btn nm-btn--secondary" disabled={!canExportFirewall} onClick={() => setFirewallFilters(EMPTY_FIREWALL_FILTERS)}>Clear filters</button>
@@ -153,7 +150,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
               </button>
             </div>
           </div>
-        </section>
+        </section>}
       </div>
     </section>
   );

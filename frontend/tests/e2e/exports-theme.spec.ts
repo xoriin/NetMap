@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockUser, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 async function setupExports(page: Page, theme: "light" | "dark") {
   await setupCoreMocks(page, "Maintenance window tonight");
@@ -62,4 +62,20 @@ test("Exports reflows without horizontal overflow", async ({ page }) => {
   const widths = await page.locator(".exports-layout").evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));
   expect(widths.scroll).toBeLessThanOrEqual(widths.client);
   await expect(page.locator(".exports-console-grid")).toHaveCSS("grid-template-columns", /.+/);
+});
+
+test("only the exports a role may run are shown, with no access chips", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page);
+  await page.route("**/api/v1/auth/me", (route) => route.fulfill({ json: { ...mockUser, role: "SecurityAnalyst", permissions: ["security_view", "tools_passive", "firewall_export"] } }));
+  await page.route("**/api/v1/exports/summary", (route) => route.fulfill({ json: { inventory_rows: 0, firewall_events: 10, exports_last_30_days: 0, last_export_at: null, last_export_type: null, last_export_detail: null } }));
+  await page.goto("/exports");
+  await page.locator(".exports-layout").waitFor({ state: "visible" });
+  await expect(page.locator(".exports-panel")).toHaveCount(1);
+  await expect(page.locator(".exports-panel")).toContainText("Firewall events");
+  await expect(page.locator(".exports-console-grid")).toHaveClass(/exports-console-grid--single/);
+  await expect(page.getByText(/Allowed|Restricted|Your role cannot/)).toHaveCount(0);
+  const panel = await page.locator(".exports-panel").boundingBox();
+  const grid = await page.locator(".exports-console-grid").boundingBox();
+  expect(Math.abs(panel!.width - grid!.width)).toBeLessThanOrEqual(1);
 });
