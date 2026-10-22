@@ -632,6 +632,13 @@ body.theme-dark .nm-swatch-trigger {
   color: var(--nm-text-muted);
 }
 
+body .nm-swatch-trigger:hover,
+body .nm-swatch-trigger[aria-expanded="true"] {
+  border-color: var(--nm-dropdown-hover-border);
+  background: var(--nm-dropdown-hover-bg);
+  color: var(--nm-text);
+}
+
 body.theme-dark .nm-swatch-list {
   background: var(--nm-surface);
   border-color: var(--nm-border);
@@ -1427,8 +1434,10 @@ body.theme-dark .modal .modal-form .nm-pick-filter input:not([type="checkbox"]):
   font-size: var(--nm-text-md);
 }
 
-.modal .modal-form .nm-swatch-trigger:hover {
-  border-color: color-mix(in srgb, var(--nm-accent) 34%, var(--nm-border-strong));
+.modal .modal-form .nm-swatch-trigger:hover,
+.modal .modal-form .nm-swatch-trigger[aria-expanded="true"] {
+  border-color: var(--nm-dropdown-hover-border);
+  background: var(--nm-dropdown-hover-bg);
 }
 
 .modal .modal-form .nm-swatch-trigger:focus-visible {

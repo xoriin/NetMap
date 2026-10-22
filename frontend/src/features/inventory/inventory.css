@@ -62,7 +62,13 @@
 
 .inventory-layout .inventory-panel-header .inv-select:hover,
 .inventory-layout .inventory-panel-header .nm-swatch-trigger:hover,
-.inventory-layout .inv-pagination-select:hover,
+.inventory-layout .inventory-panel-header .nm-swatch-trigger[aria-expanded="true"],
+.inventory-layout .inv-pagination-select:hover {
+  border-color: var(--nm-dropdown-hover-border);
+  background: var(--nm-dropdown-hover-bg);
+  color: var(--nm-text);
+}
+
 .inventory-layout .inv-pagination-btn:hover:not(:disabled) {
   border-color: var(--nm-tab-hover-border);
   background: var(--nm-tab-hover-bg);

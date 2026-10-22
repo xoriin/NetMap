@@ -88,3 +88,20 @@ test("heartbeat beats stay thick on long histories", async ({ page }) => {
   await expect(beats).toHaveCount(60);
   expect((await beats.first().boundingBox())!.width).toBeGreaterThanOrEqual(6);
 });
+
+for (const [theme, style, fill] of [["light", "slate", "rgb(223, 230, 238)"], ["dark", "slate", "rgba(34, 211, 238, 0.2)"], ["dark", "zinc", "rgba(45, 212, 191, 0.18)"]] as const) {
+  test(`dropdown triggers darken clearly on hover in ${theme} ${style}`, async ({ page }) => {
+    await boot(page, theme, style);
+    await page.goto("/inventory");
+    const filter = page.locator(".inventory-panel-header .nm-swatch-trigger").first();
+    await filter.hover();
+    await expect(filter).toHaveCSS("background-color", fill);
+    await page.locator(".inv-bulk-menu summary").click();
+    const bulkField = page.locator(".inv-bulk-menu-field .nm-swatch-trigger").first();
+    await bulkField.hover();
+    await expect(bulkField).toHaveCSS("background-color", fill);
+    await bulkField.click();
+    await page.mouse.move(5, 5);
+    await expect(bulkField).toHaveCSS("background-color", fill);
+  });
+}

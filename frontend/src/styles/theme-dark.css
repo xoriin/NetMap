@@ -30,6 +30,8 @@ html:has(body.theme-dark) {
   --nm-row-hover-edge: rgba(29, 154, 176, 0.3);
   --nm-option-hover-bg: rgba(34, 211, 238, 0.2);
   --nm-option-hover-edge: var(--nm-accent);
+  --nm-dropdown-hover-bg: var(--nm-option-hover-bg);
+  --nm-dropdown-hover-border: rgba(34, 211, 238, 0.5);
   --nm-scrollbar-thumb: #475569;
   --nm-scrollbar-thumb-hover: rgba(34, 211, 238, 0.65);
   --nm-btn-hover-bg: #253046;
@@ -167,6 +169,7 @@ html:has(body.theme-dark.theme-dark-zinc) {
   --nm-table-header-border: #3f3f46;
   --nm-row-hover: #222226;
   --nm-option-hover-bg: rgba(45, 212, 191, 0.18);
+  --nm-dropdown-hover-border: rgba(45, 212, 191, 0.5);
   --nm-scrollbar-thumb: #52525b;
   --nm-scrollbar-thumb-hover: rgba(45, 212, 191, 0.65);
   --nm-track-bg: rgba(161,161,170,0.18);

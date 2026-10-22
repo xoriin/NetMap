@@ -130,6 +130,8 @@
   --nm-row-hover-edge: transparent;
   --nm-option-hover-bg: #dfe6ee;
   --nm-option-hover-edge: var(--nm-accent);
+  --nm-dropdown-hover-bg: var(--nm-option-hover-bg);
+  --nm-dropdown-hover-border: rgba(29, 154, 176, 0.6);
   --nm-scrollbar-thumb: rgba(47, 68, 91, 0.38);
   --nm-scrollbar-thumb-hover: rgba(29, 154, 176, 0.8);
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
