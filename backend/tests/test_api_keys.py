@@ -1,6 +1,9 @@
 """Service-layer tests for API key generation, verification, and lifecycle."""
 
 from datetime import datetime, timedelta, timezone
+import hmac
+import math
+import string
 
 import pytest
 from sqlalchemy import create_engine, select, text
@@ -11,6 +14,7 @@ from app.db.session import Base
 from app.core.security import hash_password
 from app.models.api_key import ApiKey, ApiKeyThrottleState
 from app.models.user import User, UserRole
+from app.services.api_keys import service as key_service
 from app.services.api_keys.service import (
     KEY_SCHEME,
     PREFIX_LEN,
@@ -90,6 +94,44 @@ def test_generate_api_key_format():
 def test_generated_prefixes_are_unique():
     prefixes = {generate_api_key()[1] for _ in range(200)}
     assert len(prefixes) == 200
+
+
+@pytest.mark.parametrize("scheme", ["nm", "nmsp"])
+def test_api_and_integration_secrets_have_at_least_256_bits_of_csprng_entropy(monkeypatch, scheme):
+    alphabet = string.ascii_letters + string.digits
+    choices = []
+
+    def choose(characters):
+        assert characters == alphabet
+        choices.append(characters)
+        return "A"
+
+    monkeypatch.setattr(key_service.secrets, "choice", choose)
+    plaintext, prefix, _ = key_service.generate_scheme_key(scheme)
+    secret = plaintext.split("_", 2)[2]
+    assert len(choices) == len(prefix) + len(secret)
+    assert len(secret) * math.log2(len(alphabet)) >= 256
+
+
+def test_key_mac_matches_rfc4231_sha256_vector_and_depends_on_server_key(monkeypatch):
+    monkeypatch.setattr(key_service, "signing_secret", lambda: "\x0b" * 20)
+    assert key_service.hash_key("Hi There") == (
+        "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+    )
+    monkeypatch.setattr(key_service, "signing_secret", lambda: "another-server-key")
+    assert key_service.hash_key("Hi There") != (
+        "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+    )
+
+
+def test_existing_hmac_sha256_key_remains_usable(db, user, monkeypatch):
+    monkeypatch.setattr(key_service, "signing_secret", lambda: "legacy-server-key")
+    plaintext = "nm_legacyPrefix_" + "A" * 43
+    digest = hmac.new(b"legacy-server-key", plaintext.encode(), "sha256").hexdigest()
+    key = ApiKey(user_id=user.id, name="legacy", prefix="legacyPrefix", key_hash=digest)
+    db.add(key)
+    db.commit()
+    assert verify_and_load(db, plaintext).id == key.id
 
 
 def test_verify_valid_key(db, user):

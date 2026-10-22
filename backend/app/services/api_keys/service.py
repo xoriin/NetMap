@@ -27,8 +27,10 @@ def _random_token(length: int) -> str:
 
 
 def _hash_key(raw_key: str) -> str:
-    # This is a keyed MAC, not an unsalted password hash. Using hmac.digest keeps
-    # the construction explicit while preserving the existing HMAC-SHA256 output.
+    # API/integration keys have 43 CSPRNG alphanumeric secret characters (>256
+    # bits of entropy), not human passwords. HMAC-SHA256 is intentional here;
+    # account passwords use Argon2 in core/security.py. Preserve this digest
+    # format so existing persisted keys continue to authenticate.
     return hmac.digest(
         signing_secret().encode("utf-8"),
         raw_key.encode("utf-8"),
