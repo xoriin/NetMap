@@ -5,7 +5,7 @@ import { beatBg, sampleHistory } from "../utils/monitoring";
 function HeartbeatBarImpl({ beats, health, size = "sm" }: { beats: string[]; health?: string[]; size?: "sm" | "lg" }) {
   if (beats.length === 0) return null;
   // Newest beat is always last in the array (oldest -> newest); CSS right-anchors the bar.
-  const displayBeats = size === "sm" ? beats.slice(-30) : beats;
+  const displayBeats = size === "sm" ? beats.slice(-24) : beats;
   return (
     <div className={`heartbeat-bar heartbeat-bar--${size}`}>
       {displayBeats.map((status, i) => {

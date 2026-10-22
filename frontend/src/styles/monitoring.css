@@ -1816,13 +1816,13 @@ tr.mon-port-sort-row.is-drag-over > td:not(:last-child)::before { right: 0; bord
   flex-shrink: 0;
 }
 .heartbeat-bar--sm .heartbeat-beat {
-  flex: 0 0 6px;
-  width: 6px;
-  height: 14px;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 16px;
   border-radius: 2px;
 }
 /* lg beats fill available width — capped so they never look stretched on sparse data */
-.heartbeat-bar--lg .heartbeat-beat { flex: 1; min-width: 2px; max-width: 14px; height: 28px; border-radius: 3px; flex-shrink: 1; }
+.heartbeat-bar--lg .heartbeat-beat { flex: 1; min-width: 5px; max-width: 18px; height: 32px; border-radius: 3px; flex-shrink: 1; }
 
 .heartbeat-beat--online  { background: var(--dash-green); }
 .heartbeat-beat--offline { background: var(--dash-red); }
@@ -4099,7 +4099,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 }
 .monitors-heartbeat-cell .heartbeat-beat {
   flex-shrink: 1;
-  min-width: 3px;
+  min-width: 5px;
 }
 .monitors-heartbeat-empty {
   color: var(--nm-text-faint);

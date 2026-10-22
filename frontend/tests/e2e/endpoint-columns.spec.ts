@@ -43,7 +43,7 @@ for (const theme of ["light", "dark"] as const) {
       for (const index of [2, 4, 8]) expect(geometry[index].textEdgeDelta).toBeLessThanOrEqual(1);
       for (const index of [5, 6, 7]) { expect(geometry[index].headerCentreDelta).toBeLessThanOrEqual(1); expect(geometry[index].valueCentreDelta).toBeLessThanOrEqual(1); }
       const heartbeat = table.locator(".heartbeat-bar--sm").first();
-      await expect(heartbeat.locator(".heartbeat-beat")).toHaveCount(30);
+      await expect(heartbeat.locator(".heartbeat-beat")).toHaveCount(24);
       const beatFits = await heartbeat.evaluate(bar => {
         const bounds = bar.getBoundingClientRect();
         return [...bar.children].every(beat => {

@@ -9,7 +9,7 @@ export const BEAT_COLOR: Record<string, string> = {
   unknown: "#7a8fa0",
 };
 
-export const HB_MAX_BEATS = 120;
+export const HB_MAX_BEATS = 60;
 
 export const MON_COL_WIDTHS_KEY = "netmap.mon_col_widths_v9";
 // 7 resizable cols: Device | Type | 24h | 7d | Avg RTT | Services | Checked
