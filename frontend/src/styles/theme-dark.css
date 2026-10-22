@@ -27,6 +27,9 @@ body.theme-dark {
   --nm-tab-hover-border: rgba(29, 154, 176, 0.2);
   --nm-tab-active-border: rgba(29, 154, 176, 0.3);
   --nm-row-hover-edge: rgba(29, 154, 176, 0.3);
+  --nm-btn-hover-bg: #243d54;
+  --nm-btn-hover-border: rgba(34, 192, 207, 0.4);
+  --nm-btn-hover-text: var(--nm-accent-strong);
   --nm-tab-hover-text: #4db8cc;
   --nm-tab-active-text: #40d4ea;
   --nm-modal-shell: #121c27;

@@ -63,6 +63,9 @@
   --nm-on-deep: #ffffff;
   --nm-btn-secondary-bg: #eceef1;
   --nm-btn-secondary-border: #aab3bd;
+  --nm-btn-hover-bg: #e4f3f5;
+  --nm-btn-hover-border: #a5d7df;
+  --nm-btn-hover-text: var(--nm-accent-strong);
   --nm-btn-danger-bg: #f8e0e0;
   --nm-btn-danger-border: #e2a3a3;
   --nm-btn-danger-text: #ae3838;

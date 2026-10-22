@@ -322,3 +322,23 @@ test("light buttons: soft danger and neutral secondary are a step stronger and r
   await expect(secondary).toHaveCSS("background-color", "rgb(236, 238, 241)");
   await expect(secondary).toHaveCSS("border-top-color", "rgb(170, 179, 189)");
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`a hovered button on the panel band stays solid and readable in ${theme} mode`, async ({ page }) => {
+    await openInventory(page, theme);
+    const button = page.locator(".nm-app-panel-header").getByRole("button", { name: "Import" }).first();
+    await button.hover();
+    await expect.poll(() => button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(228, 243, 245)" : "rgb(36, 61, 84)");
+    const ratio = await button.evaluate((el) => {
+      const ch = (v: string) => (v.match(/[\d.]+/g) ?? []).map(Number);
+      const lum = ([r, g, b]: number[]) => [r, g, b].map((c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const cs = getComputedStyle(el); const a = lum(ch(cs.color)); const b = lum(ch(cs.backgroundColor));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    if (theme === "light") {
+      expect(await resolve(page, "--nm-btn-hover-bg", "backgroundColor")).toBe("rgb(228, 243, 245)");
+      expect(await resolve(page, "--nm-btn-hover-text")).toBe("rgb(29, 100, 114)");
+    }
+  });
+}

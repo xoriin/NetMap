@@ -651,9 +651,9 @@ body.theme-dark .nm-swatch-option--hl {
 }
 
 .nm-btn:hover:not(:disabled) {
-  border-color: rgba(29, 154, 176, 0.4);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent-strong);
+  border-color: var(--nm-btn-hover-border);
+  background: var(--nm-btn-hover-bg);
+  color: var(--nm-btn-hover-text);
 }
 
 .nm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -684,9 +684,9 @@ body.theme-dark .nm-swatch-option--hl {
 }
 
 .nm-btn.nm-btn--secondary:hover:not(:disabled) {
-  border-color: rgba(29, 154, 176, 0.4);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent-strong);
+  border-color: var(--nm-btn-hover-border);
+  background: var(--nm-btn-hover-bg);
+  color: var(--nm-btn-hover-text);
 }
 
 .nm-btn.nm-btn--primary:hover:not(:disabled) {
@@ -756,9 +756,9 @@ body.theme-dark .nm-btn {
 }
 
 body.theme-dark .nm-btn:hover:not(:disabled) {
-  border-color: rgba(34, 192, 207, 0.4);
-  background: #243d54;
-  color: var(--nm-accent-strong);
+  border-color: var(--nm-btn-hover-border);
+  background: var(--nm-btn-hover-bg);
+  color: var(--nm-btn-hover-text);
 }
 
 body.theme-dark .nm-btn--primary { border-color: #1a6a78; background: #1a6a78; }
