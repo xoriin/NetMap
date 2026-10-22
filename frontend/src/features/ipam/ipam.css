@@ -30,7 +30,7 @@
 .external-ip-table tbody td { background: var(--nm-table-row-bg); }
 /* Reserve the full action set, then divide the remaining width equally between
    every data column, including Location when the grouping lens shows it. */
-.external-ip-table .external-ip-col-actions { width: 300px; }
+.external-ip-table .external-ip-col-actions { width: 310px; }
 .external-ip-search { min-width: 220px; max-width: 520px; flex: 0 1 420px; }
 .external-ip-status-filter { display: flex; flex-shrink: 0; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-xs); font-weight: 700; }
 .external-ip-status-filter .nm-select { width: 130px; }

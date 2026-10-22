@@ -662,7 +662,7 @@ body.theme-dark .nm-swatch-option--hl {
   height: var(--nm-control-sm);
   padding: 0 var(--nm-space-3);
   border-radius: var(--nm-radius-sm);
-  font-size: var(--nm-text-xs);
+  font-size: var(--nm-text-sm);
 }
 
 .nm-btn--lg {

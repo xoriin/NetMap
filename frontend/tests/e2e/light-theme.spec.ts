@@ -150,6 +150,18 @@ for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(40
   });
 }
 
+test("small buttons use the same 12px text as standard buttons", async ({ page }) => {
+  await openInventory(page, "light");
+  await page.evaluate(() => {
+    const button = document.createElement("button");
+    button.className = "nm-btn nm-btn--sm";
+    button.id = "probe-sm";
+    button.textContent = "Probe";
+    document.body.appendChild(button);
+  });
+  await expect(page.locator("#probe-sm")).toHaveCSS("font-size", "12px");
+});
+
 for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(21, 33, 46)"]] as const) {
   test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
