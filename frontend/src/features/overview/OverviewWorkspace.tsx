@@ -998,7 +998,7 @@ export function OverviewWorkspace({
                     <div className="mon-hero-section-title">
                       Heartbeat
                       <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span className="dash-panel-meta">hover or click to inspect</span>
+                        <span className="dash-panel-meta hb-inspect-hint">hover or click to inspect</span>
                         <select
                           className="mon-hours-select"
                           value={favouriteHistoryHours}

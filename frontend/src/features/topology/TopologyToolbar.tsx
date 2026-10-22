@@ -271,9 +271,9 @@ export function TopologyToolbar({
           <button type="button" className="nm-btn nm-btn--sm" onClick={onResetLayout}>Reset view</button>
           {canWrite && (
             <>
-              <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPng}>PNG</button>
-              <button type="button" className="nm-btn nm-btn--sm" onClick={onExportSvg}>SVG</button>
-              <button type="button" className="nm-btn nm-btn--sm" onClick={onExportPdf}>PDF</button>
+              <button type="button" className="nm-btn nm-btn--sm toolbar-export-btn" onClick={onExportPng}>PNG</button>
+              <button type="button" className="nm-btn nm-btn--sm toolbar-export-btn" onClick={onExportSvg}>SVG</button>
+              <button type="button" className="nm-btn nm-btn--sm toolbar-export-btn" onClick={onExportPdf}>PDF</button>
             </>
           )}
         </div>

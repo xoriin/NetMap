@@ -162,7 +162,7 @@ export function MonitorDetails({
             <section className="mon-hero-section">
               <div className="mon-hero-section-title">
                 Heartbeat
-                <span className="dash-panel-meta">hover or click to inspect</span>
+                <span className="dash-panel-meta hb-inspect-hint">hover or click to inspect</span>
               </div>
               <div className="mon-heartbeat-body">
                 {historyLoading && history.length === 0

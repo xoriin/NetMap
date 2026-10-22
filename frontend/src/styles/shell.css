@@ -1598,7 +1598,8 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
     flex: 0 0 148px;
     width: 148px;
     min-width: 0;
-    min-height: 0;
+    height: auto;
+    min-height: 62px;
     padding: 9px 12px;
     gap: 8px;
     scroll-snap-align: start;
@@ -1665,6 +1666,68 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
 
   .mobile-section-tabs {
     flex-shrink: 0;
+  }
+
+  body .mon-hero-backdrop {
+    place-items: stretch;
+    padding: 0;
+  }
+
+  body .mon-hero {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  body .mon-hero-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  body .mon-hero-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  body .mon-hero-stats {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body .mon-hero-stat {
+    flex: 0 0 auto;
+    min-width: 116px;
+    padding: 10px 14px;
+  }
+
+  body .mon-hero-body {
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  body .mon-hero-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  body .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  body .modal,
+  body .modal.modal--wide {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  body .hb-inspect-hint {
+    display: none;
   }
 }
 

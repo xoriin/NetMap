@@ -1068,3 +1068,31 @@ body.theme-dark .topology-overlay-label {
   background: color-mix(in srgb, var(--nm-bg) 94%, transparent);
   color: var(--nm-text);
 }
+
+/* Phone: a compact two-row toolbar so the map keeps most of the screen. */
+@media (max-width: 760px) {
+  .topology-toolbar.topology-toolbar--ribbon {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px 8px;
+    padding: 8px 10px;
+  }
+
+  .topology-toolbar--ribbon .toolbar-divider,
+  .topology-toolbar--ribbon .toolbar-export-btn,
+  .topology-toolbar--ribbon .toolbar-group:has(.toolbar-group--toggles),
+  .topology-toolbar--ribbon .inv-stat-chip-label {
+    display: none;
+  }
+
+  .topology-toolbar--ribbon .topology-ribbon-identity {
+    display: none;
+  }
+
+  .topology-toolbar--ribbon .toolbar-group,
+  .topology-toolbar--ribbon .toolbar-group-controls {
+    display: contents;
+  }
+}

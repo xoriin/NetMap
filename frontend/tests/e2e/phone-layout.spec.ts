@@ -95,3 +95,32 @@ test("summary cards become a compact strip on a phone", async ({ page }) => {
   expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
   expect(first!.width).toBeLessThan(170);
 });
+
+test("device popups open as a full-screen page on a phone", async ({ page }) => {
+  await boot(page);
+  await page.goto("/monitoring");
+  await page.locator("tr.mon-row").first().click();
+  const popup = page.locator(".mon-hero").first();
+  await expect(popup).toBeVisible();
+  const box = await popup.boundingBox();
+  expect(Math.round(box!.x)).toBe(0);
+  expect(Math.round(box!.width)).toBe(375);
+  expect(Math.round(box!.height)).toBe(812);
+  await expect(popup.locator(".hb-inspect-hint")).toHaveCount(await popup.locator(".hb-inspect-hint").count());
+  for (const hint of await popup.locator(".hb-inspect-hint").all()) await expect(hint).toBeHidden();
+  const columns = popup.locator(".mon-hero-col");
+  if (await columns.count() > 1) {
+    const [first, second] = [await columns.nth(0).boundingBox(), await columns.nth(1).boundingBox()];
+    expect(second!.y).toBeGreaterThan(first!.y + first!.height - 1);
+  }
+});
+
+test("the Topology toolbar stays compact on a phone so the map keeps the screen", async ({ page }) => {
+  await boot(page);
+  await page.goto("/topology");
+  const toolbar = page.locator(".topology-toolbar--ribbon");
+  await expect(toolbar).toBeVisible();
+  for (const label of ["PNG", "SVG", "PDF", "Icons"]) await expect(toolbar.getByText(label, { exact: true })).toBeHidden();
+  await expect(toolbar.getByRole("button", { name: "Fit" })).toBeVisible();
+  expect((await toolbar.boundingBox())!.height).toBeLessThan(170);
+});
