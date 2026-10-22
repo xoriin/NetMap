@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { setupCoreMocks } from "./helpers/api-mocks";
+import { mockDevice, mockRelationship, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 async function openProfile(page: Page, theme: "light" | "dark", style?: "slate" | "zinc") {
   await setupCoreMocks(page);
@@ -50,4 +50,14 @@ test("the dark style never changes light mode", async ({ page }) => {
   await openProfile(page, "light", "zinc");
   await expect(page.locator("body")).not.toHaveClass(/theme-dark/);
   expect(await surface(page, "body")).toBe("rgb(254, 254, 254)");
+});
+
+test("light-mode Topology labels keep their own colours", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ id: 1, topology_group: "Core" }), mockDevice({ id: 2, hostname: "switch-01", topology_group: "Core" })], [mockRelationship({ id: 1, source_device_id: 1, target_device_id: 2, label: "uplink" })]);
+  await page.addInitScript(() => localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/topology");
+  await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("color", "rgb(38, 59, 75)");
+  await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("border-top-color", "rgb(154, 173, 185)");
+  await expect(page.locator(".topology-group-header").first()).toHaveCSS("color", "rgb(38, 59, 75)");
 });

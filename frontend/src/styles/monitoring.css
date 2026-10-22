@@ -1007,39 +1007,39 @@ body:not(.theme-dark) .toolbar-label {
 }
 
 body:not(.theme-dark) .toolbar-select {
-  border-color: color-mix(in srgb, var(--nm-text-faint) 50%, transparent);
+  border-color: rgba(120, 150, 172, 0.5);
   background: var(--nm-surface-tint);
-  color: var(--nm-text-faint);
+  color: #1e3547;
   color-scheme: light;
 }
 
 body:not(.theme-dark) .toolbar-select option {
   background: var(--nm-surface-tint);
-  color: var(--nm-text-faint);
+  color: #1e3547;
 }
 
 body:not(.theme-dark) .toolbar-btn {
-  border-color: color-mix(in srgb, var(--nm-text-faint) 40%, transparent);
+  border-color: rgba(100, 135, 162, 0.4);
   background: var(--nm-surface-tint);
-  color: var(--nm-text-faint);
+  color: #2a4d65;
 }
 
 body:not(.theme-dark) .toolbar-btn:hover:not(:disabled) {
   background: var(--nm-surface-tint);
-  border-color: color-mix(in srgb, var(--nm-text-faint) 65%, transparent);
-  color: var(--nm-text-faint);
+  border-color: rgba(100, 135, 162, 0.65);
+  color: #17344d;
 }
 
 body:not(.theme-dark) .toolbar-btn--active {
   background: rgba(29, 154, 176, 0.12);
   border-color: rgba(29, 154, 176, 0.4);
-  color: var(--nm-text-faint);
+  color: #1a6070;
 }
 
 body:not(.theme-dark) .toolbar-btn--active:hover {
   background: rgba(29, 154, 176, 0.18);
   border-color: rgba(29, 154, 176, 0.5);
-  color: var(--nm-text-faint);
+  color: #1a6070;
 }
 
 body:not(.theme-dark) .toolbar-toggle {
@@ -1051,7 +1051,7 @@ body:not(.theme-dark) .toolbar-toggle:hover {
 }
 
 body:not(.theme-dark) .toolbar-divider {
-  background: color-mix(in srgb, var(--nm-text-muted) 50%, transparent);
+  background: rgba(110, 140, 165, 0.5);
 }
 
 
@@ -1073,8 +1073,8 @@ body:not(.theme-dark) .toolbar-divider {
   color: #4a7090;
   white-space: nowrap;
 }
-body:not(.theme-dark) .inv-toolbar-count { color: var(--nm-text-faint); }
-body:not(.theme-dark) .inv-toolbar-meta  { color: var(--nm-text-faint); }
+body:not(.theme-dark) .inv-toolbar-count { color: #1a3548; }
+body:not(.theme-dark) .inv-toolbar-meta  { color: #5a7a90; }
 
 /* ── Monitoring ─────────────────────────────────────────────────────────────── */
 

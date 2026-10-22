@@ -1799,11 +1799,11 @@ body.theme-dark .topology-overlay-label {
 
 body:not(.theme-dark) .inv-header {
   background: rgba(244, 248, 251, 0.96);
-  border-color: color-mix(in srgb, var(--nm-text-faint) 78%, transparent);
+  border-color: rgba(176, 195, 211, 0.78);
 }
 
 body:not(.theme-dark) .inv-header-main {
-  border-bottom-color: color-mix(in srgb, var(--nm-text-faint) 62%, transparent);
+  border-bottom-color: rgba(176, 195, 211, 0.62);
 }
 
 body:not(.theme-dark) .inv-filter-row,
