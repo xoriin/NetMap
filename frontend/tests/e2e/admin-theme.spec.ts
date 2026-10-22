@@ -1173,15 +1173,15 @@ test("App settings spans the page with its tasks in two stacked columns", async 
   expect(reservation!.y - (monitoring!.y + monitoring!.height)).toBeLessThanOrEqual(20);
 });
 
-test("the NetMap version sits in the Admin top bar instead of a System card", async ({ page }) => {
+test("the version details remain in the App settings card", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await setupAdminMocks(page);
   await page.goto("/admin#system");
-  const version = page.locator(".app-topbar").getByLabel("NetMap version");
-  await expect(version).not.toContainText("NetMap");
+  await expect(page.locator(".app-topbar-version")).toHaveCount(0);
+  const version = page.locator(".admin-system-card").filter({ has: page.getByRole("heading", { name: "Version", exact: true }) });
+  await expect(version.getByText("Installed", { exact: true })).toBeVisible();
+  await expect(version.getByText("Latest", { exact: true })).toBeVisible();
   await expect(version.getByRole("button", { name: "What's new" })).toBeVisible();
-  await expect(version.locator(".app-topbar-version-update")).toHaveClass(/dash-panel-link/);
-  await expect(page.locator(".admin-system-card", { hasText: "Installed" })).toHaveCount(0);
   const schedule = page.locator(".admin-system-card", { hasText: "Scheduled backups" });
   const title = schedule.getByText("Saves an unencrypted backup on a schedule and removes older copies.");
   await expect(title).toHaveCSS("font-size", "14px");

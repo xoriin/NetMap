@@ -1,6 +1,5 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./admin.css";
-import { ArrowUpRight } from "lucide-react";
 import {
   api,
   type SystemSettings, type VersionInfo,
@@ -8,7 +7,6 @@ import {
 } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useToast } from "../../components/Toast";
-import { TopbarNoteCtx } from "../../context";
 
 import { SystemTab } from "./tabs/SystemTab";
 import { UsersTab } from "./tabs/UsersTab";
@@ -81,30 +79,6 @@ export function AdminWorkspace({
     setAuditFocusUserId(userId);
   }
 
-  const setTopbarNote = useContext(TopbarNoteCtx);
-  const openWhatsNew = useRef(onOpenWhatsNew);
-  openWhatsNew.current = onOpenWhatsNew;
-  useEffect(() => {
-    if (!versionInfo) return;
-    setTopbarNote(
-      <div className="app-topbar-version admin-version-summary" aria-label="NetMap version">
-        <div className="admin-version-copy">
-          <div className="admin-version-build">
-            <strong>v{versionInfo.current}</strong>
-            {versionInfo.channel && <span className="admin-version-channel">{versionInfo.channel}</span>}
-          </div>
-        </div>
-        <div className="admin-version-actions">
-          {!versionInfo.latest ? <span className="admin-version-status">Latest unavailable</span>
-            : versionInfo.up_to_date ? <span className="admin-version-status">Up to date</span>
-            : <a className="dash-panel-link app-topbar-version-update" href={versionInfo.release_url} target="_blank" rel="noreferrer">v{versionInfo.latest} available<ArrowUpRight size={14} aria-hidden="true" /></a>}
-          <button type="button" className="dash-panel-link" onClick={() => openWhatsNew.current()}>What&apos;s new</button>
-        </div>
-      </div>
-    );
-    return () => setTopbarNote("");
-  }, [setTopbarNote, versionInfo]);
-
   const showSuccess = useCallback((message: string | null) => {
     if (message) toast.success(message);
   }, [toast]);
@@ -118,6 +92,8 @@ export function AdminWorkspace({
         {activeTab === "system" && user.role === "SuperAdmin" && (
           <SystemTab
             accessToken={accessToken}
+            versionInfo={versionInfo}
+            onOpenWhatsNew={onOpenWhatsNew}
             onSettingsChange={onSettingsChange}
             onError={setError}
             onSuccess={showSuccess}
