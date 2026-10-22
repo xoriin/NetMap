@@ -756,7 +756,7 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--broadcast {
 }
 
 body.theme-dark .ipam-grid-cell-label {
-  color: #91a6b8;
+  color: var(--nm-text-muted);
 }
 
 body.theme-dark .ipam-detail-modal .ipam-grid-cell--device .ipam-grid-cell-label,

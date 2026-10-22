@@ -371,7 +371,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(swatch).toHaveCSS("width", "44px");
     await expect(swatch).toHaveCSS("height", "36px");
     expect(await computed(swatch, "backgroundColor")).toBe(await resolveToken(swatch, "--nm-modal-input"));
-    await expect(swatch).toHaveValue(theme === "dark" ? "#22c0cf" : "#1d9ab0");
+    await expect(swatch).toHaveValue(theme === "dark" ? "#22d3ee" : "#1d9ab0");
 
     await page.getByRole("tab", { name: "Layout" }).click();
     const layoutTh = page.locator(".status-layout-table thead th").first();

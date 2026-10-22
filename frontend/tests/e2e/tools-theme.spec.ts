@@ -28,7 +28,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".tools-activity")).toBeVisible();
     await expect(page.locator(".tools-saved")).toBeVisible();
     await expect(page.locator(".tools-guide")).toContainText("How DNS Lookup works");
-    await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(12, 17, 24)" : "rgb(254, 254, 254)");
+    await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(2, 6, 23)" : "rgb(254, 254, 254)");
     if (theme === "dark") await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
 
     const dnsPanel = page.locator(".tool-card");
@@ -52,7 +52,7 @@ for (const theme of ["light", "dark"] as const) {
     expect(Math.abs(panelBox!.width - headerBox!.width)).toBeLessThanOrEqual(1);
     await expect(dnsPanel.locator(".tool-card-header")).toHaveCSS("min-height", "44px");
     await expect(dnsPanel.locator(".tool-panel-identity")).toContainText("DNS lookup");
-    await expect(dnsPanel.locator("input")).toHaveCSS("background-color", theme === "dark" ? "rgb(10, 21, 32)" : "rgb(254, 254, 254)");
+    await expect(dnsPanel.locator("input")).toHaveCSS("background-color", theme === "dark" ? "rgb(2, 6, 23)" : "rgb(254, 254, 254)");
 
     await page.getByRole("tab", { name: "Ping Test" }).click();
     await expect(page.getByRole("tab", { name: "Ping Test" })).toHaveClass(/tools-nav-item--active/);

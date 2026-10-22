@@ -767,7 +767,7 @@ body.theme-dark .topology-overlay-label {
 }
 
 body:not(.theme-dark) .topology-device-icon-frame {
-  border-color: #91a5b4;
+  border-color: var(--nm-text-faint);
   background: #f8fbfd;
   box-shadow: 0 4px 12px rgba(38, 58, 72, 0.14);
 }
@@ -779,35 +779,35 @@ body:not(.theme-dark) .topology-device-icon-frame::after {
 body:not(.theme-dark) .topology-overlay-node.status-paused .topology-device-icon-frame,
 body:not(.theme-dark) .topology-overlay-node.status-unknown .topology-device-icon-frame,
 body:not(.theme-dark) .topology-overlay-node.status-disabled .topology-device-icon-frame {
-  color: #677f91;
+  color: var(--nm-text-muted);
 }
 
 body:not(.theme-dark) .topology-overlay-node.canvas-hover .topology-device-icon-frame,
 body:not(.theme-dark) .topology-overlay-node.panel-glow .topology-device-icon-frame {
-  border-color: #70899b;
+  border-color: var(--nm-text-faint);
   background: #f0f7fa;
 }
 
 body:not(.theme-dark) .topology-overlay-label {
-  border-color: #9aadb9;
+  border-color: var(--nm-text-faint);
   background: rgba(248, 251, 253, 0.96);
-  color: #263b4b;
+  color: var(--nm-text-faint);
   text-shadow: none;
 }
 
 body:not(.theme-dark) .topology-group-header {
-  color: #263b4b;
+  color: var(--nm-text-faint);
   text-shadow: none;
 }
 
 body:not(.theme-dark) .topology-group-header__identity svg {
-  color: #5d788c;
+  color: var(--nm-text-faint);
 }
 
 body:not(.theme-dark) .topology-link-label {
-  border-color: #9aadb9;
+  border-color: var(--nm-text-faint);
   background: rgba(248, 251, 253, 0.97);
-  color: #385063;
+  color: var(--nm-text-faint);
   box-shadow: 0 5px 14px rgba(38, 58, 72, 0.14);
 }
 

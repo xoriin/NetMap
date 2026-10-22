@@ -11,8 +11,8 @@ html {
 
 html:has(body.theme-dark) {
   color-scheme: dark;
-  background: #0c1118;
-  scrollbar-color: rgba(90, 122, 149, 0.62) #0c1118;
+  background: var(--nm-bg);
+  scrollbar-color: color-mix(in srgb, var(--nm-text-faint) 62%, transparent) var(--nm-bg);
 }
 
 html::-webkit-scrollbar,
@@ -35,13 +35,13 @@ body::-webkit-scrollbar-thumb {
 
 html:has(body.theme-dark)::-webkit-scrollbar-track,
 body.theme-dark::-webkit-scrollbar-track {
-  background: #0c1118;
+  background: var(--nm-bg);
 }
 
 html:has(body.theme-dark)::-webkit-scrollbar-thumb,
 body.theme-dark::-webkit-scrollbar-thumb {
-  border-color: #0c1118;
-  background: rgba(90, 122, 149, 0.62);
+  border-color: var(--nm-bg);
+  background: color-mix(in srgb, var(--nm-text-faint) 62%, transparent);
 }
 
 html::-webkit-scrollbar-thumb:hover,

@@ -10,15 +10,15 @@ export const POPUP_SECTION_COLOURS = {
     rowBorder: "rgba(209, 220, 230, 0.4)",
   },
   dark: {
-    sectionBackground: "rgb(24, 38, 53)", sectionBorder: "rgb(45, 61, 82)",
-    titleColor: "rgb(138, 180, 204)", titleBackground: "rgb(21, 33, 46)", titleBorder: "rgb(45, 61, 82)",
-    rowBorder: "rgba(45, 61, 82, 0.7)",
+    sectionBackground: "rgb(22, 32, 51)", sectionBorder: "rgb(51, 65, 85)",
+    titleColor: "rgb(148, 163, 184)", titleBackground: "rgb(15, 23, 42)", titleBorder: "rgb(51, 65, 85)",
+    rowBorder: "rgba(51, 65, 85, 0.7)",
   },
 };
 
 export const POPUP_HEADER_COLOURS = {
   light: { headerBackground: "rgb(47, 68, 91)", headerBorder: "rgb(24, 40, 58)" },
-  dark: { headerBackground: "rgb(24, 38, 53)", headerBorder: "rgb(45, 61, 82)" },
+  dark: { headerBackground: "rgb(22, 32, 51)", headerBorder: "rgb(51, 65, 85)" },
 };
 
 const SECTION_TOKENS = {

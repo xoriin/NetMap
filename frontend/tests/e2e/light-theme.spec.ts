@@ -168,7 +168,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(40, 70, 90, 0.5)"]] as const) {
+for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(148, 163, 184, 0.18)"]] as const) {
   test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
@@ -192,7 +192,7 @@ test("small buttons use the same 12px text as standard buttons", async ({ page }
   await expect(page.locator("#probe-sm")).toHaveCSS("font-size", "12px");
 });
 
-for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(21, 33, 46)"]] as const) {
+for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(15, 23, 42)"]] as const) {
   test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
@@ -394,7 +394,7 @@ for (const theme of ["light", "dark"] as const) {
     await openInventory(page, theme);
     const button = page.locator(".nm-app-panel-header").getByRole("button", { name: "Import" }).first();
     await button.hover();
-    await expect.poll(() => button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(228, 243, 245)" : "rgb(36, 61, 84)");
+    await expect.poll(() => button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(228, 243, 245)" : "rgb(37, 48, 70)");
     const ratio = await button.evaluate((el) => {
       const ch = (v: string) => (v.match(/[\d.]+/g) ?? []).map(Number);
       const lum = ([r, g, b]: number[]) => [r, g, b].map((c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
