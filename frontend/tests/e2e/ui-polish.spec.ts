@@ -12,6 +12,15 @@ async function boot(page: import("@playwright/test").Page, theme: "light" | "dar
   await page.addInitScript(([t, s]) => { localStorage.setItem("netmap.theme", t); localStorage.setItem("netmap.dark_style", s); }, [theme, style]);
 }
 
+test("Overview header links are white in dark mode and turn teal on hover", async ({ page }) => {
+  await boot(page, "dark");
+  await page.goto("/overview");
+  const link = page.locator(".overview-panel-link").first();
+  await expect(link).toHaveCSS("color", "rgb(255, 255, 255)");
+  await link.hover();
+  await expect(link).toHaveCSS("color", "rgb(103, 232, 249)");
+});
+
 test("panel headers have no dash between the icon and the title", async ({ page }) => {
   await boot(page, "light");
   for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools"]) {

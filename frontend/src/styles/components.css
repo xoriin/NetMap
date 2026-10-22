@@ -986,13 +986,13 @@ body:not(.theme-dark) .topology-details-panel .details-heading {
   color: var(--nm-accent-strong);
 }
 
-:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn--ghost, .dash-panel-link),
-.modal .modal-header :is(.nm-btn--ghost, .dash-panel-link),
-.topology-details-panel .details-heading :is(.nm-btn--ghost, .dash-panel-link) {
+body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading) :is(.nm-btn--ghost, .dash-panel-link),
+body.theme-dark :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading) :is(.nm-btn--ghost, .dash-panel-link) {
   color: var(--nm-panel-head-link);
 }
 
-body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading) :is(.nm-btn--ghost, .dash-panel-link):hover:not(:disabled) {
+body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading) :is(.nm-btn--ghost, .dash-panel-link):hover:not(:disabled),
+body.theme-dark :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header, .modal .modal-header, .topology-details-panel .details-heading) :is(.nm-btn--ghost, .dash-panel-link):hover:not(:disabled) {
   color: var(--nm-panel-head-link-hover);
 }
 

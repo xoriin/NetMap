@@ -97,7 +97,7 @@ html:has(body.theme-dark) {
   --nm-panel-head-control-hover: var(--nm-accent-soft);
   --nm-panel-head-icon-fg: var(--nm-accent);
   --nm-panel-head-accent: var(--nm-accent-strong);
-  --nm-panel-head-link: var(--nm-accent-strong);
+  --nm-panel-head-link: var(--nm-on-deep);
   --nm-panel-head-link-hover: var(--nm-accent-strong);
   --nm-panel-head-tab-hover-text: var(--nm-tab-hover-text);
   --nm-panel-head-tab-active-text: var(--nm-tab-active-text);
