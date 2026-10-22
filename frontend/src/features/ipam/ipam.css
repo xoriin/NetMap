@@ -278,6 +278,9 @@
 
 .ipam-workspace .ipam-panel > .dash-panel-body {
   overflow: auto;
+}
+
+body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
   background: var(--nm-modal-section);
 }
 

@@ -89,7 +89,7 @@ body.route-overview .overview-workspace .overview-panel.nm-app-panel {
   font-weight: 500;
 }
 
-.overview-workspace .overview-panel > .dash-panel-body {
+body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
   background: var(--nm-modal-section);
 }
 

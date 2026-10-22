@@ -35,6 +35,7 @@ body.theme-dark {
   --nm-modal-shell: #121c27;
   --nm-modal-header: #182635;
   --nm-modal-section: #15212e;
+  --nm-panel-body-bg: transparent;
   --nm-modal-input: var(--nm-shell);
   --nm-modal-label: #c8dae8;
   --nm-popup-section-bg: #182635;

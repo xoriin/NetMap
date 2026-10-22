@@ -138,6 +138,18 @@ test("Overview panel headers share the band and keep their links readable", asyn
   expect(low).toEqual([]);
 });
 
+for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(21, 33, 46)"]] as const) {
+  test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, devices);
+    await page.addInitScript((value) => window.localStorage.setItem("netmap.theme", value), theme);
+    await page.goto("/overview");
+    const bodies = page.locator(".overview-panel > .dash-panel-body");
+    await expect(bodies.first()).toBeVisible();
+    for (const panelBody of await bodies.all()) await expect(panelBody).toHaveCSS("background-color", body);
+  });
+}
+
 test("the Topology ribbon carries the same light band as every panel header", async ({ page }) => {
   await setupCoreMocks(page);
   await setupTopologyMocks(page, devices);
