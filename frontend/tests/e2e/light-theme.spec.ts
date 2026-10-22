@@ -150,6 +150,24 @@ test("light panel header links such as View all and Manage are white and turn te
   await expect(links.first()).toHaveCSS("color", "rgb(143, 224, 238)");
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`the Favs filter is a standard header button with a gold on state in ${theme} mode`, async ({ page }) => {
+    await openInventory(page, theme);
+    const favs = page.locator(".nm-app-panel-header .inv-fav-filter");
+    const bulk = page.locator(".nm-app-panel-header .inv-bulk-trigger, .nm-app-panel-header button:has-text('Import')").first();
+    await expect(favs).toHaveAttribute("aria-pressed", "false");
+    for (const property of ["background-color", "height", "border-radius"]) {
+      expect(await favs.evaluate((node, prop) => getComputedStyle(node).getPropertyValue(prop), property))
+        .toBe(await bulk.evaluate((node, prop) => getComputedStyle(node).getPropertyValue(prop), property));
+    }
+    await favs.click();
+    await page.mouse.move(0, 0);
+    await expect(favs).toHaveAttribute("aria-pressed", "true");
+    await expect(favs).toHaveCSS("border-top-color", "rgb(232, 184, 64)");
+    await expect(favs.locator("svg")).toHaveCSS("color", "rgb(232, 184, 64)");
+  });
+}
+
 for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(40, 70, 90, 0.5)"]] as const) {
   test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);

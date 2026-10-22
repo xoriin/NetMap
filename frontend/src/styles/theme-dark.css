@@ -37,6 +37,7 @@ body.theme-dark {
   --nm-modal-section: #15212e;
   --nm-panel-body-bg: transparent;
   --nm-track-bg: rgba(40, 70, 90, 0.5);
+  --nm-favourite: #e8b840;
   --nm-modal-input: var(--nm-shell);
   --nm-modal-label: #c8dae8;
   --nm-popup-section-bg: #182635;
@@ -98,7 +99,6 @@ body.theme-dark {
   --nm-panel-head-link-hover: var(--nm-accent-strong);
   --nm-panel-head-tab-hover-text: var(--nm-tab-hover-text);
   --nm-panel-head-tab-active-text: var(--nm-tab-active-text);
-  --nm-panel-head-favourite: #e8b840;
   --nm-base-text: var(--nm-text);
   --nm-base-text-muted: var(--nm-text-muted);
   --nm-base-text-faint: var(--nm-text-faint);

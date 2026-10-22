@@ -39,6 +39,7 @@
   --nm-modal-section: var(--nm-surface);
   --nm-panel-body-bg: #f7f7f7;
   --nm-track-bg: #d3d3d3;
+  --nm-favourite: #e8b840;
   --nm-input-surface: #fefefe;
   --nm-tone-teal-deep: #2b7a88;
   --nm-tone-green-deep: #2f7a63;
@@ -92,7 +93,6 @@
   --nm-panel-head-link-hover: #8fe0ee;
   --nm-panel-head-tab-hover-text: #8fe0ee;
   --nm-panel-head-tab-active-text: #8fe0ee;
-  --nm-panel-head-favourite: #f0c56a;
   --nm-base-text: var(--nm-text);
   --nm-base-text-muted: var(--nm-text-muted);
   --nm-base-text-faint: var(--nm-text-faint);

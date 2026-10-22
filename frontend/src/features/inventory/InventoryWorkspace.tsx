@@ -749,7 +749,8 @@ export function InventoryWorkspace({
             />
             <button
               type="button"
-              className={`inv-status-tab inv-fav-filter${favouriteFilter ? " active" : ""}`}
+              className={`nm-btn nm-btn--secondary inv-fav-filter${favouriteFilter ? " inv-fav-filter--on" : ""}`}
+              aria-pressed={favouriteFilter}
               onClick={() => setFavouriteFilter((current) => !current)}
               title={favouriteFilter ? "Show all devices" : "Show favourites only"}
             >
