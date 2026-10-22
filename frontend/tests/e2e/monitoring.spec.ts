@@ -682,6 +682,22 @@ test("popup heartbeats grow on hover, keep one steady detail card across gaps, p
   await expect.poll(cards).toBe(0);
 });
 
+test("the popup RTT graph follows the pointer with a guide, a dot and a readout", async ({ page }) => {
+  await openPopupWithHistory(page);
+  const plot = page.locator(".mon-hero .mon-sparkline-plot");
+  const box = (await plot.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
+  await expect(plot.locator(".mon-sparkline-guide")).toBeVisible();
+  await expect(plot.locator(".mon-sparkline-dot")).toBeVisible();
+  const readout = plot.locator(".mon-sparkline-readout");
+  await expect(readout).toContainText("ms");
+  const first = await readout.textContent();
+  await page.mouse.move(box.x + box.width * 0.95, box.y + box.height / 2);
+  await expect.poll(() => readout.textContent()).not.toBe(first);
+  await page.mouse.move(5, 5);
+  await expect(plot.locator(".mon-sparkline-guide")).toHaveCount(0);
+});
+
 test("Check now sits in the popup header with the other actions", async ({ page }) => {
   await openPopupWithHistory(page);
   await expect(page.locator(".mon-hero > .nm-toolbar")).toHaveCount(0);

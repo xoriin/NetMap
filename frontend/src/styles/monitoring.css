@@ -4422,3 +4422,42 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
 .hb-tooltip-card { transition: left 0.12s ease, top 0.12s ease; }
 .hb-tooltip-card--above { transform: translateY(-100%); }
 
+.mon-sparkline-plot {
+  position: relative;
+  cursor: crosshair;
+}
+.mon-sparkline-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+  background: var(--nm-border-strong);
+}
+.mon-sparkline-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  border: 2px solid var(--nm-accent);
+  border-radius: 50%;
+  background: var(--nm-surface);
+  transform: translate(-50%, -50%);
+}
+.mon-sparkline-readout {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  padding: 2px 7px;
+  pointer-events: none;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-sm);
+  background: var(--nm-surface);
+  box-shadow: var(--nm-shadow-sm);
+  color: var(--nm-text);
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.mon-sparkline-readout.is-start { transform: none; }
+.mon-sparkline-readout.is-end { transform: translateX(-100%); }

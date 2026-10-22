@@ -37,6 +37,7 @@ export function AnomalyBadge({ level, score }: { level: string; score: number | 
 }
 
 function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
+  const [hoverIndex, setHoverIndex] = React.useState<number | null>(null);
   const valid = data.filter((d) => d.rtt_ms !== null);
   if (valid.length < 2) {
     return <p className="dash-empty" style={{ margin: "12px 0 0" }}>Not enough data yet.</p>;
@@ -56,6 +57,20 @@ function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
   const lastY = yOf(lastPoint.rtt_ms as number);
   const fmt = (ms: number) => ms < 1 ? `${(ms * 1000).toFixed(0)}µs` : `${ms % 1 === 0 ? ms.toFixed(0) : ms.toFixed(1)}ms`;
   const fmtTs = (iso: string) => { const d = new Date(iso); return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; };
+  const active = hoverIndex !== null && hoverIndex < valid.length ? hoverIndex : null;
+  const activePoint = active !== null ? valid[active] : null;
+  const fraction = active !== null ? active / (valid.length - 1) : 0;
+  const indexAt = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    return Math.round(ratio * (valid.length - 1));
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const from = active ?? valid.length - 1;
+    setHoverIndex(Math.min(valid.length - 1, Math.max(0, from + (event.key === "ArrowLeft" ? -1 : 1))));
+  };
 
   return (
     <div className="mon-sparkline-wrap">
@@ -65,6 +80,15 @@ function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
         <span>{fmt(minRtt)}</span>
       </div>
       <div className="mon-sparkline-area">
+        <div
+          className="mon-sparkline-plot"
+          tabIndex={0}
+          aria-label="Response time graph: hover or use arrow keys to read values"
+          onMouseMove={(event) => setHoverIndex(indexAt(event))}
+          onMouseLeave={() => setHoverIndex(null)}
+          onKeyDown={onKeyDown}
+          onBlur={() => setHoverIndex(null)}
+        >
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mon-sparkline" aria-label="RTT trend">
           <line className="mon-sparkline-grid" x1={0} y1={5} x2={W} y2={5} />
           <line className="mon-sparkline-grid" x1={0} y1={H / 2} x2={W} y2={H / 2} />
@@ -73,6 +97,20 @@ function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
           <polyline className="mon-sparkline-line" points={points} />
 
         </svg>
+        {activePoint && (
+          <>
+            <span className="mon-sparkline-guide" aria-hidden="true" style={{ left: `${fraction * 100}%` }} />
+            <span className="mon-sparkline-dot" aria-hidden="true" style={{ left: `${fraction * 100}%`, top: `${(yOf(activePoint.rtt_ms as number) / H) * 100}%` }} />
+            <span
+              className={`mon-sparkline-readout${fraction < 0.15 ? " is-start" : fraction > 0.85 ? " is-end" : ""}`}
+              role="status"
+              style={{ left: `${fraction * 100}%` }}
+            >
+              {new Date(activePoint.checked_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · {fmt(activePoint.rtt_ms as number)}
+            </span>
+          </>
+        )}
+        </div>
         <div className="mon-sparkline-xaxis">
           <span>{fmtTs(valid[0].checked_at)}</span>
           <span>{fmtTs(valid[valid.length - 1].checked_at)}</span>
