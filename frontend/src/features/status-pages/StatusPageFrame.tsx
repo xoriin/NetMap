@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useTheme } from "../../providers/ThemeProvider";
 import type { StatusPagePayload } from "./statusPagesApi";
 import { buildStatusDocument } from "./renderer/buildStatusDocument";
 import type { StatusColorScheme } from "./renderer/builtinStyles";
@@ -13,11 +14,12 @@ type StatusPageFrameProps = {
 };
 
 export function StatusPageFrame({ payload, css, title, colorScheme = null, className }: StatusPageFrameProps) {
+  const { darkStyle } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const shownRef = useRef<string | null>(null);
   const documentHtml = useMemo(
-    () => buildStatusDocument(payload, { css, now: new Date(), colorScheme }),
-    [payload, css, colorScheme],
+    () => buildStatusDocument(payload, { css, now: new Date(), colorScheme, darkStyle }),
+    [payload, css, colorScheme, darkStyle],
   );
 
   useEffect(() => {

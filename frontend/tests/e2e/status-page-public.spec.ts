@@ -600,8 +600,8 @@ async function frameBackground(page: Page) {
   return statusFrame(page).locator("body").evaluate((body) => getComputedStyle(body).backgroundColor);
 }
 
-const LIGHT_BG = "rgb(248, 250, 253)";
-const DARK_BG = "rgb(19, 19, 20)";
+const LIGHT_BG = "rgb(254, 254, 254)";
+const DARK_BG = "rgb(2, 6, 23)";
 
 test("with no stored theme the shell and frame follow the OS scheme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -679,7 +679,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         background: getComputedStyle(html.ownerDocument.body).backgroundColor,
       }));
       expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
-      expect(overflow.background).toBe(colorScheme === "light" ? "rgb(248, 250, 253)" : "rgb(19, 19, 20)");
+      expect(overflow.background).toBe(colorScheme === "light" ? "rgb(254, 254, 254)" : "rgb(2, 6, 23)");
       const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(pageOverflow).toBeLessThanOrEqual(0);
     });

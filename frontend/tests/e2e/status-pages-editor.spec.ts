@@ -145,7 +145,7 @@ async function openApp(page: Page, theme: "light" | "dark" = "light") {
   await setupCoreMocks(page);
   await setupTopologyMocks(page, []);
   await setupMonitoringMocks(page, []);
-  await page.addInitScript((selected) => window.localStorage.setItem("netmap.theme", selected), theme);
+  await page.addInitScript((selected) => { if (window === window.top) window.localStorage.setItem("netmap.theme", selected); }, theme);
 }
 
 async function openStatusPages(page: Page) {
@@ -157,6 +157,23 @@ async function openStatusPages(page: Page) {
 async function openEditor(page: Page, name: string) {
   await page.locator(".status-pages-table tbody tr", { hasText: name }).getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
+}
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`editor preview shares the ${style} application theme`, async ({ page }) => {
+    const api = new StatusPagesApi();
+    api.seed(newPage(1, { name: "Theme parity" }));
+    await openApp(page, style === "light" ? "light" : "dark");
+    await page.addInitScript(value => { if (window === window.top) localStorage.setItem("netmap.dark_style", value); }, style === "zinc" ? "zinc" : "slate");
+    await api.install(page);
+    await openStatusPages(page); await openEditor(page, "Theme parity");
+    const frame = page.frameLocator("iframe.status-page-frame");
+    await expect(frame.locator(".sp-title")).toHaveText("Theme parity");
+    const expected = await page.locator("body").evaluate(node => getComputedStyle(node).backgroundColor);
+    await expect(frame.locator("body")).toHaveCSS("background-color", expected);
+    await expect(frame.locator(".sp-summary")).toHaveCSS("border-radius", "10px");
+    await page.screenshot({ path: test.info().outputPath(`editor-status-${style}.png`), fullPage: true });
+  });
 }
 
 /** Resolves a `--nm-*` token in the context of the element that inherits it. */

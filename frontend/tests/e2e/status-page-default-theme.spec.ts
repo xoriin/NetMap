@@ -1,7 +1,67 @@
 import { expect, test } from "@playwright/test";
 
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`status page panels match the canonical ${style} theme`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(selected => {
+      if (window !== window.top) return;
+      localStorage.setItem("netmap.theme", selected === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", selected === "zinc" ? "zinc" : "slate");
+    }, style);
+    // Deliberately oppose the OS to exercise the explicit-selection path.
+    await page.emulateMedia({ colorScheme: style === "light" ? "dark" : "light" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.route("**/api/v1/public/status-pages/aligned", route => route.fulfill({ json: {
+      slug: "aligned", title: "Network service status", accent: null, logo: null, custom_css: null,
+      heartbeat_window: "1h", generated_at: new Date().toISOString(), valid_until: new Date(Date.now() + 600000).toISOString(),
+      summary: { state: "operational", label: "All systems operational", counts: {} },
+      groups: [{ id: 1, name: "Core services", state: "operational", collapsed: false, items: [{
+        id: 1, name: "Customer portal with a long readable service name", state: "operational",
+        availability: { percent: .999, label: "ok", coverage: 1 }, heartbeats: Array(60).fill("healthy"),
+        response: [1, 2, 3, null, 5], metrics: { avg_response: 2, p95_response: 5, failure_rate: 0, uptime_period: null }, incident_ids: [],
+      }] }], incidents: [], past: [], notices: [], maintenance: [],
+    } }));
+    await page.goto("/status/aligned");
+    const frame = page.frameLocator("iframe.status-page-frame");
+    await expect(frame.locator(".sp-group")).toBeVisible();
+    const canonical = await page.evaluate(() => {
+      const panel = document.createElement("section"); panel.className = "nm-app-panel";
+      const header = document.createElement("div"); header.className = "nm-app-panel-header";
+      const title = document.createElement("strong"); title.className = "nm-panel-title"; title.textContent = "Service health"; header.append(title); panel.append(header); document.body.append(panel);
+      const probe = document.createElement("span"); probe.style.backgroundColor = "var(--nm-row-hover)"; panel.append(probe);
+      const p = getComputedStyle(panel), h = getComputedStyle(header);
+      const values = { background: getComputedStyle(document.body).backgroundColor,
+        panel: p.backgroundColor, radius: p.borderRadius, shadow: p.boxShadow, border: p.borderTopColor,
+        header: h.backgroundColor, headerText: getComputedStyle(title).color, headerHeight: h.height,
+        font: getComputedStyle(document.documentElement).fontFamily, hover: getComputedStyle(probe).backgroundColor };
+      panel.remove(); return values;
+    });
+    await expect(frame.locator("body")).toHaveCSS("background-color", canonical.background);
+    await expect(frame.locator("body")).toHaveCSS("font-family", canonical.font);
+    await expect(frame.locator(".sp-group")).toHaveCSS("background-color", canonical.panel);
+    await expect(frame.locator(".sp-group")).toHaveCSS("border-radius", canonical.radius);
+    await expect(frame.locator(".sp-group")).toHaveCSS("box-shadow", canonical.shadow);
+    await expect(frame.locator(".sp-group")).toHaveCSS("border-top-color", canonical.border);
+    await expect(frame.locator(".sp-group-name")).toHaveCSS("background-color", canonical.header);
+    await expect(frame.locator(".sp-group-name")).toHaveCSS("color", canonical.headerText);
+    await expect(frame.locator(".sp-group-name")).toHaveCSS("height", canonical.headerHeight);
+    await frame.locator("summary.sp-row-main").hover();
+    await expect(frame.locator("summary.sp-row-main")).toHaveCSS("background-color", canonical.hover);
+    await frame.locator("summary.sp-row-main").focus();
+    await expect(frame.locator("summary.sp-row-main")).toHaveCSS("outline-style", "solid");
+    await frame.locator("summary.sp-row-main").press("Enter");
+    await expect(frame.locator("details.sp-row")).toHaveAttribute("open", "");
+    await page.screenshot({ path: test.info().outputPath(`status-${style}-desktop.png`), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 900 });
+    expect(await frame.locator("html").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`status-${style}-narrow.png`), fullPage: true });
+    expect(errors).toEqual([]);
+  });
+}
+
 for (const theme of ["light", "dark"] as const) {
-  test(`status page defaults use Material surfaces and semantic colours in ${theme}`, async ({ page }) => {
+  test(`status page defaults use NetMap surfaces and semantic colours in ${theme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await page.setViewportSize({ width: 1440, height: 1000 });
     let state = "operational";
@@ -40,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     const frame = page.frameLocator("iframe.status-page-frame");
     await expect(frame.locator(".sp-page")).toHaveCSS("max-width", "1180px");
-    await expect(frame.locator("body")).toHaveCSS("font-family", "Arial, sans-serif");
+    expect(await frame.locator("body").evaluate(node => getComputedStyle(node).fontFamily)).toBe(await page.locator("html").evaluate(node => getComputedStyle(node).fontFamily));
     for (const [selector, tone] of [[".sp-notice[data-level=info] .sp-pill", "info"], [".sp-notice[data-level=warning] .sp-pill", "warning"], [".sp-notice[data-level=critical] .sp-pill", "danger"], [".sp-strip[data-kind=maintenance] .sp-pill", "maintenance"]]) {
       const colours = await frame.locator(selector).evaluate((node, name) => {
         const probe = node.ownerDocument.createElement("span"); probe.style.backgroundColor = `var(--sp-${name}-soft)`; node.append(probe);
@@ -82,7 +142,7 @@ for (const theme of ["light", "dark"] as const) {
         const text = node.querySelector('.sp-strip-body')!;
         const c = getComputedStyle(node); const t = getComputedStyle(text);
         const luminance = (color: string) => {
-          const channels = color.match(/[\d.]+/g)!.slice(0,3).map(Number).map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+          const channels = color.match(/[\d.]+/g)!.slice(0,3).map(Number).map(v => color.startsWith("color(srgb") ? v : v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
           return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
         };
         const l = [luminance(t.color), luminance(c.backgroundColor)].sort((a,b)=>b-a);

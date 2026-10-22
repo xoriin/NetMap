@@ -3,9 +3,10 @@ import type {
   StatusPageGroupPayload, StatusPastEntry, StatusPastMaintenance, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
 } from "../statusPagesApi";
 import { themeCss } from "./themeCss";
+import type { DarkStyle } from "../../../providers/ThemeProvider";
 import { REDUCED_MOTION_OVERRIDE, RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
-export type BuildStatusOptions = { css: string | null; now: Date; colorScheme?: StatusColorScheme };
+export type BuildStatusOptions = { css: string | null; now: Date; colorScheme?: StatusColorScheme; darkStyle?: DarkStyle };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const LOGO_PATTERN = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -324,7 +325,7 @@ function groupSection(b: Builder, group: StatusPageGroupPayload, window: string)
   section.dataset.state = group.state;
   if (!group.collapsed) section.open = true;
   const name = b.el("summary", "sp-group-name");
-  name.append(b.el("span", "sp-group-label", group.name), b.el("span", "sp-group-state", GROUP_STATE_LABELS[group.state] ?? ""));
+  name.append(panelIcon(b, "network"), b.el("span", "sp-group-label", group.name), b.el("span", "sp-group-state", GROUP_STATE_LABELS[group.state] ?? ""));
   section.append(name);
   if (!group.items.length) section.append(b.el("p", "sp-group-empty", "No systems configured"));
   group.items.forEach((item) => section.append(itemRow(b, item, window)));
@@ -441,12 +442,23 @@ function incidentEntry(b: Builder, incident: StatusIncident): HTMLElement {
 function incidentSection(b: Builder, className: string, title: string, incidents: Array<StatusIncident | StatusPastEntry>): HTMLElement {
   const section = b.el("details", className);
   const summary = b.el("summary", "sp-section-title");
-  summary.append(b.el("h2", "sp-section-heading", title), b.el("span", "sp-section-count", String(incidents.length)));
+  summary.append(panelIcon(b, "activity"), b.el("h2", "sp-section-heading", title), b.el("span", "sp-section-count", String(incidents.length)));
   section.append(summary);
   incidents.forEach((entry) => section.append(
     "kind" in entry && entry.kind === "maintenance" ? pastMaintenanceEntry(b, entry) : incidentEntry(b, entry as StatusIncident),
   ));
   return section;
+}
+
+function panelIcon(b: Builder, kind: "network" | "activity"): HTMLElement {
+  const well = b.el("span", "sp-panel-icon");
+  well.setAttribute("aria-hidden", "true");
+  const svg = b.doc.createElementNS(SVG_NS, "svg");
+  for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" })) svg.setAttribute(name, value);
+  const path = b.doc.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", kind === "network" ? "M6 3h12v6H6z M3 15h6v6H3z M15 15h6v6h-6z M12 9v3 M6 15v-3h12v3" : "M22 12h-4l-3 9L9 3l-3 9H2");
+  svg.append(path); well.append(svg);
+  return well;
 }
 
 export function buildStatusDocument(payload: StatusPagePayload, options: BuildStatusOptions): string {
@@ -460,7 +472,7 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   doc.head.prepend(csp);
   const titleNode = doc.head.querySelector("title");
   if (titleNode) titleNode.textContent = payload.title;
-  doc.head.append(b.el("style", null, builtinStyles(options.colorScheme ?? null)));
+  doc.head.append(b.el("style", null, builtinStyles(options.colorScheme ?? null, options.darkStyle)));
   if (options.css && !options.css.includes("<")) {
     const custom = b.el("style", null, themeCss(options.css, options.colorScheme ?? null));
     custom.dataset.spCustom = "";
