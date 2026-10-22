@@ -86,7 +86,7 @@ test("light mode paints the tinted page, near-white panels and the page header b
   await expect(panel).toHaveCSS("border-top-color", "rgb(216, 220, 225)");
   expect(await resolve(page, "--nm-border-strong", "backgroundColor")).toBe("rgb(188, 195, 203)");
   await expect(panel).toHaveCSS("border-radius", "10px");
-  await expect(panel).toHaveCSS("box-shadow", "rgba(15, 35, 52, 0.06) 0px 1px 2px 0px, rgba(15, 35, 52, 0.06) 0px 2px 6px 0px");
+  await expect(panel).toHaveCSS("box-shadow", "rgba(15, 35, 52, 0.08) 0px 1px 3px 0px, rgba(15, 35, 52, 0.08) 0px 4px 12px 0px");
 
   const topbar = page.locator(".app-topbar");
   await expect(topbar).toHaveCSS("background-color", "rgb(254, 254, 254)");
