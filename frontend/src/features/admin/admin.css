@@ -1257,8 +1257,12 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   gap: var(--nm-space-4);
   align-items: start;
 }
-.admin-layout .admin-system-page .system-tab-col { display: contents; }
-.admin-layout .admin-settings-card { grid-column: 1 / -1; }
+.admin-layout .admin-system-page .system-tab-col { display: grid; align-content: start; gap: var(--nm-space-4); min-width: 0; }
+.admin-layout .admin-settings-card { margin-bottom: var(--nm-space-4); }
+.admin-task-col { display: grid; align-content: start; gap: var(--nm-space-4); min-width: 0; }
+.admin-backup-downloads { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--nm-space-2); }
+.admin-backup-downloads .nm-btn,
+.admin-layout .admin-backup-upload { display: inline-flex; align-items: center; gap: 6px; }
 .admin-layout .rbac-roles-grid { gap: var(--nm-space-4); }
 .admin-role-panel .rbac-perm-list { padding: 0; }
 .admin-layout .admin-automation-split { align-items: stretch; }

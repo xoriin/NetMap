@@ -1021,7 +1021,7 @@ for (const theme of ["light", "dark"]) {
       expect(note.size, note.text ?? "").toBe("11px");
       if (note.gap !== null) expect(note.gap, note.text ?? "").toBeGreaterThanOrEqual(4);
     }
-    const intro = page.locator(".admin-system-card-body > p.tool-note", { hasText: "Encrypted backups" }).first();
+    const intro = page.locator(".admin-system-card-body > p.tool-note", { hasText: "Saved to" }).first();
     const introGap = await intro.evaluate((el) => el.nextElementSibling!.getBoundingClientRect().top - el.getBoundingClientRect().bottom);
     expect(introGap).toBeGreaterThanOrEqual(12);
     const empty = page.getByText("No scheduled backups yet.");
@@ -1127,3 +1127,42 @@ for (const theme of ["light", "dark"] as const) {
     expect(locations).toEqual(statusEditor);
   });
 }
+
+test("backup downloads sit side by side and Upload waits for a ready file", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await setupAdminMocks(page);
+  await page.goto("/admin#system");
+  const card = page.locator(".admin-system-card", { hasText: "Database backup & restore" });
+  await expect(card).not.toContainText("SuperAdmin only");
+  await expect(card).not.toContainText("need their passphrase");
+  const encrypted = await card.getByRole("button", { name: "Download encrypted backup" }).boundingBox();
+  const plain = await card.getByRole("button", { name: "Download unencrypted .db" }).boundingBox();
+  expect(Math.abs(encrypted!.y - plain!.y)).toBeLessThanOrEqual(1);
+  expect(plain!.x).toBeGreaterThan(encrypted!.x + encrypted!.width);
+  const upload = card.getByRole("button", { name: "Upload backup" });
+  await expect(upload).toBeDisabled();
+  await card.getByLabel("Backup file").setInputFiles({ name: "netmap.nmbak", mimeType: "application/octet-stream", buffer: Buffer.from("x") });
+  await expect(upload).toBeDisabled();
+  await card.getByLabel("Backup passphrase").fill("correct horse battery");
+  await expect(upload).toBeEnabled();
+});
+
+test("App settings spans the page with its tasks in two stacked columns", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await setupAdminMocks(page);
+  await page.goto("/admin#system");
+  const settings = page.locator(".admin-settings-card");
+  const grid = page.locator(".system-tab-grid");
+  const [settingsBox, gridBox] = [await settings.boundingBox(), await grid.boundingBox()];
+  expect(Math.abs(settingsBox!.width - gridBox!.width)).toBeLessThanOrEqual(1);
+  expect(gridBox!.y).toBeGreaterThan(settingsBox!.y + settingsBox!.height);
+  const region = (name: string) => page.getByRole("region", { name, exact: true }).boundingBox();
+  const identity = await region("Identity and support");
+  const session = await region("Session policy");
+  const monitoring = await region("Monitoring and network checks");
+  const reservation = await region("IP reservation policy");
+  expect(Math.abs(session!.x - identity!.x)).toBeLessThanOrEqual(1);
+  expect(session!.y - (identity!.y + identity!.height)).toBeLessThanOrEqual(20);
+  expect(Math.abs(reservation!.x - monitoring!.x)).toBeLessThanOrEqual(1);
+  expect(reservation!.y - (monitoring!.y + monitoring!.height)).toBeLessThanOrEqual(20);
+});
