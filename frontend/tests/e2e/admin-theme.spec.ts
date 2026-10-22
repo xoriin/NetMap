@@ -115,9 +115,20 @@ for (const style of ["light", "slate", "zinc"] as const) {
       const panels = page.locator("[data-admin-task]");
       await expect.poll(() => panels.count(), { message: section }).toBeGreaterThanOrEqual(minimum);
       for (const panel of await panels.all()) {
-        await expect(panel.locator(":scope > .nm-app-panel-header")).toBeVisible();
-        await expect(panel.locator(":scope > .nm-app-panel-header .nm-app-panel-icon")).toBeVisible();
+        const nested = await panel.evaluate(node => Boolean(node.parentElement?.closest(".nm-app-panel, [data-admin-task]")));
+        if (nested) {
+          await expect(panel).toHaveClass(/mon-hero-section/);
+          await expect(panel.locator(":scope > .nm-app-panel-header")).toHaveCount(0);
+          await expect(panel.locator(":scope > .mon-hero-section-title h3")).toBeVisible();
+        } else {
+          await expect(panel.locator(":scope > .nm-app-panel-header .nm-app-panel-icon")).toBeVisible();
+        }
         await expect(panel.locator(":scope > .admin-task-body")).toHaveCSS("padding", "16px");
+      }
+      for (const button of await page.locator(".admin-layout .nm-btn--primary").all()) {
+        if (!(await button.isVisible())) continue;
+        const width = await button.evaluate(node => node.getBoundingClientRect().width / node.closest(".nm-app-panel, [data-admin-task]")!.getBoundingClientRect().width);
+        expect(width, `${section}: ${await button.textContent()}`).toBeLessThan(0.5);
       }
       if (section === "system" || section === "security") {
         const grid = page.locator(".admin-task-grid").first();
@@ -603,7 +614,7 @@ test("shows every built-in role and the complete permission matrix", async ({ pa
   await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Groups", exact: true }).click();
   const cards = page.locator(".admin-role-panel");
   await expect(cards).toHaveCount(4);
-  await expect(cards.locator(".admin-section-title")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
+  await expect(cards.locator("h3")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
   const superAdmin = cards.filter({ hasText: "SuperAdmin" });
   await expect(superAdmin.locator('input[type="checkbox"]')).toHaveCount(2);
   for (const checkbox of await superAdmin.locator('input[type="checkbox"]').all()) {
@@ -682,7 +693,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(form).toBeVisible();
         const usesCanonicalShell = await form.evaluate((element) => {
           const probe = document.createElement("span");
-          probe.style.background = "var(--nm-modal-section)";
+          probe.style.background = "var(--nm-popup-section-bg)";
           element.appendChild(probe);
           const expected = getComputedStyle(probe).backgroundColor;
           probe.remove();

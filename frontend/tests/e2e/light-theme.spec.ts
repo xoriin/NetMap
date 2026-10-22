@@ -360,10 +360,11 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await expect(usersHeader).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(usersHeader).toHaveCSS("color", "rgb(241, 245, 249)");
   await page.goto("/admin#automation");
-  const schedules = page.locator(".admin-schedule-task > .nm-app-panel-header").first();
+  const schedules = page.locator(".nm-app-panel", { has: page.locator(".admin-schedule-task") }).first().locator(":scope > .nm-app-panel-header");
   await expect(schedules).toHaveCSS("background-color", "rgb(47, 68, 91)");
-  await expect(schedules.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
-  await expect(schedules.locator(".admin-task-count")).toHaveCSS("color", "rgb(177, 188, 199)");
+  await expect(schedules.locator(".admin-section-title")).toHaveCSS("color", "rgb(241, 245, 249)");
+  await expect(page.locator(".admin-schedule-task > .nm-app-panel-header")).toHaveCount(0);
+  await expect(page.locator(".admin-schedule-task .admin-task-count")).toBeVisible();
 });
 
 test("light buttons: soft danger and neutral secondary are a step stronger and readable", async ({ page }) => {

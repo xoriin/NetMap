@@ -1214,6 +1214,23 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   grid-template-columns: minmax(260px, .8fr) minmax(0, 1.7fr);
 }
 .admin-task-panel { min-width: 0; }
+.admin-task-panel--nested .admin-task-title { gap: var(--nm-space-2); }
+.admin-task-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+.admin-task-heading svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.admin-task-panel--nested .admin-panel-actions { text-transform: none; letter-spacing: 0; }
+.admin-layout :is(.admin-task-body, form, .tool-form, .admin-system-card-body) > .nm-btn { justify-self: end; }
+.admin-layout .admin-config-grid { font-size: var(--nm-text-md); }
+.admin-layout .admin-config-grid dt { font-weight: 600; }
 .admin-task-body {
   display: grid;
   align-content: start;
