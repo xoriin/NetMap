@@ -31,6 +31,12 @@
   flex: 0 0 auto;
 }
 
+.profile-pref-options {
+  display: inline-flex;
+  gap: var(--nm-space-2);
+  margin-left: auto;
+}
+
 /* ── Profile approved workspace migration ───────────────────────────── */
 body.route-profile .profile-layout {
   display: flex;

@@ -17,6 +17,7 @@ import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
 import { RecoveryCodesView, TotpEnrolment } from "../auth/TotpEnrolment";
+import { useTheme } from "../../providers/ThemeProvider";
 
 const API_KEY_EXPIRY_OPTIONS: { label: string; value: ApiKeyExpiryDays }[] = [
   { label: "Never", value: null },
@@ -281,6 +282,7 @@ export function ProfileWorkspace({
   onUserUpdate: (user: User) => void;
 }) {
   const toast = useToast();
+  const { darkStyle, setDarkStyle } = useTheme();
   const [displayName, setDisplayName] = useState(user.display_name ?? "");
   const [profileEmail, setProfileEmail] = useState(user.email ?? "");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_data ?? null);
@@ -669,6 +671,27 @@ export function ProfileWorkspace({
                   >
                     {colorPrefBusy ? "Saving…" : entityColorsEnabled ? "Enabled" : "Disabled"}
                   </button>
+                </div>
+              </div>
+              <div className="profile-pref-row">
+                <div className="profile-pref-text">
+                  <strong>Dark mode style</strong>
+                  <span>Slate is cool blue-grey; Zinc is neutral charcoal. Saved in this browser.</span>
+                </div>
+                <div className="profile-pref-control">
+                  <span className="profile-pref-options" role="group" aria-label="Dark mode style">
+                  {(["slate", "zinc"] as const).map((style) => (
+                    <button
+                      key={style}
+                      type="button"
+                      className={`nm-btn nm-btn--sm${darkStyle === style ? " nm-btn--active" : " nm-btn--secondary"}`}
+                      aria-pressed={darkStyle === style}
+                      onClick={() => setDarkStyle(style)}
+                    >
+                      {style === "slate" ? "Slate" : "Zinc"}
+                    </button>
+                  ))}
+                  </span>
                 </div>
               </div>
             </div>

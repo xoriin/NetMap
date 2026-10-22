@@ -121,6 +121,54 @@ html:has(body.theme-dark) {
   color: var(--nm-text);
   background: var(--nm-bg);
 }
+body.theme-dark.theme-dark-zinc,
+html:has(body.theme-dark.theme-dark-zinc) {
+  --nm-shell: #0c0c0e;
+  --nm-shell-muted: #a1a1aa;
+  --nm-shell-text: #fafafa;
+  --nm-shell-raised: #09090b;
+  --nm-shell-border: rgba(255,255,255,0.07);
+  --nm-bg: #09090b;
+  --nm-bg-elevated: #111113;
+  --nm-surface: #18181b;
+  --nm-surface-soft: #111113;
+  --nm-border: #27272a;
+  --nm-border-strong: #3f3f46;
+  --nm-text: #fafafa;
+  --nm-text-muted: #a1a1aa;
+  --nm-text-faint: #71717a;
+  --nm-accent: #2dd4bf;
+  --nm-accent-strong: #5eead4;
+  --nm-accent-soft: rgba(45,212,191,0.10);
+  --nm-focus-border: #52525b;
+  --nm-tab-hover-bg: rgba(45,212,191,0.06);
+  --nm-tab-active-bg: rgba(45,212,191,0.12);
+  --nm-tab-hover-border: rgba(45,212,191,0.18);
+  --nm-tab-active-border: rgba(45,212,191,0.3);
+  --nm-tab-hover-text: #5eead4;
+  --nm-tab-active-text: #2dd4bf;
+  --nm-btn-hover-bg: #27272a;
+  --nm-btn-hover-border: rgba(45,212,191,0.35);
+  --nm-modal-shell: #111113;
+  --nm-modal-header: #1f1f23;
+  --nm-modal-section: #18181b;
+  --nm-modal-label: #e4e4e7;
+  --nm-popup-section-bg: #1f1f23;
+  --nm-popup-section-border: #3f3f46;
+  --nm-popup-section-title: #a1a1aa;
+  --nm-table-row-bg: #18181b;
+  --nm-table-header-bg: #1f1f23;
+  --nm-table-header-text: #a1a1aa;
+  --nm-table-header-border: #3f3f46;
+  --nm-row-hover: #222226;
+  --nm-track-bg: rgba(161,161,170,0.18);
+  --nm-btn-secondary-bg: #27272a;
+  --nm-btn-secondary-border: #3f3f46;
+  --nm-page-head-bg: rgba(9,9,11,0.92);
+  --nm-shadow-sm: 0 0 0 1px rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.5);
+  --nm-popup-section-title-border: var(--nm-border-strong);
+  --nm-popup-divider: rgba(63, 63, 70, 0.7);
+}
 
 
 /* ── Donut chart (network health panel) ───────────────────────────────────── */

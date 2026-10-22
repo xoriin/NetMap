@@ -5,6 +5,7 @@
 
 export const storageKeys = {
   theme: "netmap.theme",
+  darkStyle: "netmap.dark_style",
   iconPack: "netmap.icon_pack",
   sidebarCollapsed: "netmap.sidebar_collapsed",
 } as const;

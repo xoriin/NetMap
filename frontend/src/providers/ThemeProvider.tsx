@@ -4,12 +4,15 @@ import {
 import { storageKeys, readString, writeString } from "../utils/storage";
 
 export type Theme = "light" | "dark";
+export type DarkStyle = "slate" | "zinc";
 export type ThemeSource = "stored" | "system";
 
 type ThemeApi = {
   theme: Theme;
   themeSource: ThemeSource;
   toggleTheme: () => void;
+  darkStyle: DarkStyle;
+  setDarkStyle: (style: DarkStyle) => void;
 };
 
 const ThemeCtx = createContext<ThemeApi | null>(null);
@@ -31,15 +34,21 @@ function initialTheme(): { theme: Theme; source: ThemeSource } {
   return { theme: systemTheme(), source: "system" };
 }
 
+function initialDarkStyle(): DarkStyle {
+  return readString(storageKeys.darkStyle) === "zinc" ? "zinc" : "slate";
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [initial] = useState(initialTheme);
   const [theme, setTheme] = useState<Theme>(initial.theme);
   const [themeSource, setThemeSource] = useState<ThemeSource>(initial.source);
+  const [darkStyle, setDarkStyleState] = useState<DarkStyle>(initialDarkStyle);
 
   useEffect(() => {
     if (themeSource === "stored") writeString(storageKeys.theme, theme);
     document.body.classList.toggle("theme-dark", theme === "dark");
-  }, [theme, themeSource]);
+    document.body.classList.toggle("theme-dark-zinc", theme === "dark" && darkStyle === "zinc");
+  }, [theme, themeSource, darkStyle]);
 
   useEffect(() => {
     if (themeSource !== "system" || !window.matchMedia) return;
@@ -56,7 +65,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setThemeSource("stored");
       setTheme((current) => (current === "dark" ? "light" : "dark"));
     },
-  }), [theme, themeSource]);
+    darkStyle,
+    setDarkStyle: (style) => {
+      writeString(storageKeys.darkStyle, style);
+      setDarkStyleState(style);
+    },
+  }), [theme, themeSource, darkStyle]);
 
   return <ThemeCtx.Provider value={api}>{children}</ThemeCtx.Provider>;
 }
