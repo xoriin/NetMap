@@ -100,7 +100,7 @@ test("light mode paints the tinted page, near-white panels and the page header b
 
 test("light panel headers are navy bands with light text and a solid teal icon chip", async ({ page }) => {
   await openInventory(page, "light");
-  expect(await resolve(page, "--nm-panel-head-bg", "backgroundColor")).toBe("rgb(29, 46, 64)");
+  expect(await resolve(page, "--nm-panel-head-bg", "backgroundColor")).toBe("rgb(12, 35, 59)");
   const header = page.locator(".inventory-panel-header.nm-app-panel-header");
   await expect(header).toHaveCSS("background-color", await resolve(page, "--nm-panel-head-bg", "backgroundColor"));
   await expect(header).toHaveCSS("border-bottom-color", "rgb(24, 40, 58)");
@@ -121,7 +121,7 @@ test("light panel headers are navy bands with light text and a solid teal icon c
 
   await page.locator(".inventory-row").first().click();
   const sidebarHeader = page.locator(".inventory-device-sidebar-header");
-  await expect(sidebarHeader).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(sidebarHeader).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(sidebarHeader.locator(".nm-btn--icon")).toHaveCSS("color", "rgb(177, 188, 199)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
@@ -133,7 +133,7 @@ test("Overview panel headers share the band and keep their links readable", asyn
   await page.goto("/overview");
   const headers = page.locator(".overview-panel-header.nm-app-panel-header");
   await expect(headers.first()).toBeVisible();
-  for (const header of await headers.all()) await expect(header).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  for (const header of await headers.all()) await expect(header).toHaveCSS("background-color", "rgb(12, 35, 59)");
   const low = (await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5);
   expect(low).toEqual([]);
 });
@@ -144,7 +144,7 @@ test("the Topology ribbon carries the same light band as every panel header", as
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/topology");
   const ribbon = page.locator(".topology-toolbar--ribbon");
-  await expect(ribbon).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(ribbon).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(ribbon.locator(".topology-ribbon-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
   await expect(page.locator(".topology-workspace-frame .graph-surface")).toHaveCSS("background-color", "rgb(241, 242, 244)");
   expect(await resolve(page, "--nm-surface-tint", "backgroundColor")).toBe("rgb(236, 238, 241)");
@@ -227,12 +227,12 @@ test("Security results and Tools side cards carry the light band too", async ({ 
   await page.route("**/api/v1/syslog/status", (route) => route.fulfill({ json: { enabled: true, retention_days: 7, total_events: 0, received_packets: 0, stored_events: 0, dropped_unparsed: 0, denied_senders: 0 } }));
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/security");
-  await expect(page.locator(".security-results-meta")).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(page.locator(".security-results-meta")).toHaveCSS("background-color", "rgb(12, 35, 59)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 
   await page.goto("/tools");
   const sideHeaders = page.locator(".tools-side-header");
-  await expect(sideHeaders.first()).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(sideHeaders.first()).toHaveCSS("background-color", "rgb(12, 35, 59)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
 
@@ -240,7 +240,7 @@ test("light popup headers share the navy band with a readable title and close bu
   await openInventory(page, "light");
   await page.locator("button", { hasText: /^\s*\+?\s*Device\s*$/ }).first().click();
   const header = page.locator(".modal .modal-header").first();
-  await expect(header).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(header).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(header).toHaveCSS("border-bottom-color", "rgb(24, 40, 58)");
   await expect(header.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
   await expect(header.locator(".modal-close-btn")).toHaveCSS("color", "rgb(241, 245, 249)");
@@ -258,14 +258,14 @@ test("light Topology device and link detail headings share the navy band", async
   await entityPanel.locator(".topo-stat-btn--devices").click();
   await entityPanel.locator(".topo-entity-row", { hasText: "router-01" }).click();
   const heading = page.locator(".topology-details-panel .details-heading").first();
-  await expect(heading).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(heading).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(heading.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 
   await entityPanel.locator(".topo-stat-btn--relationships").click();
   await entityPanel.locator(".topo-entity-row--relationship").click();
   const linkHeading = page.locator(".relationship-detail__heading");
-  await expect(linkHeading).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(linkHeading).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(linkHeading.locator(".relationship-detail__heading-icon")).toHaveCSS("background-color", "rgb(43, 122, 136)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
 });
@@ -273,7 +273,7 @@ test("light Topology device and link detail headings share the navy band", async
 test("light table footers carry the same navy band as the panel header", async ({ page }) => {
   await openInventory(page, "light");
   const footer = page.locator(".inv-pagination").first();
-  await expect(footer).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(footer).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(footer).toHaveCSS("border-top-color", "rgb(24, 40, 58)");
   await expect(footer.locator(".inv-pagination-info")).toHaveCSS("color", "rgb(177, 188, 199)");
   expect((await headerTextContrast(page)).filter((entry) => entry.ratio < 4.5)).toEqual([]);
@@ -288,11 +288,11 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/admin#users");
   const usersHeader = page.locator(".admin-users-header").first();
-  await expect(usersHeader).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(usersHeader).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(usersHeader).toHaveCSS("color", "rgb(241, 245, 249)");
   await page.goto("/admin#automation");
   const schedules = page.locator(".admin-schedule-library-header").first();
-  await expect(schedules).toHaveCSS("background-color", "rgb(29, 46, 64)");
+  await expect(schedules).toHaveCSS("background-color", "rgb(12, 35, 59)");
   await expect(schedules.locator("h3")).toHaveCSS("color", "rgb(241, 245, 249)");
   await expect(schedules.locator("span").first()).toHaveCSS("color", "rgb(177, 188, 199)");
 });
