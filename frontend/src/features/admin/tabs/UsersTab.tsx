@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Check, X, Pencil } from "lucide-react";
 import { IconUsers } from "@tabler/icons-react";
@@ -289,8 +290,10 @@ export function UsersTab({
             </div>
           </form>
         )}
+
+      </section>
+      <AdminTaskPanel title="Add user" icon={<IconUsers size={18} />}>
         <form className="tool-form admin-create-form" onSubmit={createUser}>
-          <h3>Add user</h3>
           <div className="tool-form-grid">
             <label>Username <input required minLength={3} maxLength={80} value={createForm.username} onChange={(e) => setCreateForm((c) => ({ ...c, username: e.target.value }))} /></label>
             <label>Password <input required minLength={12} type="password" value={createForm.password} onChange={(e) => setCreateForm((c) => ({ ...c, password: e.target.value }))} /></label>
@@ -309,10 +312,10 @@ export function UsersTab({
               </select>
             </label>
           </div>
-          <label className="inline-toggle"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
+          <label className="tool-form-inline-check"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
           <button type="submit" className="nm-btn nm-btn--primary">Create user</button>
         </form>
-      </section>
+      </AdminTaskPanel>
     </div>
   );
 }

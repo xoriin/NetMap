@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useCallback, useEffect, useState } from "react";
 import { IconPalette } from "@tabler/icons-react";
 
@@ -148,12 +149,14 @@ export function EntityColorsPanel({
       {loading ? (
         <TableSkeleton rows={6} columns={3} />
       ) : (
-        <>
-          <h3 className="entity-colors-heading">VLANs / groups</h3>
-          {renderRows(groupRows, "No groups defined yet.")}
-          <h3 className="entity-colors-heading">Locations</h3>
-          {renderRows(siteRows, "No locations defined yet.")}
-        </>
+        <div className="admin-task-grid">
+          <AdminTaskPanel title="VLANs / groups" icon={<IconPalette size={18} />}>
+            {renderRows(groupRows, "No groups defined yet.")}
+          </AdminTaskPanel>
+          <AdminTaskPanel title="Locations" icon={<IconPalette size={18} />}>
+            {renderRows(siteRows, "No locations defined yet.")}
+          </AdminTaskPanel>
+        </div>
       )}
     </section>
   );

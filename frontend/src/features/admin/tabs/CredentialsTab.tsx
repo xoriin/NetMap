@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useState, type FormEvent } from "react";
 import { IconServer } from "@tabler/icons-react";
 import { api, type SnmpProfile } from "../../../api/client";
@@ -67,8 +68,9 @@ export function CredentialsTab({
         <p className="tool-note">
           SNMPv2c profiles store reusable community strings for probes, discovery ARP enrichment, and assigned router/L3-switch devices.
         </p>
+        <div className="admin-resource-layout">
+          <AdminTaskPanel title="Add SNMP profile" icon={<IconServer size={18} />}>
         <form className="tool-form admin-create-form" onSubmit={createSnmpProfile}>
-          <h3>Add SNMP profile</h3>
           <div className="tool-form-grid">
             <label>
               Name
@@ -97,6 +99,9 @@ export function CredentialsTab({
             {snmpProfilesBusy ? "Saving..." : "Create profile"}
           </button>
         </form>
+          </AdminTaskPanel>
+          <AdminTaskPanel title="Profile library" icon={<IconServer size={18} />}>
+
         <div className="admin-users-table">
           <div className="admin-users-header">
             <span>Profile</span>
@@ -119,6 +124,8 @@ export function CredentialsTab({
             </div>
           ))}
           {snmpProfiles.length === 0 && <p className="audit-empty">No SNMP profiles configured.</p>}
+        </div>
+          </AdminTaskPanel>
         </div>
       </section>
     </div>

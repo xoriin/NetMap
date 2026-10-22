@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { IconCloud, IconPalette } from "@tabler/icons-react";
 import { Upload } from "lucide-react";
@@ -232,6 +233,7 @@ export function NotificationsTab({
           </div>
           {brandingQuery.isLoading ? <PanelSkeleton lines={7} /> : brandingQuery.error ? <div className="form-error">{brandingQuery.error}</div> : (
             <form className="tool-form email-branding-form" onSubmit={saveEmailBranding}>
+              <AdminTaskPanel title="Message appearance" icon={<IconPalette size={18} />}>
               <div className="email-branding-fields">
                 <div className="nm-form-row">
                   <label className="nm-field"><span>Template</span><select className="nm-select" value={brandingForm.email_brand_theme} onChange={(event) => setBrandingForm((current) => ({ ...current, email_brand_theme: event.target.value as EmailBrandingSettings["email_brand_theme"] }))}><option value="login_banner">Login banner</option><option value="clean_stripe">Clean stripe</option></select></label>
@@ -256,6 +258,8 @@ export function NotificationsTab({
                 </label>
                 <button className="nm-btn nm-btn--primary email-branding-save" type="submit" disabled={brandingBusy}>{brandingBusy ? "Saving…" : "Save email branding"}</button>
               </div>
+              </AdminTaskPanel>
+              <AdminTaskPanel title="Message preview" icon={<IconPalette size={18} />} className="admin-email-preview-task">
               <div className="email-branding-preview" ref={previewBoxRef}>
                 {brandingPreviewHtml ? (
                   <iframe
@@ -268,6 +272,7 @@ export function NotificationsTab({
                   />
                 ) : <PanelSkeleton lines={9} />}
               </div>
+              </AdminTaskPanel>
             </form>
           )}
         </section>

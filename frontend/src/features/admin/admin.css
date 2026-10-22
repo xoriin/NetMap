@@ -424,23 +424,25 @@
   gap: 6px;
 }
 
-/* User rows carry four actions, so keep their column wide enough to retain the
-   canonical one-line, right-edge action treatment at desktop widths. */
+/* Keep the scroll viewport shrinkable and the rows wide enough for their actions.
+   Narrow screens scroll inside the table instead of clipping buttons at the panel edge. */
 .admin-layout .admin-users-table--accounts {
-  min-width: 900px;
+  min-width: 0;
 }
 
 .admin-layout .admin-users-table--accounts .admin-users-header,
 .admin-layout .admin-users-table--accounts .admin-users-row {
+  min-width: 900px;
   grid-template-columns: minmax(220px, 1fr) 152px 100px 268px;
 }
 
 .admin-layout .admin-users-table--wide-actions {
-  min-width: 990px;
+  min-width: 0;
 }
 
 .admin-layout .admin-users-table--wide-actions .admin-users-header,
 .admin-layout .admin-users-table--wide-actions .admin-users-row {
+  min-width: 990px;
   grid-template-columns: minmax(220px, 1fr) 152px 100px 356px;
 }
 
@@ -948,7 +950,8 @@
 }
 
 @media (max-width: 760px) {
-  .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel > .nm-app-panel-header {
+  .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel > .nm-app-panel-header,
+  .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header {
     height: auto;
     min-height: 44px;
     align-items: flex-start;
@@ -1195,4 +1198,66 @@ body:not(.theme-dark) .admin-layout .admin-users-header {
 
 body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   color: var(--nm-panel-head-text);
+}
+
+
+/* Task panels reuse nm-app-panel surfaces/headers. Admin owns layout only. */
+.admin-layout .admin-task-grid,
+.admin-layout .admin-resource-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--nm-space-4);
+  min-width: 0;
+}
+.admin-layout .admin-resource-layout {
+  grid-template-columns: minmax(260px, .8fr) minmax(0, 1.7fr);
+}
+.admin-task-panel { min-width: 0; }
+.admin-task-body {
+  display: grid;
+  align-content: start;
+  gap: var(--nm-space-3);
+  min-width: 0;
+  padding: var(--nm-space-4);
+}
+.admin-task-panel .nm-app-panel-header { flex-wrap: wrap; }
+.admin-task-count { color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
+.admin-layout .admin-task-body > .admin-create-form,
+.admin-layout .admin-task-body > .admin-inline-form,
+.admin-layout .admin-task-body > .device-icons-create-form,
+.admin-layout .admin-task-body > .cloud-provider-create {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.admin-layout .admin-task-body > .device-icons-create-form,
+.admin-layout .admin-task-body > .cloud-provider-create { grid-template-columns: minmax(0, 1fr); }
+.admin-task-panel--connection { grid-row: span 2; }
+.admin-layout .admin-system-page .system-tab-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nm-space-4);
+  align-items: start;
+}
+.admin-layout .admin-system-page .system-tab-col { display: contents; }
+.admin-layout .admin-settings-card { grid-column: 1 / -1; }
+.admin-layout .rbac-roles-grid { gap: var(--nm-space-4); }
+.admin-role-panel .rbac-perm-list { padding: 0; }
+.admin-layout .admin-automation-split { align-items: stretch; }
+.admin-automation-split > .admin-task-panel { display: flex; flex-direction: column; }
+.admin-automation-split > .admin-task-panel > .admin-task-body { flex: 1; }
+.admin-task-body .email-branding-preview { min-width: 0; }
+.admin-layout .email-branding-form > .admin-task-panel { display: flex; flex-direction: column; }
+.admin-layout .email-branding-form > .admin-task-panel > .admin-task-body { flex: 1; min-height: 0; }
+.admin-layout .admin-email-preview-task > .admin-task-body { display: flex; align-items: stretch; }
+
+@media (max-width: 1200px) {
+  .admin-layout .admin-resource-layout,
+  .admin-layout .admin-automation-split { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1000px) {
+  .admin-layout .admin-task-grid,
+  .admin-layout .admin-system-page .system-tab-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-task-panel--connection { grid-row: auto; }
 }

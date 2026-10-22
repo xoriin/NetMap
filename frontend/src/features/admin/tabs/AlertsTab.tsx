@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useState } from "react";
 import { IconAlertCircle } from "@tabler/icons-react";
 import {
@@ -129,6 +130,7 @@ export function AlertsTab({
         {alertRulesError && <div className="form-error">{alertRulesError}</div>}
 
         {showAlertForm && (
+          <AdminTaskPanel title={editingAlertRule ? "Edit rule" : "New rule"} icon={<IconAlertCircle size={18} />}>
           <div className="tool-form admin-inline-form">
             <label>Rule name
               <input value={alertForm.name} maxLength={120} onChange={(e) => setAlertForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Core router offline" />
@@ -273,6 +275,7 @@ export function AlertsTab({
               <button type="button" className="nm-btn" onClick={() => { setShowAlertForm(false); setEditingAlertRule(null); }}>Cancel</button>
             </div>
           </div>
+          </AdminTaskPanel>
         )}
 
         {alertRules.length === 0 ? (

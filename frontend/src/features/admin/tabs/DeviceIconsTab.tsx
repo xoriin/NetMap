@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useMemo, useState, type FormEvent } from "react";
 import { IconDeviceDesktop, IconPalette, IconTrash } from "@tabler/icons-react";
 
@@ -193,6 +194,8 @@ export function DeviceIconsTab({
           </button>
         </div>
 
+        <div className="admin-resource-layout">
+          <AdminTaskPanel title="New device type" icon={<IconDeviceDesktop size={18} />}>
         <form className="device-icons-create-form" onSubmit={createDeviceType}>
           <label className="nm-field">
             <span>Device type</span>
@@ -212,6 +215,9 @@ export function DeviceIconsTab({
             {busy === "create" ? "Adding..." : "Add type"}
           </button>
         </form>
+          </AdminTaskPanel>
+          <AdminTaskPanel title="Type library" icon={<IconDeviceDesktop size={18} />}>
+
 
         <div className="nm-table-wrap device-types-table-wrap">
           <table className="nm-table device-types-table">
@@ -330,6 +336,8 @@ export function DeviceIconsTab({
               );
             })}</tbody>
           </table>
+        </div>
+          </AdminTaskPanel>
         </div>
 
         <div className="icon-mgr-device-types-actions nm-btn-row">

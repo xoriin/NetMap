@@ -82,6 +82,138 @@ const emailBranding = {
   email_brand_show_support: true,
 };
 
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`Admin task panels stay distinct and reflow in ${style}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.route("**/api/v1/auth/users", route => route.fulfill({ json: [
+      { ...mockUser, totp_enabled: true },
+      ...Array.from({ length: 12 }, (_, index) => ({
+        ...mockUser, id: 100 + index, username: `operations-administrator-for-regional-network-${index + 1}`,
+        display_name: "Regional network operations and infrastructure administrator",
+        email: index % 2 ? null : `regional-operations-administrator-${index + 1}@example.com`,
+        role: "Viewer", totp_enabled: index % 2 === 0, is_active: index % 3 !== 0,
+      })),
+    ] }));
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("response", response => { if (response.url().includes("/api/") && response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+    await page.addInitScript(value => {
+      if (window !== window.top) return;
+      localStorage.setItem("netmap.theme", value === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", value === "zinc" ? "zinc" : "slate");
+    }, style);
+    const sections = [
+      ["system", 4], ["devices-icons", 4], ["cloud-providers", 2], ["users", 1],
+      ["groups", 4], ["credentials", 2], ["notifications", 2], ["alerts", 1],
+      ["automation", 2], ["security", 4],
+    ] as const;
+    for (const [section, minimum] of sections) {
+      await page.setViewportSize({ width: 1600, height: 1100 });
+      await page.goto(`/admin#${section}`);
+      if (section === "alerts") await page.getByRole("button", { name: "+ Add rule", exact: true }).click();
+      const panels = page.locator("[data-admin-task]");
+      await expect.poll(() => panels.count(), { message: section }).toBeGreaterThanOrEqual(minimum);
+      for (const panel of await panels.all()) {
+        await expect(panel.locator(":scope > .nm-app-panel-header")).toBeVisible();
+        await expect(panel.locator(":scope > .nm-app-panel-header .nm-app-panel-icon")).toBeVisible();
+        await expect(panel.locator(":scope > .admin-task-body")).toHaveCSS("padding", "16px");
+      }
+      if (section === "system" || section === "security") {
+        const grid = page.locator(".admin-task-grid").first();
+        const columns = await grid.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(" ").length);
+        expect(columns).toBe(2);
+      }
+      if (section === "users") {
+        const geometry = await page.locator(".admin-users-table--accounts").evaluate(node => {
+          const table = node.getBoundingClientRect();
+          const panel = node.closest("section")!.getBoundingClientRect();
+          const refresh = node.closest("section")!.querySelector("button")!.getBoundingClientRect();
+          const actions = node.querySelector(".admin-user-row-actions")!.getBoundingClientRect();
+          return { tableRight: table.right, panelRight: panel.right, refreshRight: refresh.right, actionsRight: actions.right };
+        });
+        expect(geometry.tableRight).toBeLessThanOrEqual(geometry.panelRight);
+        expect(geometry.refreshRight).toBeLessThanOrEqual(geometry.panelRight);
+        expect(geometry.actionsRight).toBeLessThanOrEqual(geometry.panelRight);
+      }
+      if (section === "notifications") await expect(page.locator("iframe[title='Email branding preview']")).toBeVisible();
+      await page.screenshot({ path: test.info().outputPath(`admin-${section}-${style}-desktop.png`), fullPage: true });
+      await page.setViewportSize({ width: 620, height: 950 });
+      const headerActions = await page.locator(".nm-app-panel-header button").evaluateAll(buttons => buttons.map(button => {
+        const bounds = button.getBoundingClientRect();
+        const header = button.closest(".nm-app-panel-header")!.getBoundingClientRect();
+        return { height: bounds.height, bottom: bounds.bottom, headerBottom: header.bottom };
+      }));
+      for (const action of headerActions) {
+        expect(action.height).toBeGreaterThanOrEqual(24);
+        expect(action.bottom).toBeLessThanOrEqual(action.headerBottom);
+      }
+      expect(await page.locator(".admin-purpose-content").evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+      if (section === "users") {
+        const table = page.locator(".admin-users-table--accounts");
+        const geometry = await table.evaluate(node => {
+          node.scrollLeft = node.scrollWidth;
+          const viewport = node.getBoundingClientRect();
+          const buttons = node.querySelectorAll(".admin-user-row-actions button");
+          const last = buttons[buttons.length - 1].getBoundingClientRect();
+          return { right: viewport.right, buttonRight: last.right, contentRight: node.closest(".admin-purpose-content")!.getBoundingClientRect().right, scrollable: node.scrollWidth > node.clientWidth };
+        });
+        expect(geometry.right).toBeLessThanOrEqual(geometry.contentRight);
+        expect(geometry.scrollable).toBe(true);
+        expect(geometry.buttonRight).toBeLessThanOrEqual(geometry.right);
+      }
+      const widths = await panels.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().width));
+      expect(widths.every(width => width > 200)).toBe(true);
+      await page.screenshot({ path: test.info().outputPath(`admin-${section}-${style}-narrow.png`), fullPage: true });
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+test("System task panels retain all drafts after a failed save and retry together", async ({ page }) => {
+  await setupAdminMocks(page);
+  let attempts = 0;
+  let saved: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/admin/settings", async route => {
+    if (route.request().method() !== "PUT") return route.fulfill({ json: settings });
+    saved = route.request().postDataJSON();
+    attempts += 1;
+    if (attempts === 1) return route.fulfill({ status: 503, json: { detail: "Settings service unavailable" } });
+    return route.fulfill({ json: { ...settings, ...saved } });
+  });
+  await page.goto("/admin#system");
+  await page.getByRole("region", { name: "Identity and support", exact: true }).getByLabel("App name", { exact: true }).fill("Operations console");
+  await page.getByRole("region", { name: "Monitoring and network checks", exact: true }).getByLabel("Live ping interval (seconds)").fill("240");
+  await page.getByRole("region", { name: "IP reservation policy", exact: true }).getByRole("checkbox", { name: /Default new IP reservations/ }).uncheck();
+  await page.getByRole("region", { name: "Session policy", exact: true }).getByLabel("Idle session timeout (minutes)").fill("30");
+  const save = page.getByRole("button", { name: "Save settings", exact: true });
+  await save.click();
+  await expect(page.getByText("Settings service unavailable [503]", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("App name", { exact: true })).toHaveValue("Operations console");
+  await save.click();
+  await expect.poll(() => attempts).toBe(2);
+  expect(saved).toMatchObject({ app_name: "Operations console", monitor_interval_seconds: 240, idle_timeout_minutes: 30, ip_reservation_default_expiry_enabled: false });
+  expect(saved).not.toHaveProperty("totp_required");
+});
+
+test("SSO saves fields from every task panel without replacing the stored secret", async ({ page }) => {
+  await setupAdminMocks(page);
+  let saved: Record<string, unknown> | null = null;
+  await page.route("**/api/v1/admin/oidc-settings", async route => {
+    if (route.request().method() === "PUT") saved = route.request().postDataJSON();
+    return route.fulfill({ json: { ...oidcSettings, client_secret_set: true, ...saved } });
+  });
+  await page.goto("/admin#security");
+  await page.getByRole("region", { name: "Provider connection", exact: true }).getByLabel("Provider name (login button label)").fill("Company sign-in");
+  await page.getByRole("region", { name: "User provisioning", exact: true }).getByLabel("Allowed email domains", { exact: false }).fill("example.com");
+  await page.getByRole("region", { name: "Role mapping", exact: true }).getByLabel("Group claim name", { exact: true }).fill("team_roles");
+  await page.getByRole("button", { name: "Save SSO settings", exact: true }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect(saved).toMatchObject({ provider_name: "Company sign-in", allowed_email_domains: "example.com", group_claim: "team_roles" });
+  expect(saved).not.toHaveProperty("client_secret");
+  await expect(page.getByText("Single sign-on settings saved", { exact: true })).toBeVisible();
+});
+
 async function setupAdminMocks(page: Page) {
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
@@ -299,7 +431,7 @@ test("email branding upload is a standard button and the preview shows the whole
   await box.evaluate((node) => { node.scrollTop = 0; });
   const frameRect = (await frame.boundingBox())!;
   const fitted = (await box.boundingBox())!;
-  const chrome = await box.evaluate((node) => node.offsetWidth - node.clientWidth);
+  const chrome = await box.evaluate((node: HTMLElement) => node.offsetWidth - node.clientWidth);
   expect(frameRect.x + frameRect.width).toBeLessThanOrEqual(fitted.x + fitted.width - chrome + 2);
   expect(fitted.width - chrome - frameRect.width).toBeLessThanOrEqual(4);
 });
@@ -469,9 +601,9 @@ test("shows every built-in role and the complete permission matrix", async ({ pa
   await setupAdminMocks(page);
   await page.goto("/admin");
   await page.getByLabel("Administration sections", { exact: true }).getByRole("link", { name: "Groups", exact: true }).click();
-  const cards = page.locator(".rbac-role-card");
+  const cards = page.locator(".admin-role-panel");
   await expect(cards).toHaveCount(4);
-  await expect(cards.locator(".rbac-role-name")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
+  await expect(cards.locator(".admin-section-title")).toHaveText(["SuperAdmin", "Network Admin", "Security Analyst", "Viewer"]);
   const superAdmin = cards.filter({ hasText: "SuperAdmin" });
   await expect(superAdmin.locator('input[type="checkbox"]')).toHaveCount(2);
   for (const checkbox of await superAdmin.locator('input[type="checkbox"]').all()) {
@@ -550,11 +682,11 @@ for (const theme of ["light", "dark"] as const) {
         await expect(form).toBeVisible();
         const usesCanonicalShell = await form.evaluate((element) => {
           const probe = document.createElement("span");
-          probe.style.background = "var(--nm-modal-shell)";
+          probe.style.background = "var(--nm-modal-section)";
           element.appendChild(probe);
           const expected = getComputedStyle(probe).backgroundColor;
           probe.remove();
-          return getComputedStyle(element).backgroundColor === expected;
+          return getComputedStyle(element.closest("[data-admin-task]")!).backgroundColor === expected;
         });
         expect(usesCanonicalShell).toBe(true);
       }
@@ -573,8 +705,8 @@ for (const theme of ["light", "dark"] as const) {
       }
 
       if (tabName === "Automation") {
-        const formBox = await panel.locator(".admin-create-form").boundingBox();
-        const library = panel.locator(".admin-schedule-library");
+        const formBox = await panel.getByRole("region", { name: "New schedule", exact: true }).boundingBox();
+        const library = panel.locator(".admin-schedule-task");
         const libraryBox = await library.boundingBox();
         expect(formBox).not.toBeNull();
         expect(libraryBox).not.toBeNull();
@@ -786,7 +918,7 @@ for (const theme of ["light", "dark"]) {
     await page.getByLabel("Date format").selectOption("dd-MM-yyyy");
     await page.getByRole("button", { name: "Save schedule" }).click();
     await expect.poll(() => saved?.backup_filename_prefix).toBe("office-backup");
-    expect(saved?.backup_date_format).toBe("dd-MM-yyyy");
+    await expect.poll(() => saved?.backup_date_format).toBe("dd-MM-yyyy");
     await expect(page.getByRole("button", { name: "Save schedule" })).toBeEnabled();
     await page.getByLabel("Filename prefix").fill("../unsafe");
     expect(await page.getByLabel("Filename prefix").evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);

@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useState, type FormEvent } from "react";
 import { IconCalendarClock } from "@tabler/icons-react";
 import {
@@ -162,8 +163,8 @@ export function AutomationTab({
           Scheduled scans automatically probe your network at a set interval and record observations for new devices, IP address changes, field changes, and hosts that disappear.
         </p>
         <div className="admin-automation-split">
+          <AdminTaskPanel title="New schedule" icon={<IconCalendarClock size={18} />}>
           <form className="tool-form admin-create-form" onSubmit={(e) => void createSchedule(e)}>
-            <h3>New schedule</h3>
             <div className="tool-form-grid">
               <label>
                 Target <span className="tool-note" style={{ fontWeight: "normal" }}>(IP, CIDR, or range)</span>
@@ -219,7 +220,7 @@ export function AutomationTab({
                 </select>
               </label>
             </div>
-            <label className="checkbox-label">
+            <label className="tool-form-inline-check">
               <input type="checkbox" checked={schedForm.enabled} onChange={(e) => setSchedForm((f) => ({ ...f, enabled: e.target.checked }))} />
               Enable immediately
             </label>
@@ -227,14 +228,10 @@ export function AutomationTab({
               {automationBusy ? "Saving…" : "Create schedule"}
             </button>
           </form>
+          </AdminTaskPanel>
 
-          <section className="admin-schedule-library" aria-label="Created schedules">
-            <div className="admin-schedule-library-header">
-              <div>
-                <h3>Created schedules</h3>
-                <span>{schedules.length} configured</span>
-              </div>
-            </div>
+          <AdminTaskPanel title="Created schedules" icon={<IconCalendarClock size={18} />} className="admin-schedule-task"
+            actions={<span className="admin-task-count">{schedules.length} configured</span>}>
             {automationQuery.isLoading
               ? <PanelSkeleton lines={4} />
               : schedules.length === 0
@@ -268,7 +265,7 @@ export function AutomationTab({
                   ))}
                 </div>
               )}
-          </section>
+          </AdminTaskPanel>
         </div>
       </section>}
 

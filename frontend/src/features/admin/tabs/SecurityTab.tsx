@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState, type FormEvent } from "react";
 import { KeyRound, KeySquare, Shield, ShieldCheck } from "lucide-react";
 import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type SystemSettings, type User } from "../../../api/client";
@@ -160,6 +161,9 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
       )}
       {form && settings && (
         <form className="tool-form" onSubmit={(e) => void save(e)}>
+          <div className="admin-task-grid">
+            <AdminTaskPanel title="Provider connection" icon={<KeyRound size={18} />} className="admin-task-panel--connection">
+
           <label className="tool-form-inline-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} />
             <span className="tool-form-check-copy">
@@ -201,6 +205,8 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
           <span className="auth-field-hint">
             Register this redirect URL with the provider: {settings.effective_redirect_url || "(configure APP_URL or a redirect URL above)"}
           </span>
+            </AdminTaskPanel>
+            <AdminTaskPanel title="User provisioning" icon={<ShieldCheck size={18} />}>
           <div className="tool-form-grid">
             <label>Allowed email domains (comma-separated, empty = any)
               <input maxLength={1024} placeholder="example.com, corp.example" value={form.allowed_email_domains} onChange={(e) => update("allowed_email_domains", e.target.value)} />
@@ -241,6 +247,8 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
               <span className="tool-note">Only enable this for providers that do not send a verified email claim, such as some Microsoft Entra ID setups.</span>
             </span>
           </label>
+            </AdminTaskPanel>
+            <AdminTaskPanel title="Role mapping" icon={<KeySquare size={18} />}>
           <div className="tool-form-grid">
             <label>Group claim name
               <input maxLength={120} placeholder="groups" value={form.group_claim} onChange={(e) => update("group_claim", e.target.value)} />
@@ -263,6 +271,8 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
               <span className="tool-note">Keep off unless the identity provider group mapping is tightly controlled and audited.</span>
             </span>
           </label>
+            </AdminTaskPanel>
+          </div>
           {formError && <div className="form-error">{formError}</div>}
           <button type="submit" className="nm-btn nm-btn--primary" disabled={saving}>
             {saving ? "Saving…" : "Save SSO settings"}
@@ -270,7 +280,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
         </form>
       )}
       {settings && (
-        <div className="sso-require-block">
+        <AdminTaskPanel title="Sign-in policy" icon={<ShieldCheck size={18} />}>
           <label className="tool-form-inline-check">
             <input
               type="checkbox"
@@ -287,7 +297,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
               Local password sign-in is currently disabled for non-SuperAdmin users. Disable this toggle to roll back.
             </span>
           )}
-        </div>
+        </AdminTaskPanel>
       )}
     </section>
   );

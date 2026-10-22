@@ -1,3 +1,4 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState } from "react";
 import { IconShieldCheck } from "@tabler/icons-react";
 import { api } from "../../../api/client";
@@ -133,12 +134,10 @@ export function GroupsTab({
                 const isCustom = !["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(role);
                 const label = role === "NetworkAdmin" ? "Network Admin" : role === "SecurityAnalyst" ? "Security Analyst" : role;
                 return (
-                  <div key={role} className={`rbac-role-card${isCustom ? " rbac-role-card--custom" : ""}`}>
-                    <div className="rbac-role-header">
-                      <h3 className="rbac-role-name">{label}</h3>
-                      {isCustom && <button
+                  <AdminTaskPanel key={role} title={label} icon={<IconShieldCheck size={18} />} className="admin-role-panel"
+                    actions={isCustom ? (<button
                         type="button"
-                        className="rbac-delete-btn"
+                        className="nm-btn nm-btn--sm nm-btn--danger"
                         title={`Delete "${role}" group`}
                         disabled={groupsBusy}
                         onClick={() => {
@@ -149,8 +148,7 @@ export function GroupsTab({
                             confirmLabel: "Delete role",
                           }).then((confirmed) => { if (confirmed) void deleteGroup(role); });
                         }}
-                      >✕</button>}
-                    </div>
+                      >✕</button>) : undefined}>
                     <ul className="rbac-perm-list">
                       {rolePermissions.permissions.map((perm) => {
                         const granted = isSuperAdmin || (localRolePerms[role] ?? []).includes(perm.key);
@@ -182,7 +180,7 @@ export function GroupsTab({
                         );
                       })}
                     </ul>
-                  </div>
+                  </AdminTaskPanel>
                 );
               })}
             </div>

@@ -1,5 +1,6 @@
+import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState, type FormEvent } from "react";
-import { FileUp, Palette, Settings } from "lucide-react";
+import { Activity, CalendarClock, FileUp, Palette, Settings, Timer } from "lucide-react";
 import {
   IconCloud, IconDatabase,
   IconServer,
@@ -305,11 +306,14 @@ export function SystemTab({
     <div className="admin-tab-content admin-system-page">
       <div className="system-tab-grid">
         <div className="system-tab-col">
-          <section className="panel admin-panel nm-app-panel admin-system-card">
+          <section className="panel admin-panel nm-app-panel admin-system-card admin-settings-card">
             <div className="admin-system-card-header nm-app-panel-header">
               <h2 className="admin-section-title"><Settings size={16} />App settings</h2>
             </div>
             <form className="tool-form admin-system-card-body" onSubmit={saveSettings}>
+              <div className="admin-task-grid">
+                <AdminTaskPanel title="Identity and support" icon={<Settings size={18} />}>
+
               <label>App name <input maxLength={80} value={settingsForm.app_name} onChange={(e) => setSettingsForm((c) => ({ ...c, app_name: e.target.value }))} /></label>
               <label>Login page message <textarea maxLength={300} rows={2} value={settingsForm.login_message} onChange={(e) => setSettingsForm((c) => ({ ...c, login_message: e.target.value }))} /></label>
               <label>
@@ -325,6 +329,8 @@ export function SystemTab({
                 Support URL
                 <input type="text" maxLength={500} placeholder="https://example.com/support" value={settingsForm.support_url} onChange={(e) => setSettingsForm((c) => ({ ...c, support_url: e.target.value }))} />
               </label>
+                </AdminTaskPanel>
+                <AdminTaskPanel title="Monitoring and network checks" icon={<Activity size={18} />}>
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.live_ping_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, live_ping_enabled: e.target.checked }))} />
                 <span className="tool-form-check-copy">
@@ -369,6 +375,8 @@ export function SystemTab({
                   <span className="tool-note">Enables public IP and hostname targets for ping, traceroute, and TCP checks</span>
                 </span>
               </label>
+                </AdminTaskPanel>
+                <AdminTaskPanel title="IP reservation policy" icon={<CalendarClock size={18} />}>
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.ip_reservation_default_expiry_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, ip_reservation_default_expiry_enabled: e.target.checked }))} />
                 <span className="tool-form-check-copy">
@@ -427,6 +435,8 @@ export function SystemTab({
                   </fieldset>
                 </>
               )}
+                </AdminTaskPanel>
+                <AdminTaskPanel title="Session policy" icon={<Timer size={18} />}>
               <label className="tool-form-inline-check">
                 <input
                   type="checkbox"
@@ -479,6 +489,8 @@ export function SystemTab({
                   })()}
                 </label>
               )}
+                </AdminTaskPanel>
+              </div>
               <button type="submit" className="nm-btn nm-btn--primary" disabled={settingsBusy || (() => { const n = parseInt(idleTimeoutRaw, 10); const m = parseInt(monitorIntervalRaw, 10); const idleInvalid = settingsForm.idle_timeout_minutes > 0 && (isNaN(n) || n < 1 || n > 480); return idleInvalid || isNaN(m) || m < 30 || m > 3600; })()}>
                 {settingsBusy ? "Saving…" : "Save settings"}
               </button>
