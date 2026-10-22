@@ -61,3 +61,13 @@ test("light-mode Topology labels keep their own colours", async ({ page }) => {
   await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("border-top-color", "rgb(154, 173, 185)");
   await expect(page.locator(".topology-group-header").first()).toHaveCSS("color", "rgb(38, 59, 75)");
 });
+
+test("the Topology canvas follows the Zinc style", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ id: 1, topology_group: "Core" }), mockDevice({ id: 2, hostname: "switch-01", topology_group: "Core" })], [mockRelationship({ id: 1, source_device_id: 1, target_device_id: 2, label: "uplink" })]);
+  await page.addInitScript(() => { localStorage.setItem("netmap.theme", "dark"); localStorage.setItem("netmap.dark_style", "zinc"); });
+  await page.goto("/topology");
+  await expect(page.locator(".topology-workspace-frame .graph-surface")).toHaveCSS("background-color", "rgb(9, 9, 11)");
+  await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("border-top-color", "rgb(63, 63, 70)");
+  await expect(page.locator(".topology-device-icon-frame").first()).toHaveCSS("background-color", "rgb(24, 24, 27)");
+});

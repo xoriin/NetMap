@@ -45,6 +45,8 @@ import {
 } from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
+import { useTheme } from "../../providers/ThemeProvider";
+import { topologyPalette } from "../../utils/topologyPalette";
 
 const DEFAULT_EDGE_LABEL_FONT_SIZE = 15;
 const DEFAULT_NODE_LABEL_FONT_SIZE = 13;
@@ -83,6 +85,7 @@ export function TopologyWorkspace({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const toast = useToast();
+  const { darkStyle } = useTheme();
   const cyRef = useRef<Core | null>(null);
   const layoutPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const fitOnNextRenderRef = useRef(true);
@@ -976,23 +979,21 @@ export function TopologyWorkspace({
     if (!cy) {
       return;
     }
-    const textColor = theme === "dark" ? "#ffffff" : "#111111";
-    const zoneColor = theme === "dark" ? "#d8e5ef" : "#263b4b";
-    const zoneBgColor = theme === "dark" ? "#20364a" : "#b9cedb";
-    const zoneBorderColor = theme === "dark" ? "#496780" : "#6f8ba0";
-    const edgeLabelBg = theme === "dark" ? "#1d2f40" : "#eef3f7";
-    const edgeBorderColor = theme === "dark" ? "rgba(60,100,130,0.5)" : "rgba(160,190,210,0.6)";
-    cy.$("node.device").style("color", textColor);
-    cy.$("node.zone").forEach((n) => {
-      n.data("zoneLabelColor", zoneColor);
-      n.data("zoneBgColor", zoneBgColor);
-      n.data("zoneBorderColor", zoneBorderColor);
-    });
-    cy.$("edge").style("color", textColor);
-    cy.$("edge").style("text-background-color", edgeLabelBg);
-    cy.$("edge").style("text-border-color", edgeBorderColor);
     cy.$("edge").style("font-size", edgeLabelFontSize);
-  }, [theme, layoutRevision, filteredGraph, edgeLabelFontSize]);
+    const frame = requestAnimationFrame(() => {
+      const palette = topologyPalette(theme === "dark");
+      cy.$("node.device").style("color", palette.canvasText);
+      cy.$("node.zone").forEach((n) => {
+        n.data("zoneLabelColor", palette.liveZoneLabel);
+        n.data("zoneBgColor", palette.liveZoneFill);
+        n.data("zoneBorderColor", palette.liveZoneBorder);
+      });
+      cy.$("edge").style("color", palette.canvasText);
+      cy.$("edge").style("text-background-color", palette.edgeLabelBg);
+      cy.$("edge").style("text-border-color", palette.edgeLabelBorder);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [theme, darkStyle, layoutRevision, filteredGraph, edgeLabelFontSize]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -1000,6 +1001,7 @@ export function TopologyWorkspace({
       return;
     }
     const hadVisibleElements = cy.$("node.device").length > 0;
+    const palette = topologyPalette(theme === "dark");
     if (!skipPersistOnNextRenderRef.current) {
       persistCurrentTopologyLayout(cy, userId, layoutPositionsRef);
     }
@@ -1027,9 +1029,9 @@ export function TopologyWorkspace({
         data: {
           id: group.id,
           label: group.label,
-          zoneLabelColor: theme === "dark" ? "#d8e5ef" : "#263b4b",
-          zoneBgColor: theme === "dark" ? "#20364a" : "#b9cedb",
-          zoneBorderColor: theme === "dark" ? "#496780" : "#6f8ba0",
+          zoneLabelColor: palette.liveZoneLabel,
+          zoneBgColor: palette.liveZoneFill,
+          zoneBorderColor: palette.liveZoneBorder,
         },
       })),
       ...filteredGraph.devices.map((device) => {
@@ -1048,7 +1050,7 @@ export function TopologyWorkspace({
           data: {
             id: `device-${device.id}`,
             label: deviceLabel(device),
-            labelColor: theme === "dark" ? "#ffffff" : "#111111",
+            labelColor: palette.canvasText,
             color: nodeColor,
             iconUrl: deviceIconUrl(device.icon, nodeColor),
             icon: resolveDeviceIcon(device.icon),
@@ -1078,9 +1080,9 @@ export function TopologyWorkspace({
               : relationship.relationship_type,
             notes: relationship.notes,
             linkWidth: linkSpeedEdgeWidth(speed),
-            edgeLabelColor: theme === "dark" ? "#c8dae8" : "#2a4055",
-            edgeLabelBg: theme === "dark" ? "#1d2f40" : "#eef3f7",
-            edgeBorderColor: theme === "dark" ? "rgba(60,100,130,0.5)" : "rgba(160,190,210,0.6)",
+            edgeLabelColor: palette.edgeText,
+            edgeLabelBg: palette.edgeLabelBg,
+            edgeBorderColor: palette.edgeLabelBorder,
           },
         };
       }),

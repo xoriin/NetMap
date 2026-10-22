@@ -1,6 +1,7 @@
 import type { Core, EdgeSingular } from "cytoscape";
 import type { DownloadResult } from "../api/client";
 import { resolveDeviceIcon, deviceIconPath } from "../icons";
+import { topologyPalette } from "./topologyPalette";
 
 export function triggerDownload(result: DownloadResult) {
   const url = URL.createObjectURL(result.blob);
@@ -79,13 +80,14 @@ export function topologySvgDimensions(cy: Core): { width: number; height: number
 }
 
 export function buildTopologySvg(cy: Core, isDark = false, skipText = false) {
+  const palette = topologyPalette(isDark);
   const { width, height, offsetX, offsetY } = topologySvgDimensions(cy);
 
-  const bg         = isDark ? "#0c1118" : "#fbfdfe";
-  const zoneFill   = isDark ? "#111c28" : "#f4f8fa";
-  const zoneBorder = isDark ? "#2d3d52" : "#aebfcb";
-  const zoneTxt    = isDark ? "#8ab0c8" : "#263b4b";
-  const edgeColor  = isDark ? "#2d4a60" : "#6f8798";
+  const bg         = palette.background;
+  const zoneFill   = palette.zoneFill;
+  const zoneBorder = palette.zoneBorder;
+  const zoneTxt    = palette.zoneLabel;
+  const edgeColor  = palette.edge;
 
   let zoneMarkup = "";
   cy.nodes(".zone").forEach((zone) => {
@@ -103,8 +105,8 @@ export function buildTopologySvg(cy: Core, isDark = false, skipText = false) {
       `;
   });
 
-  const edgeTxtColor = isDark ? "#c8dae8" : "#2a4055";
-  const edgeBgColor  = isDark ? "#1d2f40" : "#eef3f7";
+  const edgeTxtColor = palette.edgeText;
+  const edgeBgColor  = palette.edgeLabelBg;
 
   let edgeMarkup = "";
   cy.edges().forEach((edge) => {
@@ -136,7 +138,7 @@ export function buildTopologySvg(cy: Core, isDark = false, skipText = false) {
     let labelMarkup = "";
     if (!skipText) {
       const label = String(node.data("label") ?? "");
-      const labelColor = isDark ? "#d7e2ea" : "#13212b";
+      const labelColor = palette.deviceLabel;
       const labelY = position.y + offsetY + size / 2 + 14;
       labelMarkup = label.split("\n").map((line, index) =>
         `<text x="${position.x + offsetX}" y="${labelY + index * 14}" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="600" fill="${labelColor}">${escapeXml(line)}</text>`

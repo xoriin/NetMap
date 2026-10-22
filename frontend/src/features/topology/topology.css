@@ -140,8 +140,8 @@ body.theme-dark .topology-toolbar--ribbon .toolbar-toggle {
 
 body.theme-dark .topology-workspace-frame .graph-surface {
   background:
-    radial-gradient(circle, rgba(66, 139, 167, 0.2) 0.8px, transparent 0.9px),
-    #081521;
+    radial-gradient(circle, color-mix(in srgb, var(--nm-text-faint) 30%, transparent) 0.8px, transparent 0.9px),
+    var(--nm-bg);
   background-size: 20px 20px;
 }
 
@@ -1035,4 +1035,37 @@ body.theme-dark .topo-bulkbar select {
 /* Light mode A panel header band (UI_THEME_RULES.md § Light mode A). */
 body:not(.theme-dark) .topology-details-panel .details-heading .details-live-badge {
   background-color: var(--nm-input-surface);
+}
+
+/* Dark mode canvas overlays on tokens, so Slate and Zinc both apply (UI_THEME_RULES.md § Dark mode styles). */
+body.theme-dark .topology-group-header { color: var(--nm-text); }
+body.theme-dark .topology-group-header__identity svg { color: var(--nm-text-muted); }
+body.theme-dark .topology-group-header__count.is-empty { color: var(--nm-text-faint); }
+body.theme-dark .topology-group-header__count.is-empty > span { background: var(--nm-text-faint); }
+body.theme-dark .topology-link-label {
+  border-color: var(--nm-border-strong);
+  background: color-mix(in srgb, var(--nm-bg) 96%, transparent);
+  color: var(--nm-modal-label);
+}
+body.theme-dark .topology-device-icon-frame {
+  border-color: var(--nm-border-strong);
+  background: var(--nm-surface);
+}
+body.theme-dark .topology-device-icon-frame::after {
+  border-color: var(--nm-surface);
+  background: var(--nm-text-faint);
+}
+body.theme-dark .topology-overlay-node.status-paused .topology-device-icon-frame,
+body.theme-dark .topology-overlay-node.status-unknown .topology-device-icon-frame,
+body.theme-dark .topology-overlay-node.status-disabled .topology-device-icon-frame { color: var(--nm-text-faint); }
+body.theme-dark .topology-overlay-node.canvas-hover .topology-device-icon-frame,
+body.theme-dark .topology-overlay-node.panel-glow .topology-device-icon-frame {
+  border-color: var(--nm-text-faint);
+  background: var(--nm-modal-header);
+}
+body.theme-dark .topology-overlay-node.selected .topology-device-icon-frame { border-color: var(--nm-text-muted); }
+body.theme-dark .topology-overlay-label {
+  border-color: var(--nm-border-strong);
+  background: color-mix(in srgb, var(--nm-bg) 94%, transparent);
+  color: var(--nm-text);
 }

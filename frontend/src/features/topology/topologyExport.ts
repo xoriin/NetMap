@@ -1,4 +1,5 @@
 import type { Core } from "cytoscape";
+import { topologyPalette } from "../../utils/topologyPalette";
 import {
   downloadDataUrl, downloadTextFile, triggerDownload, buildTopologySvg, topologySvgDimensions, edgeClippedEndpoints,
 } from "../../utils/download";
@@ -6,6 +7,7 @@ import {
 function renderTopologyCanvas(cy: Core, edgeLabelFontSize: number): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const isDark = document.body.classList.contains("theme-dark");
+    const palette = topologyPalette(isDark);
     const { width, height, offsetX, offsetY } = topologySvgDimensions(cy);
     // skipText=true: SVG carries only shapes/icons; all text is drawn on canvas
     // directly so it always renders regardless of browser SVG-as-image quirks.
@@ -22,13 +24,13 @@ function renderTopologyCanvas(cy: Core, edgeLabelFontSize: number): Promise<HTML
       const ctx = canvas.getContext("2d");
       if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Canvas context unavailable")); return; }
       ctx.scale(scale, scale);
-      ctx.fillStyle = isDark ? "#0c1118" : "#fbfdfe";
+      ctx.fillStyle = palette.background;
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
 
       // Zone labels above their boxes
-      const zoneLabelColor = isDark ? "#8ab0c8" : "#263b4b";
+      const zoneLabelColor = palette.zoneLabel;
       ctx.font = "700 13px Arial, sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
@@ -41,7 +43,7 @@ function renderTopologyCanvas(cy: Core, edgeLabelFontSize: number): Promise<HTML
       });
 
       // Device labels below icons
-      const deviceLabelColor = isDark ? "#d7e2ea" : "#13212b";
+      const deviceLabelColor = palette.deviceLabel;
       ctx.font = "600 12px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "alphabetic";
@@ -59,8 +61,8 @@ function renderTopologyCanvas(cy: Core, edgeLabelFontSize: number): Promise<HTML
       });
 
       // Edge (link) labels at midpoint of the clipped edge line
-      const edgeTxtColor = isDark ? "#c8dae8" : "#2a4055";
-      const edgeBgColor  = isDark ? "#1d2f40" : "#eef3f7";
+      const edgeTxtColor = palette.edgeText;
+      const edgeBgColor  = palette.edgeLabelBg;
       ctx.font = `${edgeLabelFontSize}px Arial, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
