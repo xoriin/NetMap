@@ -43,7 +43,6 @@ function ProfilePanelHeader({
     <header className="profile-panel-header nm-app-panel-header">
       <span className="profile-panel-title">
         <span className="profile-panel-icon"><Icon size={18} /></span>
-        <span aria-hidden="true">-</span>
         <strong>{title}</strong>
       </span>
       {action && <span className="profile-panel-action">{action}</span>}

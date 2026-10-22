@@ -55,10 +55,10 @@ for (const [theme, style, thumb] of [["light", "slate", "rgba(47, 68, 91, 0.38)"
 
 test("panel headers have no dash between the icon and the title", async ({ page }) => {
   await boot(page, "light");
-  for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools"]) {
+  for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools", "/profile", "/security"]) {
     await page.goto(route);
-    await expect(page.locator(".nm-app-panel-header, .topology-toolbar--ribbon").first()).toBeVisible();
-    const dashes = await page.locator(".nm-app-panel-header, .topology-toolbar--ribbon").evaluateAll((headers) =>
+    await expect(page.locator(".nm-app-panel-header, .topology-toolbar--ribbon, .security-panel-identity").first()).toBeVisible();
+    const dashes = await page.locator(".nm-app-panel-header, .topology-toolbar--ribbon, .security-panel-identity").evaluateAll((headers) =>
       headers.flatMap((header) => Array.from(header.querySelectorAll("span")).filter((span) => span.textContent?.trim() === "-").map(() => header.textContent?.trim().slice(0, 30))));
     expect(dashes, route).toEqual([]);
   }

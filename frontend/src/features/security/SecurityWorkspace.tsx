@@ -409,7 +409,7 @@ export function SecurityWorkspace({
           }}
         >
           <div className="security-panel-header nm-app-panel-header">
-            <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><span aria-hidden="true">-</span><strong>Event filters</strong></span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><strong>Event filters</strong></span>
             <small>{savedSearches.length} saved</small>
           </div>
           <label className="security-search">
@@ -478,7 +478,7 @@ export function SecurityWorkspace({
         </form>
         <div className="security-results nm-app-panel">
           <div className="security-results-meta">
-            <span className="security-panel-identity"><span className="security-panel-icon"><TableProperties size={18} /></span><span aria-hidden="true">-</span><strong>Firewall events</strong><small>{loading ? "Searching…" : `${total.toLocaleString()} results`}</small></span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><TableProperties size={18} /></span><strong>Firewall events</strong><small>{loading ? "Searching…" : `${total.toLocaleString()} results`}</small></span>
             <span className="security-results-actions">
               {columnWidths && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={resetColumnWidths}>Reset columns</button>}
               <span className="security-results-range">Showing {total === 0 ? 0 : offset + 1}-{Math.min(offset + pageSize, total)}</span>
