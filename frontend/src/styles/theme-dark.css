@@ -1115,7 +1115,9 @@ body.theme-dark .mon-ports-sidebar,
 body.theme-dark .mon-ports-form-col .ep-list,
 body.theme-dark .ipam-modal-body,
 body.theme-dark .obs-list,
-body.theme-dark .monitors-history-list {
+body.theme-dark .monitors-history-list,
+body.theme-dark .mon-hero-section > .mon-port-rows,
+body.theme-dark .mon-hero-section > .incident-log {
   scrollbar-color: color-mix(in srgb, var(--nm-text-faint) 50%, transparent) transparent;
 }
 body.theme-dark .inventory-table:hover,
@@ -1126,7 +1128,9 @@ body.theme-dark .mon-ports-sidebar:hover,
 body.theme-dark .mon-ports-form-col .ep-list:hover,
 body.theme-dark .ipam-modal-body:hover,
 body.theme-dark .obs-list:hover,
-body.theme-dark .monitors-history-list:hover {
+body.theme-dark .monitors-history-list:hover,
+body.theme-dark .mon-hero-section > .mon-port-rows:hover,
+body.theme-dark .mon-hero-section > .incident-log:hover {
   scrollbar-color: rgba(77, 184, 204, 0.55) transparent;
 }
 body.theme-dark .inventory-table::-webkit-scrollbar-track,
@@ -1137,7 +1141,9 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-track,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-track,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-track,
 body.theme-dark .obs-list::-webkit-scrollbar-track,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-track {
+body.theme-dark .monitors-history-list::-webkit-scrollbar-track,
+body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-track,
+body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--nm-modal-header) 50%, transparent);
 }
 body.theme-dark .inventory-table::-webkit-scrollbar-thumb,
@@ -1148,7 +1154,9 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb,
 body.theme-dark .obs-list::-webkit-scrollbar-thumb,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb {
+body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb,
+body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb,
+body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-thumb {
   background-color: color-mix(in srgb, var(--nm-text-faint) 50%, transparent);
 }
 body.theme-dark .inventory-table::-webkit-scrollbar-thumb:hover,
@@ -1159,7 +1167,9 @@ body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb:hover,
 body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover,
 body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb:hover,
 body.theme-dark .obs-list::-webkit-scrollbar-thumb:hover,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb:hover {
+body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb:hover,
+body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb:hover,
+body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-thumb:hover {
   background-color: rgba(77, 184, 204, 0.6);
 }
 

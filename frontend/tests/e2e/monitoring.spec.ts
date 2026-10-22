@@ -748,3 +748,24 @@ test("a newly arrived heartbeat animates in at the end, and only that one", asyn
   await expect.poll(async () => (await arrivals()).length).toBeGreaterThan(0);
   for (const arrival of await arrivals()) expect(arrival).toEqual({ index: 24, total: 25, animation: "hb-arrive" });
 });
+
+test("long popup lists stop at a max height and scroll inside their section", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+  const ports = Array.from({ length: 20 }, (_, i) => ({ target_id: i + 1, port: 8000 + i, label: `svc-${i}`, check_type: "tcp", open: true, status: "open" }));
+  await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1", latest_port_results: ports })]);
+  await page.goto("/monitoring");
+  await page.locator(".mon-row", { hasText: "Core Router" }).click();
+  const rows = page.locator(".mon-hero .mon-hero-section > .mon-port-rows");
+  await expect(rows).toBeVisible();
+  const box = await rows.evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight, overflow: getComputedStyle(el).overflowY }));
+  expect(box.overflow).toBe("auto");
+  expect(box.client).toBeLessThanOrEqual(288);
+  expect(box.scroll).toBeGreaterThan(box.client);
+  const title = rows.locator("xpath=preceding-sibling::div[contains(@class, 'mon-hero-section-title')][1]");
+  const before = (await title.boundingBox())!.y;
+  await rows.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  expect((await title.boundingBox())!.y).toBe(before);
+  await expect(page.locator(".mon-hero .mon-hero-section > .incident-log").first()).toHaveCSS("max-height", "288px");
+});

@@ -2233,6 +2233,12 @@ body:not(.theme-dark) .mon-hero-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-b
 .mon-hero-section .mon-chart-body { padding: 0 14px 14px; }
 .mon-hero-section .mon-port-rows { padding: 10px 14px 12px; }
 .mon-hero-section .incident-log { padding: 0; }
+.mon-hero-section > .mon-port-rows,
+.mon-hero-section > .incident-log {
+  max-height: var(--nm-popup-list-max-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 /* ── Dark theme overrides ───────────────────────────────────────────────────── */
 
@@ -4136,7 +4142,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   justify-content: flex-start;
 }
 .monitor-http-history {
-  max-height: 330px;
+  max-height: var(--nm-popup-list-max-height);
   overflow-y: auto;
 }
 .monitor-http-history-row {

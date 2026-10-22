@@ -262,7 +262,9 @@
 .mon-ports-form-col .ep-list,
 .ipam-modal-body,
 .obs-list,
-.monitors-history-list {
+.monitors-history-list,
+.mon-hero-section > .mon-port-rows,
+.mon-hero-section > .incident-log {
   scrollbar-width: thin;
   scrollbar-color: rgba(160, 180, 192, 0.45) transparent;
   transition: scrollbar-color 0.25s ease;
@@ -274,7 +276,9 @@
 .mon-ports-form-col .ep-list:hover,
 .ipam-modal-body:hover,
 .obs-list:hover,
-.monitors-history-list:hover {
+.monitors-history-list:hover,
+.mon-hero-section > .mon-port-rows:hover,
+.mon-hero-section > .incident-log:hover {
   scrollbar-color: rgba(29, 154, 176, 0.55) transparent;
 }
 .dash-panel-body::-webkit-scrollbar,
@@ -284,7 +288,9 @@
 .mon-ports-form-col .ep-list::-webkit-scrollbar,
 .ipam-modal-body::-webkit-scrollbar,
 .obs-list::-webkit-scrollbar,
-.monitors-history-list::-webkit-scrollbar {
+.monitors-history-list::-webkit-scrollbar,
+.mon-hero-section > .mon-port-rows::-webkit-scrollbar,
+.mon-hero-section > .incident-log::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
@@ -295,7 +301,9 @@
 .mon-ports-form-col .ep-list::-webkit-scrollbar-track,
 .ipam-modal-body::-webkit-scrollbar-track,
 .obs-list::-webkit-scrollbar-track,
-.monitors-history-list::-webkit-scrollbar-track {
+.monitors-history-list::-webkit-scrollbar-track,
+.mon-hero-section > .mon-port-rows::-webkit-scrollbar-track,
+.mon-hero-section > .incident-log::-webkit-scrollbar-track {
   background: rgba(160, 180, 192, 0.08);
   border-radius: 999px;
   margin: 6px;
@@ -307,7 +315,9 @@
 .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb,
 .ipam-modal-body::-webkit-scrollbar-thumb,
 .obs-list::-webkit-scrollbar-thumb,
-.monitors-history-list::-webkit-scrollbar-thumb {
+.monitors-history-list::-webkit-scrollbar-thumb,
+.mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb,
+.mon-hero-section > .incident-log::-webkit-scrollbar-thumb {
   background-color: rgba(160, 180, 192, 0.4);
   border-radius: 999px;
   border: 3px solid transparent;
@@ -320,7 +330,9 @@
 .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover,
 .ipam-modal-body::-webkit-scrollbar-thumb:hover,
 .obs-list::-webkit-scrollbar-thumb:hover,
-.monitors-history-list::-webkit-scrollbar-thumb:hover {
+.monitors-history-list::-webkit-scrollbar-thumb:hover,
+.mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb:hover,
+.mon-hero-section > .incident-log::-webkit-scrollbar-thumb:hover {
   background-color: rgba(29, 154, 176, 0.6);
   background-clip: padding-box;
 }
