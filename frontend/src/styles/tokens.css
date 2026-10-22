@@ -88,7 +88,8 @@
   --nm-panel-head-control-hover: rgba(255, 255, 255, 0.12);
   --nm-panel-head-icon-fg: var(--nm-on-deep);
   --nm-panel-head-accent: var(--nm-on-deep);
-  --nm-panel-head-link: #8fe0ee;
+  --nm-panel-head-link: var(--nm-on-deep);
+  --nm-panel-head-link-hover: #8fe0ee;
   --nm-panel-head-tab-hover-text: #8fe0ee;
   --nm-panel-head-tab-active-text: #8fe0ee;
   --nm-panel-head-favourite: #f0c56a;

@@ -138,6 +138,18 @@ test("Overview panel headers share the band and keep their links readable", asyn
   expect(low).toEqual([]);
 });
 
+test("light panel header links such as View all and Manage are white and turn teal on hover", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, devices);
+  await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
+  await page.goto("/overview");
+  const links = page.locator(".overview-panel-header .overview-panel-link");
+  await expect(links.first()).toBeVisible();
+  for (const link of await links.all()) await expect(link).toHaveCSS("color", "rgb(255, 255, 255)");
+  await links.first().hover();
+  await expect(links.first()).toHaveCSS("color", "rgb(143, 224, 238)");
+});
+
 for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(40, 70, 90, 0.5)"]] as const) {
   test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
