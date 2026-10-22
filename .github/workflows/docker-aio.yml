@@ -1,3 +1,4 @@
+# Test branch pushes validate the application before publishing its test image.
 name: Docker AIO Image
 
 on:
