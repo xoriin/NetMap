@@ -34,6 +34,6 @@
     "rollup-plugin-visualizer": "^6.0.11",
     "swagger-ui-dist": "^5.27.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.3.5"
   }
 }
