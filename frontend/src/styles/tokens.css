@@ -128,6 +128,8 @@
   --nm-table-header-weight: 600;
   --nm-row-hover: #eff1f3;
   --nm-row-hover-edge: transparent;
+  --nm-option-hover-bg: #dfe6ee;
+  --nm-option-hover-edge: var(--nm-accent);
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
      still reads on a banded row, and --alt-soft is weaker again for nested rows. */
   --nm-row-alt: rgba(15, 23, 42, 0.035);

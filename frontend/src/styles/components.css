@@ -618,7 +618,8 @@ body.theme-dark .nm-swatch-dot:not(.nm-swatch-dot--none) {
 }
 
 .nm-swatch-option--hl {
-  background: var(--nm-row-hover);
+  background: var(--nm-option-hover-bg);
+  box-shadow: inset 3px 0 0 var(--nm-option-hover-edge);
 }
 
 .nm-swatch-option--selected {
@@ -637,9 +638,7 @@ body.theme-dark .nm-swatch-list {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 
-body.theme-dark .nm-swatch-option--hl {
-  background: rgba(29, 154, 176, 0.12);
-}
+
 
 /* ── Canonical controls and feedback ───────────────────────────────────────
    Shared nm-* primitives live here so feature styles can only own layout. */

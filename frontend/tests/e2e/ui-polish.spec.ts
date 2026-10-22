@@ -21,6 +21,28 @@ test("Overview header links are white in dark mode and turn teal on hover", asyn
   await expect(link).toHaveCSS("color", "rgb(103, 232, 249)");
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`dropdown options show a strong highlight with an accent edge in ${theme} mode`, async ({ page }) => {
+    await boot(page, theme);
+    await page.goto("/inventory");
+    await page.locator(".inv-bulk-menu summary").click();
+    await page.locator(".inv-bulk-menu-field .nm-swatch-trigger").first().click();
+    const option = page.locator(".inv-bulk-menu .nm-swatch-option").nth(1);
+    await option.hover();
+    await expect(option).toHaveClass(/nm-swatch-option--hl/);
+    const expected = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.background = "var(--nm-option-hover-bg)";
+      document.querySelector(".inv-bulk-menu-panel")!.appendChild(probe);
+      const value = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return value;
+    });
+    await expect(option).toHaveCSS("background-color", expected);
+    expect(await option.evaluate((el) => getComputedStyle(el).boxShadow)).toContain("inset");
+  });
+}
+
 test("panel headers have no dash between the icon and the title", async ({ page }) => {
   await boot(page, "light");
   for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools"]) {
