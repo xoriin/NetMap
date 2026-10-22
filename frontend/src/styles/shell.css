@@ -541,6 +541,38 @@ body.route-ipam .workspace > :last-child {
   white-space: nowrap;
 }
 
+.app-topbar-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-topbar-version-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  text-align: right;
+}
+
+.app-topbar-version-copy strong {
+  color: var(--nm-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.app-topbar-version-copy span,
+.app-topbar-version-copy a {
+  color: var(--nm-text-muted);
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.app-topbar-version-copy .app-topbar-version-current { color: var(--nm-success); }
+.app-topbar-version-copy .app-topbar-version-update { color: var(--nm-warning); font-weight: 600; }
+
 .app-topbar-status {
   gap: 7px;
   min-height: 30px;

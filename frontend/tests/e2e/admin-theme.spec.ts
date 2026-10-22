@@ -1172,3 +1172,20 @@ test("App settings spans the page with its tasks in two stacked columns", async 
   expect(Math.abs(reservation!.x - monitoring!.x)).toBeLessThanOrEqual(1);
   expect(reservation!.y - (monitoring!.y + monitoring!.height)).toBeLessThanOrEqual(20);
 });
+
+test("the NetMap version sits in the Admin top bar instead of a System card", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await setupAdminMocks(page);
+  await page.goto("/admin#system");
+  const version = page.locator(".app-topbar").getByLabel("NetMap version");
+  await expect(version).toContainText("Installed");
+  await expect(version.getByRole("button", { name: "What's new" })).toBeVisible();
+  await expect(version.locator(".app-topbar-version-update")).toHaveCSS("color", "rgb(212, 145, 44)");
+  await expect(page.locator(".admin-system-card", { hasText: "Installed" })).toHaveCount(0);
+  const schedule = page.locator(".admin-system-card", { hasText: "Scheduled backups" });
+  const title = schedule.getByText("Saves an unencrypted backup on a schedule and removes older copies.");
+  await expect(title).toHaveCSS("font-size", "14px");
+  await expect(title).toHaveCSS("font-weight", "750");
+  await page.goto("/overview");
+  await expect(page.locator(".app-topbar").getByLabel("NetMap version")).toHaveCount(0);
+});

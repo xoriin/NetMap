@@ -455,6 +455,7 @@ export function AppTopbar({ currentRoute, user, note }: { currentRoute: AppRoute
         {currentRoute === "/ipam" && note && <span className="app-topbar-note">{note}</span>}
         {currentRoute === "/locations" && note}
         {currentRoute === "/security" && note}
+        {currentRoute === "/admin" && note}
         {showGreeting && (
           <div className="app-topbar-greeting">
             <strong>{greeting}, {displayName}</strong>

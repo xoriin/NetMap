@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import "./admin.css";
 import {
   api,
@@ -7,6 +7,7 @@ import {
 } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useToast } from "../../components/Toast";
+import { TopbarNoteCtx } from "../../context";
 
 import { SystemTab } from "./tabs/SystemTab";
 import { UsersTab } from "./tabs/UsersTab";
@@ -79,6 +80,26 @@ export function AdminWorkspace({
     setAuditFocusUserId(userId);
   }
 
+  const setTopbarNote = useContext(TopbarNoteCtx);
+  const openWhatsNew = useRef(onOpenWhatsNew);
+  openWhatsNew.current = onOpenWhatsNew;
+  useEffect(() => {
+    if (!versionInfo) return;
+    const installed = `${versionInfo.channel ? `${versionInfo.channel}: ` : "v"}${versionInfo.current}`;
+    setTopbarNote(
+      <div className="app-topbar-version" aria-label="NetMap version">
+        <div className="app-topbar-version-copy">
+          <strong>Installed {installed}</strong>
+          {!versionInfo.latest ? <span>Latest version unavailable</span>
+            : versionInfo.up_to_date ? <span className="app-topbar-version-current">v{versionInfo.latest} — up to date</span>
+            : <a className="app-topbar-version-update" href={versionInfo.release_url} target="_blank" rel="noreferrer">v{versionInfo.latest} — update available</a>}
+        </div>
+        <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openWhatsNew.current()}>What&apos;s new</button>
+      </div>
+    );
+    return () => setTopbarNote("");
+  }, [setTopbarNote, versionInfo]);
+
   const showSuccess = useCallback((message: string | null) => {
     if (message) toast.success(message);
   }, [toast]);
@@ -92,8 +113,6 @@ export function AdminWorkspace({
         {activeTab === "system" && user.role === "SuperAdmin" && (
           <SystemTab
             accessToken={accessToken}
-            versionInfo={versionInfo}
-            onOpenWhatsNew={onOpenWhatsNew}
             onSettingsChange={onSettingsChange}
             onError={setError}
             onSuccess={showSuccess}

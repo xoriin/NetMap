@@ -2,12 +2,12 @@ import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState, type FormEvent } from "react";
 import { Activity, CalendarClock, Download, FileUp, Palette, Settings, Timer, Upload } from "lucide-react";
 import {
-  IconCloud, IconDatabase,
+  IconDatabase,
   IconServer,
 } from "@tabler/icons-react";
 import {
   api,
-  type SystemSettings, type SystemDiagnostics, type VersionInfo, type RestoreValidationResult,
+  type SystemSettings, type SystemDiagnostics, type RestoreValidationResult,
   type ScheduledBackup,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
@@ -86,15 +86,11 @@ function StatusPageDefaultCssCard({ accessToken, onError, onSuccess }: {
 
 export function SystemTab({
   accessToken,
-  versionInfo,
-  onOpenWhatsNew,
   onSettingsChange,
   onError,
   onSuccess,
 }: {
   accessToken: string;
-  versionInfo: VersionInfo | null;
-  onOpenWhatsNew: () => void;
   onSettingsChange: (settings: SystemSettings) => void;
   onError: (message: string | null) => void;
   onSuccess: (message: string | null) => void;
@@ -643,34 +639,6 @@ export function SystemTab({
           <StatusPageDefaultCssCard accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
         </div>
         <div className="system-tab-col">
-          {versionInfo && (
-            <section className="panel admin-panel nm-app-panel admin-system-card">
-              <div className="system-icon-header admin-system-card-header nm-app-panel-header">
-                <h2 className="admin-section-title" style={{ margin: 0 }}><IconCloud size={16} />Version</h2>
-                <button type="button" className="nm-btn nm-btn--primary" onClick={onOpenWhatsNew}>
-                  What&apos;s new
-                </button>
-              </div>
-              <dl className="admin-config-grid admin-system-card-body">
-                <dt>Installed</dt>
-                <dd>{versionInfo.channel ? `${versionInfo.channel}: ` : "v"}{versionInfo.current}</dd>
-                <dt>Latest</dt>
-                <dd>
-                  {versionInfo.latest ? (
-                    versionInfo.up_to_date ? (
-                      <span style={{ color: "var(--dash-green)" }}>v{versionInfo.latest} — up to date</span>
-                    ) : (
-                      <a href={versionInfo.release_url} target="_blank" rel="noreferrer" style={{ color: "var(--dash-yellow)" }}>
-                        v{versionInfo.latest} — update available
-                      </a>
-                    )
-                  ) : (
-                    <span style={{ opacity: 0.5 }}>unavailable</span>
-                  )}
-                </dd>
-              </dl>
-            </section>
-          )}
           <section className="panel admin-panel nm-app-panel admin-system-card">
             <div className="system-icon-header admin-system-card-header nm-app-panel-header">
               <h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2>
