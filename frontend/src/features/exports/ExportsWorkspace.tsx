@@ -11,7 +11,7 @@ function ExportPanelHeader({ icon, title }: { icon: ReactNode; title: string }) 
   return (
     <div className="exports-panel-header nm-app-panel-header">
       <span className="exports-panel-identity">
-        <span className="exports-panel-icon">{icon}</span><span aria-hidden="true">-</span><strong>{title}</strong>
+        <span className="exports-panel-icon">{icon}</span><strong>{title}</strong>
       </span>
     </div>
   );

@@ -71,11 +71,6 @@ body.route-overview .overview-workspace .overview-panel.nm-app-panel {
   color: var(--nm-accent-strong);
 }
 
-.overview-panel-separator {
-  color: var(--nm-text-faint);
-  font-weight: 600;
-}
-
 .overview-panel-title {
   overflow: hidden;
   text-overflow: ellipsis;

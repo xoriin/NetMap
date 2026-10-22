@@ -166,11 +166,6 @@
   color: var(--nm-accent-strong);
 }
 
-.theme-lab-title-separator {
-  color: var(--nm-text-faint);
-  font-weight: 600;
-}
-
 .theme-lab-panel-body {
   padding: 16px;
   background: var(--nm-modal-section);

@@ -61,7 +61,6 @@
   color: var(--nm-accent);
 }
 
-.vlan-panel-separator,
 .vlan-panel-count {
   color: var(--nm-text-faint);
 }

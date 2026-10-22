@@ -12,6 +12,17 @@ async function boot(page: import("@playwright/test").Page, theme: "light" | "dar
   await page.addInitScript(([t, s]) => { localStorage.setItem("netmap.theme", t); localStorage.setItem("netmap.dark_style", s); }, [theme, style]);
 }
 
+test("panel headers have no dash between the icon and the title", async ({ page }) => {
+  await boot(page, "light");
+  for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools"]) {
+    await page.goto(route);
+    await expect(page.locator(".nm-app-panel-header, .topology-toolbar--ribbon").first()).toBeVisible();
+    const dashes = await page.locator(".nm-app-panel-header, .topology-toolbar--ribbon").evaluateAll((headers) =>
+      headers.flatMap((header) => Array.from(header.querySelectorAll("span")).filter((span) => span.textContent?.trim() === "-").map(() => header.textContent?.trim().slice(0, 30))));
+    expect(dashes, route).toEqual([]);
+  }
+});
+
 test("heartbeat beats stay thick on long histories", async ({ page }) => {
   await boot(page, "light");
   await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", heartbeat: Array(60).fill("online"), heartbeat_health: Array(60).fill("healthy") })]);

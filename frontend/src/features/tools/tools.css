@@ -459,10 +459,6 @@ body.theme-dark .tools-workspace .tools-main .tool-card.nm-app-panel {
   color: var(--nm-accent);
 }
 
-.tool-panel-separator {
-  color: var(--nm-text-faint);
-}
-
 .tool-panel-title {
   color: var(--nm-modal-label);
   font-size: var(--nm-text-lg);

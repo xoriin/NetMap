@@ -154,7 +154,6 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
       <div className="dash-panel-header nm-app-panel-header status-editor-header">
         <div className="status-editor-title">
           <span className="status-editor-icon"><IconBroadcast size={18} /></span>
-          <span className="status-editor-title-separator" aria-hidden="true">-</span>
           <strong>Status pages</strong>
           {!loading && <span className="status-editor-count">{pages.length} page{pages.length === 1 ? "" : "s"}</span>}
         </div>

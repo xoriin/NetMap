@@ -81,7 +81,6 @@ body.route-topology .dash-alert--announcement {
   color: var(--nm-accent);
 }
 
-.topology-ribbon-separator,
 .topology-ribbon-count {
   color: var(--nm-text-faint);
 }

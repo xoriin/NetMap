@@ -32,11 +32,6 @@
   color: var(--nm-accent-strong);
 }
 
-.status-editor-title-separator {
-  color: var(--nm-text-faint);
-  font-weight: 600;
-}
-
 .status-editor-count {
   color: var(--nm-text-muted);
   font-size: var(--nm-text-xs);

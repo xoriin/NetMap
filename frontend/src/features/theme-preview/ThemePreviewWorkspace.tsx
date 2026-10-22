@@ -94,7 +94,6 @@ function PreviewHeader({ icon: Icon, title, trailing }: { icon: typeof Server; t
     <div className="theme-lab-panel-header">
       <div className="theme-lab-panel-title">
         <span className="theme-lab-panel-icon"><Icon size={18} /></span>
-        <span className="theme-lab-title-separator" aria-hidden="true">-</span>
         <strong>{title}</strong>
       </div>
       {trailing}
@@ -268,7 +267,6 @@ export function ThemePreviewWorkspace() {
           <div className="theme-lab-panel-header theme-lab-table-header">
             <div className="theme-lab-panel-title">
               <span className="theme-lab-panel-icon"><TableProperties size={18} /></span>
-              <span className="theme-lab-title-separator" aria-hidden="true">-</span>
               <strong>Assets</strong>
               <span className="theme-lab-result-count">3 results</span>
             </div>

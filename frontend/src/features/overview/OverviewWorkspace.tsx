@@ -52,7 +52,6 @@ function OverviewPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: 
   return (
     <span className="overview-panel-identity">
       <span className="overview-panel-icon" aria-hidden="true">{icon}</span>
-      <span className="overview-panel-separator" aria-hidden="true">-</span>
       <span className="overview-panel-title">{title}</span>
       {meta !== undefined && <span className="overview-panel-meta">{meta}</span>}
     </span>

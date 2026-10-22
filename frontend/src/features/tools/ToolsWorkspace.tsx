@@ -19,7 +19,6 @@ function ToolPanelHeader({ icon, title }: { icon: ReactNode; title: string }) {
     <div className="tool-card-header nm-app-panel-header">
       <span className="tool-panel-identity">
         <span className="tool-panel-icon" aria-hidden="true">{icon}</span>
-        <span className="tool-panel-separator" aria-hidden="true">-</span>
         <span className="tool-panel-title">{title}</span>
       </span>
     </div>

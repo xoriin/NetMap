@@ -233,7 +233,6 @@ export function TopologyToolbar({
     <div className="topology-toolbar topology-toolbar--ribbon">
       <div className="topology-ribbon-identity">
         <span className="topology-ribbon-icon" aria-hidden="true"><Network size={18} /></span>
-        <span className="topology-ribbon-separator">-</span>
         <span>Network map</span>
         <span className="topology-ribbon-count">{devices.length}</span>
       </div>

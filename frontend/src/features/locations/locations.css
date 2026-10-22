@@ -73,7 +73,6 @@ body.route-locations .workspace {
   color: var(--nm-accent);
 }
 
-.locations-panel-separator,
 .locations-panel-count {
   color: var(--nm-text-faint);
 }

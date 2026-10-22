@@ -234,7 +234,6 @@ export function LocationsWorkspace({
         <div className="nm-app-panel-header locations-panel-header">
           <span className="locations-panel-title">
             <span className="locations-panel-icon" aria-hidden="true"><IconMapPin size={18} /></span>
-            <span className="locations-panel-separator">-</span>
             <span>Locations</span>
             <span className="locations-panel-count">
               {filteredSortedSites.length !== sites.length

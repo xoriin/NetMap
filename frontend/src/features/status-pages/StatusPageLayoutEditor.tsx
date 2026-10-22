@@ -54,7 +54,6 @@ export function StatusEditorPanelHeader({ icon: Icon, title, meta, children }: {
     <div className="nm-app-panel-header status-editor-header">
       <div className="status-editor-title">
         <span className="status-editor-icon"><Icon size={18} /></span>
-        <span className="status-editor-title-separator" aria-hidden="true">-</span>
         <strong>{title}</strong>
         {meta && <span className="status-editor-count">{meta}</span>}
       </div>

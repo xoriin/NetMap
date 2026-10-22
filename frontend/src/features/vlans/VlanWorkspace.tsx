@@ -318,7 +318,6 @@ export function VlanWorkspace({
           <div className="vlan-toolbar nm-app-panel-header">
             <span className="vlan-panel-title">
               <span className="vlan-panel-icon" aria-hidden="true"><Network size={18} /></span>
-              <span className="vlan-panel-separator">-</span>
               <span>Groups &amp; VLANs</span>
               <span className="vlan-panel-count">
                 {filteredSortedRows.length !== mergedRows.length
