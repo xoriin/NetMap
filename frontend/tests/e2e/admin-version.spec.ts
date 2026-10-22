@@ -53,9 +53,14 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       const summary = page.locator(".app-topbar").getByLabel("NetMap version");
       await expect(summary.locator(".admin-version-build strong")).toHaveText("v1.7.0");
       await expect(summary.locator(".admin-version-build strong")).toHaveCSS("font-size", "18px");
-      await expect(summary.getByText("Installed", { exact: true })).toBeVisible();
+      const header = page.locator(".app-topbar");
+      const height = await header.evaluate(node => ({ actual: node.getBoundingClientRect().height, standard: parseFloat(getComputedStyle(node).getPropertyValue("--nm-topbar-height")) }));
+      expect(height.actual).toBeLessThanOrEqual(height.standard + 1);
+      await expect(summary.getByRole("button", { name: "What's new" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(summary.getByRole("button", { name: "What's new" })).toHaveCSS("border-top-style", "none");
+      await expect(summary.getByText("NetMap", { exact: true })).toBeVisible();
       await expectVerticalVersion(summary);
-      if (info.channel) await expect(summary.getByText(info.channel, { exact: true })).toHaveClass(/nm-status--unknown/);
+      if (info.channel) await expect(summary.getByText(info.channel, { exact: true })).toBeVisible();
       if (state === "update") {
         const link = summary.getByRole("link", { name: "v1.8.0 available" });
         await expect(link).toHaveAttribute("href", info.release_url);
@@ -64,7 +69,8 @@ for (const theme of ["light", "slate", "zinc"] as const) {
         await expect(link).toBeFocused();
         await link.hover();
       } else {
-        await expect(summary.getByText(state === "current" ? "Up to date" : "Latest unavailable", { exact: true })).toHaveClass(new RegExp(`nm-status--${state === "current" ? "online" : "unknown"}`));
+        await expect(summary.getByText(state === "current" ? "Up to date" : "Latest unavailable", { exact: true })).toBeVisible();
+        await expect(summary.locator(`.dash-status-dot--${state === "current" ? "online" : "unknown"}`)).toBeVisible();
       }
       await page.locator(".app-topbar").screenshot({ path: test.info().outputPath(`version-${theme}-${state}-desktop.png`) });
       for (const width of [1000, 780]) {
