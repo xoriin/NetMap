@@ -30,6 +30,8 @@ html:has(body.theme-dark) {
   --nm-row-hover-edge: rgba(29, 154, 176, 0.3);
   --nm-option-hover-bg: rgba(34, 211, 238, 0.2);
   --nm-option-hover-edge: var(--nm-accent);
+  --nm-scrollbar-thumb: #475569;
+  --nm-scrollbar-thumb-hover: rgba(34, 211, 238, 0.65);
   --nm-btn-hover-bg: #253046;
   --nm-btn-hover-border: rgba(34,211,238,0.35);
   --nm-btn-hover-text: var(--nm-accent-strong);
@@ -165,6 +167,8 @@ html:has(body.theme-dark.theme-dark-zinc) {
   --nm-table-header-border: #3f3f46;
   --nm-row-hover: #222226;
   --nm-option-hover-bg: rgba(45, 212, 191, 0.18);
+  --nm-scrollbar-thumb: #52525b;
+  --nm-scrollbar-thumb-hover: rgba(45, 212, 191, 0.65);
   --nm-track-bg: rgba(161,161,170,0.18);
   --nm-btn-secondary-bg: #27272a;
   --nm-btn-secondary-border: #3f3f46;
@@ -1108,71 +1112,6 @@ body.theme-dark .overview-fav-search input { color: var(--nm-text); background: 
 body.theme-dark .overview-fav-search input::placeholder { color: var(--nm-text-faint); }
 
 
-body.theme-dark .inventory-table,
-body.theme-dark .dash-panel-body,
-body.theme-dark .nm-table-wrap,
-body.theme-dark .mon-table-body,
-body.theme-dark .mon-ports-sidebar,
-body.theme-dark .mon-ports-form-col .ep-list,
-body.theme-dark .ipam-modal-body,
-body.theme-dark .obs-list,
-body.theme-dark .monitors-history-list,
-body.theme-dark .mon-hero-section > .mon-port-rows,
-body.theme-dark .mon-hero-section > .incident-log {
-  scrollbar-color: color-mix(in srgb, var(--nm-text-faint) 50%, transparent) transparent;
-}
-body.theme-dark .inventory-table:hover,
-body.theme-dark .dash-panel-body:hover,
-body.theme-dark .nm-table-wrap:hover,
-body.theme-dark .mon-table-body:hover,
-body.theme-dark .mon-ports-sidebar:hover,
-body.theme-dark .mon-ports-form-col .ep-list:hover,
-body.theme-dark .ipam-modal-body:hover,
-body.theme-dark .obs-list:hover,
-body.theme-dark .monitors-history-list:hover,
-body.theme-dark .mon-hero-section > .mon-port-rows:hover,
-body.theme-dark .mon-hero-section > .incident-log:hover {
-  scrollbar-color: rgba(77, 184, 204, 0.55) transparent;
-}
-body.theme-dark .inventory-table::-webkit-scrollbar-track,
-body.theme-dark .dash-panel-body::-webkit-scrollbar-track,
-body.theme-dark .nm-table-wrap::-webkit-scrollbar-track,
-body.theme-dark .mon-table-body::-webkit-scrollbar-track,
-body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-track,
-body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-track,
-body.theme-dark .ipam-modal-body::-webkit-scrollbar-track,
-body.theme-dark .obs-list::-webkit-scrollbar-track,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-track,
-body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-track,
-body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--nm-modal-header) 50%, transparent);
-}
-body.theme-dark .inventory-table::-webkit-scrollbar-thumb,
-body.theme-dark .dash-panel-body::-webkit-scrollbar-thumb,
-body.theme-dark .nm-table-wrap::-webkit-scrollbar-thumb,
-body.theme-dark .mon-table-body::-webkit-scrollbar-thumb,
-body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb,
-body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb,
-body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb,
-body.theme-dark .obs-list::-webkit-scrollbar-thumb,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb,
-body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb,
-body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--nm-text-faint) 50%, transparent);
-}
-body.theme-dark .inventory-table::-webkit-scrollbar-thumb:hover,
-body.theme-dark .dash-panel-body::-webkit-scrollbar-thumb:hover,
-body.theme-dark .nm-table-wrap::-webkit-scrollbar-thumb:hover,
-body.theme-dark .mon-table-body::-webkit-scrollbar-thumb:hover,
-body.theme-dark .mon-ports-sidebar::-webkit-scrollbar-thumb:hover,
-body.theme-dark .mon-ports-form-col .ep-list::-webkit-scrollbar-thumb:hover,
-body.theme-dark .ipam-modal-body::-webkit-scrollbar-thumb:hover,
-body.theme-dark .obs-list::-webkit-scrollbar-thumb:hover,
-body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb:hover,
-body.theme-dark .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb:hover,
-body.theme-dark .mon-hero-section > .incident-log::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(77, 184, 204, 0.6);
-}
 
 body.theme-dark .dash-health-label { color: var(--nm-text-faint); }
 body.theme-dark .dash-health-count { color: var(--nm-text-faint); }

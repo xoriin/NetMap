@@ -43,7 +43,7 @@ body.route-security .security-filters {
   gap: 11px;
   padding: 16px;
   border-radius: var(--nm-radius-lg);
-  scrollbar-color: var(--nm-border-strong) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb) transparent;
 }
 
 .security-panel-header.nm-app-panel-header,
@@ -230,7 +230,7 @@ body.route-security .security-results-meta {
 
 body.route-security .security-table {
   background: var(--nm-modal-section);
-  scrollbar-color: var(--nm-border-strong) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb) transparent;
 }
 
 body.route-security .security-table-header,

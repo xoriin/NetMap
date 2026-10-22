@@ -1586,11 +1586,11 @@ body.theme-dark .topology-overlay-label {
   border-bottom: 0;
   box-shadow: none;
   scrollbar-width: thin;
-  scrollbar-color: rgba(160, 180, 192, 0.45) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb) transparent;
   transition: scrollbar-color 0.25s ease;
 }
 .inventory-table:hover {
-  scrollbar-color: rgba(29, 154, 176, 0.55) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb-hover) transparent;
 }
 .inventory-table::-webkit-scrollbar {
   width: 10px;

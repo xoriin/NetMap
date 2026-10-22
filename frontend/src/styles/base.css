@@ -1,18 +1,18 @@
 /* Reset + document base */
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nm-scrollbar-thumb) transparent;
 }
 
 html {
   background: var(--nm-bg);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(120, 143, 160, 0.58) var(--nm-bg);
+  scrollbar-color: var(--nm-scrollbar-thumb) var(--nm-bg);
 }
 
 html:has(body.theme-dark) {
   color-scheme: dark;
   background: var(--nm-bg);
-  scrollbar-color: color-mix(in srgb, var(--nm-text-faint) 62%, transparent) var(--nm-bg);
 }
 
 html::-webkit-scrollbar,
@@ -30,7 +30,7 @@ html::-webkit-scrollbar-thumb,
 body::-webkit-scrollbar-thumb {
   border: 2px solid var(--nm-bg);
   border-radius: 999px;
-  background: rgba(120, 143, 160, 0.58);
+  background: var(--nm-scrollbar-thumb);
 }
 
 html:has(body.theme-dark)::-webkit-scrollbar-track,
@@ -41,12 +41,12 @@ body.theme-dark::-webkit-scrollbar-track {
 html:has(body.theme-dark)::-webkit-scrollbar-thumb,
 body.theme-dark::-webkit-scrollbar-thumb {
   border-color: var(--nm-bg);
-  background: color-mix(in srgb, var(--nm-text-faint) 62%, transparent);
+  background: var(--nm-scrollbar-thumb);
 }
 
 html::-webkit-scrollbar-thumb:hover,
 body::-webkit-scrollbar-thumb:hover {
-  background: rgba(29, 154, 176, 0.72);
+  background: var(--nm-scrollbar-thumb-hover);
 }
 
 body {

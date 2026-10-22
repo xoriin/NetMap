@@ -43,6 +43,16 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+for (const [theme, style, thumb] of [["light", "slate", "rgba(47, 68, 91, 0.38)"], ["dark", "slate", "rgb(71, 85, 105)"], ["dark", "zinc", "rgb(82, 82, 91)"]] as const) {
+  test(`scrollbars use the ${theme} ${style} theme colour everywhere`, async ({ page }) => {
+    await boot(page, theme, style);
+    await page.goto("/inventory");
+    await expect(page.locator(".inventory-table").first()).toBeVisible();
+    const colours = await page.evaluate(() => ["html", ".sidebar", ".workspace", ".inventory-table"].map((sel) => getComputedStyle(document.querySelector(sel)!).scrollbarColor.split(" rgb")[0]));
+    for (const colour of colours) expect(colour).toBe(thumb);
+  });
+}
+
 test("panel headers have no dash between the icon and the title", async ({ page }) => {
   await boot(page, "light");
   for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools"]) {

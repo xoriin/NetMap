@@ -266,7 +266,7 @@
 .mon-hero-section > .mon-port-rows,
 .mon-hero-section > .incident-log {
   scrollbar-width: thin;
-  scrollbar-color: rgba(160, 180, 192, 0.45) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb) transparent;
   transition: scrollbar-color 0.25s ease;
 }
 .dash-panel-body:hover,
@@ -279,7 +279,7 @@
 .monitors-history-list:hover,
 .mon-hero-section > .mon-port-rows:hover,
 .mon-hero-section > .incident-log:hover {
-  scrollbar-color: rgba(29, 154, 176, 0.55) transparent;
+  scrollbar-color: var(--nm-scrollbar-thumb-hover) transparent;
 }
 .dash-panel-body::-webkit-scrollbar,
 .nm-table-wrap::-webkit-scrollbar,
@@ -304,7 +304,7 @@
 .monitors-history-list::-webkit-scrollbar-track,
 .mon-hero-section > .mon-port-rows::-webkit-scrollbar-track,
 .mon-hero-section > .incident-log::-webkit-scrollbar-track {
-  background: rgba(160, 180, 192, 0.08);
+  background: transparent;
   border-radius: 999px;
   margin: 6px;
 }
@@ -318,7 +318,7 @@
 .monitors-history-list::-webkit-scrollbar-thumb,
 .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb,
 .mon-hero-section > .incident-log::-webkit-scrollbar-thumb {
-  background-color: rgba(160, 180, 192, 0.4);
+  background-color: var(--nm-scrollbar-thumb);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: padding-box;
@@ -333,7 +333,7 @@
 .monitors-history-list::-webkit-scrollbar-thumb:hover,
 .mon-hero-section > .mon-port-rows::-webkit-scrollbar-thumb:hover,
 .mon-hero-section > .incident-log::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(29, 154, 176, 0.6);
+  background-color: var(--nm-scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
