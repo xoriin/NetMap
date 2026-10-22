@@ -11,7 +11,7 @@ export const POPUP_SECTION_COLOURS = {
   },
   dark: {
     sectionBackground: "rgb(22, 32, 51)", sectionBorder: "rgb(51, 65, 85)",
-    titleColor: "rgb(148, 163, 184)", titleBackground: "rgb(15, 23, 42)", titleBorder: "rgb(51, 65, 85)",
+    titleColor: "rgb(148, 163, 184)", titleBackground: "rgb(29, 37, 54)", titleBorder: "rgb(51, 65, 85)",
     rowBorder: "rgba(51, 65, 85, 0.7)",
   },
 };

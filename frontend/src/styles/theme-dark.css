@@ -51,7 +51,7 @@ html:has(body.theme-dark) {
   --nm-popup-section-border: #334155;
   --nm-popup-section-title: #94a3b8;
   --nm-popup-section-title-border: var(--nm-border-strong);
-  --nm-popup-section-title-bg: var(--nm-modal-section);
+  --nm-popup-section-title-bg: #1d2536;
   --nm-popup-divider: rgba(51, 65, 85, 0.7);
   --nm-danger-soft: rgba(217, 75, 75, 0.15);
   --nm-warning-soft: rgba(212, 145, 44, 0.15);
@@ -163,6 +163,7 @@ html:has(body.theme-dark.theme-dark-zinc) {
   --nm-popup-section-bg: #1f1f23;
   --nm-popup-section-border: #3f3f46;
   --nm-popup-section-title: #a1a1aa;
+  --nm-popup-section-title-bg: #232327;
   --nm-table-row-bg: #18181b;
   --nm-table-header-bg: #1f1f23;
   --nm-table-header-text: #a1a1aa;
