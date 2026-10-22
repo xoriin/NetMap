@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 import type { FirewallEvent } from "../../src/api/client";
 import { mockDevice, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
@@ -34,48 +34,29 @@ async function setupSecurity(page: Page, theme: "light" | "dark", events: Firewa
 }
 
 async function installFirewallSocketMock(page: Page) {
-  await page.addInitScript(() => {
-    class FirewallSocketMock {
-      static instances: FirewallSocketMock[] = [];
-      static readonly OPEN = 1;
-      static readonly CLOSED = 3;
-      readonly url: string;
-      readyState = FirewallSocketMock.OPEN;
-      onopen: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onerror: ((event: Event) => void) | null = null;
-      onclose: ((event: CloseEvent) => void) | null = null;
-
-      constructor(url: string | URL) {
-        this.url = String(url);
-        FirewallSocketMock.instances.push(this);
-        setTimeout(() => this.onopen?.(new Event("open")), 0);
-      }
-
-      send(message: string) {
-        const payload = message === "ping" ? { type: "heartbeat" } : { type: "ready" };
-        setTimeout(() => this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(payload) })), 0);
-      }
-      close() {
-        if (this.readyState === FirewallSocketMock.CLOSED) return;
-        this.readyState = FirewallSocketMock.CLOSED;
-        setTimeout(() => this.onclose?.(new CloseEvent("close", { code: 1006 })), 0);
-      }
-    }
-
-    Object.defineProperty(window, "WebSocket", { configurable: true, value: FirewallSocketMock });
-    Object.assign(window, {
-      __firewallSocketCount: () => FirewallSocketMock.instances.length,
-      __firewallSocketReady: () => FirewallSocketMock.instances.some((socket) => socket.readyState === FirewallSocketMock.OPEN && socket.onmessage),
-      __emitFirewallEvent: (event: unknown) => {
-        const socket = [...FirewallSocketMock.instances].reverse().find((candidate) => candidate.readyState === FirewallSocketMock.OPEN);
-        socket?.onmessage?.(new MessageEvent("message", { data: JSON.stringify(event) }));
-      },
-      __disconnectFirewallSocket: () => {
-        const socket = [...FirewallSocketMock.instances].reverse().find((candidate) => candidate.readyState === FirewallSocketMock.OPEN);
-        socket?.close();
-      },
+  const sockets: WebSocketRoute[] = [];
+  const ready = new WeakSet<WebSocketRoute>();
+  const closed = new WeakSet<WebSocketRoute>();
+  const activeSocket = () => [...sockets].reverse().find(socket => !closed.has(socket));
+  // Route actual browser sockets rather than replacing the WebSocket constructor;
+  // page-specific scenarios override the context's shared empty-stream mock.
+  await page.routeWebSocket(url => url.pathname === "/api/v1/syslog/events/live", socket => {
+    sockets.push(socket);
+    socket.onMessage(message => {
+      ready.add(socket);
+      socket.send(JSON.stringify({ type: message === "ping" ? "heartbeat" : "ready" }));
     });
+    socket.onClose(() => { closed.add(socket); });
+  });
+  await page.exposeFunction("__firewallSocketCount", () => sockets.length);
+  await page.exposeFunction("__firewallSocketReady", () => sockets.some(socket => ready.has(socket) && !closed.has(socket)));
+  await page.exposeFunction("__emitFirewallEvent", (event: unknown) => activeSocket()?.send(JSON.stringify(event)));
+  await page.exposeFunction("__disconnectFirewallSocket", async () => {
+    const socket = activeSocket();
+    if (socket) {
+      closed.add(socket);
+      await socket.close({ code: 1011, reason: "Simulated stream outage" });
+    }
   });
 }
 
@@ -200,16 +181,16 @@ test("Security auto-scroll follows committed live rows without reconnecting the 
 
   await installFirewallSocketMock(page);
   await setupSecurity(page, "dark", events);
-  await page.waitForFunction(() => (
-    window as unknown as { __firewallSocketReady?: () => boolean }
-  ).__firewallSocketReady?.() === true);
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as { __firewallSocketReady: () => Promise<boolean> }
+  ).__firewallSocketReady())).toBe(true);
 
   const table = page.locator(".security-table");
   await table.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   await expect.poll(() => table.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 
   await page.evaluate((event) => (
-    window as unknown as { __emitFirewallEvent: (payload: unknown) => void }
+    window as unknown as { __emitFirewallEvent: (payload: unknown) => Promise<void> }
   ).__emitFirewallEvent(event), liveEvent);
   await expect(page.locator(".security-row").first()).toContainText("10.0.0.99");
   await expect.poll(() => table.evaluate((element) => element.scrollTop)).toBe(0);
@@ -220,7 +201,7 @@ test("Security auto-scroll follows committed live rows without reconnecting the 
   await table.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   await expect.poll(() => table.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.evaluate((event) => (
-    window as unknown as { __emitFirewallEvent: (payload: unknown) => void }
+    window as unknown as { __emitFirewallEvent: (payload: unknown) => Promise<void> }
   ).__emitFirewallEvent(event), { ...liveEvent, id: 1000, src_ip: "10.0.0.100" });
   await expect(page.locator(".security-row").first()).toContainText("10.0.0.100");
   await expect.poll(() => table.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -228,7 +209,7 @@ test("Security auto-scroll follows committed live rows without reconnecting the 
   await autoScroll.check();
   await expect(autoScroll).toBeChecked();
   await expect.poll(() => page.evaluate(() => (
-    window as unknown as { __firewallSocketCount: () => number }
+    window as unknown as { __firewallSocketCount: () => Promise<number> }
   ).__firewallSocketCount())).toBe(1);
 });
 
@@ -248,11 +229,11 @@ test("Security reconnects a dropped live stream and reloads events missed while 
     retention_days: 7, total: 1, offset: 0, limit: 100, events: [recoveredEvent],
   } }));
   await page.evaluate(() => (
-    window as unknown as { __disconnectFirewallSocket: () => void }
+    window as unknown as { __disconnectFirewallSocket: () => Promise<void> }
   ).__disconnectFirewallSocket());
   await expect(page.locator(".security-topbar-copy")).toContainText("live stream reconnecting");
   await expect.poll(() => page.evaluate(() => (
-    window as unknown as { __firewallSocketCount: () => number }
+    window as unknown as { __firewallSocketCount: () => Promise<number> }
   ).__firewallSocketCount())).toBeGreaterThan(1);
   await expect(page.locator(".security-topbar-copy")).toContainText("live stream connected");
   await expect(page.locator(".security-row").first()).toContainText("10.0.0.200");

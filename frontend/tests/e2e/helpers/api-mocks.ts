@@ -1,4 +1,6 @@
 import { type Page } from "@playwright/test";
+import { deviceTypeOptions } from "../../../src/constants";
+import { guardApiRequests } from "./api-guard";
 
 export const mockUser = {
   id: 1,
@@ -16,6 +18,7 @@ export const mockTokenPair = {
 export function mockDevice(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
+    display_name: null as string | null,
     hostname: "router-01",
     ip_address: "192.168.1.1",
     status: "active",
@@ -61,6 +64,37 @@ export const BUILT_IN_CLOUD_ASSET_TYPES = [
 ].map(([value, label]) => ({ id: null as number | null, value, label, is_builtin: true }));
 
 export async function setupCoreMocks(page: Page, announcement: string | null = null) {
+  await guardApiRequests(page.context());
+  await page.context().routeWebSocket(url => url.pathname === "/api/v1/syslog/events/live", socket => {
+    let authenticated = false;
+    socket.onMessage(message => {
+      if (!authenticated) {
+        authenticated = true;
+        socket.send(JSON.stringify({ type: "ready" }));
+      } else if (message === "ping") {
+        socket.send(JSON.stringify({ type: "heartbeat" }));
+      }
+    });
+  });
+  const defaults: Record<string, unknown> = {
+    "admin/device-types": deviceTypeOptions.map(value => ({
+      id: null, value, label: value, icon: value === "other" ? "device" : value,
+      is_builtin: true, color: null,
+    })),
+    "monitoring/summary": {
+      total: 0, online: 0, offline: 0, unknown: 0, paused: 0,
+      healthy: 0, unhealthy: 0, avg_rtt_ms: null, last_checked: null,
+    },
+    "monitors": [],
+    "alerts/rules": [],
+    "alerts/events": [],
+    "api-keys": [],
+  };
+  for (const [path, json] of Object.entries(defaults)) {
+    await page.route(url => url.pathname === `/api/v1/${path}`, route =>
+      route.request().method() === "GET" ? route.fulfill({ json }) : route.fallback()
+    );
+  }
   await page.route("**/api/v1/ipam/external/assets", route => route.fulfill({ json: [] }));
   const assetTypes = [...BUILT_IN_CLOUD_ASSET_TYPES];
   await page.route("**/api/v1/ipam/external/asset-types", route => {
@@ -169,7 +203,7 @@ export async function setupInventoryMocks(
     if (route.request().method() === "GET") {
       route.fulfill({ json: { devices, total: devices.length } });
     } else {
-      route.continue();
+      route.fallback();
     }
   });
   await page.route("**/api/v1/topology/groups*", (route) =>
@@ -210,6 +244,19 @@ export async function setupInventoryMocks(
       avg_rtt_24h: device.id === 1 ? 20.1 : null,
     })),
   }));
+  await mockEmptyDeviceSecurityEvents(page);
+}
+
+async function mockEmptyDeviceSecurityEvents(page: Page) {
+  await page.route(/\/api\/v1\/topology\/devices\/\d+\/security-events\?/, route => {
+    const url = new URL(route.request().url());
+    return route.fulfill({ json: {
+      device_id: Number(url.pathname.split("/")[5]),
+      window_hours: Number(url.searchParams.get("window_hours") ?? 24),
+      blocked_count: 0, passed_count: 0, total_count: 0,
+      last_seen_event_time: null, events: [],
+    } });
+  });
 }
 
 export function mockMonitoringDevice(overrides: Record<string, unknown> = {}) {
@@ -250,6 +297,7 @@ export async function setupMonitoringMocks(
   page: Page,
   devices: ReturnType<typeof mockMonitoringDevice>[] = [mockMonitoringDevice()]
 ) {
+  await mockEmptyDeviceSecurityEvents(page);
   await page.route("**/api/v1/monitoring/summary", (route) =>
     route.fulfill({
       json: {
