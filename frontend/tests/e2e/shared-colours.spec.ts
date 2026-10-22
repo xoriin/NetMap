@@ -34,6 +34,7 @@ for(const theme of ['light','dark'] as const) {
   await page.setViewportSize({width,height:1000}); await fixture(page,theme);
   const errors:string[]=[]; page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/overview');
+  for(const bar of ['.dash-alert--announcement','.dash-alert--changes']) await expect(page.locator(bar).first()).toHaveCSS('font-size','12px');
   for(const selector of ['.dash-alert--announcement','.dash-alert--changes','.dash-alert--overview-bar:not(.dash-alert--changes)','.mon-uptime-good']) {
    const item=page.locator(selector).first(); await expect(item).toBeVisible(); const c=await colours(item);
    if(theme==='light') { expect(c.depth,selector).toBeGreaterThan(30); expect(c.contrast,selector).toBeGreaterThanOrEqual(4.5); }
