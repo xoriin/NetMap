@@ -23,6 +23,16 @@ test("panel headers have no dash between the icon and the title", async ({ page 
   }
 });
 
+test("Resolve on discovered changes is not a destructive red button", async ({ page }) => {
+  await boot(page, "light");
+  await page.route("**/api/v1/discovery/observations*", (route) => route.fulfill({ json: [{ id: 1, status: "open", observation_type: "new_device", ip_address: "192.168.1.3", hostname: "nas-01", mac_address: null, device_id: null, summary: "New device 192.168.1.3", details: {}, first_seen_at: "2026-10-22T09:00:00Z", last_seen_at: "2026-10-22T09:00:00Z" }] }));
+  await page.goto("/overview");
+  await page.locator(".dash-alert--changes .dash-alert-link").click();
+  const resolve = page.getByRole("button", { name: "Resolve", exact: true }).first();
+  await expect(resolve).toBeVisible();
+  await expect(resolve).not.toHaveClass(/nm-btn--danger/);
+});
+
 test("heartbeat beats stay thick on long histories", async ({ page }) => {
   await boot(page, "light");
   await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", heartbeat: Array(60).fill("online"), heartbeat_health: Array(60).fill("healthy") })]);

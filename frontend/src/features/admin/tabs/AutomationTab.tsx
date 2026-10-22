@@ -307,7 +307,7 @@ export function AutomationTab({
                   {obs.status === "open" && (
                     <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
                   )}
-                  <button type="button" className="nm-btn nm-btn--danger" disabled={automationBusy} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                  <button type="button" className="nm-btn nm-btn--secondary" disabled={automationBusy} onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
                 </div>
               </div>
             ))}

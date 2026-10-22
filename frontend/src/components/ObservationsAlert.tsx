@@ -197,7 +197,7 @@ export function ObservationsAlert({
                         {obs.status === "open" && (
                           <button type="button" className="nm-btn" onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
                         )}
-                        <button type="button" className="nm-btn nm-btn--danger" onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                        <button type="button" className="nm-btn nm-btn--secondary" onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
                       </div>
                     </div>
                   );
