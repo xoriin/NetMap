@@ -1289,11 +1289,11 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
 body.route-admin .app-topbar { padding-block: var(--nm-space-2); }
 .admin-version-summary { flex-direction: column; align-items: flex-end; gap: var(--nm-space-1); max-width: 100%; }
 .admin-version-copy { display: flex; align-items: center; gap: var(--nm-space-2); min-width: 0; }
-.admin-version-caption,
 .admin-version-channel { color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
 .admin-version-status { display: inline-flex; align-items: center; gap: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-sm); line-height: 16px; }
 .admin-version-build { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
-.admin-version-build strong { color: var(--nm-text); font-size: 18px; font-weight: 750; line-height: 1.2; overflow-wrap: anywhere; }
+.admin-version-build strong { color: var(--nm-text-muted); font-size: var(--nm-text-sm); font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
+.admin-version-summary .dash-panel-link:not(:hover) { color: var(--nm-text-muted); }
 .admin-version-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--nm-space-1); }
 
 @media (min-width: 761px) and (max-width: 1100px) {

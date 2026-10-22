@@ -1178,7 +1178,7 @@ test("the NetMap version sits in the Admin top bar instead of a System card", as
   await setupAdminMocks(page);
   await page.goto("/admin#system");
   const version = page.locator(".app-topbar").getByLabel("NetMap version");
-  await expect(version).toContainText("NetMap");
+  await expect(version).not.toContainText("NetMap");
   await expect(version.getByRole("button", { name: "What's new" })).toBeVisible();
   await expect(version.locator(".app-topbar-version-update")).toHaveClass(/dash-panel-link/);
   await expect(page.locator(".admin-system-card", { hasText: "Installed" })).toHaveCount(0);

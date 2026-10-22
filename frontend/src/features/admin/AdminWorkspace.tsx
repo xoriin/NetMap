@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import "./admin.css";
-import { ArrowUpRight, History } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import {
   api,
   type SystemSettings, type VersionInfo,
@@ -89,17 +89,16 @@ export function AdminWorkspace({
     setTopbarNote(
       <div className="app-topbar-version admin-version-summary" aria-label="NetMap version">
         <div className="admin-version-copy">
-          <span className="admin-version-caption">NetMap</span>
           <div className="admin-version-build">
             <strong>v{versionInfo.current}</strong>
             {versionInfo.channel && <span className="admin-version-channel">{versionInfo.channel}</span>}
           </div>
         </div>
         <div className="admin-version-actions">
-          {!versionInfo.latest ? <span className="admin-version-status"><span className="dash-status-dot dash-status-dot--unknown" aria-hidden="true" />Latest unavailable</span>
-            : versionInfo.up_to_date ? <span className="admin-version-status"><span className="dash-status-dot dash-status-dot--online" aria-hidden="true" />Up to date</span>
+          {!versionInfo.latest ? <span className="admin-version-status">Latest unavailable</span>
+            : versionInfo.up_to_date ? <span className="admin-version-status">Up to date</span>
             : <a className="dash-panel-link app-topbar-version-update" href={versionInfo.release_url} target="_blank" rel="noreferrer">v{versionInfo.latest} available<ArrowUpRight size={14} aria-hidden="true" /></a>}
-          <button type="button" className="dash-panel-link" onClick={() => openWhatsNew.current()}><History size={14} aria-hidden="true" />What&apos;s new</button>
+          <button type="button" className="dash-panel-link" onClick={() => openWhatsNew.current()}>What&apos;s new</button>
         </div>
       </div>
     );

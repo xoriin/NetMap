@@ -52,13 +52,16 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       await page.goto("/admin#groups");
       const summary = page.locator(".app-topbar").getByLabel("NetMap version");
       await expect(summary.locator(".admin-version-build strong")).toHaveText("v1.7.0");
-      await expect(summary.locator(".admin-version-build strong")).toHaveCSS("font-size", "18px");
+      await expect(summary.locator(".admin-version-build strong")).toHaveCSS("font-size", "12px");
+      await expect(summary.locator(".admin-version-build strong")).toHaveCSS("font-weight", "500");
+      const muted = await summary.locator(".admin-version-build strong").evaluate(node => getComputedStyle(node).color);
+      await expect(summary.getByRole("button", { name: "What's new" })).toHaveCSS("color", muted);
       const header = page.locator(".app-topbar");
       const height = await header.evaluate(node => ({ actual: node.getBoundingClientRect().height, standard: parseFloat(getComputedStyle(node).getPropertyValue("--nm-topbar-height")) }));
       expect(height.actual).toBeLessThanOrEqual(height.standard + 1);
       await expect(summary.getByRole("button", { name: "What's new" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await expect(summary.getByRole("button", { name: "What's new" })).toHaveCSS("border-top-style", "none");
-      await expect(summary.getByText("NetMap", { exact: true })).toBeVisible();
+      await expect(summary.getByText("NetMap", { exact: true })).toHaveCount(0);
       await expectVerticalVersion(summary);
       if (info.channel) await expect(summary.getByText(info.channel, { exact: true })).toBeVisible();
       if (state === "update") {
@@ -70,7 +73,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
         await link.hover();
       } else {
         await expect(summary.getByText(state === "current" ? "Up to date" : "Latest unavailable", { exact: true })).toBeVisible();
-        await expect(summary.locator(`.dash-status-dot--${state === "current" ? "online" : "unknown"}`)).toBeVisible();
+        await expect(summary.locator(".dash-status-dot")).toHaveCount(0);
       }
       await page.locator(".app-topbar").screenshot({ path: test.info().outputPath(`version-${theme}-${state}-desktop.png`) });
       for (const width of [1000, 780]) {
