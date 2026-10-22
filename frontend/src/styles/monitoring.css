@@ -4399,3 +4399,26 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
   color: var(--nm-danger);
   overflow-wrap: anywhere;
 }
+
+/* Interactive heartbeat timeline and RTT graph (monitoring + overview popups) */
+.heartbeat-timeline:focus-visible,
+.mon-sparkline-plot:focus-visible {
+  outline: 2px solid var(--nm-focus-border);
+  outline-offset: 3px;
+  border-radius: var(--nm-radius-sm);
+}
+.heartbeat-bar--lg { padding-block: 4px; }
+.heartbeat-bar--lg .heartbeat-beat {
+  transform-origin: center;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.heartbeat-bar--lg.has-active .heartbeat-beat:not(.is-active) { opacity: 0.45; }
+.heartbeat-bar--lg .heartbeat-beat.is-active {
+  position: relative;
+  z-index: 1;
+  transform: scale(1.35, 1.15);
+}
+.heartbeat-bar--lg .heartbeat-beat.is-pinned { box-shadow: 0 0 0 2px var(--nm-surface), 0 0 0 3px var(--nm-accent); }
+.hb-tooltip-card { transition: left 0.12s ease, top 0.12s ease; }
+.hb-tooltip-card--above { transform: translateY(-100%); }
+

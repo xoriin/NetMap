@@ -651,6 +651,37 @@ async function openPopupWithHistory(page: import("@playwright/test").Page) {
   await page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat").first().waitFor();
 }
 
+test("popup heartbeats grow on hover, keep one steady detail card across gaps, pin on click and step with arrows", async ({ page }) => {
+  await openPopupWithHistory(page);
+  const beats = page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat");
+  await expect(beats).toHaveCount(24);
+  const cards = () => page.evaluate(() => document.querySelectorAll(".hb-tooltip-card").length);
+
+  await beats.nth(10).hover();
+  await expect(beats.nth(10)).toHaveClass(/is-active/);
+  await expect.poll(() => beats.nth(10).evaluate((el) => getComputedStyle(el).transform)).not.toBe("none");
+  await expect.poll(() => beats.nth(3).evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(1);
+  expect(await cards()).toBe(1);
+
+  const a = (await beats.nth(10).boundingBox())!;
+  const b = (await beats.nth(11).boundingBox())!;
+  for (let step = 1; step <= 12; step += 1) {
+    const x = a.x + a.width / 2 + ((b.x + b.width / 2) - (a.x + a.width / 2)) * (step / 12);
+    await page.mouse.move(x, a.y + a.height / 2);
+    expect(await cards()).toBe(1);
+  }
+  await expect(beats.nth(11)).toHaveClass(/is-active/);
+
+  await beats.nth(11).click();
+  await page.mouse.move(5, 5);
+  await expect(beats.nth(11)).toHaveClass(/is-active/);
+  expect(await cards()).toBe(1);
+  await page.keyboard.press("ArrowLeft");
+  await expect(beats.nth(10)).toHaveClass(/is-active/);
+  await page.keyboard.press("Escape");
+  await expect.poll(cards).toBe(0);
+});
+
 test("Check now sits in the popup header with the other actions", async ({ page }) => {
   await openPopupWithHistory(page);
   await expect(page.locator(".mon-hero > .nm-toolbar")).toHaveCount(0);

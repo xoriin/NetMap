@@ -1,4 +1,4 @@
-import { useState , memo } from "react";
+import { useRef, useState, memo, type KeyboardEvent, type MouseEvent } from "react";
 import type { MonitorHistoryPoint } from "../api/client";
 import { beatBg, sampleHistory } from "../utils/monitoring";
 
@@ -24,19 +24,17 @@ function HeartbeatBarImpl({ beats, health, size = "sm" }: { beats: string[]; hea
   );
 }
 
-function HeartbeatTooltip({ point, x, y }: { point: MonitorHistoryPoint; x: number; y: number }) {
+function HeartbeatTooltip({ point, anchor }: { point: MonitorHistoryPoint; anchor: DOMRect }) {
   const d = new Date(point.checked_at);
   const dateStr = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const W = 230; const H = 160;
-  const left = x + 16 + W > vw ? x - W - 8 : x + 16;
-  const top = y + 16 + H > vh ? y - H - 8 : y + 16;
+  const W = 230;
+  const left = Math.min(Math.max(8, anchor.left + anchor.width / 2 - W / 2), window.innerWidth - W - 8);
+  const above = anchor.top > 190;
   const statusColors: Record<string, string> = { online: "#2dba7c", offline: "#e05050", unknown: "#94a3b8" };
 
   return (
-    <div className="hb-tooltip-card" style={{ left, top }}>
+    <div className={`hb-tooltip-card hb-tooltip-card--${above ? "above" : "below"}`} role="status" style={{ left, top: above ? anchor.top - 10 : anchor.bottom + 10 }}>
       <div className="hb-tooltip-header">
         <span className="hb-tooltip-date">{dateStr}</span>
         <span className="hb-tooltip-time">{timeStr}</span>
@@ -67,8 +65,9 @@ function HeartbeatTooltip({ point, x, y }: { point: MonitorHistoryPoint; x: numb
 }
 
 function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoint[]; hours: number }) {
-  const [hovered, setHovered] = useState<MonitorHistoryPoint | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
 
   if (history.length === 0) return <p className="dash-empty">No poll data yet.</p>;
 
@@ -80,6 +79,34 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
   const axisIndices = Array.from({ length: axisCount }, (_, i) =>
     Math.round((i / Math.max(axisCount - 1, 1)) * (beats.length - 1)),
   );
+  const active = hoverIndex ?? pinnedIndex;
+  const activeBeat = active !== null && active < beats.length ? beats[active] : null;
+  const anchor = activeBeat ? barRef.current?.children[active as number]?.getBoundingClientRect() ?? null : null;
+
+  function indexAt(clientX: number) {
+    const children = Array.from(barRef.current?.children ?? []);
+    let best = 0;
+    let distance = Infinity;
+    children.forEach((child, index) => {
+      const rect = child.getBoundingClientRect();
+      const gap = Math.abs(clientX - (rect.left + rect.width / 2));
+      if (gap < distance) { distance = gap; best = index; }
+    });
+    return best;
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const from = active ?? beats.length - 1;
+      setHoverIndex(null);
+      setPinnedIndex(Math.min(beats.length - 1, Math.max(0, from + (event.key === "ArrowLeft" ? -1 : 1))));
+    } else if (event.key === "Escape" && active !== null) {
+      event.stopPropagation();
+      setHoverIndex(null);
+      setPinnedIndex(null);
+    }
+  }
 
   function fmtAxis(iso: string) {
     const d = new Date(iso);
@@ -93,17 +120,22 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
   return (
     <div
       className="heartbeat-timeline"
-      onMouseMove={(e) => setPos({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setHovered(null)}
+      tabIndex={0}
+      aria-label="Heartbeat timeline: hover or click a check for details, arrow keys to step"
+      onKeyDown={onKeyDown}
     >
-      <div className="heartbeat-bar heartbeat-bar--lg">
-        {beats.map((h) => (
+      <div
+        ref={barRef}
+        className={`heartbeat-bar heartbeat-bar--lg${active !== null ? " has-active" : ""}`}
+        onMouseMove={(event: MouseEvent) => setHoverIndex(indexAt(event.clientX))}
+        onMouseLeave={() => setHoverIndex(null)}
+        onClick={(event: MouseEvent) => { const index = indexAt(event.clientX); setPinnedIndex((current) => (current === index ? null : index)); }}
+      >
+        {beats.map((h, index) => (
           <span
             key={h.id}
-            className="heartbeat-beat heartbeat-beat--clickable"
+            className={`heartbeat-beat heartbeat-beat--clickable${index === active ? " is-active" : ""}${index === pinnedIndex ? " is-pinned" : ""}`}
             style={{ background: beatBg(h.is_healthy === true ? "healthy" : h.is_healthy === false ? "unhealthy" : "unknown") }}
-            onMouseEnter={() => setHovered(h)}
-            onMouseLeave={() => setHovered(null)}
           />
         ))}
       </div>
@@ -132,7 +164,7 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
         </div>
       </div>
 
-      {hovered && <HeartbeatTooltip point={hovered} x={pos.x} y={pos.y} />}
+      {activeBeat && anchor && <HeartbeatTooltip point={activeBeat} anchor={anchor} />}
     </div>
   );
 }

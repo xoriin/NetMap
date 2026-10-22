@@ -1893,7 +1893,7 @@ export function MonitoringWorkspace({
                     <div className="mon-hero-section-title">
                       Heartbeat
                       <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span className="dash-panel-meta">hover to inspect</span>
+                        <span className="dash-panel-meta">hover or click to inspect</span>
                         <select
                           className="mon-hours-select"
                           value={historyHours}
