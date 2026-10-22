@@ -4407,16 +4407,18 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
   outline-offset: 3px;
   border-radius: var(--nm-radius-sm);
 }
-.heartbeat-bar--lg { padding-block: 4px; }
+.heartbeat-bar--lg { padding-block: 10px; }
 .heartbeat-bar--lg .heartbeat-beat {
+  --hb-k: 0;
   transform-origin: center;
-  transition: transform 0.12s ease, opacity 0.12s ease;
+  transform: scale(calc(1 + 0.3 * var(--hb-k)), calc(1 + 0.55 * var(--hb-k)));
+  transition: transform 0.09s ease-out, opacity 0.12s ease;
 }
-.heartbeat-bar--lg.has-active .heartbeat-beat:not(.is-active) { opacity: 0.45; }
+.heartbeat-bar--lg.has-active .heartbeat-beat { opacity: calc(0.5 + 0.5 * var(--hb-k)); }
 .heartbeat-bar--lg .heartbeat-beat.is-active {
   position: relative;
   z-index: 1;
-  transform: scale(1.35, 1.15);
+  opacity: 1;
 }
 .heartbeat-bar--lg .heartbeat-beat.is-pinned { box-shadow: 0 0 0 2px var(--nm-surface), 0 0 0 3px var(--nm-accent); }
 .hb-tooltip-card { transition: left 0.12s ease, top 0.12s ease; }
