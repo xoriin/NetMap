@@ -1,6 +1,4 @@
-import { useRef, useState, memo, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
-
-const LENS_RADIUS = 2.5;
+import { useRef, useState, memo, type KeyboardEvent, type MouseEvent } from "react";
 import type { MonitorHistoryPoint } from "../api/client";
 import { beatBg, sampleHistory } from "../utils/monitoring";
 
@@ -68,7 +66,6 @@ function HeartbeatTooltip({ point, anchor }: { point: MonitorHistoryPoint; ancho
 
 function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoint[]; hours: number }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [pointerX, setPointerX] = useState<number | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -98,29 +95,15 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
     return best;
   }
 
-  function lensOf(index: number) {
-    const children = barRef.current?.children;
-    if (pointerX !== null && children && children.length > 1) {
-      const first = children[0].getBoundingClientRect();
-      const second = children[1].getBoundingClientRect();
-      const pitch = Math.max(1, second.left - first.left);
-      const rect = children[index]?.getBoundingClientRect();
-      if (rect) return Math.max(0, 1 - Math.abs(pointerX - (rect.left + rect.width / 2)) / pitch / LENS_RADIUS);
-    }
-    return active === null ? 0 : Math.max(0, 1 - Math.abs(index - active) / LENS_RADIUS);
-  }
-
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       const from = active ?? beats.length - 1;
       setHoverIndex(null);
-      setPointerX(null);
       setPinnedIndex(Math.min(beats.length - 1, Math.max(0, from + (event.key === "ArrowLeft" ? -1 : 1))));
     } else if (event.key === "Escape" && active !== null) {
       event.stopPropagation();
       setHoverIndex(null);
-      setPointerX(null);
       setPinnedIndex(null);
     }
   }
@@ -144,15 +127,15 @@ function HeartbeatTimelineImpl({ history, hours }: { history: MonitorHistoryPoin
       <div
         ref={barRef}
         className={`heartbeat-bar heartbeat-bar--lg${active !== null ? " has-active" : ""}`}
-        onMouseMove={(event: MouseEvent) => { setPointerX(event.clientX); setHoverIndex(indexAt(event.clientX)); }}
-        onMouseLeave={() => { setPointerX(null); setHoverIndex(null); }}
+        onMouseMove={(event: MouseEvent) => setHoverIndex(indexAt(event.clientX))}
+        onMouseLeave={() => setHoverIndex(null)}
         onClick={(event: MouseEvent) => { const index = indexAt(event.clientX); setPinnedIndex((current) => (current === index ? null : index)); }}
       >
         {beats.map((h, index) => (
           <span
             key={h.id}
             className={`heartbeat-beat heartbeat-beat--clickable${index === active ? " is-active" : ""}${index === pinnedIndex ? " is-pinned" : ""}`}
-            style={{ background: beatBg(h.is_healthy === true ? "healthy" : h.is_healthy === false ? "unhealthy" : "unknown"), "--hb-k": lensOf(index).toFixed(3) } as CSSProperties}
+            style={{ background: beatBg(h.is_healthy === true ? "healthy" : h.is_healthy === false ? "unhealthy" : "unknown") }}
           />
         ))}
       </div>

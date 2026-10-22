@@ -662,7 +662,8 @@ test("popup heartbeats grow on hover, keep one steady detail card across gaps, p
   await expect(beats.nth(10)).toHaveClass(/is-active/);
   const scaleY = (index: number) => beats.nth(index).evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).d);
   await expect.poll(() => scaleY(10)).toBeGreaterThan(1.4);
-  await expect.poll(async () => { const near = await scaleY(11); return near > 1.05 && near < (await scaleY(10)); }).toBe(true);
+  await expect.poll(() => scaleY(11)).toBe(1);
+  await expect.poll(() => scaleY(9)).toBe(1);
   await expect.poll(() => scaleY(3)).toBe(1);
   await expect.poll(() => beats.nth(3).evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(1);
   await expect.poll(() => beats.nth(10).evaluate((el) => Number(getComputedStyle(el).opacity))).toBe(1);

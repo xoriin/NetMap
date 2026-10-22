@@ -4416,9 +4416,9 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
 }
 .heartbeat-bar--lg.has-active .heartbeat-beat { opacity: calc(0.5 + 0.5 * var(--hb-k)); }
 .heartbeat-bar--lg .heartbeat-beat.is-active {
+  --hb-k: 1;
   position: relative;
   z-index: 1;
-  opacity: 1;
 }
 .heartbeat-bar--lg .heartbeat-beat.is-pinned { box-shadow: 0 0 0 2px var(--nm-surface), 0 0 0 3px var(--nm-accent); }
 .hb-tooltip-card { transition: left 0.12s ease, top 0.12s ease; }
