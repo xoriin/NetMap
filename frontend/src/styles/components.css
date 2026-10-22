@@ -996,9 +996,9 @@ body:not(.theme-dark) :is(.nm-app-panel-header, .topology-toolbar--ribbon, .inve
   color: var(--nm-panel-head-link-hover);
 }
 
-:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.nm-btn--icon), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, .inv-bulk-menu, [role="menu"], [role="listbox"]),
-.modal .modal-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.modal-close-btn), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, [role="menu"], [role="listbox"]),
-.topology-details-panel .details-heading :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.modal-close-btn), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .tool-badge, [role="menu"], [role="listbox"]) {
+:is(.nm-app-panel-header, .topology-toolbar--ribbon, .inventory-device-sidebar-header, .security-results-meta, .tools-side-header) :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.nm-btn--icon), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, .inv-bulk-menu, [role="menu"], [role="listbox"]),
+.modal .modal-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.modal-close-btn), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, [role="menu"], [role="listbox"]),
+.topology-details-panel .details-heading :is(.nm-btn:not(.nm-btn--ghost):not(.nm-btn--active):not(.modal-close-btn), .nm-search, .nm-select, select, input, textarea, .nm-swatch-select, .nm-pick, .nm-status, .nm-pill, [role="menu"], [role="listbox"]) {
   --nm-modal-header: var(--nm-base-modal-header);
   --nm-border: var(--nm-base-border);
   --nm-text: var(--nm-base-text);

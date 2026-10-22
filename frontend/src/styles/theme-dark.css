@@ -977,9 +977,6 @@ body.theme-dark .raw-log {
   background: var(--nm-bg-elevated);
   border-color: var(--nm-border);
 }
-body.theme-dark .tool-badge { color: #5bc8da; background: rgba(29,154,176,0.12); }
-body.theme-dark .tool-badge.active { color: #4fbc80; background: rgba(45,157,120,0.12); }
-body.theme-dark .tool-badge.locked { color: #e07070; background: rgba(180,60,60,0.12); }
 body.theme-dark .tool-target-strip { background: var(--nm-shell); border-color: var(--nm-border); }
 body.theme-dark .tool-target-strip span,
 body.theme-dark .tool-target-strip strong { color: var(--nm-modal-label); }

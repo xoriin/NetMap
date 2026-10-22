@@ -400,9 +400,6 @@ body.theme-dark .tools-workspace .tools-nav .tools-nav-item.nm-workspace-tab:hov
   background: var(--nm-tab-hover-bg);
 }
 
-.tools-workspace .tools-nav-item--locked:not(.tools-nav-item--active) {
-  opacity: 0.58;
-}
 
 .tools-workspace .tools-main {
   width: 100%;

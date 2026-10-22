@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockUser, setupCoreMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 async function setupTools(page: Page, theme: "light" | "dark") {
   await setupCoreMocks(page);
@@ -23,7 +23,7 @@ for (const theme of ["light", "dark"] as const) {
 
     const window = page.locator(".tools-content");
     await expect(window).toHaveCSS("background-image", "none");
-    await expect(page.locator(".tools-summary-card")).toHaveCount(4);
+    await expect(page.locator(".tools-summary-card")).toHaveCount(3);
     await expect(page.locator(".tools-library-item")).toHaveCount(0);
     await expect(page.locator(".tools-activity")).toBeVisible();
     await expect(page.locator(".tools-saved")).toBeVisible();
@@ -147,4 +147,26 @@ test("Tools keeps every desktop tab visible and sizes the module to its content"
   expect(geometry!.lastTabRight).toBeLessThanOrEqual(geometry!.tabsRight + 1);
   expect(geometry!.stageHeight).toBeLessThan(420);
   expect(Math.abs(geometry!.stageCardBottomGap)).toBeLessThanOrEqual(1);
+});
+
+test("users without active-tool rights only see the passive tools, with no access chips", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page);
+  await page.route("**/api/v1/auth/me", (route) => route.fulfill({ json: { ...mockUser, role: "Viewer", permissions: ["tools_passive"] } }));
+  await page.route("**/api/v1/admin/snmp-profiles", (route) => route.fulfill({ json: [] }));
+  await page.addInitScript(() => localStorage.setItem("netmap.tools.recent_v1", JSON.stringify([])));
+  await page.goto("/tools");
+  const tabs = page.getByRole("tablist", { name: "Network tools" }).getByRole("tab");
+  await expect(tabs).toHaveText(["DNS Lookup", "Reverse DNS", "Subnet Calculator"]);
+  await expect(page.locator(".tools-summary-card").first()).toContainText("3");
+  await expect(page.getByText(/Passive|Restricted|Active tools are disabled/)).toHaveCount(0);
+  await expect(page.locator(".tools-summary-grid")).not.toContainText("Access level");
+});
+
+test("users with every tool right see all tools and still no access chips", async ({ page }) => {
+  await setupTools(page, "light");
+  await expect(page.getByRole("tablist", { name: "Network tools" }).getByRole("tab")).toHaveCount(7);
+  await page.getByRole("tab", { name: "Ping Test" }).click();
+  await expect(page.locator(".tool-card-header")).not.toContainText("Active");
+  await expect(page.locator(".tools-guide")).not.toContainText("Active");
 });

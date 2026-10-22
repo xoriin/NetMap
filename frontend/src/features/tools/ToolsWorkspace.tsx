@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import "./tools.css";
 import { BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, Search, Trash2 } from "lucide-react";
-import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter, IconTopologyRing } from "@tabler/icons-react";
+import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter } from "@tabler/icons-react";
 import {
   api,
   type DnsRecordType, type DnsLookupResult, type ReverseDnsResult,
@@ -14,7 +14,7 @@ import { DashStat } from "../../components/DashStat";
 import { deviceLabel, formatMs } from "../../utils/format";
 import { prefixToMask, wildcardMask, ipClass, ipType } from "../../utils/ip";
 
-function ToolPanelHeader({ icon, title, badge }: { icon: ReactNode; title: string; badge: ReactNode }) {
+function ToolPanelHeader({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <div className="tool-card-header nm-app-panel-header">
       <span className="tool-panel-identity">
@@ -22,7 +22,6 @@ function ToolPanelHeader({ icon, title, badge }: { icon: ReactNode; title: strin
         <span className="tool-panel-separator" aria-hidden="true">-</span>
         <span className="tool-panel-title">{title}</span>
       </span>
-      {badge}
     </div>
   );
 }
@@ -198,8 +197,10 @@ export function ToolsWorkspace({
   const [savedResults, setSavedResults] = useState<SavedToolResult[]>(() => loadStoredRuns<SavedToolResult>(TOOLS_SAVED_KEY, 15));
 
   const activeTarget = selectedDevice?.ip_address ?? "";
-  const [activeTool, setActiveTool] = useState<ToolId>("dns");
-  const activeToolDefinition = TOOL_DEFINITIONS.find((tool) => tool.id === activeTool) ?? TOOL_DEFINITIONS[0];
+  const availableTools = TOOL_DEFINITIONS.filter((tool) => tool.passive || canRunActiveTools);
+  const [requestedTool, setActiveTool] = useState<ToolId>("dns");
+  const activeToolDefinition = availableTools.find((tool) => tool.id === requestedTool) ?? availableTools[0];
+  const activeTool = activeToolDefinition.id as ToolId;
 
   useEffect(() => {
     window.localStorage.setItem(TOOLS_RECENT_KEY, JSON.stringify(recentRuns));
@@ -495,22 +496,20 @@ export function ToolsWorkspace({
           </button>
         </div>
       )}
-      <div className="dash-stats dash-stats--four tools-summary-grid nm-summary-band" aria-label="Tools summary">
-        <DashStat className="tools-summary-card" label="Available tools" value={TOOL_DEFINITIONS.length} icon={<IconLayoutDashboard size={20} />} accent="teal" />
+      <div className="dash-stats dash-stats--fill tools-summary-grid nm-summary-band" aria-label="Tools summary">
+        <DashStat className="tools-summary-card" label="Available tools" value={availableTools.length} icon={<IconLayoutDashboard size={20} />} accent="teal" />
         <DashStat className="tools-summary-card" label="Recent checks" value={recentRuns.length} icon={<Clock3 size={20} />} accent="green" />
         <DashStat className="tools-summary-card" label="Saved results" value={savedResults.length} icon={<Bookmark size={20} />} accent="blue" />
-        <DashStat className="tools-summary-card" label="Access level" value={canRunActiveTools ? "Full" : "Passive"} icon={<IconTopologyRing size={20} />} accent="purple" />
       </div>
       <div className="tools-console-grid">
       <div className="tools-window">
         <nav className="tools-nav nm-workspace-tabs nm-workspace-tabs--attached" role="tablist" aria-label="Network tools">
-          {TOOL_DEFINITIONS.map(({ id, label, Icon, passive }) => {
-            const available = passive || canRunActiveTools;
+          {availableTools.map(({ id, label, Icon }) => {
             return (
               <button
                 key={id}
                 type="button"
-                className={`tools-nav-item nm-workspace-tab${activeTool === id ? " tools-nav-item--active is-active" : ""}${!available ? " tools-nav-item--locked" : ""}`}
+                className={`tools-nav-item nm-workspace-tab${activeTool === id ? " tools-nav-item--active is-active" : ""}`}
                 role="tab"
                 aria-selected={activeTool === id}
                 aria-controls="tools-active-stage"
@@ -526,7 +525,7 @@ export function ToolsWorkspace({
         <div className="tools-main">
           <div className="tools-main-inner">
           {activeTool === "dns" && <section className="tool-card nm-app-panel">
-            <ToolPanelHeader icon={<Search size={18} />} title="DNS lookup" badge={<span className="tool-badge">Passive</span>} />
+            <ToolPanelHeader icon={<Search size={18} />} title="DNS lookup" />
             <div className="dns-tool-layout">
               <div className="dns-query-column">
                 <form className="tool-form dns-query-form" onSubmit={runDnsLookup}>
@@ -633,7 +632,7 @@ export function ToolsWorkspace({
           </section>}
 
           {activeTool === "reverse-dns" && <section className="tool-card nm-app-panel">
-            <ToolPanelHeader icon={<IconWorld size={18} />} title="Reverse DNS" badge={<span className="tool-badge">Passive</span>} />
+            <ToolPanelHeader icon={<IconWorld size={18} />} title="Reverse DNS" />
             <form className="tool-form" onSubmit={runReverseDns}>
               <label>
                 IP address
@@ -669,7 +668,6 @@ export function ToolsWorkspace({
             <ToolPanelHeader
               icon={<IconWifi size={18} />}
               title="Ping test"
-              badge={<span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>{canRunActiveTools ? "Active" : "Restricted"}</span>}
             />
             <form className="tool-form" onSubmit={runPing}>
               <label>
@@ -708,7 +706,6 @@ export function ToolsWorkspace({
                 </button>
               </div>
             </form>
-            {!canRunActiveTools && <p className="tool-note">Active tools are disabled for this role.</p>}
             {pingError && <div className="form-error">{pingError}</div>}
             {pingResult && (
               <div className="tool-result">
@@ -733,7 +730,6 @@ export function ToolsWorkspace({
             <ToolPanelHeader
               icon={<Network size={18} />}
               title="Traceroute"
-              badge={<span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>{canRunActiveTools ? "Active" : "Restricted"}</span>}
             />
             <form className="tool-form" onSubmit={runTraceroute}>
               <label>
@@ -772,7 +768,6 @@ export function ToolsWorkspace({
                 </button>
               </div>
             </form>
-            {!canRunActiveTools && <p className="tool-note">Active tools are disabled for this role.</p>}
             {tracerouteError && <div className="form-error">{tracerouteError}</div>}
             {tracerouteResult && (
               <div className="tool-result">
@@ -801,7 +796,6 @@ export function ToolsWorkspace({
             <ToolPanelHeader
               icon={<IconServer size={18} />}
               title="Port check"
-              badge={<span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>{canRunActiveTools ? "Active" : "Restricted"}</span>}
             />
             <form className="tool-form" onSubmit={runTcpCheck}>
               <label>
@@ -847,7 +841,6 @@ export function ToolsWorkspace({
                 </button>
               </div>
             </form>
-            {!canRunActiveTools && <p className="tool-note">Active tools are disabled for this role.</p>}
             {tcpError && <div className="form-error">{tcpError}</div>}
             {tcpResult && (
               <div className="tool-result">
@@ -864,7 +857,7 @@ export function ToolsWorkspace({
           </section>}
 
           {activeTool === "subnet" && <section className="tool-card nm-app-panel">
-            <ToolPanelHeader icon={<IconLayoutDashboard size={18} />} title="Subnet calculator" badge={<span className="tool-badge">Passive</span>} />
+            <ToolPanelHeader icon={<IconLayoutDashboard size={18} />} title="Subnet calculator" />
             <form className="tool-form" onSubmit={runSubnetCalculation}>
               <div className="subnet-input-row">
                 <label className="subnet-ip-label">
@@ -966,7 +959,6 @@ export function ToolsWorkspace({
             <ToolPanelHeader
               icon={<IconRouter size={18} />}
               title="SNMP probe"
-              badge={<span className={`tool-badge ${canRunActiveTools ? "active" : "locked"}`}>{canRunActiveTools ? "Active" : "Restricted"}</span>}
             />
             <form className="tool-form" onSubmit={runSnmpProbe}>
               <label>
@@ -1020,7 +1012,6 @@ export function ToolsWorkspace({
                 </button>
               </div>
             </form>
-            {!canRunActiveTools && <p className="tool-note">Active tools are disabled for this role.</p>}
             {snmpError && <div className="form-error">{snmpError}</div>}
             {snmpResult && (
               <div className="tool-result">
@@ -1244,9 +1235,6 @@ export function ToolsWorkspace({
           <section className="tools-guide nm-app-panel" aria-label={`${activeToolDefinition.label} guide`}>
           <div className="tools-side-header">
             <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><BookOpen size={18} /></span><span>How {activeToolDefinition.label} works</span></span>
-            <span className={`tool-badge ${activeToolDefinition.passive ? "" : canRunActiveTools ? "active" : "locked"}`}>
-              {activeToolDefinition.passive ? "Passive" : canRunActiveTools ? "Active" : "Restricted"}
-            </span>
           </div>
           <div className="tools-guide-body">
             <p>{activeToolDefinition.guide}</p>
