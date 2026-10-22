@@ -506,13 +506,16 @@ export function SystemTab({
             </div>
             <div className="admin-system-card-body">
               <div className="tool-form">
-              <div className="admin-backup-downloads">
-                <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy !== null} onClick={() => setShowEncryptedBackupModal(true)}>
-                  <Download size={14} aria-hidden="true" />Download encrypted backup
-                </button>
-                <button type="button" className="nm-btn nm-btn--secondary" disabled={backupBusy !== null} onClick={() => void runBackup()}>
-                  <Download size={14} aria-hidden="true" />{backupBusy === "backup" ? "Preparing…" : "Download unencrypted .db"}
-                </button>
+              <div className="admin-backup-step" role="group" aria-labelledby="admin-backup-download-title">
+                <span className="admin-backup-step-title" id="admin-backup-download-title">Download a backup</span>
+                <div className="admin-backup-downloads">
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={backupBusy !== null} onClick={() => setShowEncryptedBackupModal(true)}>
+                    <Download size={14} aria-hidden="true" />Download encrypted backup
+                  </button>
+                  <button type="button" className="nm-btn nm-btn--secondary" disabled={backupBusy !== null} onClick={() => void runBackup()}>
+                    <Download size={14} aria-hidden="true" />{backupBusy === "backup" ? "Preparing…" : "Download unencrypted .db"}
+                  </button>
+                </div>
               </div>
               <label>
                 Restore from backup
@@ -579,7 +582,7 @@ export function SystemTab({
               <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
             </div>
             <div className="admin-system-card-body">
-              <p className="tool-note">Saves an unencrypted backup on a schedule and removes older copies.</p>
+              <p className="admin-backup-step-title">Saves an unencrypted backup on a schedule and removes older copies.</p>
               <p className="tool-note">Saved to <code>{backupDirectory ?? "unknown folder"}</code> · set <code>BACKUP_DIR</code> to change it.</p>
               <div className="tool-form">
               <label className="tool-form-inline-check">

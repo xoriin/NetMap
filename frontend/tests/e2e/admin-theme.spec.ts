@@ -1135,6 +1135,12 @@ test("backup downloads sit side by side and Upload waits for a ready file", asyn
   const card = page.locator(".admin-system-card", { hasText: "Database backup & restore" });
   await expect(card).not.toContainText("SuperAdmin only");
   await expect(card).not.toContainText("need their passphrase");
+  const downloads = card.getByRole("group", { name: "Download a backup" });
+  await expect(downloads.getByRole("button", { name: "Download encrypted backup" })).toBeVisible();
+  const style = (el: Element) => { const c = getComputedStyle(el); return [c.fontSize, c.fontWeight, c.color]; };
+  const title = await card.locator(".admin-backup-step-title").evaluate(style);
+  const restoreLabel = await card.locator("label", { hasText: "Restore from backup" }).evaluate(style);
+  expect(title).toEqual(restoreLabel);
   const encrypted = await card.getByRole("button", { name: "Download encrypted backup" }).boundingBox();
   const plain = await card.getByRole("button", { name: "Download unencrypted .db" }).boundingBox();
   expect(Math.abs(encrypted!.y - plain!.y)).toBeLessThanOrEqual(1);
