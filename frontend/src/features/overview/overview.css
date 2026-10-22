@@ -145,11 +145,6 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
   border-bottom-color: var(--nm-border);
 }
 
-.overview-workspace .dash-health-track,
-.overview-workspace .dash-mini-track {
-  background: var(--nm-surface-soft);
-}
-
 .overview-workspace .overview-device-type-fill {
   background: color-mix(in srgb, var(--overview-type-color, var(--nm-accent)) 72%, transparent);
 }

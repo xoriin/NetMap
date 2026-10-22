@@ -36,6 +36,7 @@ body.theme-dark {
   --nm-modal-header: #182635;
   --nm-modal-section: #15212e;
   --nm-panel-body-bg: transparent;
+  --nm-track-bg: rgba(40, 70, 90, 0.5);
   --nm-modal-input: var(--nm-shell);
   --nm-modal-label: #c8dae8;
   --nm-popup-section-bg: #182635;
@@ -1112,7 +1113,6 @@ body.theme-dark .monitors-history-list::-webkit-scrollbar-thumb:hover {
 }
 
 body.theme-dark .dash-health-label { color: #5a7a8e; }
-body.theme-dark .dash-health-track { background: rgba(40,70,90,0.5); }
 body.theme-dark .dash-health-count { color: #5a7a8e; }
 
 body.theme-dark .dash-device-row { border-bottom-color: rgba(30,50,65,0.7); }
@@ -1127,7 +1127,6 @@ body.theme-dark .dash-status-pill--warning { background: rgba(224,144,48,0.22); 
 body.theme-dark .dash-status-pill--unknown { background: rgba(60,90,110,0.35);  color: #6a8a9a; }
 
 body.theme-dark .dash-breakdown-label { color: #7a96a8; }
-body.theme-dark .dash-mini-track { background: rgba(40,70,90,0.5); }
 body.theme-dark .dash-breakdown-count { color: #5a7a8e; }
 
 body.theme-dark .dash-tag { background: rgba(29,154,176,0.08); border-color: rgba(29,154,176,0.2); color: #7a96a8; }

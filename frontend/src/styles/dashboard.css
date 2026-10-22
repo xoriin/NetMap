@@ -730,7 +730,7 @@ body.route-overview .dash-panel {
 .dash-health-track {
   height: 6px;
   border-radius: 99px;
-  background: rgba(209, 220, 230, 0.5);
+  background: var(--nm-track-bg);
   overflow: hidden;
 }
 
@@ -897,7 +897,7 @@ body.route-overview .dash-panel {
 .dash-mini-track {
   height: 5px;
   border-radius: 99px;
-  background: rgba(209, 220, 230, 0.5);
+  background: var(--nm-track-bg);
   overflow: hidden;
 }
 

@@ -138,6 +138,18 @@ test("Overview panel headers share the band and keep their links readable", asyn
   expect(low).toEqual([]);
 });
 
+for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(40, 70, 90, 0.5)"]] as const) {
+  test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, devices);
+    await page.addInitScript((value) => window.localStorage.setItem("netmap.theme", value), theme);
+    await page.goto("/overview");
+    const tracks = page.locator(".dash-health-track, .dash-mini-track");
+    await expect(tracks.first()).toBeVisible();
+    for (const track_ of await tracks.all()) await expect(track_).toHaveCSS("background-color", track);
+  });
+}
+
 for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(21, 33, 46)"]] as const) {
   test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
