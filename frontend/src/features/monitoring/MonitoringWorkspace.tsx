@@ -1649,11 +1649,6 @@ export function MonitoringWorkspace({
           <div className="mon-hero">
 
             {/* Header */}
-            {canManageMonitoring && <div className="nm-toolbar">
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={checkingDevice !== null || selectedDevice.monitoring_paused || selectedDevice.lifecycle !== "active"} onClick={() => void checkNow(selectedDevice.device_id)}>
-                {checkingDevice === selectedDevice.device_id ? "Checking…" : "Check now"}
-              </button>
-            </div>}
             <div className={`mon-hero-header mon-hero-header--${selectedDevice.health_status}`}>
               <div className="mon-hero-header-left">
                 <MonStatusDot status={selectedDevice.health_status} />
@@ -1672,6 +1667,11 @@ export function MonitoringWorkspace({
                 </div>
               </div>
               <div className="mon-hero-actions">
+                {canManageMonitoring && (
+                  <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={checkingDevice !== null || selectedDevice.monitoring_paused || selectedDevice.lifecycle !== "active"} onClick={() => void checkNow(selectedDevice.device_id)}>
+                    {checkingDevice === selectedDevice.device_id ? "Checking…" : "Check now"}
+                  </button>
+                )}
                 {canWrite && (
                   <button
                     type="button"

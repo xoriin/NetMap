@@ -626,3 +626,38 @@ for (const theme of ["light", "dark"] as const) {
     }
   });
 }
+
+function historyPoints(count = 24) {
+  const end = Date.UTC(2026, 9, 22, 10, 0, 0);
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    checked_at: new Date(end - (count - 1 - i) * 120_000).toISOString(),
+    status: i === 5 ? "offline" : "online",
+    expected_status: "online",
+    is_healthy: i !== 5,
+    rtt_ms: i === 5 ? null : 10 + (i % 7) * 3,
+    port_results: [],
+  }));
+}
+
+async function openPopupWithHistory(page: import("@playwright/test").Page) {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+  await setupMonitoringMocks(page, [mockMonitoringDevice({ device_id: 1, display_name: "Core Router", hostname: "router-core-01", ip_address: "192.168.100.1" })]);
+  await page.route("**/api/v1/monitoring/devices/*/history?*", (route) => route.fulfill({ json: historyPoints() }));
+  await page.goto("/monitoring");
+  await page.locator(".mon-row", { hasText: "Core Router" }).click();
+  await page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat").first().waitFor();
+}
+
+test("Check now sits in the popup header with the other actions", async ({ page }) => {
+  await openPopupWithHistory(page);
+  await expect(page.locator(".mon-hero > .nm-toolbar")).toHaveCount(0);
+  const actions = page.locator(".mon-hero-actions");
+  const check = actions.getByRole("button", { name: "Check now" });
+  await expect(check).toBeVisible();
+  const pause = actions.getByRole("button", { name: /monitoring/i });
+  expect((await check.boundingBox())!.height).toBe((await pause.boundingBox())!.height);
+  expect(Math.abs((await check.boundingBox())!.y - (await pause.boundingBox())!.y)).toBeLessThanOrEqual(1);
+});
