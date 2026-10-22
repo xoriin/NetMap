@@ -12,13 +12,21 @@ for (const theme of ["light", "dark"] as const) {
       const longName = "Customer-facing endpoint with a long descriptive name that must stay within its column";
       const longUrl = `https://api.example.com/${"long-path-segment/".repeat(30)}health`;
       await page.route("**/api/v1/monitors", route => route.fulfill({ json: [
-        { id: 1, name: "Google", url: "https://www.google.com/", enabled: true, last_status: "online", last_checked_at: "2026-10-22T00:35:47Z", uptime_24h: 99.8, uptime_7d: 99.9, avg_response_time_24h: 456, heartbeat: Array(24).fill("online") },
+        { id: 1, name: "Google", url: "https://www.google.com/", enabled: true, last_status: "online", last_checked_at: "2026-10-22T00:35:47Z", uptime_24h: 99.8, uptime_7d: 99.9, avg_response_time_24h: 456, heartbeat: Array(30).fill("online") },
         { id: 2, name: longName, url: longUrl, enabled: false, last_status: "unknown", last_checked_at: null, uptime_24h: null, uptime_7d: null, avg_response_time_24h: null, heartbeat: [] },
       ] }));
       await page.goto("/monitoring#endpoints");
       const table = page.locator(".monitors-table");
       await expect(table.locator("tbody tr")).toHaveCount(2);
       const headers = table.locator("thead th");
+      // Every data column shares the remaining width; long URLs must not absorb
+      // the spare desktop space and bunch the metrics up at the right edge.
+      const widths = await headers.evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+      const dataWidths = widths.slice(2, 9);
+      expect(Math.max(...dataWidths) - Math.min(...dataWidths)).toBeLessThanOrEqual(1);
+      expect(widths[0]).toBeCloseTo(90, 0);
+      expect(widths[1]).toBeCloseTo(50, 0);
+      expect(widths[9]).toBeCloseTo(220, 0);
       await expect(headers.nth(4)).toHaveCSS("text-align", "left");
       for (const index of [5, 6, 7]) await expect(headers.nth(index)).toHaveCSS("text-align", "center");
       const geometry = await table.evaluate(node => {
@@ -34,6 +42,16 @@ for (const theme of ["light", "dark"] as const) {
       for (const column of geometry) { expect(column.cellEdgeDelta).toBeLessThanOrEqual(1); expect(column.widthDelta).toBeLessThanOrEqual(1); }
       for (const index of [2, 4, 8]) expect(geometry[index].textEdgeDelta).toBeLessThanOrEqual(1);
       for (const index of [5, 6, 7]) { expect(geometry[index].headerCentreDelta).toBeLessThanOrEqual(1); expect(geometry[index].valueCentreDelta).toBeLessThanOrEqual(1); }
+      const heartbeat = table.locator(".heartbeat-bar--sm").first();
+      await expect(heartbeat.locator(".heartbeat-beat")).toHaveCount(30);
+      const beatFits = await heartbeat.evaluate(bar => {
+        const bounds = bar.getBoundingClientRect();
+        return [...bar.children].every(beat => {
+          const box = beat.getBoundingClientRect();
+          return box.left >= bounds.left - 1 && box.right <= bounds.right + 1;
+        });
+      });
+      expect(beatFits).toBe(true);
       const longRow = table.locator("tbody tr").nth(1);
       await expect(longRow.locator("td").nth(2)).toHaveCSS("text-overflow", "ellipsis");
       await expect(longRow.locator("td").nth(4)).toHaveCSS("text-overflow", "ellipsis");

@@ -4037,7 +4037,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   height: 100%;
   min-height: 0;
 }
-.monitors-table {
+.nm-table.monitors-table {
   width: max(100%, 1510px);
   table-layout: fixed;
 }
@@ -4046,12 +4046,14 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
    when the Monitoring page switches between its Devices and Monitors tabs. */
 .monitors-table .monitors-col-fav { width: 90px; }
 .monitors-table .monitors-col-status { width: 50px; }
-.monitors-table .monitors-col-name { width: 220px; }
-.monitors-table .monitors-col-heartbeat { width: 190px; }
-.monitors-table .monitors-col-url { width: auto; }
-.monitors-table .monitors-col-uptime { width: 112px; }
-.monitors-table .monitors-col-rtt { width: 112px; }
-.monitors-table .monitors-col-checked { width: 180px; }
+/* Like Inventory's flexible grid, spread data across the available canvas.
+   Only utility columns are fixed; no single text column absorbs spare width. */
+.monitors-table .monitors-col-name,
+.monitors-table .monitors-col-heartbeat,
+.monitors-table .monitors-col-url,
+.monitors-table .monitors-col-uptime,
+.monitors-table .monitors-col-rtt,
+.monitors-table .monitors-col-checked { width: auto; }
 .monitors-table .monitors-col-actions { width: 220px; }
 /* Text columns stay left aligned and clipped independently of column order. */
 .monitors-table .monitors-text-cell {
@@ -4090,6 +4092,7 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   justify-content: flex-start;
 }
 .monitors-heartbeat-cell .heartbeat-beat {
+  flex-shrink: 1;
   min-width: 3px;
 }
 .monitors-heartbeat-empty {
