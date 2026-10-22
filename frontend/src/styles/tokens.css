@@ -105,9 +105,10 @@
   --nm-modal-input: var(--nm-input-surface);
   --nm-modal-label: var(--nm-text);
   --nm-popup-section-bg: var(--nm-input-surface);
-  --nm-popup-section-border: rgba(209, 220, 230, 0.7);
+  --nm-popup-section-border: var(--nm-border);
   --nm-popup-section-title: #3a5468;
-  --nm-popup-section-title-border: rgba(209, 220, 230, 0.5);
+  --nm-popup-section-title-border: var(--nm-border);
+  --nm-popup-section-title-bg: var(--nm-table-header-bg);
   --nm-popup-divider: rgba(209, 220, 230, 0.4);
   --nm-danger: #d94b4b;
   --nm-warning: #d4912c;

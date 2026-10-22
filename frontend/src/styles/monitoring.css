@@ -2224,7 +2224,7 @@ body:not(.theme-dark) .mon-hero-header :is(.nm-btn:not(.nm-btn--ghost):not(.nm-b
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--nm-popup-section-title-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-popup-section-title-bg);
 }
 
 .mon-hero-section .mon-analysis-body { padding: 2px 0 6px; }
@@ -2253,7 +2253,7 @@ body.theme-dark .mon-hero-stats { background: var(--nm-modal-section); border-co
 body.theme-dark .mon-hero-stat { border-color: var(--nm-border-strong); }
 body.theme-dark .mon-hero-stat-val { color: #d8eaf5; }
 body.theme-dark .mon-hero-section { background: var(--nm-popup-section-bg); border-color: var(--nm-popup-section-border); }
-body.theme-dark .mon-hero-section-title { color: var(--nm-popup-section-title); background: var(--nm-modal-section); border-color: var(--nm-popup-section-title-border); }
+body.theme-dark .mon-hero-section-title { color: var(--nm-popup-section-title); background: var(--nm-popup-section-title-bg); border-color: var(--nm-popup-section-title-border); }
 body.theme-dark .mon-hero-close { background: color-mix(in srgb, var(--nm-text-faint) 18%, transparent); color: var(--nm-popup-section-title); }
 body.theme-dark .mon-hero-close:hover { background: color-mix(in srgb, var(--nm-text-faint) 30%, transparent); color: #c8dff0; }
 body.theme-dark .modal-close { background: color-mix(in srgb, var(--nm-text-faint) 18%, transparent); color: var(--nm-popup-section-title); }

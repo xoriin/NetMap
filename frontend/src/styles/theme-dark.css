@@ -45,6 +45,7 @@ html:has(body.theme-dark) {
   --nm-popup-section-border: #334155;
   --nm-popup-section-title: #94a3b8;
   --nm-popup-section-title-border: var(--nm-border-strong);
+  --nm-popup-section-title-bg: var(--nm-modal-section);
   --nm-popup-divider: rgba(51, 65, 85, 0.7);
   --nm-danger-soft: rgba(217, 75, 75, 0.15);
   --nm-warning-soft: rgba(212, 145, 44, 0.15);

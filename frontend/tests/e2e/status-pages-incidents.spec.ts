@@ -659,8 +659,8 @@ for (const theme of ["light", "dark"] as const) {
     const section = sections.first();
     const title = section.locator(".mon-hero-section-title");
     const expected = theme === "dark"
-      ? { section: await resolveToken(section, "--nm-modal-header"), title: await resolveToken(section, "--nm-modal-section") }
-      : { section: "rgb(254, 254, 254)", title: await resolveToken(section, "--nm-surface") };
+      ? { section: await resolveToken(section, "--nm-modal-header"), title: await resolveToken(section, "--nm-popup-section-title-bg") }
+      : { section: "rgb(254, 254, 254)", title: await resolveToken(section, "--nm-popup-section-title-bg") };
     expect(await computed(section, "backgroundColor")).toBe(expected.section);
     expect(await computed(title, "backgroundColor")).toBe(expected.title);
     await expect(title).toHaveCSS("text-transform", "uppercase");

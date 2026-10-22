@@ -5,8 +5,8 @@ type Theme = "light" | "dark";
 /** Computed colours of a `.mon-hero-section` card before its literals moved onto tokens. */
 export const POPUP_SECTION_COLOURS = {
   light: {
-    sectionBackground: "rgb(254, 254, 254)", sectionBorder: "rgba(209, 220, 230, 0.7)",
-    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(254, 254, 254)", titleBorder: "rgba(209, 220, 230, 0.5)",
+    sectionBackground: "rgb(254, 254, 254)", sectionBorder: "rgb(216, 220, 225)",
+    titleColor: "rgb(58, 84, 104)", titleBackground: "rgb(238, 241, 244)", titleBorder: "rgb(216, 220, 225)",
     rowBorder: "rgba(209, 220, 230, 0.4)",
   },
   dark: {
@@ -25,7 +25,7 @@ const SECTION_TOKENS = {
   sectionBackground: "--nm-popup-section-bg",
   sectionBorder: "--nm-popup-section-border",
   titleColor: "--nm-popup-section-title",
-  titleBackground: "--nm-modal-section",
+  titleBackground: "--nm-popup-section-title-bg",
   titleBorder: "--nm-popup-section-title-border",
   rowBorder: "--nm-popup-divider",
 };
