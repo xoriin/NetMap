@@ -426,8 +426,8 @@ export function MonitoringWorkspace({
     return () => clearInterval(id);
   }, [fullRefreshPolls, loadAll, loadDelta, monitoringPollMs]);
 
-  const loadHistory = useCallback(async (deviceId: number, hours: number) => {
-    setHistoryLoading(true);
+  const loadHistory = useCallback(async (deviceId: number, hours: number, silent = false) => {
+    if (!silent) setHistoryLoading(true);
     try {
       setHistory(await api.getDeviceHistory(accessToken, deviceId, hours));
     } catch {
@@ -444,7 +444,7 @@ export function MonitoringWorkspace({
   // Keep the heartbeat timeline live — refresh history at the same cadence as the monitor
   useEffect(() => {
     if (selectedId === null) return;
-    const id = setInterval(() => void loadHistory(selectedId, historyHours), monitoringPollMs);
+    const id = setInterval(() => void loadHistory(selectedId, historyHours, true), monitoringPollMs);
     return () => clearInterval(id);
   }, [selectedId, historyHours, loadHistory, monitoringPollMs]);
 
@@ -1907,7 +1907,7 @@ export function MonitoringWorkspace({
                       </span>
                     </div>
                     <div className="mon-heartbeat-body">
-                      {historyLoading
+                      {historyLoading && history.length === 0
                         ? <PanelSkeleton lines={2} />
                         : <HeartbeatTimeline history={history} hours={historyHours} />
                       }
@@ -1962,7 +1962,7 @@ export function MonitoringWorkspace({
                       Response time
                     </div>
                     <div className="mon-chart-body">
-                      {historyLoading ? (
+                      {historyLoading && history.length === 0 ? (
                         <PanelSkeleton lines={3} />
                       ) : (
                         <>
