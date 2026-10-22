@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import "./admin.css";
+import { ArrowUpRight, CheckCircle2, History, Info } from "lucide-react";
 import {
   api,
   type SystemSettings, type VersionInfo,
@@ -85,16 +86,21 @@ export function AdminWorkspace({
   openWhatsNew.current = onOpenWhatsNew;
   useEffect(() => {
     if (!versionInfo) return;
-    const installed = `${versionInfo.channel ? `${versionInfo.channel}: ` : "v"}${versionInfo.current}`;
     setTopbarNote(
-      <div className="app-topbar-version" aria-label="NetMap version">
-        <div className="app-topbar-version-copy">
-          <strong>Installed {installed}</strong>
-          {!versionInfo.latest ? <span>Latest version unavailable</span>
-            : versionInfo.up_to_date ? <span className="app-topbar-version-current">v{versionInfo.latest} — up to date</span>
-            : <a className="app-topbar-version-update" href={versionInfo.release_url} target="_blank" rel="noreferrer">v{versionInfo.latest} — update available</a>}
+      <div className="app-topbar-version admin-version-summary" aria-label="NetMap version">
+        <div className="admin-version-copy">
+          <span className="admin-version-caption">Installed</span>
+          <div className="admin-version-build">
+            <strong>v{versionInfo.current}</strong>
+            {versionInfo.channel && <span className="nm-status nm-status--unknown">{versionInfo.channel}</span>}
+          </div>
         </div>
-        <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openWhatsNew.current()}>What&apos;s new</button>
+        <div className="admin-version-actions">
+          {!versionInfo.latest ? <span className="nm-status nm-status--unknown"><Info size={14} aria-hidden="true" />Latest unavailable</span>
+            : versionInfo.up_to_date ? <span className="nm-status nm-status--online"><CheckCircle2 size={14} aria-hidden="true" />Up to date</span>
+            : <a className="nm-btn nm-btn--sm nm-btn--secondary app-topbar-version-update" href={versionInfo.release_url} target="_blank" rel="noreferrer">v{versionInfo.latest} available<ArrowUpRight size={14} aria-hidden="true" /></a>}
+          <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openWhatsNew.current()}><History size={14} aria-hidden="true" />What&apos;s new</button>
+        </div>
       </div>
     );
     return () => setTopbarNote("");
