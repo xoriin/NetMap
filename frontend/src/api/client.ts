@@ -839,6 +839,7 @@ export type MonitorHistoryPoint = {
   is_healthy: boolean | null;
   rtt_ms: number | null;
   port_results: PortResult[];
+  note?: string | null;
 };
 
 export type DeviceMonitorSummary = {

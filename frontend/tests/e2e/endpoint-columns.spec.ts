@@ -65,3 +65,41 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+test("the endpoint popup has the interactive heartbeat and RTT graph", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);
+  const monitor = {
+    id: 1, name: "Google", url: "https://www.google.com/", enabled: true, last_status: "online", last_checked_at: "2026-10-22T10:00:00Z",
+    uptime_24h: 99.8, uptime_7d: 99.9, avg_response_time_24h: 120, heartbeat: Array(24).fill("online"),
+    http_method: "GET", accepted_status_codes: "200-299", check_interval_seconds: 60, timeout_seconds: 10, max_retries: 0,
+    retry_interval_seconds: 60, verify_tls: true, follow_redirects: true, max_redirects: 5, auth_type: "none", keyword: null,
+    json_path: null, cache_bust: false, upside_down: false, consecutive_failures: 0, certificate_expiry_alert: true,
+    certificate_expiry_days: 14, last_cert_expires_at: null, last_cert_issuer: null,
+  };
+  const end = Date.UTC(2026, 9, 22, 10, 0, 0);
+  const history = Array.from({ length: 24 }, (_, i) => ({
+    id: i + 1, checked_at: new Date(end - (23 - i) * 120_000).toISOString(), status: i === 5 ? "offline" : "online",
+    response_time_ms: i === 5 ? null : 100 + (i % 6) * 20, status_code: i === 5 ? 503 : 200, error: i === 5 ? "Service unavailable" : null,
+    assertion_detail: null, response_size_bytes: 2048, cert_expires_at: null,
+  }));
+  await page.route("**/api/v1/monitors", route => route.fulfill({ json: [monitor] }));
+  await page.route("**/api/v1/monitors/1/history?*", route => route.fulfill({ json: history }));
+  await page.goto("/monitoring#endpoints");
+  await page.locator(".monitors-table tbody tr").first().click();
+  const beats = page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat");
+  await expect(beats).toHaveCount(24);
+  await beats.nth(5).hover();
+  await expect(beats.nth(5)).toHaveClass(/is-active/);
+  const card = page.locator(".hb-tooltip-card");
+  await expect(card).toContainText("HTTP 503");
+  await expect(card).toContainText("Service unavailable");
+  await beats.nth(10).hover();
+  await expect(card).toContainText("HTTP 200");
+  await expect(card).toContainText("ms");
+
+  const plot = page.locator(".mon-hero .mon-sparkline-plot");
+  const box = (await plot.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
+  await expect(plot.locator(".mon-sparkline-readout")).toContainText("ms");
+});

@@ -4138,9 +4138,6 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .monitor-http-cols {
   grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.35fr);
 }
-.monitor-http-heartbeat {
-  justify-content: flex-start;
-}
 .monitor-http-history {
   max-height: var(--nm-popup-list-max-height);
   overflow-y: auto;

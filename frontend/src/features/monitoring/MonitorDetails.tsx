@@ -1,7 +1,23 @@
 import { useMemo } from "react";
-import type { Monitor, MonitorCheckHistoryPoint } from "../../api/client";
+import type { Monitor, MonitorCheckHistoryPoint, MonitorHistoryPoint } from "../../api/client";
 import { fmtMonitorRtt, fmtMonitorUptime } from "../../utils/monitoring";
 import { PanelSkeleton } from "../../components/Skeleton";
+import { HeartbeatTimeline } from "../../components/HeartbeatBar";
+import { RttSparkline } from "../../components/MonitorBadges";
+
+function toTimelinePoint(point: MonitorCheckHistoryPoint): MonitorHistoryPoint {
+  const response = point.status_code === null ? "No response" : `HTTP ${point.status_code}`;
+  return {
+    id: point.id,
+    checked_at: point.checked_at,
+    status: point.status,
+    expected_status: "online",
+    is_healthy: point.status === "online",
+    rtt_ms: point.response_time_ms,
+    port_results: [],
+    note: [response, point.error ?? point.assertion_detail].filter(Boolean).join(" · "),
+  };
+}
 
 export function MonitorDetails({
   monitor,
@@ -25,6 +41,10 @@ export function MonitorDetails({
   const lastChecked = monitor.last_checked_at
     ? new Date(monitor.last_checked_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
     : "Not checked yet";
+  const timeline = useMemo(() => history.map(toTimelinePoint), [history]);
+  const timelineHours = timeline.length > 1
+    ? Math.max(1, Math.ceil((Date.parse(timeline[timeline.length - 1].checked_at) - Date.parse(timeline[0].checked_at)) / 3_600_000))
+    : 1;
   const certDaysRemaining = monitor.last_cert_expires_at
     ? Math.ceil((new Date(monitor.last_cert_expires_at).getTime() - Date.now()) / 86_400_000)
     : null;
@@ -142,24 +162,29 @@ export function MonitorDetails({
             <section className="mon-hero-section">
               <div className="mon-hero-section-title">
                 Heartbeat
-                <span className="dash-panel-meta">latest 60 checks</span>
+                <span className="dash-panel-meta">hover or click to inspect</span>
               </div>
               <div className="mon-heartbeat-body">
-                {historyLoading ? (
+                {historyLoading && history.length === 0
+                  ? <PanelSkeleton lines={2} />
+                  : <HeartbeatTimeline history={timeline} hours={timelineHours} />}
+              </div>
+            </section>
+
+            <section className="mon-hero-section">
+              <div className="mon-hero-section-title">Response time</div>
+              <div className="mon-chart-body">
+                {historyLoading && history.length === 0 ? (
                   <PanelSkeleton lines={3} />
-                ) : history.length === 0 ? (
-                  <p className="dash-empty">No checks recorded yet.</p>
                 ) : (
-                  <div className="heartbeat-bar heartbeat-bar--lg monitor-http-heartbeat">
-                    {history.slice(-60).map((point) => (
-                      <span
-                        key={point.id}
-                        className="heartbeat-beat"
-                        style={{ background: point.status === "online" ? "var(--nm-success)" : "var(--nm-danger)" }}
-                        title={`${new Date(point.checked_at).toLocaleString()} — ${point.status}${point.status_code !== null ? ` — HTTP ${point.status_code}` : ""}${point.response_time_ms !== null ? ` — ${point.response_time_ms.toFixed(0)} ms` : ""}${point.error ? ` — ${point.error}` : ""}`}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <RttSparkline data={timeline} />
+                    {history.length > 0 && (
+                      <p className="dash-panel-meta" style={{ margin: "6px 0 0" }}>
+                        {history.length} data points · latest {new Date(history[history.length - 1].checked_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </section>

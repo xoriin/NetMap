@@ -51,6 +51,9 @@ function HeartbeatTooltip({ point, anchor }: { point: MonitorHistoryPoint; ancho
           <span className="hb-tooltip-rtt">{point.rtt_ms.toFixed(1)} ms</span>
         )}
       </div>
+      {point.note && (
+        <div className="hb-tooltip-ports"><span className="dash-panel-meta">{point.note}</span></div>
+      )}
       {point.port_results.length > 0 && (
         <div className="hb-tooltip-ports">
           {point.port_results.map((r) => (
