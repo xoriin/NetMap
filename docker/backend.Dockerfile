@@ -23,10 +23,12 @@ RUN pip install --no-cache-dir --upgrade pip \
        "pydantic-settings~=2.4" \
        "sqlalchemy~=2.0" \
        "alembic~=1.13" \
+       "mako>=1.4.2" \
        "argon2-cffi~=25.1" \
        "cryptography>=50.0.0" \
        "defusedxml~=0.7.1" \
-       "pillow>=11.0.0" \
+       "pillow>=13.0.0" \
+       "certifi>=2026.10.19" \
        "PyJWT~=2.10" \
        "starlette>=1.3.1" \
        "dnspython~=2.7" \
