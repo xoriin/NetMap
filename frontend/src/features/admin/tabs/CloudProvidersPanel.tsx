@@ -75,9 +75,6 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
         </span>
       </span>
     </div>
-    <p className="admin-panel-copy">
-      Add your own, replace any provider&apos;s icon, or remove ones you do not use.
-    </p>
     <div className="admin-resource-layout">
       <AdminTaskPanel title="New provider" icon={<Cloud size={18} />}>
     <form className="cloud-provider-create" onSubmit={createProvider}>
