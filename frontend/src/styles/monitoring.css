@@ -4461,3 +4461,8 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
 }
 .mon-sparkline-readout.is-start { transform: none; }
 .mon-sparkline-readout.is-end { transform: translateX(-100%); }
+.heartbeat-legend .heartbeat-beat {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}

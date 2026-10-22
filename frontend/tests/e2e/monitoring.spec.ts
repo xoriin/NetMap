@@ -655,6 +655,7 @@ test("popup heartbeats grow on hover, keep one steady detail card across gaps, p
   await openPopupWithHistory(page);
   const beats = page.locator(".mon-hero .heartbeat-bar--lg .heartbeat-beat");
   await expect(beats).toHaveCount(24);
+  await expect(page.locator(".mon-hero .heartbeat-legend .heartbeat-beat").first()).toHaveCSS("width", "10px");
   const cards = () => page.evaluate(() => document.querySelectorAll(".hb-tooltip-card").length);
 
   await beats.nth(10).hover();
