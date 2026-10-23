@@ -220,3 +220,16 @@ test("Groups & VLANs list as cards on a phone", async ({ page }) => {
     expect(childBox.x + childBox.width).toBeLessThanOrEqual(box.x + box.width);
   }
 });
+
+for (const [route, panel, limit] of [["/vlans", ".vlan-table-panel", 360], ["/monitoring", ".mon-view-window", 420]] as const) {
+  test(`${route} panel hugs its content on a phone instead of filling the screen`, async ({ page }) => {
+    await boot(page);
+    await page.route("**/api/v1/topology/groups", (route) => route.fulfill({ json: [] }));
+    await page.goto(route);
+    const box = page.locator(panel).first();
+    await expect(box).toBeVisible();
+    await page.waitForTimeout(300);
+    expect((await box.boundingBox())!.height).toBeLessThan(limit);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
+  });
+}

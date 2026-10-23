@@ -1663,6 +1663,11 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
     overflow: visible;
   }
 
+  body:not(.route-topology) .app-main .workspace {
+    flex-grow: 0;
+    min-height: 0;
+  }
+
   .mobile-section-tabs {
     flex-shrink: 0;
   }
