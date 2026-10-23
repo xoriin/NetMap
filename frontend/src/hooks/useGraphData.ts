@@ -167,7 +167,9 @@ export function useGraphData({
       }
     }
 
-    void pollMonitoring(true);
+    if (monitorPollCountRef.current === 0) {
+      void pollMonitoring(true);
+    }
     const intervalId = window.setInterval(() => {
       void pollMonitoring(false);
     }, pollMs);
