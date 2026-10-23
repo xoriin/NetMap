@@ -1829,3 +1829,65 @@ body.theme-dark .nm-pick-filter input {
 }
 
 .nm-switch:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Phone card list (nm-phone-cards) ─────────────────────────────────────
+   Add to a table's .nm-table-wrap: on phones every row becomes a card. Feature
+   CSS only orders, sizes and hides cells inside the card. */
+@media (max-width: 760px) {
+  body .nm-phone-cards {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 10px;
+    border: 0;
+    border-radius: 0;
+    background: var(--nm-panel-body-bg);
+  }
+
+  body .nm-phone-cards .nm-table,
+  body .nm-phone-cards .nm-table tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  body .nm-phone-cards .nm-table colgroup,
+  body .nm-phone-cards .nm-table thead {
+    display: none;
+  }
+
+  body .nm-phone-cards .nm-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    height: auto;
+    margin-bottom: 8px;
+    padding: 12px;
+    border: 1px solid var(--nm-border);
+    border-radius: var(--nm-radius-md);
+    background: var(--nm-modal-section);
+  }
+
+  body .nm-phone-cards .nm-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  body .nm-phone-cards .nm-table tbody tr.is-active {
+    border-color: var(--nm-accent);
+  }
+
+  body .nm-phone-cards .nm-table tbody tr > td,
+  body .nm-phone-cards .nm-table tbody tr:hover > td,
+  body .nm-phone-cards .nm-table tbody tr.is-active > td {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: left;
+  }
+}

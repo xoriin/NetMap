@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 for (const theme of ["light", "dark"] as const) {
-  for (const width of [390, 1280, 2048]) {
+  for (const width of [820, 1280, 2048]) {
     test(`endpoint headers align with data at ${width}px in ${theme}`, async ({ page }) => {
       const errors: string[] = [];
       page.on("pageerror", e => errors.push(e.message));

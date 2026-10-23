@@ -399,3 +399,10 @@
     width: 100%;
   }
 }
+
+@media (max-width: 760px) {
+  .status-pages-table-wrap .status-pages-table tr > td:first-child { flex-basis: 100%; font-weight: 650; }
+  .status-pages-table-wrap .status-pages-table tr > td:nth-child(n + 3):nth-child(-n + 5) { color: var(--nm-text-muted); font-size: 12px; }
+  .status-pages-table-wrap .status-pages-table tr > td.status-pages-actions { flex-basis: 100%; white-space: normal; }
+}
+

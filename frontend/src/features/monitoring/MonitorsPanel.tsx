@@ -376,7 +376,7 @@ export function MonitorsPanel({
         <p className="dash-empty">No endpoints match the current filters.</p>
       ) : (
         <div className="monitors-layout">
-          <div className="nm-table-wrap mon-embedded-table monitors-table-wrap">
+          <div className="nm-table-wrap mon-embedded-table monitors-table-wrap nm-phone-cards">
             <table className="nm-table monitors-table">
               <colgroup>
                 <col className="monitors-col-fav" />
