@@ -407,7 +407,7 @@ body.theme-dark .tools-nav-item {
 }
 
 body.theme-dark .tools-nav-item:hover {
-  background: rgba(29, 154, 176, 0.08);
+  background: var(--nm-tab-hover-bg);
   color: var(--nm-text);
 }
 
@@ -492,7 +492,7 @@ body.theme-dark .notif-method-card-label { color: var(--nm-modal-label); }
 body.theme-dark .notif-method-card--selected .notif-method-card-label { color: #7dd8e8; }
 body.theme-dark .notif-method-card-desc { color: var(--nm-text-muted); }
 body.theme-dark .notif-apprise-details summary { color: var(--nm-text-faint); }
-body.theme-dark .notif-apprise-details summary:hover { color: #4db8cc; }
+body.theme-dark .notif-apprise-details summary:hover { color: var(--nm-tab-hover-text); }
 body.theme-dark .admin-users-row--editing {
   background: rgba(29, 154, 176, 0.08);
   border-left-color: #4db8cc;
@@ -534,7 +534,7 @@ body.theme-dark .auth-forgot-link {
 
 body.theme-dark .auth-forgot-link:hover {
   color: #5bc8da;
-  background: rgba(29, 154, 176, 0.08);
+  background: var(--nm-tab-hover-bg);
 }
 
 body.theme-dark .auth-reset-info {
@@ -1147,7 +1147,7 @@ body.theme-dark .dash-nav-btn-icon { background: rgba(29,154,176,0.1); color: #4
 body.theme-dark .dash-nav-btn-label { color: var(--nm-text); }
 body.theme-dark .dash-nav-btn-desc { color: var(--nm-text-faint); }
 body.theme-dark .dash-nav-btn-arrow { color: var(--nm-text-faint); }
-body.theme-dark .dash-nav-btn:hover .dash-nav-btn-arrow { color: #4db8cc; }
+body.theme-dark .dash-nav-btn:hover .dash-nav-btn-arrow { color: var(--nm-tab-hover-text); }
 body.theme-dark .dtype-type-label { color: var(--nm-text); }
 body.theme-dark .dtype-icon-current { background: var(--nm-surface-soft); border-color: var(--nm-border-strong); color: var(--nm-text); }
 body.theme-dark .dtype-icon-current:hover { border-color: var(--nm-accent-strong); background: var(--nm-surface); }
@@ -1432,7 +1432,7 @@ body.theme-dark .admin-tab-btn {
 
 body.theme-dark .admin-tab-btn:hover {
   color: var(--nm-text-muted);
-  background: rgba(29, 154, 176, 0.08);
+  background: var(--nm-tab-hover-bg);
 }
 
 body.theme-dark .admin-tab-btn.active {

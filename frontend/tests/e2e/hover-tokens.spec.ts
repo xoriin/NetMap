@@ -30,6 +30,7 @@ const AREAS: [string, string[]][] = [
   ["Monitoring and Topology toolbar buttons", [".toolbar-btn", ".topology-toolbar-right", ".topo-stat-btn"]],
   ["Admin, Tools, sign-in and empty-state buttons", [".notif-test-btn", ".tool-form", ".auth-sso-btn", ".dash-empty-action"]],
   ["rows and list items", [".loc-item", ".notif-method-card", ".inventory-row:hover", ".security-row-group"]],
+  ["tabs and navigation", [".inv-filter-tab", ".tools-nav-item", ".admin-tab-btn", ".auth-forgot-link", ".notif-apprise-details", ".dash-nav-btn"]],
 ];
 
 for (const [area, classes] of AREAS) {

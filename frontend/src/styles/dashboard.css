@@ -469,9 +469,9 @@ body:not(.theme-dark) .dash-alert--changes .dash-alert-tag {
   height: auto;
 }
 .inv-filter-tab:hover {
-  background: rgba(29, 154, 176, 0.07);
+  background: var(--nm-tab-hover-bg);
   color: var(--nm-accent-strong);
-  border-color: rgba(29, 154, 176, 0.15);
+  border-color: var(--nm-tab-hover-border);
 }
 .inv-filter-tab.active {
   background: rgba(29, 154, 176, 0.11);
@@ -483,7 +483,7 @@ body.theme-dark .inv-filter-bar { background: color-mix(in srgb, var(--nm-surfac
 body.theme-dark .inv-filter-label { color: var(--nm-text-faint); }
 body.theme-dark .inv-filter-sep { background: color-mix(in srgb, var(--nm-border-strong) 60%, transparent); }
 body.theme-dark .inv-filter-tab { color: var(--nm-text-muted); }
-body.theme-dark .inv-filter-tab:hover { background: rgba(29, 154, 176, 0.1); color: #4db8cc; border-color: rgba(29, 154, 176, 0.2); }
+body.theme-dark .inv-filter-tab:hover { background: var(--nm-tab-hover-bg); color: var(--nm-tab-hover-text); border-color: var(--nm-tab-hover-border); }
 body.theme-dark .inv-filter-tab.active { background: rgba(29, 154, 176, 0.15); border-color: rgba(29, 154, 176, 0.3); color: #40d4ea; }
 body.theme-dark .dash-alert-tag { background: rgba(224,80,80,0.12); border-color: rgba(224,80,80,0.2); color: #e07070; }
 body.theme-dark .dash-alert-tag--more { background: color-mix(in srgb, var(--nm-text-muted) 7%, transparent); border-color: color-mix(in srgb, var(--nm-text-faint) 12%, transparent); color: var(--nm-text-muted); }
