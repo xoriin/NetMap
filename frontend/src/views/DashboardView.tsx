@@ -10,42 +10,44 @@ import { userHasPermission } from "../utils/permissions";
 import { useIconPacks } from "../providers/IconPackProvider";
 import { whenIdle } from "../utils/idle";
 
-const OverviewWorkspace = lazy(() =>
-  import("../features/overview/OverviewWorkspace").then((m) => ({ default: m.OverviewWorkspace }))
-);
-const SecurityWorkspace = lazy(() =>
-  import("../features/security/SecurityWorkspace").then((m) => ({ default: m.SecurityWorkspace }))
-);
-const ToolsWorkspace = lazy(() =>
-  import("../features/tools/ToolsWorkspace").then((m) => ({ default: m.ToolsWorkspace }))
-);
-const ExportsWorkspace = lazy(() =>
-  import("../features/exports/ExportsWorkspace").then((m) => ({ default: m.ExportsWorkspace }))
-);
-const AdminWorkspace = lazy(() =>
-  import("../features/admin/AdminWorkspace").then((m) => ({ default: m.AdminWorkspace }))
-);
-const TopologyWorkspace = lazy(() =>
-  import("../features/topology/TopologyWorkspace").then((m) => ({ default: m.TopologyWorkspace }))
-);
-const InventoryWorkspace = lazy(() =>
-  import("../features/inventory/InventoryWorkspace").then((m) => ({ default: m.InventoryWorkspace }))
-);
-const VlanWorkspace = lazy(() =>
-  import("../features/vlans/VlanWorkspace").then((m) => ({ default: m.VlanWorkspace }))
-);
-const LocationsWorkspace = lazy(() =>
-  import("../features/locations/LocationsWorkspace").then((m) => ({ default: m.LocationsWorkspace }))
-);
-const ProfileWorkspace = lazy(() =>
-  import("../features/profile/ProfileWorkspace").then((m) => ({ default: m.ProfileWorkspace }))
-);
-const IpamWorkspace = lazy(() =>
-  import("../features/ipam/IpamWorkspace").then((m) => ({ default: m.IpamWorkspace }))
-);
-const MonitoringWorkspace = lazy(() =>
-  import("../features/monitoring/MonitoringWorkspace").then((m) => ({ default: m.MonitoringWorkspace }))
-);
+const pageLoaders = {
+  OverviewWorkspace: () =>
+    import("../features/overview/OverviewWorkspace").then((m) => ({ default: m.OverviewWorkspace })),
+  SecurityWorkspace: () =>
+    import("../features/security/SecurityWorkspace").then((m) => ({ default: m.SecurityWorkspace })),
+  ToolsWorkspace: () =>
+    import("../features/tools/ToolsWorkspace").then((m) => ({ default: m.ToolsWorkspace })),
+  ExportsWorkspace: () =>
+    import("../features/exports/ExportsWorkspace").then((m) => ({ default: m.ExportsWorkspace })),
+  AdminWorkspace: () =>
+    import("../features/admin/AdminWorkspace").then((m) => ({ default: m.AdminWorkspace })),
+  TopologyWorkspace: () =>
+    import("../features/topology/TopologyWorkspace").then((m) => ({ default: m.TopologyWorkspace })),
+  InventoryWorkspace: () =>
+    import("../features/inventory/InventoryWorkspace").then((m) => ({ default: m.InventoryWorkspace })),
+  VlanWorkspace: () =>
+    import("../features/vlans/VlanWorkspace").then((m) => ({ default: m.VlanWorkspace })),
+  LocationsWorkspace: () =>
+    import("../features/locations/LocationsWorkspace").then((m) => ({ default: m.LocationsWorkspace })),
+  ProfileWorkspace: () =>
+    import("../features/profile/ProfileWorkspace").then((m) => ({ default: m.ProfileWorkspace })),
+  IpamWorkspace: () =>
+    import("../features/ipam/IpamWorkspace").then((m) => ({ default: m.IpamWorkspace })),
+  MonitoringWorkspace: () =>
+    import("../features/monitoring/MonitoringWorkspace").then((m) => ({ default: m.MonitoringWorkspace })),
+};
+const OverviewWorkspace = lazy(pageLoaders.OverviewWorkspace);
+const SecurityWorkspace = lazy(pageLoaders.SecurityWorkspace);
+const ToolsWorkspace = lazy(pageLoaders.ToolsWorkspace);
+const ExportsWorkspace = lazy(pageLoaders.ExportsWorkspace);
+const AdminWorkspace = lazy(pageLoaders.AdminWorkspace);
+const TopologyWorkspace = lazy(pageLoaders.TopologyWorkspace);
+const InventoryWorkspace = lazy(pageLoaders.InventoryWorkspace);
+const VlanWorkspace = lazy(pageLoaders.VlanWorkspace);
+const LocationsWorkspace = lazy(pageLoaders.LocationsWorkspace);
+const ProfileWorkspace = lazy(pageLoaders.ProfileWorkspace);
+const IpamWorkspace = lazy(pageLoaders.IpamWorkspace);
+const MonitoringWorkspace = lazy(pageLoaders.MonitoringWorkspace);
 const ThemePreviewWorkspace = import.meta.env.DEV
   ? lazy(() => import("../features/theme-preview/ThemePreviewWorkspace").then((m) => ({ default: m.ThemePreviewWorkspace })))
   : null;
@@ -112,7 +114,10 @@ export function DashboardView({
   }, [accessToken]);
 
   const { loadFullIconSet } = useIconPacks();
-  useEffect(() => whenIdle(loadFullIconSet, { afterMs: 2000 }), [loadFullIconSet]);
+  useEffect(() => whenIdle(() => {
+    loadFullIconSet();
+    Object.values(pageLoaders).forEach((load) => void load().catch(() => undefined));
+  }, { afterMs: 2000 }), [loadFullIconSet]);
 
   const onToggleFavourite = useCallback(async (deviceId: number) => {
     if (!accessToken) return;

@@ -32,6 +32,13 @@ test("choosing the Tabler icon set still loads it straight away", async ({ page 
   expect(firstRequest(iconLibrary)).toBeLessThanOrEqual(onScreen);
 });
 
+test("other pages' code is fetched in the background after sign-in", async ({ page }) => {
+  const { firstRequest } = await openOverview(page);
+  for (const chunk of [/\/assets\/AdminWorkspace-[^/]+\.js$/, /\/assets\/MonitoringWorkspace-[^/]+\.js$/, /\/assets\/TopologyWorkspace-[^/]+\.js$/]) {
+    await expect.poll(() => firstRequest(chunk), { timeout: 6000 }).toBeDefined();
+  }
+});
+
 test("opening Device icons straight after sign-in still lists the full Tabler set", async ({ page }) => {
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
