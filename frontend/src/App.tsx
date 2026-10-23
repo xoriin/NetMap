@@ -146,6 +146,7 @@ function WorkspaceApp() {
   useEffect(() => subscribeTokenRefresh(setTokens), []);
 
   const bootstrapDoneRef = useRef(false);
+  const bootstrappingRef = useRef(false);
 
   const {
     graph, summary, loadInitial, refreshTopology,
@@ -164,8 +165,13 @@ function WorkspaceApp() {
     if (bootstrapDoneRef.current && tokens?.access_token) {
       return;
     }
+    // The session restore below rotates the token, which lands here again; let the run in progress finish.
+    if (bootstrappingRef.current) {
+      return;
+    }
     let cancelled = false;
     async function bootstrap() {
+      bootstrappingRef.current = true;
       setLoading(true);
       setError(null);
       let token = tokens?.access_token ?? null;
@@ -224,6 +230,7 @@ function WorkspaceApp() {
           setUser(null);
         }
       } finally {
+        bootstrappingRef.current = false;
         if (!cancelled) {
           setLoading(false);
         }
@@ -231,7 +238,9 @@ function WorkspaceApp() {
     }
     bootstrap();
     return () => {
-      cancelled = true;
+      if (!bootstrappingRef.current) {
+        cancelled = true;
+      }
     };
   }, [tokens?.access_token]);
 
