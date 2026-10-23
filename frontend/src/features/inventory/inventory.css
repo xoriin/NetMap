@@ -315,6 +315,10 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 
 /* Phone: each device row becomes a card — name and status, then its details. */
 @media (max-width: 760px) {
+  .inventory-layout > .dash-stats {
+    margin-inline: 12px;
+  }
+
   .inventory-layout .inventory-table {
     padding: 10px;
     background: var(--nm-panel-body-bg);

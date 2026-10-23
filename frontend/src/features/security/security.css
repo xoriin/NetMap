@@ -393,6 +393,5 @@ body.route-security .security-pagination > div {
 }
 
 @media (max-width: 560px) {
-  body.route-security .dash-stats--four { grid-template-columns: 1fr; }
   .security-results-range { display: none; }
 }

@@ -9,6 +9,7 @@ async function boot(page: import("@playwright/test").Page, width = 375) {
   await setupTopologyMocks(page, devices);
   await setupInventoryMocks(page, devices);
   await setupMonitoringMocks(page, [mockMonitoringDevice()]);
+  for (const path of ["admin/cloud-providers", "ipam/external/addresses"]) await page.route(`**/api/v1/${path}`, (route) => route.fulfill({ json: [] }));
 }
 
 test("phone navigation uses bottom tabs with a More sheet for everything else", async ({ page }) => {
@@ -87,14 +88,31 @@ test("Inventory and Monitoring show devices as cards with filters behind a butto
   await expect(page.locator(".mon-table--fleet thead")).toBeHidden();
 });
 
-test("summary cards become a compact strip on a phone", async ({ page }) => {
-  await boot(page);
-  await page.goto("/overview");
-  const cards = page.locator(".dash-stats > *");
-  const [first, second] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
-  expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
-  expect(first!.width).toBeLessThan(170);
-});
+for (const [route, width] of [["/overview", 320], ["/overview", 375], ["/overview", 430], ["/inventory", 375], ["/inventory#cloud-assets", 375], ["/monitoring", 375], ["/tools", 375]] as const) {
+  test(`summary cards on ${route} fit a ${width}px phone in a grid with one-line labels`, async ({ page }) => {
+    await boot(page, width);
+    await page.goto(route);
+    const cards = page.locator(".dash-stats > *");
+    await expect(cards.first()).toBeVisible();
+    const count = await cards.count();
+    expect(count).toBeGreaterThan(1);
+    const boxes = await Promise.all(Array.from({ length: count }, (_, i) => cards.nth(i).boundingBox()));
+    for (const box of boxes) {
+      expect(box!.x).toBeGreaterThanOrEqual(8);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width - 8);
+      expect(box!.height).toBeLessThan(64);
+    }
+    const band = (await page.locator(".dash-stats").first().boundingBox())!;
+    const next = await page.locator(".dash-stats").first().evaluate((el) => (el.nextElementSibling ?? el.parentElement!.nextElementSibling)!.getBoundingClientRect().top);
+    expect(next - (band.y + band.height)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThan(2);
+    expect(Math.abs(boxes[0]!.width - boxes[1]!.width)).toBeLessThan(2);
+    for (const label of await page.locator(".dash-stats .dash-stat-label").all()) {
+      const fontSize = parseFloat(await label.evaluate((el) => getComputedStyle(el).fontSize));
+      expect((await label.boundingBox())!.height).toBeLessThan(fontSize * 2);
+    }
+  });
+}
 
 test("device popups open as a full-screen page on a phone", async ({ page }) => {
   await boot(page);

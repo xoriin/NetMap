@@ -1581,41 +1581,39 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
   }
 
   body .workspace .dash-stats {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
     gap: 8px;
-    margin: 0;
-    padding: 2px 0 6px;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
+    padding: 0;
+    overflow: visible;
   }
 
-  body .workspace .dash-stats::-webkit-scrollbar {
-    display: none;
-  }
-
-  body .workspace .dash-stats > * {
-    flex: 0 0 148px;
-    width: 148px;
+  body .app-main .workspace .dash-stats > .dash-stat {
+    width: auto;
     min-width: 0;
     height: auto;
-    min-height: 62px;
-    padding: 9px 12px;
+    min-height: 0;
+    padding: 9px 10px;
     gap: 8px;
-    scroll-snap-align: start;
   }
 
   body .workspace .dash-stats .dash-stat-icon {
-    width: 30px;
-    height: 30px;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
   }
 
   body .workspace .dash-stats .dash-stat-value {
-    font-size: 19px;
+    font-size: 18px;
   }
 
   body .workspace .dash-stats .dash-stat-label {
+    margin-top: 3px;
+    overflow: hidden;
     font-size: 10px;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .nm-phone-filters-btn {
