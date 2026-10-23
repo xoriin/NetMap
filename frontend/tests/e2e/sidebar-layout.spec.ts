@@ -177,3 +177,16 @@ test("saving and removing a profile photo updates the sidebar immediately", asyn
   await expect(photo).toBeVisible();
   await expect(photo).toHaveAttribute("src",avatar);
 });
+
+for (const style of ["slate", "zinc"] as const) {
+  test(`dark sidebar labels use the softer label grey while the active page keeps its accent in ${style}`, async ({ page }) => {
+    await page.addInitScript((value) => { localStorage.setItem("netmap.theme", "dark"); localStorage.setItem("netmap.dark_style", value); }, style);
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page);
+    await page.goto("/overview");
+    const resting = page.locator(".sidebar-link:not(.active) .sidebar-link-label").first();
+    await expect(resting).toHaveCSS("color", "rgb(212, 212, 212)");
+    const active = page.locator(".sidebar-link.active .sidebar-link-label").first();
+    await expect(active).not.toHaveCSS("color", "rgb(212, 212, 212)");
+  });
+}

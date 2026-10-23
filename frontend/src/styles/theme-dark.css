@@ -16,7 +16,7 @@ html:has(body.theme-dark) {
   --nm-shell-text: #f1f5f9;
   --nm-surface-tint: var(--nm-shell-text);
   --nm-shell-muted: #94a3b8;
-  --nm-sidebar-text: #f1f5f9;
+  --nm-sidebar-text: #d4d4d4;
   --nm-sidebar-active: #8fe0ee;
   --nm-sidebar-label: #a3afbc;
   --nm-sidebar-hover-bg: linear-gradient(90deg, rgba(29, 154, 176, 0.16) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
