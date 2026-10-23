@@ -1371,12 +1371,24 @@ function buildHeaders(options: RequestOptions, json: boolean): Headers {
   return headers;
 }
 
+const inFlightGets = new Map<string, Promise<Response>>();
+
+function fetchShared(path: string, options: RequestOptions): Promise<Response> {
+  const init = { ...options, credentials: "include" as const, headers: buildHeaders(options, true) };
+  if ((options.method ?? "GET").toUpperCase() !== "GET" || options.body !== undefined || options.signal) {
+    return fetch(path, init);
+  }
+  const key = `${options.token ?? ""} ${path}`;
+  let shared = inFlightGets.get(key);
+  if (!shared) {
+    shared = fetch(path, init).finally(() => inFlightGets.delete(key));
+    inFlightGets.set(key, shared);
+  }
+  return shared.then((response) => response.clone());
+}
+
 async function request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
-  const response = await fetch(path, {
-    ...options,
-    credentials: "include",
-    headers: buildHeaders(options, true),
-  });
+  const response = await fetchShared(path, options);
 
   if (!response.ok) {
     if (response.status === 401 && !isRetry) {
