@@ -62,95 +62,114 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
     <section className="exports-layout">
       {error && <div className="form-error">{error}</div>}
 
-      <div className="dash-stats dash-stats--four exports-summary-grid nm-summary-band" aria-label="Export activity summary">
-        <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} icon={<Database size={19} />} accent="teal" />
-        <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} icon={<ShieldCheck size={19} />} accent="green" />
-        <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} icon={<History size={19} />} accent="blue" />
-        <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? "None yet"} valueClassName="dash-stat-value--compact" icon={<CalendarClock size={19} />} accent="purple" />
-      </div>
-
-      <div className={`exports-console-grid${hasStack && canExportFirewall ? "" : " exports-console-grid--single"}`}>
-        {hasStack && <div className="exports-stack">
-          {canExportInventory && <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<Database size={18} />} title="Device inventory" />
-            <div className="exports-panel-body">
-              <p className="exports-panel-copy">Download the current inventory with device identity, addressing, status and assignment fields.</p>
-              <div className="exports-format-callout">
-                <span className="exports-format-icon"><TableProperties size={18} /></span>
-                <span><strong>{inventoryFormat.toUpperCase()} inventory</strong><small>{inventoryFormat === "csv" ? "Best for spreadsheets and bulk review" : "Best for scripts, integrations and archival"}</small></span>
+      <div className="exports-workspace-grid">
+        <div className={`exports-console-grid${hasStack && canExportFirewall ? "" : " exports-console-grid--single"}`}>
+          {hasStack && <div className="exports-stack">
+            {canExportInventory && <section className="exports-panel nm-app-panel">
+              <ExportPanelHeader icon={<Database size={18} />} title="Device inventory" />
+              <div className="exports-panel-body">
+                <p className="exports-panel-copy">Download the current inventory with device identity, addressing, status and assignment fields.</p>
+                <div className="exports-format-callout">
+                  <span className="exports-format-icon"><TableProperties size={18} /></span>
+                  <span><strong>{inventoryFormat.toUpperCase()} inventory</strong><small>{inventoryFormat === "csv" ? "Best for spreadsheets and bulk review" : "Best for scripts, integrations and archival"}</small></span>
+                </div>
+                <label className="nm-field">Format
+                  <select className="nm-select" disabled={!canExportInventory} value={inventoryFormat} onChange={(event) => setInventoryFormat(event.target.value as "csv" | "json")}>
+                    <option value="csv">CSV — Spreadsheet compatible</option>
+                    <option value="json">JSON — Structured data</option>
+                  </select>
+                </label>
+                <div className="exports-panel-actions">
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
+                    <Download size={15} />{busyKey === "inventory" ? "Preparing…" : "Download inventory"}
+                  </button>
+                </div>
               </div>
-              <label className="nm-field">Format
-                <select className="nm-select" disabled={!canExportInventory} value={inventoryFormat} onChange={(event) => setInventoryFormat(event.target.value as "csv" | "json")}>
-                  <option value="csv">CSV — Spreadsheet compatible</option>
-                  <option value="json">JSON — Structured data</option>
-                </select>
-              </label>
-              <div className="exports-panel-actions">
-                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportInventory || busyKey === "inventory"} onClick={() => runDownload("inventory", () => api.downloadInventory(accessToken, inventoryFormat))}>
-                  <Download size={15} />{busyKey === "inventory" ? "Preparing…" : "Download inventory"}
+            </section>}
+
+            {canExportReport && <section className="exports-panel nm-app-panel">
+              <ExportPanelHeader icon={<FileText size={18} />} title="Network report" />
+              <div className="exports-panel-body">
+                <p className="exports-panel-copy">Generate a presentation-ready report combining topology, inventory, subnet utilisation and blocked-traffic leaders.</p>
+                <div className="exports-report-contents" aria-label="Report contents">
+                  <span>Topology summary</span><span>Inventory snapshot</span><span>Subnet summary</span><span>Traffic leaders</span>
+                </div>
+                <div className="exports-panel-actions">
+                  <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportReport || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
+                    <Download size={15} />{busyKey === "report" ? "Preparing…" : "Download PDF report"}
+                  </button>
+                </div>
+              </div>
+            </section>}
+          </div>}
+
+          {canExportFirewall && <section className="exports-panel exports-panel--firewall nm-app-panel">
+            <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall events" />
+            <div className="exports-panel-body">
+              <p className="exports-panel-copy">Export retained firewall events with optional query filters. Empty filters include all available events up to the selected limit.</p>
+              <div className="exports-firewall-form">
+                <label className="nm-field">Format
+                  <select className="nm-select" disabled={!canExportFirewall} value={firewallFormat} onChange={(event) => setFirewallFormat(event.target.value as "csv" | "json")}>
+                    <option value="csv">CSV — Spreadsheet compatible</option>
+                    <option value="json">JSON — Structured data</option>
+                  </select>
+                </label>
+                <label className="nm-field">Row limit
+                  <input className="nm-input" min={1} max={10000} type="number" disabled={!canExportFirewall} value={firewallFilters.limit} onChange={(event) => setFirewallFilters((current) => ({ ...current, limit: event.target.value }))} />
+                </label>
+                <label className="nm-field exports-field--wide">Search raw logs and metadata
+                  <input className="nm-input" placeholder="Rule, reason, address or raw text" disabled={!canExportFirewall} value={firewallFilters.q} onChange={(event) => setFirewallFilters((current) => ({ ...current, q: event.target.value }))} />
+                </label>
+                <label className="nm-field">Source IP
+                  <input className="nm-input nm-input--mono" placeholder="Any source" disabled={!canExportFirewall} value={firewallFilters.src_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, src_ip: event.target.value }))} />
+                </label>
+                <label className="nm-field">Destination IP
+                  <input className="nm-input nm-input--mono" placeholder="Any destination" disabled={!canExportFirewall} value={firewallFilters.dst_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, dst_ip: event.target.value }))} />
+                </label>
+                <label className="nm-field">Action
+                  <input className="nm-input" placeholder="e.g. block or pass" disabled={!canExportFirewall} value={firewallFilters.action} onChange={(event) => setFirewallFilters((current) => ({ ...current, action: event.target.value }))} />
+                </label>
+                <label className="nm-field">Protocol
+                  <input className="nm-input" placeholder="e.g. tcp or udp" disabled={!canExportFirewall} value={firewallFilters.protocol} onChange={(event) => setFirewallFilters((current) => ({ ...current, protocol: event.target.value }))} />
+                </label>
+                <label className="nm-field exports-field--wide">Interface
+                  <input className="nm-input" placeholder="e.g. wan" disabled={!canExportFirewall} value={firewallFilters.interface} onChange={(event) => setFirewallFilters((current) => ({ ...current, interface: event.target.value }))} />
+                </label>
+              </div>
+              <div className="exports-filter-summary"><span>{activeFirewallFilters} active filters</span><span>Up to {(Number(firewallFilters.limit) || 5000).toLocaleString()} rows</span></div>
+              <div className="exports-panel-actions exports-panel-actions--split">
+                <button type="button" className="nm-btn nm-btn--secondary" disabled={!canExportFirewall} onClick={() => setFirewallFilters(EMPTY_FIREWALL_FILTERS)}>Clear filters</button>
+                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportFirewall || busyKey === "firewall"} onClick={() => runDownload("firewall", () => api.downloadFirewallExport(accessToken, { format: firewallFormat, q: firewallFilters.q, src_ip: firewallFilters.src_ip, dst_ip: firewallFilters.dst_ip, action: firewallFilters.action, protocol: firewallFilters.protocol, interface: firewallFilters.interface, limit: Number(firewallFilters.limit) || 5000 }))}>
+                  <Download size={15} />{busyKey === "firewall" ? "Preparing…" : "Download firewall export"}
                 </button>
               </div>
             </div>
           </section>}
-
-          {canExportReport && <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<FileText size={18} />} title="Network report" />
-            <div className="exports-panel-body">
-              <p className="exports-panel-copy">Generate a presentation-ready report combining topology, inventory, subnet utilisation and blocked-traffic leaders.</p>
-              <div className="exports-report-contents" aria-label="Report contents">
-                <span>Topology summary</span><span>Inventory snapshot</span><span>Subnet summary</span><span>Traffic leaders</span>
+        </div>
+        <aside className="exports-context" aria-label="Export information">
+          <section className="nm-panel">
+            <div className="nm-panel-header"><h2 className="nm-panel-title"><History size={16} aria-hidden="true" />Export activity</h2></div>
+            <div className="nm-panel-body">
+              <div className="dash-stats dash-stats--four exports-summary-grid nm-summary-band" aria-label="Export activity summary">
+                <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} icon={<Database size={19} />} accent="teal" />
+                <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} icon={<ShieldCheck size={19} />} accent="green" />
+                <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} icon={<History size={19} />} accent="blue" />
+                <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? (summary ? "None yet" : "—")} valueClassName="dash-stat-value--compact" icon={<CalendarClock size={19} />} accent="purple" />
               </div>
-              <div className="exports-panel-actions">
-                <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportReport || busyKey === "report"} onClick={() => runDownload("report", () => api.downloadReport(accessToken))}>
-                  <Download size={15} />{busyKey === "report" ? "Preparing…" : "Download PDF report"}
-                </button>
-              </div>
+              {summary?.last_export_at && <p className="nm-panel-meta exports-last-download">Last downloaded <time dateTime={summary.last_export_at}>{new Date(summary.last_export_at).toLocaleString()}</time></p>}
             </div>
-          </section>}
-        </div>}
-
-        {canExportFirewall && <section className="exports-panel exports-panel--firewall nm-app-panel">
-          <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall events" />
-          <div className="exports-panel-body">
-            <p className="exports-panel-copy">Export retained firewall events with optional query filters. Empty filters include all available events up to the selected limit.</p>
-            <div className="exports-firewall-form">
-              <label className="nm-field">Format
-                <select className="nm-select" disabled={!canExportFirewall} value={firewallFormat} onChange={(event) => setFirewallFormat(event.target.value as "csv" | "json")}>
-                  <option value="csv">CSV — Spreadsheet compatible</option>
-                  <option value="json">JSON — Structured data</option>
-                </select>
-              </label>
-              <label className="nm-field">Row limit
-                <input className="nm-input" min={1} max={10000} type="number" disabled={!canExportFirewall} value={firewallFilters.limit} onChange={(event) => setFirewallFilters((current) => ({ ...current, limit: event.target.value }))} />
-              </label>
-              <label className="nm-field exports-field--wide">Search raw logs and metadata
-                <input className="nm-input" placeholder="Rule, reason, address or raw text" disabled={!canExportFirewall} value={firewallFilters.q} onChange={(event) => setFirewallFilters((current) => ({ ...current, q: event.target.value }))} />
-              </label>
-              <label className="nm-field">Source IP
-                <input className="nm-input nm-input--mono" placeholder="Any source" disabled={!canExportFirewall} value={firewallFilters.src_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, src_ip: event.target.value }))} />
-              </label>
-              <label className="nm-field">Destination IP
-                <input className="nm-input nm-input--mono" placeholder="Any destination" disabled={!canExportFirewall} value={firewallFilters.dst_ip} onChange={(event) => setFirewallFilters((current) => ({ ...current, dst_ip: event.target.value }))} />
-              </label>
-              <label className="nm-field">Action
-                <input className="nm-input" placeholder="e.g. block or pass" disabled={!canExportFirewall} value={firewallFilters.action} onChange={(event) => setFirewallFilters((current) => ({ ...current, action: event.target.value }))} />
-              </label>
-              <label className="nm-field">Protocol
-                <input className="nm-input" placeholder="e.g. tcp or udp" disabled={!canExportFirewall} value={firewallFilters.protocol} onChange={(event) => setFirewallFilters((current) => ({ ...current, protocol: event.target.value }))} />
-              </label>
-              <label className="nm-field exports-field--wide">Interface
-                <input className="nm-input" placeholder="e.g. wan" disabled={!canExportFirewall} value={firewallFilters.interface} onChange={(event) => setFirewallFilters((current) => ({ ...current, interface: event.target.value }))} />
-              </label>
+          </section>
+          <section className="nm-panel">
+            <div className="nm-panel-header"><h2 className="nm-panel-title"><FileText size={16} aria-hidden="true" />Choose a format</h2></div>
+            <div className="nm-panel-body exports-format-guide">
+              {(canExportInventory || canExportFirewall) && <>
+                <div><span className="nm-chip">CSV</span><p className="nm-panel-meta">Open in a spreadsheet to sort, filter and review rows.</p></div>
+                <div><span className="nm-chip">JSON</span><p className="nm-panel-meta">Keep structured fields for scripts and integrations.</p></div>
+              </>}
+              {canExportReport && <div><span className="nm-chip">PDF</span><p className="nm-panel-meta">Share a network snapshot with topology, inventory and subnet summaries.</p></div>}
             </div>
-            <div className="exports-filter-summary"><span>{activeFirewallFilters} active filters</span><span>Up to {(Number(firewallFilters.limit) || 5000).toLocaleString()} rows</span></div>
-            <div className="exports-panel-actions exports-panel-actions--split">
-              <button type="button" className="nm-btn nm-btn--secondary" disabled={!canExportFirewall} onClick={() => setFirewallFilters(EMPTY_FIREWALL_FILTERS)}>Clear filters</button>
-              <button type="button" className="nm-btn nm-btn--primary" disabled={!canExportFirewall || busyKey === "firewall"} onClick={() => runDownload("firewall", () => api.downloadFirewallExport(accessToken, { format: firewallFormat, q: firewallFilters.q, src_ip: firewallFilters.src_ip, dst_ip: firewallFilters.dst_ip, action: firewallFilters.action, protocol: firewallFilters.protocol, interface: firewallFilters.interface, limit: Number(firewallFilters.limit) || 5000 }))}>
-                <Download size={15} />{busyKey === "firewall" ? "Preparing…" : "Download firewall export"}
-              </button>
-            </div>
-          </div>
-        </section>}
+          </section>
+        </aside>
       </div>
     </section>
   );

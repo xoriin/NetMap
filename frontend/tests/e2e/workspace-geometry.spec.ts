@@ -211,7 +211,8 @@ for (const theme of ["light", "dark"] as const) {
       ["/ipam", ".nm-summary-band", ".ipam-reservations-panel"],
       ["/tools", ".nm-summary-band", ".tools-console-grid"],
       ["/security", ".nm-summary-band", ".security-content"],
-      ["/exports", ".nm-summary-band", ".exports-console-grid"],
+      // Exports keeps its summary in the context column; its section gaps are
+      // covered with the task/context reflow in exports-theme.spec.ts.
     ] as const;
 
     const measuredGaps: Record<string, number> = {};

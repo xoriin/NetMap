@@ -1,6 +1,9 @@
 /* ── Exports approved workspace migration ───────────────────────────── */
 .exports-layout {
   display: flex;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
   min-width: 0;
   flex-direction: column;
   gap: var(--nm-workspace-section-gap);
@@ -18,7 +21,7 @@
 .exports-console-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(500px, 1.35fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -31,6 +34,7 @@
   display: grid;
   min-width: 0;
   gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
 }
 
 .exports-panel.nm-app-panel,
@@ -89,6 +93,7 @@ body.theme-dark .exports-panel.nm-app-panel {
 
 .exports-panel-copy {
   margin: 0;
+  max-width: 65ch;
   color: var(--nm-text-muted);
   font-size: var(--nm-text-xs);
   line-height: 1.55;
@@ -191,27 +196,49 @@ body.theme-dark .exports-panel .nm-select:focus {
   gap: 6px;
 }
 
-.exports-stack .exports-panel-actions .nm-btn { width: 100%; }
 .exports-panel-actions--split { justify-content: space-between; }
 
-@media (max-width: 1050px) {
-  .exports-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .exports-console-grid { grid-template-columns: 1fr; }
-  .exports-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Task controls have a readable main column; information fills the side. */
+.exports-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
 }
 
-@media (max-width: 700px) {
-  .exports-stack { grid-template-columns: 1fr; }
+.exports-context {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
 }
 
-@media (max-width: 800px) {
-  .exports-firewall-form { grid-template-columns: 1fr; }
+.exports-context .exports-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.exports-context .nm-panel-title { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.exports-context .dash-stat-value { overflow-wrap: anywhere; }
+.exports-stack .exports-panel-body { display: flex; flex: 1; flex-direction: column; }
+.exports-stack .exports-panel-actions { margin-top: auto; }
+.exports-last-download { margin: 16px 0 0; }
+.exports-last-download time { display: block; }
+.exports-format-guide { display: grid; gap: 16px; }
+.exports-format-guide p { margin: 6px 0 0; }
+.exports-panel-actions { flex-wrap: wrap; }
+
+@media (max-width: 1200px) {
+  .exports-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .exports-context { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .exports-stack,
+  .exports-context,
+  .exports-firewall-form { grid-template-columns: minmax(0, 1fr); }
   .exports-field--wide { grid-column: auto; }
   .exports-panel-actions--split { align-items: stretch; flex-direction: column-reverse; }
   .exports-panel-actions--split .nm-btn { width: 100%; }
-}
-
-@media (max-width: 560px) {
-  .exports-summary-grid,
-  .exports-report-contents { grid-template-columns: 1fr; }
 }
