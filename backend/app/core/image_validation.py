@@ -12,6 +12,8 @@ MAX_AVATAR_BYTES = 2 * 1024 * 1024
 MAX_ICON_BYTES = 300_000
 MAX_EMAIL_LOGO_BYTES = 256 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
+AVATAR_MAX_SIDE = 256
+AVATAR_KEEP_BYTES = 64 * 1024
 
 _RASTER_MIME_TO_FORMAT = {
     "image/png": "PNG",
@@ -34,6 +36,22 @@ def validate_avatar_data_uri(value: str) -> str:
     except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError) as exc:
         raise ValueError("Avatar must contain a valid PNG, JPEG, or WebP image") from exc
     return value
+
+
+def shrink_avatar_data_uri(value: str) -> str:
+    """Validate an avatar and re-encode anything large as a WebP at most 256px on its longest side."""
+    validate_avatar_data_uri(value)
+    _, payload = _decode_data_uri(value, set(_RASTER_MIME_TO_FORMAT), MAX_AVATAR_BYTES)
+    with Image.open(io.BytesIO(payload)) as image:
+        if max(image.size) <= AVATAR_MAX_SIDE and len(payload) <= AVATAR_KEEP_BYTES:
+            return value
+        image.seek(0)
+        has_alpha = image.mode in {"RGBA", "LA", "PA"} or (image.mode == "P" and "transparency" in image.info)
+        frame = image.convert("RGBA" if has_alpha else "RGB")
+    frame.thumbnail((AVATAR_MAX_SIDE, AVATAR_MAX_SIDE), Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    frame.save(buffer, "WEBP", quality=85, method=4)
+    return "data:image/webp;base64," + base64.b64encode(buffer.getvalue()).decode()
 
 
 def validate_icon_data_uri(value: str) -> str:

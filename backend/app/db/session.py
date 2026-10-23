@@ -188,6 +188,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0080_idle_timeout_preserve", _migrate_idle_timeout_preserve)
         _run_migration(conn, inspector, "0081_status_pages", _migrate_status_pages)
         _run_migration(conn, inspector, "0082_cloud_asset_types", _migrate_cloud_asset_types)
+        _run_migration(conn, inspector, "0083_shrink_avatars", _migrate_shrink_avatars)
 
 
 
@@ -1466,6 +1467,26 @@ _LEGACY_CLOUD_ASSET_KINDS = {
     "storage": "storage",
     "other": "other",
 }
+
+
+def _migrate_shrink_avatars(conn, inspector) -> None:
+    """Re-encode large stored avatars; one that cannot be decoded is left exactly as it was."""
+    from app.core.image_validation import AVATAR_KEEP_BYTES, shrink_avatar_data_uri
+
+    if "avatar_data" not in _live_columns(conn, "users"):
+        return
+    rows = conn.execute(
+        text("SELECT id, avatar_data FROM users WHERE avatar_data IS NOT NULL AND length(avatar_data) > :limit"),
+        {"limit": AVATAR_KEEP_BYTES},
+    ).fetchall()
+    for user_id, avatar in rows:
+        try:
+            shrunk = shrink_avatar_data_uri(avatar)
+        except Exception:
+            logger.warning("Kept user %s avatar unchanged: it could not be decoded for resizing", user_id)
+            continue
+        if shrunk != avatar:
+            conn.execute(text("UPDATE users SET avatar_data = :avatar WHERE id = :id"), {"avatar": shrunk, "id": user_id})
 
 
 def _migrate_cloud_asset_types(conn, inspector) -> None:
