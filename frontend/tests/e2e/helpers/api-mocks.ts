@@ -247,7 +247,7 @@ export async function setupInventoryMocks(
   await mockEmptyDeviceSecurityEvents(page);
 }
 
-async function mockEmptyDeviceSecurityEvents(page: Page) {
+export async function mockEmptyDeviceSecurityEvents(page: Page) {
   await page.route(/\/api\/v1\/topology\/devices\/\d+\/security-events\?/, route => {
     const url = new URL(route.request().url());
     return route.fulfill({ json: {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockDevice, mockRelationship, mockUser, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, mockEmptyDeviceSecurityEvents, mockRelationship, mockUser, setupCoreMocks, setupInventoryMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 type Theme = "light" | "dark";
 
@@ -324,6 +324,7 @@ test("light Topology device and link detail headings share the navy band", async
   await setupTopologyMocks(page,
     [mockDevice({ id: 1, hostname: "router-01", topology_group: "Core" }), mockDevice({ id: 2, hostname: "switch-01", topology_group: "Core" })],
     [mockRelationship({ id: 1, source_device_id: 1, target_device_id: 2, link_speed_mbps: 2500 })]);
+  await mockEmptyDeviceSecurityEvents(page);
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/topology");
   const entityPanel = page.locator(".topo-entity-panel");

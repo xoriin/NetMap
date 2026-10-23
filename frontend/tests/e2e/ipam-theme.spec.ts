@@ -785,7 +785,11 @@ test("the Inventory parent navigates and drops the menu down, never collapsing i
 test("sidebar section menus stay open when you leave the section", async ({ page }) => {
   // They used to be seeded from the current route and force-expanded on arrival, so leaving
   // a section collapsed its menu and returning discarded a deliberate collapse.
-  await setupIpam(page, "dark", async () => { await mockExternal(page); });
+  await setupIpam(page, "dark", async () => {
+    await mockExternal(page);
+    await page.route("**/api/v1/monitoring/service-checks", (route) => route.fulfill({ json: [] }));
+    await page.route("**/api/v1/monitoring/service-checks/order-config", (route) => route.fulfill({ json: { mode: "alphabetical" } }));
+  });
   const inventoryParent = page.getByRole("link", { name: "Inventory", exact: true });
   const monitoringParent = page.getByRole("link", { name: "Monitoring", exact: true });
   const topology = page.getByRole("link", { name: "Topology", exact: true });
