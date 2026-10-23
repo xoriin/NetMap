@@ -299,6 +299,68 @@ body.theme-dark .vlan-workspace .vlan-device-badge {
     flex-basis: auto;
   }
 
+  .vlan-workspace .vlan-table-viewport {
+    padding: 10px;
+    overflow: visible;
+    background: var(--nm-panel-body-bg);
+  }
+
+  .vlan-workspace .vlan-table-header {
+    display: none;
+  }
+
+  .vlan-workspace .vlan-row,
+  body.theme-dark .vlan-workspace .vlan-row,
+  .vlan-workspace .vlan-row:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin-bottom: 8px;
+    padding: 12px;
+    border: 1px solid var(--nm-border);
+    border-radius: var(--nm-radius-md);
+    background: var(--nm-modal-section);
+  }
+
+  .vlan-workspace .vlan-row:hover,
+  body.theme-dark .vlan-workspace .vlan-row:hover {
+    border-color: var(--nm-border);
+    box-shadow: none;
+  }
+
+  .vlan-workspace .vlan-row > .vlan-cell-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .vlan-workspace .vlan-row > :nth-child(6) {
+    order: -1;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .vlan-workspace .vlan-row > .vlan-cell-name {
+    order: -2;
+  }
+
+  .vlan-workspace .vlan-row > :nth-child(n + 2):nth-child(-n + 5) {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .vlan-workspace .vlan-row > :has(> .vlan-empty-cell:only-child) {
+    display: none;
+  }
+
+  .vlan-workspace .vlan-row > .vlan-row-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
   .vlan-modal-form .vlan-form-grid {
     grid-template-columns: 1fr;
   }

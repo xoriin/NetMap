@@ -203,3 +203,20 @@ test("Endpoints and Status pages list as cards on a phone", async ({ page }) => 
   await page.goto("/monitoring#status-pages");
   await expectCards(page, ".status-pages-table-wrap", "Public status");
 });
+
+test("Groups & VLANs list as cards on a phone", async ({ page }) => {
+  await boot(page);
+  await page.goto("/vlans");
+  const row = page.locator(".vlan-row").first();
+  await expect(row).toBeVisible();
+  await expect(page.locator(".vlan-table-header")).toBeHidden();
+  const box = (await row.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(8);
+  expect(box.x + box.width).toBeLessThanOrEqual(375 - 8);
+  expect(await row.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).not.toBe("0px");
+  for (const child of await row.locator(":scope > *").all()) {
+    if (!(await child.isVisible())) continue;
+    const childBox = (await child.boundingBox())!;
+    expect(childBox.x + childBox.width).toBeLessThanOrEqual(box.x + box.width);
+  }
+});
