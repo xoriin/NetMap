@@ -81,8 +81,8 @@ for (const theme of ["light", "dark"] as const) {
   test(`IPAM uses the approved solid panel hierarchy in ${theme} mode`, async ({ page }) => {
     await setupIpam(page, theme);
 
-    const panels = page.locator(".ipam-main .ipam-panel.nm-app-panel");
-    await expect(panels).toHaveCount(3);
+    const panels = page.locator(".ipam-workspace .ipam-panel.nm-app-panel");
+    await expect(panels).toHaveCount(5);
     for (const panel of await panels.all()) {
       await expect(panel).toHaveCSS("background-image", "none");
       const header = panel.locator(":scope > .ipam-panel-header.nm-app-panel-header");
@@ -910,35 +910,43 @@ for (const style of ["slate", "zinc"] as const) {
 }
 
 for (const theme of ["light", "dark"] as const) {
-  test(`IPAM shows address space and busiest subnets above full-width networks in ${theme}`, async ({ page }) => {
+  test(`IPAM pairs address space with compact stats and keeps side cards beside the tables in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await setupIpam(page, theme);
-    const main = page.locator(".ipam-main");
-    const context = page.locator(".ipam-context");
-    await expect(context.getByRole("heading", { name: "Address space" })).toBeVisible();
-    await expect(context.getByRole("heading", { name: "Busiest subnets" })).toBeVisible();
-    await expect(context.locator(".dash-donut-pct")).toHaveText("2%");
-    const legend = context.locator(".ipam-space-legend");
+    const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
+    const space = page.locator(".ipam-bento .ipam-space-panel");
+    await expect(space.getByRole("heading", { name: "Address space" })).toBeVisible();
+    await expect(space.locator(".dash-donut-pct")).toHaveText("2%");
+    const legend = space.locator(".ipam-space-legend");
     await expect(legend).toContainText("Used");
     await expect(legend).toContainText("4");
     await expect(legend).toContainText("Free");
     await expect(legend).toContainText("250");
+    const context = page.locator(".ipam-context");
+    await expect(context.getByRole("heading", { name: "Busiest subnets" })).toBeVisible();
     await expect(context.locator(".ipam-busiest-row").first()).toContainText("Core network");
     await expect(context.locator(".ipam-busiest-row").first()).toContainText("2%");
-    const [mainBox, contextBox] = [(await main.boundingBox())!, (await context.boundingBox())!];
-    expect(mainBox.y).toBeGreaterThanOrEqual(contextBox.y + contextBox.height);
-    expect(Math.abs(mainBox.width - contextBox.width)).toBeLessThanOrEqual(1);
-    const [space, busiest] = [(await page.locator(".ipam-space-panel").boundingBox())!, (await page.locator(".ipam-busiest-panel").boundingBox())!];
-    expect(busiest.x).toBeGreaterThan(space.x + space.width);
-    expect(busiest.height).toBe(space.height);
+
+    const [spaceBox, statsBox, firstStat, fourthStat] = [await box(".ipam-space-panel"), await box(".ipam-bento .ipam-stats"), await box(".ipam-bento .dash-stat"), (await page.locator(".ipam-bento .dash-stat").nth(3).boundingBox())!];
+    expect(statsBox.x).toBeGreaterThan(spaceBox.x + spaceBox.width);
+    expect(Math.abs(statsBox.y - spaceBox.y)).toBeLessThanOrEqual(1);
+    expect(fourthStat.y).toBeGreaterThan(firstStat.y + firstStat.height);
+    const [bentoBox, subnetsBox, mainBox, contextBox] = [await box(".ipam-bento"), await box(".ipam-subnets-panel-wrap"), await box(".ipam-main"), await box(".ipam-context")];
+    expect(Math.abs(subnetsBox.width - bentoBox.width)).toBeLessThanOrEqual(1);
+    expect(mainBox.y).toBeGreaterThan(subnetsBox.y + subnetsBox.height);
+    expect(contextBox.x).toBeGreaterThan(mainBox.x + mainBox.width);
+    await expect(page.locator(".ipam-main .ipam-reservations-panel")).toBeVisible();
+    await expect(page.locator(".ipam-main .ipam-dhcp-panel")).toBeVisible();
     const headers = await page.locator(".ipam-workspace .nm-app-panel-header").evaluateAll((nodes) => nodes.map((node) => ({ height: Math.round(node.getBoundingClientRect().height), background: getComputedStyle(node).backgroundColor })));
     for (const header of headers) {
       expect(header.background).toBe(headers[0].background);
       expect(Math.abs(header.height - headers[0].height)).toBeLessThanOrEqual(1);
     }
-    await page.setViewportSize({ width: 700, height: 1000 });
-    const [stackedSpace, stackedBusiest] = [(await page.locator(".ipam-space-panel").boundingBox())!, (await page.locator(".ipam-busiest-panel").boundingBox())!];
-    expect(stackedBusiest.y).toBeGreaterThanOrEqual(stackedSpace.y + stackedSpace.height);
+
+    await page.setViewportSize({ width: 1000, height: 1000 });
+    const [narrowSpace, narrowStats, narrowMain, narrowContext] = [await box(".ipam-space-panel"), await box(".ipam-bento .ipam-stats"), await box(".ipam-main"), await box(".ipam-context")];
+    expect(narrowStats.y).toBeGreaterThanOrEqual(narrowSpace.y + narrowSpace.height);
+    expect(narrowContext.y).toBeGreaterThanOrEqual(narrowMain.y + narrowMain.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   });
 }

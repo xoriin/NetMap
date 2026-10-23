@@ -208,7 +208,7 @@ for (const theme of ["light", "dark"] as const) {
       ["/inventory", ".nm-summary-band", ".topology-content"],
       ["/locations", ".nm-summary-band", ".locations-panel"],
       ["/monitoring#endpoints", ".nm-summary-band", ".mon-content"],
-      ["/ipam", ".nm-summary-band", ".ipam-console-grid"],
+      ["/ipam", ".ipam-bento", ".ipam-subnets-panel-wrap"],
       ["/tools", ".nm-summary-band", ".tools-console-grid"],
       ["/security", ".nm-summary-band", ".security-content"],
       // Exports keeps its summary in the context column; its section gaps are

@@ -870,6 +870,20 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
   }
 }
 
+.ipam-bento {
+  display: grid;
+  margin-bottom: var(--nm-workspace-section-gap);
+  gap: 12px;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+}
+
+.ipam-bento .ipam-space-panel { margin: 0; }
+
+.ipam-bento .ipam-stats {
+  margin: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .ipam-console-grid {
   display: grid;
   margin-top: var(--nm-workspace-section-gap);
@@ -887,13 +901,17 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
 }
 
 .ipam-main > .ipam-panel,
-.ipam-main > .ipam-subnets-panel-wrap,
 .ipam-context > .ipam-panel {
   margin: 0;
 }
 
-@media (min-width: 760px) {
-  .ipam-context { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+@media (min-width: 1200px) {
+  .ipam-console-grid { grid-template-columns: minmax(0, 1fr) 340px; }
+  .ipam-context { position: sticky; top: var(--nm-space-4); }
+}
+
+@media (max-width: 1099px) {
+  .ipam-bento { grid-template-columns: minmax(0, 1fr); }
 }
 
 .ipam-space-body {

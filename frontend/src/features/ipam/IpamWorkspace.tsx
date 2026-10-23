@@ -523,8 +523,26 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
 
   return (
     <section className="dash-layout ipam-workspace">
-      {/* Stat cards */}
-      {summaryCards}
+      <div className="ipam-bento">
+        <div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
+          </div>
+          <div className="dash-panel-body ipam-space-body">
+            <UsageRing pct={usedPct} label="used" />
+            <ul className="ipam-space-legend">
+              {spaceLegend.map((item) => (
+                <li key={item.label}>
+                  <span className={`ipam-space-swatch ipam-space-swatch--${item.tone}`} aria-hidden="true" />
+                  <span className="ipam-space-label">{item.label}</span>
+                  <strong>{item.value}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        {summaryCards}
+      </div>
 
       {/* Conflicts banner */}
       {conflicts.length > 0 && (
@@ -653,155 +671,6 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
         </Modal>
       )}
 
-      <div className="ipam-console-grid">
-      <aside className="ipam-context" aria-label="Address overview">
-        <div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
-          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-            <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
-          </div>
-          <div className="dash-panel-body ipam-space-body">
-            <UsageRing pct={usedPct} label="used" />
-            <ul className="ipam-space-legend">
-              {spaceLegend.map((item) => (
-                <li key={item.label}>
-                  <span className={`ipam-space-swatch ipam-space-swatch--${item.tone}`} aria-hidden="true" />
-                  <span className="ipam-space-label">{item.label}</span>
-                  <strong>{item.value}</strong>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="dash-panel nm-app-panel ipam-panel ipam-busiest-panel">
-          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-            <IpamPanelIdentity icon={<Activity size={18} />} title="Busiest subnets" meta={busiestSubnets.length ? `Top ${busiestSubnets.length}` : undefined} />
-          </div>
-          <div className="dash-panel-body ipam-busiest-body">
-            {busiestSubnets.length === 0 ? (
-              <div className="dash-empty">No subnets yet</div>
-            ) : busiestSubnets.map((s) => (
-              <div key={s.id} className="ipam-busiest-row">
-                <span className="ipam-busiest-name">
-                  <strong>{s.name}</strong>
-                  <code>{s.cidr}</code>
-                </span>
-                <UtilizationBar value={s.utilization} size="thin" />
-                <span className="ipam-busiest-pct">{Math.round(s.utilization * 100)}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      <div className="ipam-main">
-      {/* Reservations panel */}
-      <div className="dash-panel nm-app-panel ipam-panel ipam-reservations-panel">
-        <div className="dash-panel-header nm-app-panel-header ipam-panel-header ipam-reservations-header">
-          <IpamPanelIdentity
-            icon={<IconMapPin size={18} />}
-            title="IP reservations"
-            meta={resSubnetFilter === "all" ? `${reservations.length} reserved` : `${filteredReservations.length} of ${reservations.length} shown`}
-          />
-          <div className="ipam-reservations-actions">
-            {subnets.length > 0 && (
-              <label className="ipam-reservation-filter">
-                <span>Subnet</span>
-                <select
-                  className="inv-select"
-                  value={resSubnetFilter === "all" ? "all" : String(resSubnetFilter)}
-                  onChange={(e) => setResSubnetFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-                >
-                  <option value="all">All subnets</option>
-                  {subnets.map((s) => (
-                    <option key={s.id} value={String(s.id)}>{s.name} ({s.cidr})</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {canWrite && reservations.some((r) => r.expires_at && new Date(r.expires_at) < new Date()) && (
-              <button
-                type="button"
-                className="nm-btn"
-                onClick={async () => {
-                  const confirmed = await confirmAction({
-                    title: "Delete expired reservations",
-                    message: "Delete all expired IP reservations?",
-                    confirmLabel: "Delete expired",
-                  });
-                  if (!confirmed) return;
-                  try {
-                    const { deleted } = await api.deleteExpiredReservations(accessToken);
-                    if (deleted > 0) { await load(); if (selectedSubnet) void loadAddresses(selectedSubnet); }
-                    toast.success(deleted > 0 ? `Deleted ${deleted} expired reservation${deleted === 1 ? "" : "s"}` : "No expired reservations to delete");
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : "Failed to delete expired reservations");
-                  }
-                }}
-              >
-                Clear expired
-              </button>
-            )}
-            {canWrite && (
-              <button type="button" className="nm-btn nm-btn--secondary" onClick={openNewReservation}>
-                + Reserve IP
-              </button>
-            )}
-            <button type="button" className="dash-panel-link" onClick={() => setShowReservations((v) => !v)}>
-              {showReservations ? "Hide" : "Show"}
-            </button>
-          </div>
-        </div>
-        {showReservations && (
-          <div className="dash-panel-body ipam-reservations-body">
-            {filteredReservations.length === 0 ? (
-              <p className="dash-empty">{reservations.length === 0 ? "No IP reservations yet. Click a free address in any subnet detail to reserve it." : "No reservations match the selected subnet."}</p>
-            ) : (
-              <table className="mon-table ipam-data-table ipam-reservations-table">
-                <thead>
-                  <tr>
-                    <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
-                    <th><IconTag size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Label</th>
-                    <th><IconFingerprint size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />MAC</th>
-                    <th><IconNote size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Notes</th>
-                    <th><IconUsers size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Reserved by</th>
-                    <th><IconCalendar size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Expires</th>
-                    {(canWrite || (canCreateDevice && canClaimReservation)) && <th />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredReservations.map((r) => (
-                    <tr key={r.id} className="mon-row">
-                      <td><code className="ipam-cidr">{r.ip_address}</code></td>
-                      <td className="mon-device-name">{r.label}</td>
-                      <td className="mon-cell-mono">{r.mac_address ?? <span className="dash-panel-meta">—</span>}</td>
-                      <td>{r.notes ?? <span className="dash-panel-meta">—</span>}</td>
-                      <td className="mon-cell-mono">{r.reserved_by ?? <span className="dash-panel-meta">—</span>}</td>
-                      <td className="mon-cell-mono">
-                        {r.expires_at ? (
-                          new Date(r.expires_at) < new Date()
-                            ? <span className="ipam-expired-badge" title={r.expires_at}>expired</span>
-                            : r.expires_at.slice(0, 10)
-                        ) : <span className="dash-panel-meta">—</span>}
-                      </td>
-                      {(canWrite || (canCreateDevice && canClaimReservation)) && (
-                        <td className="ipam-reservation-actions">
-                          <span className="ipam-row-actions">
-                            {canWrite && <button type="button" className="nm-btn nm-btn--sm" onClick={() => openEditReservation(r)}>Edit</button>}
-                            {!canWrite && canCreateDevice && canClaimReservation && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => convertReservationToDevice(r)}>Convert to device</button>}
-                            {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>}
-                          </span>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Subnet list */}
       {(
         <div className="ipam-subnets-panel-wrap">
@@ -906,6 +775,202 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
         </div>
         </div>
       )}
+
+      <div className="ipam-console-grid">
+        <div className="ipam-main">
+          {/* Reservations panel */}
+          <div className="dash-panel nm-app-panel ipam-panel ipam-reservations-panel">
+            <div className="dash-panel-header nm-app-panel-header ipam-panel-header ipam-reservations-header">
+              <IpamPanelIdentity
+                icon={<IconMapPin size={18} />}
+                title="IP reservations"
+                meta={resSubnetFilter === "all" ? `${reservations.length} reserved` : `${filteredReservations.length} of ${reservations.length} shown`}
+              />
+              <div className="ipam-reservations-actions">
+                {subnets.length > 0 && (
+                  <label className="ipam-reservation-filter">
+                    <span>Subnet</span>
+                    <select
+                      className="inv-select"
+                      value={resSubnetFilter === "all" ? "all" : String(resSubnetFilter)}
+                      onChange={(e) => setResSubnetFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+                    >
+                      <option value="all">All subnets</option>
+                      {subnets.map((s) => (
+                        <option key={s.id} value={String(s.id)}>{s.name} ({s.cidr})</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {canWrite && reservations.some((r) => r.expires_at && new Date(r.expires_at) < new Date()) && (
+                  <button
+                    type="button"
+                    className="nm-btn"
+                    onClick={async () => {
+                      const confirmed = await confirmAction({
+                        title: "Delete expired reservations",
+                        message: "Delete all expired IP reservations?",
+                        confirmLabel: "Delete expired",
+                      });
+                      if (!confirmed) return;
+                      try {
+                        const { deleted } = await api.deleteExpiredReservations(accessToken);
+                        if (deleted > 0) { await load(); if (selectedSubnet) void loadAddresses(selectedSubnet); }
+                        toast.success(deleted > 0 ? `Deleted ${deleted} expired reservation${deleted === 1 ? "" : "s"}` : "No expired reservations to delete");
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Failed to delete expired reservations");
+                      }
+                    }}
+                  >
+                    Clear expired
+                  </button>
+                )}
+                {canWrite && (
+                  <button type="button" className="nm-btn nm-btn--secondary" onClick={openNewReservation}>
+                    + Reserve IP
+                  </button>
+                )}
+                <button type="button" className="dash-panel-link" onClick={() => setShowReservations((v) => !v)}>
+                  {showReservations ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+            {showReservations && (
+              <div className="dash-panel-body ipam-reservations-body">
+                {filteredReservations.length === 0 ? (
+                  <p className="dash-empty">{reservations.length === 0 ? "No IP reservations yet. Click a free address in any subnet detail to reserve it." : "No reservations match the selected subnet."}</p>
+                ) : (
+                  <table className="mon-table ipam-data-table ipam-reservations-table">
+                    <thead>
+                      <tr>
+                        <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
+                        <th><IconTag size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Label</th>
+                        <th><IconFingerprint size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />MAC</th>
+                        <th><IconNote size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Notes</th>
+                        <th><IconUsers size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Reserved by</th>
+                        <th><IconCalendar size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Expires</th>
+                        {(canWrite || (canCreateDevice && canClaimReservation)) && <th />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredReservations.map((r) => (
+                        <tr key={r.id} className="mon-row">
+                          <td><code className="ipam-cidr">{r.ip_address}</code></td>
+                          <td className="mon-device-name">{r.label}</td>
+                          <td className="mon-cell-mono">{r.mac_address ?? <span className="dash-panel-meta">—</span>}</td>
+                          <td>{r.notes ?? <span className="dash-panel-meta">—</span>}</td>
+                          <td className="mon-cell-mono">{r.reserved_by ?? <span className="dash-panel-meta">—</span>}</td>
+                          <td className="mon-cell-mono">
+                            {r.expires_at ? (
+                              new Date(r.expires_at) < new Date()
+                                ? <span className="ipam-expired-badge" title={r.expires_at}>expired</span>
+                                : r.expires_at.slice(0, 10)
+                            ) : <span className="dash-panel-meta">—</span>}
+                          </td>
+                          {(canWrite || (canCreateDevice && canClaimReservation)) && (
+                            <td className="ipam-reservation-actions">
+                              <span className="ipam-row-actions">
+                                {canWrite && <button type="button" className="nm-btn nm-btn--sm" onClick={() => openEditReservation(r)}>Edit</button>}
+                                {!canWrite && canCreateDevice && canClaimReservation && <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => convertReservationToDevice(r)}>Convert to device</button>}
+                                {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" onClick={() => void deleteReservation(r)}>Delete</button>}
+                              </span>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* DHCP leases panel */}
+          <div className="dash-panel nm-app-panel ipam-panel ipam-dhcp-panel">
+            <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+              <IpamPanelIdentity icon={<Activity size={18} />} title="DHCP leases" meta={`${dhcpLeases.length} imported`} />
+              <button type="button" className="dash-panel-link" onClick={() => setShowDhcp((v) => !v)} style={{ marginLeft: 12 }}>
+                {showDhcp ? "Hide importer" : "Import leases"}
+              </button>
+              {canWrite && dhcpLeases.length > 0 && (
+                <button type="button" className="dash-panel-link ipam-delete-btn" onClick={() => void clearDhcp()} style={{ marginLeft: 8 }}>
+                  Clear all
+                </button>
+              )}
+            </div>
+
+            {showDhcp && (
+              <div className="ipam-dhcp-importer">
+                <form onSubmit={(e) => void importDhcp(e)}>
+                  <textarea
+                    className="ipam-lease-textarea"
+                    rows={8}
+                    placeholder={"Paste ISC dhcpd.leases or dnsmasq.leases content here…\n\nISC example:\nlease 192.168.1.50 {\n  starts 1 2026/01/01 08:00:00;\n  ends 1 2026/01/01 20:00:00;\n  binding state active;\n  hardware ethernet aa:bb:cc:dd:ee:ff;\n  client-hostname \"mypc\";\n}"}
+                    value={dhcpText}
+                    onChange={(e) => setDhcpText(e.target.value)}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                    <button type="submit" className="nm-btn nm-btn--primary" disabled={dhcpBusy || !dhcpText.trim()}>
+                      {dhcpBusy ? "Importing…" : "Import"}
+                    </button>
+                    {dhcpMsg && <span className="dash-panel-meta">{dhcpMsg}</span>}
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="dash-panel-body" style={{ maxHeight: 280 }}>
+              {dhcpLeases.length === 0 ? (
+                <p className="dash-empty">No DHCP leases imported yet.</p>
+              ) : (
+                <table className="mon-table ipam-data-table ipam-dhcp-table">
+                  <thead>
+                    <tr>
+                    <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
+                    <th><IconFingerprint size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />MAC</th>
+                    <th><IconDeviceLaptop size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Hostname</th>
+                    <th><IconClock size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Expires</th>
+                    <th><Activity size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Active</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                    {dhcpLeases.map((l) => (
+                      <tr key={l.id} className="mon-row">
+                        <td><code className="ipam-cidr">{l.ip_address}</code></td>
+                        <td className="mon-cell-mono">{l.mac_address ?? "—"}</td>
+                        <td>{l.hostname ?? <span className="dash-panel-meta">—</span>}</td>
+                        <td className="mon-cell-mono">{fmtExpiry(l.expires_at)}</td>
+                        <td><MonStatusDot status={l.is_active ? "online" : "offline"} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+        <aside className="ipam-context" aria-label="Address overview">
+          <div className="dash-panel nm-app-panel ipam-panel ipam-busiest-panel">
+            <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+              <IpamPanelIdentity icon={<Activity size={18} />} title="Busiest subnets" meta={busiestSubnets.length ? `Top ${busiestSubnets.length}` : undefined} />
+            </div>
+            <div className="dash-panel-body ipam-busiest-body">
+              {busiestSubnets.length === 0 ? (
+                <div className="dash-empty">No subnets yet</div>
+              ) : busiestSubnets.map((s) => (
+                <div key={s.id} className="ipam-busiest-row">
+                  <span className="ipam-busiest-name">
+                    <strong>{s.name}</strong>
+                    <code>{s.cidr}</code>
+                  </span>
+                  <UtilizationBar value={s.utilization} size="thin" />
+                  <span className="ipam-busiest-pct">{Math.round(s.utilization * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
 
       {/* Subnet detail modal */}
       {selectedSubnet && (
@@ -1176,72 +1241,6 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
           onSubmit={createDeviceFromReservation}
         />
       )}
-
-      {/* DHCP leases panel */}
-      <div className="dash-panel nm-app-panel ipam-panel ipam-dhcp-panel">
-        <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-          <IpamPanelIdentity icon={<Activity size={18} />} title="DHCP leases" meta={`${dhcpLeases.length} imported`} />
-          <button type="button" className="dash-panel-link" onClick={() => setShowDhcp((v) => !v)} style={{ marginLeft: 12 }}>
-            {showDhcp ? "Hide importer" : "Import leases"}
-          </button>
-          {canWrite && dhcpLeases.length > 0 && (
-            <button type="button" className="dash-panel-link ipam-delete-btn" onClick={() => void clearDhcp()} style={{ marginLeft: 8 }}>
-              Clear all
-            </button>
-          )}
-        </div>
-
-        {showDhcp && (
-          <div className="ipam-dhcp-importer">
-            <form onSubmit={(e) => void importDhcp(e)}>
-              <textarea
-                className="ipam-lease-textarea"
-                rows={8}
-                placeholder={"Paste ISC dhcpd.leases or dnsmasq.leases content here…\n\nISC example:\nlease 192.168.1.50 {\n  starts 1 2026/01/01 08:00:00;\n  ends 1 2026/01/01 20:00:00;\n  binding state active;\n  hardware ethernet aa:bb:cc:dd:ee:ff;\n  client-hostname \"mypc\";\n}"}
-                value={dhcpText}
-                onChange={(e) => setDhcpText(e.target.value)}
-              />
-              <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                <button type="submit" className="nm-btn nm-btn--primary" disabled={dhcpBusy || !dhcpText.trim()}>
-                  {dhcpBusy ? "Importing…" : "Import"}
-                </button>
-                {dhcpMsg && <span className="dash-panel-meta">{dhcpMsg}</span>}
-              </div>
-            </form>
-          </div>
-        )}
-
-        <div className="dash-panel-body" style={{ maxHeight: 280 }}>
-          {dhcpLeases.length === 0 ? (
-            <p className="dash-empty">No DHCP leases imported yet.</p>
-          ) : (
-            <table className="mon-table ipam-data-table ipam-dhcp-table">
-              <thead>
-                <tr>
-                <th><Network size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />IP Address</th>
-                <th><IconFingerprint size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />MAC</th>
-                <th><IconDeviceLaptop size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Hostname</th>
-                <th><IconClock size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Expires</th>
-                <th><Activity size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Active</th>
-              </tr>
-              </thead>
-              <tbody>
-                {dhcpLeases.map((l) => (
-                  <tr key={l.id} className="mon-row">
-                    <td><code className="ipam-cidr">{l.ip_address}</code></td>
-                    <td className="mon-cell-mono">{l.mac_address ?? "—"}</td>
-                    <td>{l.hostname ?? <span className="dash-panel-meta">—</span>}</td>
-                    <td className="mon-cell-mono">{fmtExpiry(l.expires_at)}</td>
-                    <td><MonStatusDot status={l.is_active ? "online" : "offline"} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-      </div>
-      </div>
 
     </section>
   );
