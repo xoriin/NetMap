@@ -17,7 +17,7 @@
     "@fontsource/inter": "^5.2.5",
     "@tabler/icons-react": "^3.43.0",
     "cytoscape": "^3.33.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "lucide-react": "^0.468.0",
     "marked": "^18.0.5",
     "qrcode": "^1.5.4",
