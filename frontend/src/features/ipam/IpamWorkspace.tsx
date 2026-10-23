@@ -20,6 +20,7 @@ import {
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
 import { UtilizationBar } from "../../components/UtilizationBar";
+import { UsageRing } from "../../components/UsageRing";
 import { IpGrid } from "../../components/IpGrid";
 import { Modal } from "../../components/Modal";
 import { MonStatusDot } from "../../components/MonitorBadges";
@@ -54,7 +55,7 @@ function IpamPanelIdentity({ icon, title, meta }: { icon: ReactNode; title: stri
     <span className="ipam-panel-identity">
       <span className="ipam-panel-icon" aria-hidden="true">{icon}</span>
       <span className="ipam-panel-title-wrap">
-        <span className="ipam-panel-title">{title}</span>
+        <h2 className="ipam-panel-title">{title}</h2>
         {meta !== undefined ? <span className="ipam-panel-meta">{meta}</span> : null}
       </span>
     </span>
@@ -482,6 +483,16 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
 
   const errorConflicts = conflicts.filter((c) => c.severity === "error");
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
+  const totalHosts = summary?.total_hosts ?? 0;
+  const usedPct = totalHosts > 0 ? Math.round(((summary?.used ?? 0) / totalHosts) * 100) : 0;
+  const spaceLegend = [
+    { label: "Used", value: summary?.used ?? 0, tone: "used" },
+    { label: "Reserved", value: summary?.reservation_count ?? 0, tone: "reserved" },
+    { label: "DHCP leases", value: summary?.dhcp_lease_count ?? 0, tone: "dhcp" },
+    { label: "Free", value: summary?.free ?? 0, tone: "free" },
+  ];
+  const busiestSubnets = [...subnets].sort((a, b) => b.utilization - a.utilization).slice(0, 5);
+
   const summaryCards = (
     <div className="dash-stats ipam-stats nm-summary-band">
       <DashStat label="Subnets" value={summary?.subnet_count ?? 0} icon={<Network size={20} />} accent="teal" />
@@ -642,6 +653,48 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
         </Modal>
       )}
 
+      <div className="ipam-console-grid">
+      <aside className="ipam-context" aria-label="Address overview">
+        <div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
+          </div>
+          <div className="dash-panel-body ipam-space-body">
+            <UsageRing pct={usedPct} label="used" />
+            <ul className="ipam-space-legend">
+              {spaceLegend.map((item) => (
+                <li key={item.label}>
+                  <span className={`ipam-space-swatch ipam-space-swatch--${item.tone}`} aria-hidden="true" />
+                  <span className="ipam-space-label">{item.label}</span>
+                  <strong>{item.value}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="dash-panel nm-app-panel ipam-panel ipam-busiest-panel">
+          <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
+            <IpamPanelIdentity icon={<Activity size={18} />} title="Busiest subnets" meta={busiestSubnets.length ? `Top ${busiestSubnets.length}` : undefined} />
+          </div>
+          <div className="dash-panel-body ipam-busiest-body">
+            {busiestSubnets.length === 0 ? (
+              <div className="dash-empty">No subnets yet</div>
+            ) : busiestSubnets.map((s) => (
+              <div key={s.id} className="ipam-busiest-row">
+                <span className="ipam-busiest-name">
+                  <strong>{s.name}</strong>
+                  <code>{s.cidr}</code>
+                </span>
+                <UtilizationBar value={s.utilization} size="thin" />
+                <span className="ipam-busiest-pct">{Math.round(s.utilization * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      <div className="ipam-main">
       {/* Reservations panel */}
       <div className="dash-panel nm-app-panel ipam-panel ipam-reservations-panel">
         <div className="dash-panel-header nm-app-panel-header ipam-panel-header ipam-reservations-header">
@@ -1186,6 +1239,8 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
             </table>
           )}
         </div>
+      </div>
+      </div>
       </div>
 
     </section>

@@ -1150,3 +1150,6 @@ body.route-overview .dash-panel {
   color: #5b7c91;
   line-height: 1.4;
 }
+
+.nm-usage-ring-track { stroke: var(--nm-border); }
+.nm-usage-ring-value { stroke: var(--dash-green); }
