@@ -3,6 +3,7 @@ import { mockDevice, mockRelationship, setupCoreMocks, setupTopologyMocks } from
 
 async function openProfile(page: Page, theme: "light" | "dark", style?: "slate" | "zinc") {
   await setupCoreMocks(page);
+  await setupTopologyMocks(page);
   await page.addInitScript(([t, s]) => {
     if (sessionStorage.getItem("dark-style-seeded")) return;
     sessionStorage.setItem("dark-style-seeded", "1");
