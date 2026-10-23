@@ -170,6 +170,9 @@ export async function setupExternalIps(page: Page, options: ExternalOptions = {}
   await page.route("**/api/v1/monitoring/summary", (route) => route.fulfill({
     json: { total: 0, online: 0, offline: 0, unknown: 0, paused: 0, healthy: 0, unhealthy: 0, avg_rtt_ms: null, last_checked: null },
   }));
+  // Opening a linked device's details loads its monitoring and recent security events.
+  await page.route(/\/api\/v1\/monitoring\/devices\/\d+$/, (route) => route.fulfill({ status: 404, json: { detail: "Not monitored" } }));
+  await page.route("**/api/v1/topology/devices/*/security-events*", (route) => route.fulfill({ json: { events: [], total: 0 } }));
 
   await page.route("**/api/v1/admin/cloud-providers", (route) =>
     route.fulfill({ json: options.providers ?? [AWS, AZURE] }));
