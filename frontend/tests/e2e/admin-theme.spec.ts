@@ -1246,3 +1246,51 @@ test("the version details remain in the App settings card", async ({ page }) => 
   await page.goto("/overview");
   await expect(page.locator(".app-topbar").getByLabel("NetMap version")).toHaveCount(0);
 });
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`saved inactivity policy survives reload and controls logout in ${style}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    let stored = { ...settings, idle_timeout_minutes: 1 };
+    let logouts = 0;
+    await page.route("**/api/v1/admin/settings", async route => {
+      if (route.request().method() === "PUT") stored = { ...stored, ...route.request().postDataJSON() };
+      await route.fulfill({ json: stored });
+    });
+    await page.route("**/api/v1/admin/settings/app", route => route.fulfill({ json: stored }));
+    await page.route("**/api/v1/auth/logout", route => { logouts += 1; return route.fulfill({ status: 204, body: "" }); });
+    await page.route("**/api/v1/auth/refresh", route => logouts > 0
+      ? route.fulfill({ status: 401, json: { detail: "Session revoked" } }) : route.fallback());
+    await page.addInitScript(value => {
+      localStorage.setItem("netmap.theme", value === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", value === "zinc" ? "zinc" : "slate");
+    }, style);
+    await page.clock.install();
+    await page.goto("/admin#system");
+    const toggle = page.getByRole("checkbox", { name: /Log out inactive users/ });
+    const save = page.getByRole("button", { name: "Save settings", exact: true });
+    await expect(toggle).toBeChecked();
+    await toggle.uncheck();
+    await save.click();
+    await expect(page.getByText("Settings saved", { exact: true })).toBeVisible();
+    await expect(toggle).not.toBeChecked();
+    expect(stored.idle_timeout_minutes).toBe(0);
+    // Saving must immediately remove the previous one-minute timer.
+    await page.clock.fastForward(61_000);
+    await expect(page.locator(".admin-layout")).toBeVisible();
+    expect(logouts).toBe(0);
+    await page.reload();
+    await expect(toggle).not.toBeChecked();
+    await expect(page.getByLabel("Idle session timeout (minutes)")).toHaveCount(0);
+    await page.clock.fastForward(2 * 60_000);
+    await expect(page.locator(".admin-layout")).toBeVisible();
+    expect(logouts).toBe(0);
+    await toggle.check();
+    await page.getByLabel("Idle session timeout (minutes)").fill("1");
+    await save.click();
+    await expect(page.getByText("Settings saved", { exact: true })).toBeVisible();
+    expect(stored.idle_timeout_minutes).toBe(1);
+    await page.clock.fastForward(61_000);
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+    expect(logouts).toBe(1);
+  });
+}

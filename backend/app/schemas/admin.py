@@ -66,11 +66,15 @@ class SystemSettingsRead(BaseModel):
     @classmethod
     def _coerce_int(cls, v: object, info: ValidationInfo) -> int:
         fallback = {
+            "idle_timeout_minutes": 0,
             "monitor_interval_seconds": 300, "ip_reservation_reminder_days": 3,
             "backup_schedule_interval_hours": 24, "backup_retention_count": 7,
         }.get(info.field_name, 15)
+        # Zero is the persisted "disabled" sentinel for inactivity logout.
+        # Other numeric settings still require a positive value.
+        minimum = 0 if info.field_name == "idle_timeout_minutes" else 1
         try:
-            return max(1, int(v))
+            return max(minimum, int(v))
         except (TypeError, ValueError):
             return fallback
 
