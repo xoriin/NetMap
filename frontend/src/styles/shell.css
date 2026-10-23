@@ -272,8 +272,8 @@
 }
 
 .sidebar-link:hover {
-  background: linear-gradient(90deg, rgba(29, 154, 176, 0.14) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
-  border-left-color: rgba(29, 154, 176, 0.35);
+  background: var(--nm-sidebar-hover-bg);
+  border-left-color: var(--nm-sidebar-hover-edge);
   color: var(--nm-sidebar-text);
 }
 
@@ -350,7 +350,7 @@
 .sidebar-admin-link svg { flex: 0 0 auto; }
 
 .sidebar-admin-link:hover {
-  background: rgba(29, 154, 176, 0.09);
+  background: var(--nm-sidebar-hover-fill);
   color: var(--nm-sidebar-text);
 }
 

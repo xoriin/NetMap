@@ -31,6 +31,7 @@ const AREAS: [string, string[]][] = [
   ["Admin, Tools, sign-in and empty-state buttons", [".notif-test-btn", ".tool-form", ".auth-sso-btn", ".dash-empty-action"]],
   ["rows and list items", [".loc-item", ".notif-method-card", ".inventory-row:hover", ".security-row-group"]],
   ["tabs and navigation", [".inv-filter-tab", ".tools-nav-item", ".admin-tab-btn", ".auth-forgot-link", ".notif-apprise-details", ".dash-nav-btn"]],
+  ["sidebar links and controls", [".sidebar-link", ".sidebar-admin-link", ".sidebar-collapse-btn--footer"]],
 ];
 
 for (const [area, classes] of AREAS) {

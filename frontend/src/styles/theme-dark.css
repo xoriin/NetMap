@@ -19,6 +19,8 @@ html:has(body.theme-dark) {
   --nm-sidebar-text: #f1f5f9;
   --nm-sidebar-active: #8fe0ee;
   --nm-sidebar-label: #a3afbc;
+  --nm-sidebar-hover-bg: linear-gradient(90deg, rgba(29, 154, 176, 0.16) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
+  --nm-sidebar-hover-edge: rgba(29, 154, 176, 0.4);
   --nm-accent: #22d3ee;
   --nm-accent-strong: #67e8f9;
   --nm-accent-soft: rgba(34,211,238,0.10);
@@ -308,8 +310,8 @@ body.theme-dark .sidebar-link {
 }
 
 body.theme-dark .sidebar-link:hover {
-  background: linear-gradient(90deg, rgba(29, 154, 176, 0.16) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
-  border-left-color: rgba(29, 154, 176, 0.4);
+  background: var(--nm-sidebar-hover-bg);
+  border-left-color: var(--nm-sidebar-hover-edge);
   color: var(--nm-sidebar-text);
 }
 

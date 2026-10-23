@@ -3544,8 +3544,8 @@ body.theme-dark .fav-btn--active { color: #e8b840; }
   right: 5px;
 }
 .sidebar--collapsed .sidebar-collapse-btn--footer:hover {
-  background: rgba(29, 154, 176, 0.12);
-  border-color: rgba(29, 154, 176, 0.28);
+  background: var(--nm-sidebar-control-hover-bg);
+  border-color: var(--nm-sidebar-control-hover-border);
 }
 .sidebar--collapsed .sidebar-docs-link,
 .sidebar--collapsed .sidebar-theme-toggle,

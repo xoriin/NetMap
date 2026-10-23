@@ -21,6 +21,11 @@
   --nm-sidebar-text: #f1f5f9;
   --nm-sidebar-active: #8fe0ee;
   --nm-sidebar-label: #a3afbc;
+  --nm-sidebar-hover-bg: linear-gradient(90deg, rgba(29, 154, 176, 0.14) 0%, rgba(29, 154, 176, 0.045) 65%, transparent 100%);
+  --nm-sidebar-hover-edge: rgba(29, 154, 176, 0.35);
+  --nm-sidebar-hover-fill: rgba(29, 154, 176, 0.09);
+  --nm-sidebar-control-hover-bg: rgba(29, 154, 176, 0.12);
+  --nm-sidebar-control-hover-border: rgba(29, 154, 176, 0.28);
   --nm-accent: #1d9ab0;
   --nm-accent-strong: #1d6472;
   --nm-accent-soft: rgba(29, 154, 176, 0.12);
