@@ -69,7 +69,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".security-summary-grid")).toContainText("Denied senders");
     await expect(page.locator(".security-filters")).toHaveCSS("background-image", "none");
     await expect(page.locator(".security-results")).toHaveCSS("background-image", "none");
-    await expect(page.locator(".security-panel-header")).toContainText("Event filters");
+    await expect(page.locator(".security-filters .security-panel-header")).toContainText("Event filters");
     await expect(page.locator(".security-results-meta")).toContainText("Firewall events");
     await expect(page.locator(".security-results-meta")).toContainText("1 results");
     await expect(page.locator(".security-row")).toContainText("10.0.0.1");
@@ -243,7 +243,7 @@ test("Security reconnects a dropped live stream and reloads events missed while 
 test("Security bands keep one stable workspace anchor and section gap", async ({ page }) => {
   await setupSecurity(page, "dark");
   const geometry = await page.evaluate(() => {
-    const selectors = [".dash-alert--announcement", ".security-layout > .form-error", ".security-summary-grid", ".security-content"];
+    const selectors = [".dash-alert--announcement", ".security-layout > .form-error", ".security-bento", ".security-content"];
     const boxes = selectors
       .map((selector) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null)
       .filter((box): box is DOMRect => box !== null);
@@ -258,3 +258,41 @@ test("Security bands keep one stable workspace anchor and section gap", async ({
     expect(Math.abs(geometry[index].top - geometry[index - 1].bottom - 16)).toBeLessThanOrEqual(1);
   }
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`Security summarises traffic mix and top sources beside compact stats in ${theme} mode`, async ({ page }) => {
+    const events: FirewallEvent[] = Array.from({ length: 6 }, (_, i) => ({
+      ...baseEvent,
+      id: 200 + i,
+      src_ip: i < 4 ? "10.0.0.24" : "192.168.1.50",
+      action: i % 3 === 0 ? "block" : "pass",
+    }));
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await setupSecurity(page, theme, events);
+    const mix = page.locator(".security-mix-panel");
+    await expect(mix).toContainText("Traffic mix");
+    await expect(mix).toContainText("6 loaded events");
+    await expect(mix.locator(".dash-donut-pct")).toHaveText("33%");
+    await expect(mix.locator(".security-mix-legend li").nth(0)).toContainText("Blocked2");
+    await expect(mix.locator(".security-mix-legend li").nth(1)).toContainText("Passed4");
+    const firstSource = page.locator(".security-source-row").first();
+    await expect(firstSource).toContainText("10.0.0.24");
+    await expect(firstSource).toContainText("4");
+    await expect(firstSource).toContainText("2 blocked");
+    await expect(page.locator(".security-source-row")).toHaveCount(2);
+
+    const box = async (selector: string, index = 0) => (await page.locator(selector).nth(index).boundingBox())!;
+    const [mixBox, sourcesBox, statsBox] = [await box(".security-mix-panel"), await box(".security-sources-panel"), await box(".security-summary-grid")];
+    expect(sourcesBox.x).toBeGreaterThan(mixBox.x + mixBox.width);
+    expect(statsBox.x).toBeGreaterThan(sourcesBox.x + sourcesBox.width);
+    expect(Math.abs(mixBox.height - statsBox.height)).toBeLessThanOrEqual(1);
+    const [firstStat, thirdStat] = [await box(".security-summary-card"), await box(".security-summary-card", 2)];
+    expect(thirdStat.y).toBeGreaterThan(firstStat.y + firstStat.height);
+
+    await page.setViewportSize({ width: 1100, height: 1000 });
+    const [narrowMix, narrowSources, narrowStats] = [await box(".security-mix-panel"), await box(".security-sources-panel"), await box(".security-summary-grid")];
+    expect(narrowSources.x).toBeGreaterThan(narrowMix.x + narrowMix.width);
+    expect(narrowStats.y).toBeGreaterThanOrEqual(narrowMix.y + narrowMix.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  });
+}

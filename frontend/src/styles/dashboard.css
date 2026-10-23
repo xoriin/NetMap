@@ -1153,3 +1153,4 @@ body.route-overview .dash-panel {
 
 .nm-usage-ring-track { stroke: var(--nm-border); }
 .nm-usage-ring-value { stroke: var(--dash-green); }
+.nm-usage-ring--danger .nm-usage-ring-value { stroke: var(--dash-red); }

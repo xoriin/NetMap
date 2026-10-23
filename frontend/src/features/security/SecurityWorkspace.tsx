@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./security.css";
-import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties } from "lucide-react";
+import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties, PieChart, Users } from "lucide-react";
 import { api, type FirewallEvent, type FirewallEventList, type SavedSecuritySearch, type SyslogStatus, type Device, type TopologyGraph } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type SecurityFilters, emptySecurityFilters } from "../../types";
@@ -11,6 +11,7 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { ClickableCell } from "../../components/ClickableCell";
 import { Modal } from "../../components/Modal";
 import { DashStat } from "../../components/DashStat";
+import { UsageRing } from "../../components/UsageRing";
 
 const SECURITY_COLUMN_WIDTHS_KEY = "netmap.securityEventColumnWidths.v1";
 const SECURITY_COLUMN_COUNT = 11;
@@ -390,14 +391,61 @@ export function SecurityWorkspace({
     return () => setTopbarNote("");
   }, [autoScroll, liveStreamState, liveTail, setTopbarNote, status]);
 
+  const actionMix = useMemo(() => {
+    const blocked = events.filter((event) => /block|reject|drop/i.test(event.action ?? "")).length;
+    const passed = events.filter((event) => /pass|allow/i.test(event.action ?? "")).length;
+    return { blocked, passed, other: events.length - blocked - passed, pct: events.length ? Math.round((blocked / events.length) * 100) : 0 };
+  }, [events]);
+  const topSources = useMemo(() => {
+    const counts = new Map<string, { total: number; blocked: number }>();
+    for (const event of events) {
+      if (!event.src_ip) continue;
+      const entry = counts.get(event.src_ip) ?? { total: 0, blocked: 0 };
+      entry.total += 1;
+      if (/block|reject|drop/i.test(event.action ?? "")) entry.blocked += 1;
+      counts.set(event.src_ip, entry);
+    }
+    return [...counts.entries()].map(([ip, entry]) => ({ ip, ...entry })).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [events]);
+  const topSourceMax = topSources[0]?.total ?? 1;
+
   return (
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
+      <div className="security-bento">
+        <section className="security-insight security-mix-panel nm-app-panel" aria-label="Traffic mix">
+          <div className="security-panel-header nm-app-panel-header">
+            <span className="security-panel-identity"><span className="security-panel-icon"><PieChart size={18} /></span><strong>Traffic mix</strong><small>{events.length} loaded events</small></span>
+          </div>
+          <div className="security-mix-body">
+            <UsageRing pct={actionMix.pct} label="blocked" tone="danger" />
+            <ul className="security-mix-legend">
+              <li><span className="security-mix-swatch security-mix-swatch--blocked" aria-hidden="true" /><span>Blocked</span><strong>{actionMix.blocked}</strong></li>
+              <li><span className="security-mix-swatch security-mix-swatch--passed" aria-hidden="true" /><span>Passed</span><strong>{actionMix.passed}</strong></li>
+              <li><span className="security-mix-swatch security-mix-swatch--other" aria-hidden="true" /><span>Other</span><strong>{actionMix.other}</strong></li>
+            </ul>
+          </div>
+        </section>
+        <section className="security-insight security-sources-panel nm-app-panel" aria-label="Top sources">
+          <div className="security-panel-header nm-app-panel-header">
+            <span className="security-panel-identity"><span className="security-panel-icon"><Users size={18} /></span><strong>Top sources</strong><small>{topSources.length ? `Top ${topSources.length}` : "No events"}</small></span>
+          </div>
+          <div className="security-sources-body">
+            {topSources.length === 0 ? <div className="dash-empty">No events loaded</div> : topSources.map((source) => (
+              <div key={source.ip} className="security-source-row">
+                <code>{source.ip}</code>
+                <span className="security-source-bar" aria-hidden="true"><span style={{ width: `${(source.total / topSourceMax) * 100}%` }} /></span>
+                <span className="security-source-count">{source.total}{source.blocked > 0 && <small>{source.blocked} blocked</small>}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       <div className="dash-stats dash-stats--four security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
         <DashStat className="security-summary-card" label="Stored events" value={status?.stored_events ?? status?.total_events ?? 0} icon={<Database size={19} />} accent="teal" />
         <DashStat className="security-summary-card" label="Received packets" value={status?.received_packets ?? 0} icon={<Radio size={19} />} accent="green" />
         <DashStat className="security-summary-card" label="Unparsed packets" value={status?.dropped_unparsed ?? 0} icon={<ShieldAlert size={19} />} accent="amber" />
         <DashStat className="security-summary-card" label="Denied senders" value={status?.denied_senders ?? 0} icon={<Ban size={19} />} accent="red" />
+      </div>
       </div>
       <div className="security-content">
         <form
