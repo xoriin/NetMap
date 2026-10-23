@@ -52,3 +52,45 @@ test("a list reloaded right after a save shows the saved change, not the shared 
   await row.getByRole("button", { name: "Pause" }).click();
   await expect(row.getByRole("button", { name: "Resume" })).toBeVisible();
 });
+
+test("returning to a page shows its last data straight away while it refreshes", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ topology_group: "Core" })]);
+  await setupInventoryMocks(page, [mockDevice()]);
+  await setupMonitoringMocks(page, [mockMonitoringDevice()]);
+  let calls = 0;
+  await page.route("**/api/v1/topology/groups", async (route) => {
+    calls += 1;
+    if (calls > 1) await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.fulfill({ json: [] });
+  });
+  await page.goto("/vlans");
+  await expect(page.locator(".vlan-row").first()).toBeVisible();
+  await page.getByRole("link", { name: "Overview" }).first().click();
+  await expect(page).toHaveURL(/\/overview/);
+  const before = calls;
+  await page.getByRole("link", { name: "VLANs" }).first().click();
+  await expect(page.locator(".vlan-row").first()).toBeVisible({ timeout: 1000 });
+  expect(calls).toBeGreaterThan(before);
+});
+
+test("signing out forgets remembered page data", async ({ page }) => {
+  await setupCoreMocks(page);
+  await setupTopologyMocks(page, [mockDevice({ topology_group: "Core" })]);
+  await setupMonitoringMocks(page, [mockMonitoringDevice()]);
+  let signedOut = false;
+  await page.route("**/api/v1/topology/groups", async (route) => {
+    if (signedOut) await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.fulfill({ json: [] });
+  });
+  await page.route("**/api/v1/auth/logout", (route) => { signedOut = true; return route.fulfill({ status: 204, body: "" }); });
+  await page.goto("/vlans");
+  await expect(page.locator(".vlan-row").first()).toBeVisible();
+  await page.getByRole("button", { name: /Sign out/ }).first().click();
+  await expect.poll(() => signedOut).toBe(true);
+  await expect(page).toHaveURL(/\/overview|\/$/);
+  await page.getByRole("link", { name: "VLANs" }).first().click();
+  await expect(page).toHaveURL(/\/vlans/);
+  await page.waitForTimeout(500);
+  await expect(page.locator(".vlan-row")).toHaveCount(0);
+});

@@ -41,7 +41,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
       api.listExternalAccounts(accessToken), api.listCloudProviders(accessToken), api.listSavedCloudAssets(accessToken), api.listCloudAssetTypes(accessToken),
     ]);
     return { addresses, locations, accounts, providers, assets, types };
-  }, [accessToken]);
+  }, [accessToken], { rememberAs: "inventory.cloud-assets" });
   const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [createDeviceFor, setCreateDeviceFor] = useState<number | null>(null);

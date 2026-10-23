@@ -4,7 +4,7 @@ import { useApiQuery } from "./useApiQuery";
 
 /** Endpoint status stays live independently of inventory ICMP polling. */
 export function useEndpointMonitors(accessToken: string | null) {
-  const query = useApiQuery(accessToken ? () => api.listMonitors(accessToken) : null, [accessToken]);
+  const query = useApiQuery(accessToken ? () => api.listMonitors(accessToken) : null, [accessToken], { rememberAs: "monitors" });
   const { reload } = query;
   useEffect(() => {
     if (!accessToken) return;

@@ -19,6 +19,13 @@ export type ApiQuery<T> = {
   setData: Dispatch<SetStateAction<T | null>>;
 };
 
+const rememberedResults = new Map<string, unknown>();
+
+/** Forget every remembered result; called on sign-out so another session never sees them. */
+export function clearRememberedQueries() {
+  rememberedResults.clear();
+}
+
 /**
  * Declarative data fetching with race-guarding and unmount safety.
  *
@@ -27,21 +34,30 @@ export type ApiQuery<T> = {
  *   keep `data` on screen and set `isRefreshing` instead.
  * - Out-of-order responses are dropped via a request id, so rapid dep changes
  *   can never paint stale data over fresh data.
+ * - `rememberAs` keeps the last result under that key, so returning to a page
+ *   shows it at once and refreshes it silently in the background.
  */
 export function useApiQuery<T>(
   fetcher: (() => Promise<T>) | null,
   deps: readonly unknown[],
+  options: { rememberAs?: string } = {},
 ): ApiQuery<T> {
-  const [data, setData] = useState<T | null>(null);
+  const rememberAs = fetcher ? options.rememberAs : undefined;
+  const remembered = rememberAs !== undefined && rememberedResults.has(rememberAs)
+    ? (rememberedResults.get(rememberAs) as T)
+    : null;
+  const [data, setData] = useState<T | null>(remembered);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(fetcher !== null);
+  const [isLoading, setIsLoading] = useState(fetcher !== null && remembered === null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  const hasDataRef = useRef(false);
+  const hasDataRef = useRef(remembered !== null);
+  const rememberAsRef = useRef(rememberAs);
+  rememberAsRef.current = rememberAs;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -64,6 +80,7 @@ export function useApiQuery<T>(
       const result = await fetch();
       if (!mountedRef.current || requestId !== requestIdRef.current) return;
       hasDataRef.current = true;
+      if (rememberAsRef.current !== undefined) rememberedResults.set(rememberAsRef.current, result);
       setData(result);
       setError(null);
     } catch (err) {
@@ -79,13 +96,17 @@ export function useApiQuery<T>(
 
   useEffect(() => {
     if (!fetcherRef.current) return;
-    void runFetch();
+    void runFetch({ silent: hasDataRef.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   const patchData = useCallback<Dispatch<SetStateAction<T | null>>>((update) => {
     hasDataRef.current = true;
-    setData(update);
+    setData((current) => {
+      const next = typeof update === "function" ? (update as (value: T | null) => T | null)(current) : update;
+      if (rememberAsRef.current !== undefined && next !== null) rememberedResults.set(rememberAsRef.current, next);
+      return next;
+    });
   }, []);
 
   return { data, error, isLoading, isRefreshing, reload: runFetch, setData: patchData };

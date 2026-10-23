@@ -8,6 +8,7 @@ export function useDeviceTypes(accessToken: string | null) {
   const query = useApiQuery(
     accessToken ? () => api.listDeviceTypes(accessToken) : null,
     [accessToken],
+    { rememberAs: "device-types" },
   );
 
   const options = useMemo<DeviceTypeOption[]>(() => {

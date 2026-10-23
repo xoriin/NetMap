@@ -121,6 +121,7 @@ export function OverviewWorkspace({
         }
       : null,
     [accessToken],
+    { rememberAs: "overview.monitoring" },
   );
   const monFleet = monQuery.data?.fleet ?? null;
   const monDevices = useMemo(() => monQuery.data?.devices ?? [], [monQuery.data]);
@@ -130,6 +131,7 @@ export function OverviewWorkspace({
   const groupsQuery = useApiQuery(
     accessToken ? () => api.topologyGroups(accessToken) : null,
     [accessToken],
+    { rememberAs: "topology.groups" },
   );
   const formOptionsQuery = useApiQuery(
     accessToken && canWrite

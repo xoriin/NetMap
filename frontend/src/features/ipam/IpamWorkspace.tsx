@@ -75,7 +75,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
       api.appSettings(accessToken),
     ]);
     return { summary, subnets, conflicts, dhcpLeases, reservations, settings };
-  }, [accessToken]);
+  }, [accessToken], { rememberAs: "ipam.overview" });
   const summary = ipamQuery.data?.summary ?? null;
   const subnets = useMemo(() => ipamQuery.data?.subnets ?? [], [ipamQuery.data]);
   const conflicts = ipamQuery.data?.conflicts ?? [];

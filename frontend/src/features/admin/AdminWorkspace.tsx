@@ -55,7 +55,7 @@ export function AdminWorkspace({
   const [auditFocusUserId, setAuditFocusUserId] = useState<number | null>(null);
 
   const canManageUsers = userHasPermission(user, "user_manage");
-  const usersQuery = useApiQuery(() => canManageUsers ? api.listUsers(accessToken) : Promise.resolve([]), [accessToken, canManageUsers]);
+  const usersQuery = useApiQuery(() => canManageUsers ? api.listUsers(accessToken) : Promise.resolve([]), [accessToken, canManageUsers], { rememberAs: canManageUsers ? "admin.users" : undefined });
   const users = usersQuery.data ?? [];
 
   useEffect(() => {

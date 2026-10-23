@@ -176,7 +176,7 @@ export function ExternalIpPanel({
       api.getExternalMigrationReport(accessToken).catch(() => null),
     ]);
     return { addresses, locations, accounts, cloudProviders, devices: graph.devices, migration };
-  }, [accessToken]);
+  }, [accessToken], { rememberAs: "ipam.external" });
 
   const addresses = useMemo(() => query.data?.addresses ?? [], [query.data]);
   const locations = useMemo<ExternalLocation[]>(() => query.data?.locations ?? [], [query.data]);

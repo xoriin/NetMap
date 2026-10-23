@@ -40,7 +40,7 @@ export function VlanWorkspace({
   onGraphChange: () => Promise<void>;
 }) {
   const confirmAction = useConfirm();
-  const groupsQuery = useApiQuery(() => api.topologyGroups(accessToken), [accessToken]);
+  const groupsQuery = useApiQuery(() => api.topologyGroups(accessToken), [accessToken], { rememberAs: "topology.groups" });
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);

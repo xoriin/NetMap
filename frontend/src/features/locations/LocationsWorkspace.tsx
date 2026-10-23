@@ -22,7 +22,7 @@ export function LocationsWorkspace({
   onGraphChange: () => Promise<void>;
 }) {
   const confirmAction = useConfirm();
-  const sitesQuery = useApiQuery(() => api.sites(accessToken), [accessToken]);
+  const sitesQuery = useApiQuery(() => api.sites(accessToken), [accessToken], { rememberAs: "locations.sites" });
   const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const sitesLoading = sitesQuery.isLoading;
   const [formError, setFormError] = useState<string | null>(null);
