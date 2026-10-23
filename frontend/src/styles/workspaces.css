@@ -1608,7 +1608,7 @@ body.theme-dark .topology-overlay-label {
   background-clip: padding-box;
 }
 .inventory-table::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(29, 154, 176, 0.6);
+  background-color: var(--nm-scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
@@ -1720,7 +1720,7 @@ body.theme-dark .topology-overlay-label {
   transition: background 0.12s;
 }
 
-.inventory-col-resize-handle:hover { background: rgba(29, 154, 176, 0.35); }
+.inventory-col-resize-handle:hover { background: var(--nm-resize-handle-hover); }
 .inventory-col-resize-handle:active { background: rgba(29, 154, 176, 0.55); }
 
 /* Grip affordance so it reads as draggable rather than a stray edge. */

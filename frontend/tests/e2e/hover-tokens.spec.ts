@@ -32,6 +32,7 @@ const AREAS: [string, string[]][] = [
   ["rows and list items", [".loc-item", ".notif-method-card", ".inventory-row:hover", ".security-row-group"]],
   ["tabs and navigation", [".inv-filter-tab", ".tools-nav-item", ".admin-tab-btn", ".auth-forgot-link", ".notif-apprise-details", ".dash-nav-btn"]],
   ["sidebar links and controls", [".sidebar-link", ".sidebar-admin-link", ".sidebar-collapse-btn--footer"]],
+  ["drag handles, scrollbars and drop zones", [".mon-col-resize-handle", ".inventory-col-resize-handle", ".inventory-table::-webkit-scrollbar-thumb", ".import-dropzone"]],
 ];
 
 for (const [area, classes] of AREAS) {
@@ -39,3 +40,9 @@ for (const [area, classes] of AREAS) {
     expect(rawTealIn(await hoverRules(page), classes)).toEqual([]);
   });
 }
+
+test("no hover rule uses raw teal except the shared tone glows", async ({ page }) => {
+  const glows = [".dash-stat--teal", ".overview-nav-card", ".topo-entity-row"];
+  const offenders = (await hoverRules(page)).filter((rule) => RAW_TEAL.test(rule.css) && !glows.some((name) => rule.selector.includes(name)));
+  expect(offenders.map((rule) => rule.selector)).toEqual([]);
+});

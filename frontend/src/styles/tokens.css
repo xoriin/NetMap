@@ -141,6 +141,7 @@
   --nm-dropdown-hover-border: rgba(29, 154, 176, 0.6);
   --nm-scrollbar-thumb: rgba(47, 68, 91, 0.38);
   --nm-scrollbar-thumb-hover: rgba(29, 154, 176, 0.8);
+  --nm-resize-handle-hover: rgba(29, 154, 176, 0.35);
   /* Zebra banding for tree tables. Deliberately weaker than --nm-row-hover so hover
      still reads on a banded row, and --alt-soft is weaker again for nested rows. */
   --nm-row-alt: rgba(15, 23, 42, 0.035);
