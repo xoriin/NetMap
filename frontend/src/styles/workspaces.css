@@ -2316,7 +2316,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
   min-width: 0;
 }
 .loc-item:last-child { border-bottom: none; }
-.loc-item:hover { background: rgba(29, 154, 176, 0.04); }
+.loc-item:hover { background: var(--nm-row-hover); }
 .loc-item--selected { background: rgba(29, 154, 176, 0.08); }
 .loc-item--unassigned { cursor: default; opacity: 0.7; }
 .loc-item--unassigned:hover { background: transparent; }
@@ -2779,8 +2779,8 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .notif-method-card:hover {
-  background: rgba(29, 154, 176, 0.08);
-  border-color: rgba(29, 154, 176, 0.35);
+  background: var(--nm-row-hover);
+  border-color: var(--nm-border-strong);
 }
 
 .notif-method-card--selected {

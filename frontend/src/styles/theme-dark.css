@@ -481,7 +481,7 @@ body.theme-dark .notif-method-card {
   border-color: rgba(77, 184, 204, 0.15);
 }
 body.theme-dark .notif-method-card:hover {
-  background: rgba(29, 154, 176, 0.1);
+  background: var(--nm-row-hover);
   border-color: rgba(77, 184, 204, 0.3);
 }
 body.theme-dark .notif-method-card--selected {
@@ -842,7 +842,7 @@ body.theme-dark .topology-toolbar-right button:hover:not(:disabled) {
 }
 
 body.theme-dark .security-row-group:hover {
-  border-left-color: rgba(29, 154, 176, 0.25);
+  border-left-color: var(--nm-row-hover-edge);
 }
 
 body.theme-dark .inventory-row.active {
@@ -852,7 +852,7 @@ body.theme-dark .inventory-row.active {
 
 body.theme-dark .inventory-row:hover {
   background: var(--nm-row-hover);
-  border-left-color: rgba(29, 154, 176, 0.35);
+  border-left-color: var(--nm-row-hover-edge);
   box-shadow: inset 3px 0 0 rgba(58, 184, 202, 0.28);
 }
 
@@ -948,7 +948,7 @@ body.theme-dark .location-row--unassigned {
 }
 
 body.theme-dark .loc-item { border-bottom-color: color-mix(in srgb, var(--nm-border-strong) 60%, transparent); }
-body.theme-dark .loc-item:hover { background: rgba(29, 154, 176, 0.07); }
+body.theme-dark .loc-item:hover { background: var(--nm-row-hover); }
 body.theme-dark .loc-item--selected { background: rgba(29, 154, 176, 0.12); }
 body.theme-dark .loc-item-name { color: #d8eaf5; }
 body.theme-dark .loc-item-sub { color: var(--nm-text-faint); }
