@@ -354,9 +354,9 @@ test("page content stops at 1600px and stays centred while the top bar and Topol
     const box = node.getBoundingClientRect();
     return { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight), width: box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) };
   });
-  for (const route of ["/overview", "/ipam"]) {
+  for (const route of ["/overview", "/ipam", "/locations", "/monitoring", "/tools", "/security"]) {
     await page.goto(route);
-    await expect(page.locator(".nm-summary-band")).toBeVisible();
+    await expect(page.locator(".nm-summary-band").first()).toBeVisible({ timeout: 10_000 });
     const box = await contentBox();
     expect(box.width, route).toBe(1600);
     expect(Math.abs(box.left - box.right), route).toBeLessThanOrEqual(1);

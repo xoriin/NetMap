@@ -845,7 +845,6 @@ body.route-security .workspace {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x);
 }
 
 body.route-security .security-layout {
