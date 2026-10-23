@@ -882,6 +882,16 @@ body.theme-dark .tools-workspace .tool-output {
     min-height: 0;
   }
 
+  .tools-workspace .tools-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tools-workspace .tools-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .tools-workspace .tools-nav .tools-nav-item.nm-workspace-tab,
   body.theme-dark .tools-workspace .tools-nav .tools-nav-item.nm-workspace-tab {
     flex: 0 0 auto;

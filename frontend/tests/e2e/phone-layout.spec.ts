@@ -156,3 +156,15 @@ test("page header controls stay inside the header on a phone instead of covering
   expect(button.y + button.height).toBeLessThanOrEqual(header.y + header.height);
   expect((await page.locator(".dash-stats").boundingBox())!.y).toBeGreaterThanOrEqual(header.y + header.height);
 });
+
+test("Tools tabs sit in one swipeable row on a phone", async ({ page }) => {
+  await boot(page);
+  await page.goto("/tools");
+  const nav = page.locator(".tools-nav");
+  await expect(nav).toBeVisible();
+  const tabs = nav.locator(".tools-nav-item");
+  const [first, last] = [await tabs.first().boundingBox(), await tabs.last().boundingBox()];
+  expect(Math.abs(first!.y - last!.y)).toBeLessThan(2);
+  expect(await nav.evaluate((el) => getComputedStyle(el).overflowX)).toBe("auto");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});
