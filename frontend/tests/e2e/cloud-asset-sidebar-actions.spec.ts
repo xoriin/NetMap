@@ -20,13 +20,13 @@ async function expectOneRow(page:Page) {
 }
 
 for(const theme of ['light','dark'] as const) {
- test(`editable sidebar fields hover with the shared tab hover tint in ${theme}`,async({page})=>{
+ test(`editable sidebar fields hover with the neutral row hover in ${theme}`,async({page})=>{
   await open(page,theme,1440);
   await page.getByRole('button',{name:'Open Public server details'}).click();
   const field=page.locator('.inventory-device-sidebar dt:text-is("Inventory device") + dd');
   await field.hover();
   await expect.poll(async()=>field.evaluate(el=>{
-   const probe=document.createElement('span'); probe.style.background='var(--nm-tab-hover-bg)'; document.body.append(probe);
+   const probe=document.createElement('span'); probe.style.background='var(--nm-row-hover)'; document.body.append(probe);
    const want=getComputedStyle(probe).backgroundColor; probe.remove();
    return getComputedStyle(el).backgroundColor===want;
   })).toBe(true);

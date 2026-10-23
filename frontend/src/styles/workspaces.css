@@ -4185,7 +4185,7 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
 }
 
 .editable-dd:hover {
-  background: var(--nm-tab-hover-bg);
+  background: var(--nm-row-hover);
 }
 
 .details-inline-input {
