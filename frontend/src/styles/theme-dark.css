@@ -281,7 +281,7 @@ body.theme-dark .dash-empty-icon { background: rgba(29,154,176,0.08); color: var
 body.theme-dark .dash-empty-title { color: var(--nm-text-muted); }
 body.theme-dark .dash-empty-desc { color: var(--nm-text-faint); }
 body.theme-dark .dash-empty-action { background: rgba(29,154,176,0.1); border-color: rgba(29,154,176,0.2); color: #4db8cc; }
-body.theme-dark .dash-empty-action:hover { background: rgba(29,154,176,0.18); border-color: rgba(29,154,176,0.35); }
+body.theme-dark .dash-empty-action:hover { background: var(--nm-btn-hover-bg); border-color: var(--nm-btn-hover-border); }
 
 body.theme-dark .dash-donut-pct { color: var(--nm-text); }
 
@@ -462,8 +462,8 @@ body.theme-dark .notif-test-btn {
 }
 
 body.theme-dark .notif-test-btn:hover {
-  background: rgba(29, 154, 176, 0.1);
-  border-color: rgba(29, 154, 176, 0.4);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
 }
 
 body.theme-dark .notif-result.ok {

@@ -704,7 +704,7 @@ body.route-overview .dash-panel {
   height: auto;
 }
 
-.dash-empty-action:hover { background: rgba(29,154,176,0.16); border-color: rgba(29,154,176,0.32); }
+.dash-empty-action:hover { background: var(--nm-btn-hover-bg); border-color: var(--nm-btn-hover-border); }
 
 /* Health bars */
 .dash-health {

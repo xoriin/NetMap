@@ -3182,8 +3182,8 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .tool-form button:not(.nm-btn):hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.22);
-  border-color: rgba(29, 154, 176, 0.6);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
 }
 .tool-form button.ipam-btn {
   min-height: unset;
