@@ -246,7 +246,12 @@ export async function setupExternalIps(page: Page, options: ExternalOptions = {}
     if ("error" in expanded) {
       return route.fulfill({ status: 400, json: { detail: expanded.error } });
     }
-    const created = expanded.addresses.map((ip) => mockAddress({
+    const existing = new Set(state.addresses.map(address => address.ip_address));
+    const clash = expanded.addresses.find(ip => existing.has(ip));
+    if (clash && body.skip_existing !== true) {
+      return route.fulfill({ status: 409, json: { detail: `${clash} is already tracked` } });
+    }
+    const created = expanded.addresses.filter(ip => !existing.has(ip)).map((ip) => mockAddress({
       ...body,
       id: (nextId += 1),
       ip_address: ip,

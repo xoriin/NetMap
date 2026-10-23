@@ -457,9 +457,16 @@ export function ExternalIpPanel({
     };
     try {
       if (editing === "new") {
-        const created = await api.createExternalAddresses(accessToken, cleaned);
-        toast.success(created.length === 1 ? "External IP tracked" : `${created.length} external IPs tracked`);
-        if (addToInventory && !cleaned.device_id && created.length === 1) {
+        const created = await api.createExternalAddresses(accessToken, { ...cleaned, skip_existing: isRange });
+        const kept = isRange ? plannedCount - created.length : 0;
+        if (created.length === 0) {
+          toast.info(`All ${kept} addresses are already tracked; existing details kept`);
+        } else if (kept > 0) {
+          toast.success(`${created.length} external IP${created.length === 1 ? "" : "s"} added; ${kept} existing kept`);
+        } else {
+          toast.success(created.length === 1 ? "External IP tracked" : `${created.length} external IPs tracked`);
+        }
+        if (!isRange && addToInventory && !cleaned.device_id && created.length === 1) {
           const address = created[0];
           await startInventory(address);
         }
@@ -886,6 +893,7 @@ export function ExternalIpPanel({
                     {countHint ?? "One address, a CIDR, or a start–end range."}
                   </small>
                 )}
+                {isNew && isRange && <small>Existing addresses and their details are kept.</small>}
               </label>
               <label>Location
                 <PickOrCreate

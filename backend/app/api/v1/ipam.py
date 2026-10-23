@@ -811,15 +811,19 @@ def create_external_addresses(
     # to `device: null`, while a dangling location id orphans the address.
     _require_location(db, payload.location_id)
 
-    clash = (
-        db.query(ExternalIpAddress.ip_address)
-        .filter(ExternalIpAddress.ip_address.in_(addresses))
-        .first()
-    )
-    if clash:
-        raise HTTPException(status_code=409, detail=f"{clash[0]} is already tracked")
+    existing = set(db.scalars(
+        select(ExternalIpAddress.ip_address).where(ExternalIpAddress.ip_address.in_(addresses))
+    ).all())
+    if existing and not payload.skip_existing:
+        clash = next(address for address in addresses if address in existing)
+        raise HTTPException(status_code=409, detail=f"{clash} is already tracked")
 
+    # Decide single-address metadata from the requested shape, not the number
+    # remaining after overlap removal. Existing rows are never updated/recreated.
     single = len(addresses) == 1
+    addresses = [address for address in addresses if address not in existing]
+    if not addresses:
+        return []
     rows = [
         ExternalIpAddress(
             ip_address=address,
@@ -835,7 +839,13 @@ def create_external_addresses(
         for address in addresses
     ]
     db.add_all(rows)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # A concurrent request may have claimed an address after the read.
+        # Roll back the entire batch and let the operator retry safely.
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An address was added by another request. Retry to refresh the range.") from exc
     for row in rows:
         db.refresh(row)
     devices = _devices_by_id(db, rows)

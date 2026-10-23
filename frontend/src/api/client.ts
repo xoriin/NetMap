@@ -2233,7 +2233,7 @@ export const api = {
     return request<ExternalIpAddress[]>(`/api/v1/ipam/external/addresses${q ? `?${q}` : ""}`, { token });
   },
   // Returns an array: one request can expand a CIDR or range into many addresses.
-  createExternalAddresses: (token: string, payload: ExternalIpAddressPayload) =>
+  createExternalAddresses: (token: string, payload: ExternalIpAddressPayload & { skip_existing?: boolean }) =>
     request<ExternalIpAddress[]>("/api/v1/ipam/external/addresses", { method: "POST", token, body: JSON.stringify(payload) }),
   updateExternalAddress: (token: string, id: number, payload: Partial<ExternalIpAddressPayload>) =>
     request<ExternalIpAddress>(`/api/v1/ipam/external/addresses/${id}`, { method: "PATCH", token, body: JSON.stringify(payload) }),

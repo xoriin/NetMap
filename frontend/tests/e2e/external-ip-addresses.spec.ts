@@ -564,3 +564,84 @@ test("clicking outside the Location menu closes it", async ({ page }) => {
   await dialog.getByLabel("Address or range").click();
   await expect(dialog.getByRole("listbox")).toHaveCount(0);
 });
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  for (const width of [1600, 390]) {
+    test(`#53 extends /26 to /24 without replacing details in ${style} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const original = Array.from({ length: 62 }, (_, index) => mockAddress({
+        id: index + 1, ip_address: `203.0.113.${index + 1}`, location_id: 1,
+        label: index === 0 ? "Production gateway with a long descriptive name" : `Existing ${index + 1}`,
+        status: index === 0 ? "in_use" : index === 1 ? "reserved" : "available",
+        device_id: index === 0 ? 77 : null, owner: "Network operations", url: "https://example.com",
+        tags: "critical,public", notes: "Do not overwrite", device: index === 0 ? { id: 77, hostname: "edge" } : null,
+      }));
+      const errors: string[] = [];
+      page.on("pageerror", error => errors.push(error.message));
+      page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+      page.on("response", response => { if (response.url().includes("/api/") && response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+      const state = await setupExternalIps(page, {
+        addresses: original, locations: [SYDNEY], theme: style === "light" ? "light" : "dark",
+        beforeGoto: async () => { await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style === "zinc" ? "zinc" : "slate"); },
+      });
+      await page.getByRole("button", { name: "Add external IP" }).first().click();
+      const dialog = addModal(page);
+      await dialog.getByLabel("Address or range").fill("203.0.113.0/24");
+      await expect(dialog.getByText("Existing addresses and their details are kept.")).toBeVisible();
+      await expect(dialog.getByLabel("Status")).toHaveValue("available");
+      await expect(dialog.getByRole("button", { name: "Add 254 addresses" })).toBeEnabled();
+      const overflows = await dialog.evaluate(node => node.scrollWidth > node.clientWidth + 1);
+      expect(overflows).toBe(false);
+      if (process.env.NETMAP_53_SCREENSHOTS) await page.screenshot({ path: `/tmp/netmap-53-${style}-${width}.png`, fullPage: true });
+      await dialog.getByRole("button", { name: "Add 254 addresses" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByText("192 external IPs added; 62 existing kept", { exact: true })).toBeVisible();
+      expect(state.addressPosts[0].skip_existing).toBe(true);
+      expect(state.addresses).toHaveLength(254);
+      expect(state.addresses.filter(address => address.id <= 62)).toEqual(original);
+      expect(state.addressPatches).toEqual([]);
+      expect(state.addresses.filter(address => address.id > 62).every(address => address.status === "available" && address.device_id === null)).toBe(true);
+      await page.getByRole("button", { name: "Add external IP" }).first().click();
+      await dialog.getByLabel("Address or range").fill("203.0.113.0/24");
+      await dialog.getByRole("button", { name: "Add 254 addresses" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByText("All 254 addresses are already tracked; existing details kept", { exact: true })).toBeVisible();
+      expect(state.addresses).toHaveLength(254);
+      expect(state.addresses.filter(address => address.id <= 62)).toEqual(original);
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
+test("#53 range failure keeps the form and existing records intact", async ({ page }) => {
+  const original = mockAddress({ label: "Keep this purpose", notes: "Keep these notes" });
+  const state = await setupExternalIps(page, { addresses: [original], beforeGoto: async page => {
+    await page.route("**/api/v1/ipam/external/addresses", route => route.request().method() === "POST"
+      ? route.fulfill({ status: 409, json: { detail: "An address was added by another request. Retry to refresh the range." } })
+      : route.fallback());
+  } });
+  await page.getByRole("button", { name: "Add external IP" }).first().click();
+  const dialog = addModal(page);
+  await dialog.getByLabel("Address or range").fill("203.0.113.0/24");
+  await dialog.getByRole("button", { name: "Add 254 addresses" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("An address was added by another request. Retry to refresh the range.")).toBeVisible();
+  await expect(dialog.getByLabel("Address or range")).toHaveValue("203.0.113.0/24");
+  expect(state.addresses).toEqual([original]);
+});
+
+test("#53 a range with one missing address does not inherit single-address Inventory creation", async ({ page }) => {
+  const state = await setupExternalIps(page, { addresses: [mockAddress({ ip_address: "203.0.113.1" })] });
+  await page.getByRole("button", { name: "Add external IP" }).first().click();
+  const dialog = addModal(page);
+  await dialog.getByLabel("Address or range").fill("203.0.113.8");
+  await dialog.getByRole("switch", { name: "Also add to Inventory and Monitoring" }).click();
+  await dialog.getByLabel("Address or range").fill("203.0.113.0/30");
+  await expect(dialog.getByRole("switch", { name: "Also add to Inventory and Monitoring" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Add 2 addresses" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText("1 external IP added; 1 existing kept", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Add device", exact: true })).toHaveCount(0);
+  expect(state.addresses).toHaveLength(2);
+  expect(state.addressPatches).toEqual([]);
+});

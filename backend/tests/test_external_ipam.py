@@ -339,3 +339,131 @@ def test_saved_cloud_resource_api_requires_auth_and_write_permission(session):
     assert response.json()[0]["name"] == "Visible to Inventory readers"
     assert client.post("/ipam/external/assets", json={"name": "Denied"}).status_code == 403
     assert session.query(CloudAsset).count() == 1
+
+
+def test_extend_cidr_preserves_every_existing_record_and_relationship(session):
+    """#53: correct /26 to /24 without recreating edited or linked addresses."""
+    session.add_all([
+        ExternalLocation(id=1, name="Original location"),
+        ExternalLocation(id=2, name="New addresses"),
+        Device(id=1, hostname="edge", ip_address="10.0.0.1", status="active"),
+    ])
+    session.commit()
+    original = create_external_addresses(
+        ExternalIpAddressCreate(ip_address="203.0.113.0/26", status="available", location_id=1),
+        db=session, user=_writer(),
+    )
+    update_external_address(original[0].id, ExternalIpAddressUpdate(
+        device_id=1, status="in_use", label="Production edge", url="https://edge.example.com",
+        owner="Operations", tags="critical,public", notes="Keep these details",
+    ), db=session, user=_writer())
+    update_external_address(original[1].id, ExternalIpAddressUpdate(status="reserved"), db=session, user=_writer())
+    before = {row.id: row.model_dump() for row in list_external_addresses(db=session, user=_reader(), status=None, location_id=None)}
+    created = create_external_addresses(
+        ExternalIpAddressCreate(ip_address="203.0.113.0/24", skip_existing=True, status="available", location_id=2, tags="new", notes="New only"),
+        db=session, user=_writer(),
+    )
+    assert len(created) == 192
+    assert all(row.location_id == 2 and row.status == "available" and row.tags == "new" for row in created)
+    after = list_external_addresses(db=session, user=_reader(), status=None, location_id=None)
+    assert len(after) == 254
+    assert {row.id: row.model_dump() for row in after if row.id in before} == before
+    assert session.get(Device, 1).hostname == "edge"
+    # Repeating the operation is a no-op, including timestamps and metadata.
+    snapshot = {row.id: row.model_dump() for row in after}
+    assert create_external_addresses(
+        ExternalIpAddressCreate(ip_address="203.0.113.0/24", skip_existing=True, status="reserved", location_id=1),
+        db=session, user=_writer(),
+    ) == []
+    assert {row.id: row.model_dump() for row in list_external_addresses(db=session, user=_reader(), status=None, location_id=None)} == snapshot
+
+
+@pytest.mark.parametrize("existing,expanded,count", [
+    ("203.0.113.1", "203.0.113.1-203.0.113.4", 3),
+    ("2001:db8::1", "2001:db8::/126", 2),
+    ("2001:db8::1", "2001:db8::1-2001:db8::4", 3),
+])
+def test_extend_range_preserves_overlaps_for_both_address_families(session, existing, expanded, count):
+    old = create_external_addresses(ExternalIpAddressCreate(ip_address=existing, label="Keep"), db=session, user=_writer())[0]
+    result = create_external_addresses(ExternalIpAddressCreate(ip_address=expanded, skip_existing=True, status="available"), db=session, user=_writer())
+    assert len(result) == count
+    assert session.get(ExternalIpAddress, old.id).label == "Keep"
+    assert session.query(ExternalIpAddress).count() == count + 1
+
+
+def test_range_conflict_is_still_atomic_without_opt_in(session):
+    create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.2"), db=session, user=_writer())
+    with pytest.raises(HTTPException) as error:
+        create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.0/29"), db=session, user=_writer())
+    assert error.value.status_code == 409
+    assert session.query(ExternalIpAddress).count() == 1
+
+
+def test_preserve_existing_does_not_bypass_cap_or_location_validation(session):
+    create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.1", label="Keep"), db=session, user=_writer())
+    for payload in [
+        ExternalIpAddressCreate(ip_address="203.0.112.0/23", skip_existing=True),
+        ExternalIpAddressCreate(ip_address="203.0.113.0/29", skip_existing=True, location_id=999),
+    ]:
+        with pytest.raises(HTTPException) as error:
+            create_external_addresses(payload, db=session, user=_writer())
+        assert error.value.status_code in {404, 422}
+    assert session.query(ExternalIpAddress).count() == 1
+
+
+def test_extension_integrity_race_rolls_back_entire_batch(session):
+    from sqlalchemy.exc import IntegrityError
+
+    old = create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.1", label="Keep"), db=session, user=_writer())[0]
+
+    def conflict(*_):
+        raise IntegrityError("INSERT", {}, Exception("UNIQUE constraint failed"))
+
+    event.listen(session, "before_flush", conflict)
+    try:
+        with pytest.raises(HTTPException) as error:
+            create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.0/29", skip_existing=True), db=session, user=_writer())
+        assert error.value.status_code == 409
+    finally:
+        event.remove(session, "before_flush", conflict)
+    assert session.query(ExternalIpAddress).count() == 1
+    assert session.get(ExternalIpAddress, old.id).label == "Keep"
+
+
+def test_extension_with_one_missing_address_still_uses_range_metadata_rules(session):
+    create_external_addresses(ExternalIpAddressCreate(ip_address="203.0.113.1"), db=session, user=_writer())
+    created = create_external_addresses(ExternalIpAddressCreate(
+        ip_address="203.0.113.0/30", skip_existing=True,
+        device_id=999, label="Not for every address", url="https://example.com", owner="Not shared",
+    ), db=session, user=_writer())
+    assert len(created) == 1
+    assert created[0].ip_address == "203.0.113.2"
+    assert created[0].device_id is None
+    assert created[0].label is None
+    assert created[0].url is None
+    assert created[0].owner is None
+
+
+def test_extension_api_keeps_permission_checks_and_returns_only_new_rows(session):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.deps import get_current_user
+    from app.api.v1.ipam import router
+    from app.db.session import get_db
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = _reader
+    with TestClient(app) as client:
+        denied = client.post("/ipam/external/addresses", json={"ip_address": "203.0.113.0/29", "skip_existing": True})
+        assert denied.status_code == 403
+        assert session.query(ExternalIpAddress).count() == 0
+        app.dependency_overrides[get_current_user] = _writer
+        payload = {"ip_address": "203.0.113.0/29", "skip_existing": True, "status": "available"}
+        added = client.post("/ipam/external/addresses", json=payload)
+        assert added.status_code == 201
+        assert len(added.json()) == 6
+        repeated = client.post("/ipam/external/addresses", json=payload)
+        assert repeated.status_code == 201
+        assert repeated.json() == []

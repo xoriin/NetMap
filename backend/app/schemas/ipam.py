@@ -227,6 +227,7 @@ class ExternalIpAddressBase(BaseModel):
 
 class ExternalIpAddressCreate(ExternalIpAddressBase):
     ip_address: str = Field(min_length=1, max_length=128)
+    skip_existing: bool = Field(default=False, description="Add only missing addresses; leave existing records unchanged")
 
 
 class ExternalIpAddressUpdate(ExternalIpAddressBase):
