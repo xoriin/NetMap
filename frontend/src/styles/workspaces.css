@@ -4742,7 +4742,7 @@ body.theme-dark .mon-device-picker {
 }
 
 body.theme-dark .ep-search-row {
-  background: var(--nm-surface);
+  background: var(--nm-modal-input);
   border-bottom-color: var(--nm-border);
 }
 body.theme-dark .ep-search-icon { color: var(--nm-text-faint); }

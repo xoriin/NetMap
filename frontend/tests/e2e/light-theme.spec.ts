@@ -168,7 +168,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(148, 163, 184, 0.18)"]] as const) {
+for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgb(52, 67, 91)"]] as const) {
   test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
@@ -176,7 +176,10 @@ for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgba(14
     await page.goto("/overview");
     const tracks = page.locator(".dash-health-track, .dash-mini-track");
     await expect(tracks.first()).toBeVisible();
-    for (const track_ of await tracks.all()) await expect(track_).toHaveCSS("background-color", track);
+    for (const track_ of await tracks.all()) {
+      const health = await track_.evaluate(node => node.classList.contains("dash-health-track"));
+      await expect(track_).toHaveCSS("background-color", theme === "dark" && health ? "rgb(48, 65, 90)" : track);
+    }
   });
 }
 

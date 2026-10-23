@@ -894,3 +894,13 @@ for (const theme of ["light", "dark"] as const) {
     await page.screenshot({path:`/tmp/netmap-handoff-ipam-detail-${theme}.png`});
   });
 }
+
+for (const style of ["slate", "zinc"] as const) {
+  test(`Shared dark capacity tracks match distribution bars in ${style}`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style);
+    await setupIpam(page);
+    await expect(page.locator(".ipam-util-bar").first()).toHaveCSS("background-color", style === "slate" ? "rgb(52, 67, 91)" : "rgb(63, 63, 70)");
+    await expect(page.locator(".ipam-util-pct").first()).toHaveCSS("color", "rgb(254, 254, 254)");
+    await page.screenshot({ path: `/tmp/shared-bars-${style}-ipam.png`, fullPage: true });
+  });
+}

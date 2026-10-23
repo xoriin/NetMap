@@ -730,7 +730,7 @@ body.route-overview .dash-panel {
 .dash-health-track {
   height: 6px;
   border-radius: 99px;
-  background: var(--nm-track-bg);
+  background: var(--nm-health-track-bg);
   overflow: hidden;
 }
 

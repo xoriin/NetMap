@@ -26,6 +26,6 @@ test('light-mode inputs and popup sections use the softened near-white surface',
 
 test('dark-mode inputs keep their dark surfaces',async({page})=>{
  await openProfile(page,'dark');
- expect(await resolve(page,'--nm-modal-input')).toBe(await resolve(page,'--nm-shell'));
+ expect(await resolve(page,'--nm-modal-input')).toBe('rgb(18, 22, 36)');
  expect(await resolve(page,'--nm-popup-section-bg')).toBe('rgb(22, 32, 51)');
 });

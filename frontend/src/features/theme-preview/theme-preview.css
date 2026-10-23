@@ -2329,3 +2329,7 @@ body.theme-dark .theme-lab-review-section:first-of-type .theme-lab-panel {
 body.theme-dark .theme-lab-review-section:first-of-type .theme-lab-panel-header {
   background: var(--nm-module-header-bg);
 }
+
+/* Neutral bar tracks share the application dark palette. */
+body.theme-dark .theme-lab-progress,
+body.theme-dark .theme-lab-progress-track { background: var(--nm-track-bg); }

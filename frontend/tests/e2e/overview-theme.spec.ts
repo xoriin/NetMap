@@ -265,3 +265,22 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".dash-alert--overview-bar")).toHaveCount(0);
   });
 }
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`Shared bar tracks and labels use the approved brightness in ${style}`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style === "zinc" ? "zinc" : "slate");
+    await setupOverview(page, style === "light" ? "light" : "dark");
+    const health = style === "light" ? "rgb(211, 211, 211)" : style === "slate" ? "rgb(48, 65, 90)" : "rgb(59, 59, 67)";
+    const distribution = style === "light" ? health : style === "slate" ? "rgb(52, 67, 91)" : "rgb(63, 63, 70)";
+    for (const width of [1600, 820, 430]) {
+      await page.setViewportSize({ width, height: 1100 });
+      for (const track of await page.locator(".dash-health-track").all()) await expect(track).toHaveCSS("background-color", health);
+      for (const track of await page.locator(".dash-mini-track").all()) await expect(track).toHaveCSS("background-color", distribution);
+      if (style !== "light") {
+        for (const label of await page.locator(".dash-health-label, .dash-breakdown-label").all()) await expect(label).toHaveCSS("color", "rgb(254, 254, 254)");
+      }
+      await page.screenshot({ path: `/tmp/shared-bars-${style}-${width}.png`, fullPage: true });
+    }
+    await expect(page.locator(".overview-fav-search input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  });
+}

@@ -33,7 +33,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".exports-panel-header").nth(1)).toContainText("Network report");
     await expect(page.locator(".exports-panel-header").nth(2)).toContainText("Firewall events");
     await expect(page.locator(".exports-panel-header").first()).toHaveCSS("min-height", "44px");
-    await expect(page.locator(".exports-panel .nm-input").first()).toHaveCSS("background-color", theme === "dark" ? "rgb(2, 6, 23)" : "rgb(254, 254, 254)");
+    await expect(page.locator(".exports-panel .nm-input").first()).toHaveCSS("background-color", theme === "dark" ? "rgb(18, 22, 36)" : "rgb(254, 254, 254)");
   });
 }
 

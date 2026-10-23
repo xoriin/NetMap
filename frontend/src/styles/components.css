@@ -803,7 +803,7 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
   width: 100%;
   border: 1px solid var(--nm-border);
   border-radius: var(--nm-radius-md);
-  background: var(--nm-surface);
+  background: var(--nm-modal-input);
   color: var(--nm-text);
   font-size: var(--nm-text-md);
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -824,7 +824,7 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
   align-items: center;
   border: 1px solid var(--nm-border);
   border-radius: var(--nm-radius-md);
-  background: var(--nm-surface);
+  background: var(--nm-input-surface);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 

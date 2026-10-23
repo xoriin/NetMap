@@ -931,7 +931,7 @@ body.theme-dark .scan-schedule-form label {
 body.theme-dark .scan-schedule-form input:not([type="checkbox"]),
 body.theme-dark .scan-schedule-form select {
   border-color: var(--nm-border-strong);
-  background: var(--nm-surface-soft);
+  background: var(--nm-modal-input);
   color: var(--nm-text);
 }
 
@@ -972,11 +972,11 @@ body.theme-dark .profile-field-label {
 body.theme-dark .profile-input {
   border-color: var(--nm-border-strong);
   color: var(--nm-text);
-  background: var(--nm-surface-soft);
+  background: var(--nm-modal-input);
 }
 
 body.theme-dark .profile-input:disabled {
-  background: var(--nm-surface-soft);
+  background: var(--nm-modal-input);
   color: var(--nm-text-faint);
 }
 
@@ -1634,7 +1634,7 @@ body.theme-dark .mon-ports-form-col { border-right-color: var(--nm-border); }
 .mon-ports-form-col .ep-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
 .mon-ports-form-col .ep-search { background: transparent; border: none; border-radius: 5px; padding: 7px 10px 7px 28px; width: 100%; box-sizing: border-box; }
 .mon-ports-form-col .ep-list { margin-top: 8px; }
-body.theme-dark .mon-ports-form-col .ep-search-row { background: var(--nm-shell); border-color: var(--nm-border-strong); }
+body.theme-dark .mon-ports-form-col .ep-search-row { background: var(--nm-modal-input); border-color: var(--nm-border-strong); }
 body.theme-dark .mon-ports-form-col .ep-search { color: #d8eaf5; }
 .mon-ports-list-col {
   flex: 1;
@@ -1667,7 +1667,7 @@ body.theme-dark .mon-ports-field-label { color: var(--nm-text-faint); }
   width: 100%;
   box-sizing: border-box;
 }
-body.theme-dark .mon-ports-input { background: var(--nm-shell); border-color: var(--nm-border-strong); color: #d8eaf5; }
+body.theme-dark .mon-ports-input { background: var(--nm-modal-input); border-color: var(--nm-border-strong); color: #d8eaf5; }
 .mon-ports-range-row {
   display: flex;
   align-items: center;
@@ -2273,7 +2273,7 @@ body.theme-dark .mon-detail-stat + .mon-detail-stat { border-color: var(--nm-bor
 body.theme-dark .mon-detail-stat-val { color: #d8eaf5; }
 body.theme-dark .mon-port-label { color: #d8eaf5; }
 body.theme-dark .mon-hours-select { background: var(--nm-border-strong); border-color: var(--nm-btn-secondary-border); color: var(--nm-text-muted); }
-body.theme-dark .mon-port-input { background: var(--nm-border-strong); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
+body.theme-dark .mon-port-input { background: var(--nm-modal-input); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
 body.theme-dark .mon-port-chip { background: rgba(29,154,176,0.1); color: var(--nm-text-muted); border-color: rgba(29,154,176,0.25); }
 body.theme-dark .mon-port-chip-port { color: var(--nm-text-faint); }
 body.theme-dark .mon-uptime-good { background: rgba(45,186,124,0.15); color: #4dcf96; }
@@ -2817,10 +2817,10 @@ body.theme-dark .ipam-vlan-sync-label { color: var(--nm-text-muted); }
 
 /* Dark theme */
 body.theme-dark .ipam-cidr { color: var(--nm-text-muted); background: rgba(29,154,176,0.1); }
-body.theme-dark .ipam-util-bar { background: rgba(29,154,176,0.08); }
-body.theme-dark .ipam-util-pct { color: var(--nm-text-muted); }
+body.theme-dark .ipam-util-bar { background: var(--nm-track-bg); }
+body.theme-dark .ipam-util-pct { color: var(--nm-chart-label); }
 body.theme-dark .ipam-conflict-desc { color: #d8eaf5; }
-body.theme-dark .ipam-form-input { background: var(--nm-border-strong); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
+body.theme-dark .ipam-form-input { background: var(--nm-modal-input); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
 body.theme-dark .ipam-reservation-filter { color: var(--nm-text-muted); }
 body.theme-dark .ipam-addr-tab { color: var(--nm-text-faint); }
 body.theme-dark .ipam-addr-tab:hover { color: #d8eaf5; }
@@ -2831,7 +2831,7 @@ body.theme-dark .ipam-kind-badge--dhcp     { background: rgba(59,128,208,0.15); 
 body.theme-dark .ipam-kind-badge--gateway  { background: rgba(245,158,11,0.15);  color: #e0b060; }
 body.theme-dark .ipam-kind-badge--reserved { background: rgba(17,94,89,0.15);  color: #0d9488; }
 body.theme-dark .ipam-kind-badge--free     { background: color-mix(in srgb, var(--nm-text-muted) 8%, transparent); color: var(--nm-text-faint); }
-body.theme-dark .ipam-lease-textarea { background: var(--nm-modal-header); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
+body.theme-dark .ipam-lease-textarea { background: var(--nm-modal-input); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
 body.theme-dark .ipam-dhcp-range-pill { background: var(--nm-shell); border: 1.5px solid color-mix(in srgb, var(--nm-text-faint) 30%, transparent); color: var(--nm-text-muted); box-shadow: none; }
 body.theme-dark .ipam-dhcp-range-pill code { color: var(--nm-text-muted); }
 body.theme-dark .ipam-grid-cell { border-color: rgba(255,255,255,0.06); }

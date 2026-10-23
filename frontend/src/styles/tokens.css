@@ -46,8 +46,11 @@
   --nm-module-body-bg: var(--nm-modal-section);
   --nm-panel-body-bg: #f7f7f7;
   --nm-track-bg: #d3d3d3;
+  --nm-health-track-bg: var(--nm-track-bg);
+  --nm-chart-label: var(--nm-text-muted);
   --nm-favourite: #e8b840;
   --nm-input-surface: #fefefe;
+  --nm-textarea-surface: var(--nm-input-surface);
   --nm-tone-teal-deep: #2b7a88;
   --nm-tone-green-deep: #2f7a63;
   --nm-tone-red-deep: #a84848;

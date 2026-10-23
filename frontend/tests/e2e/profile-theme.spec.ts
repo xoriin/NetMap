@@ -65,7 +65,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".profile-key-mask").nth(1)).toHaveText("•••• •••• •••• ••••");
     await expect(page.locator(".profile-panel .nm-input").first()).toHaveCSS(
       "background-color",
-      theme === "dark" ? "rgb(2, 6, 23)" : "rgb(254, 254, 254)",
+      theme === "dark" ? "rgb(18, 22, 36)" : "rgb(254, 254, 254)",
     );
   });
 }

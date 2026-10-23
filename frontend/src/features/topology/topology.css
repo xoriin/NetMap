@@ -854,7 +854,7 @@ body.theme-dark .topo-entity-list {
 .topo-entity-search-wrap,
 body.theme-dark .topo-entity-search-wrap {
   border-bottom-color: var(--nm-border);
-  background: var(--nm-modal-header);
+  background: var(--nm-modal-input);
 }
 
 .topo-entity-search,

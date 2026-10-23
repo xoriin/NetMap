@@ -328,3 +328,20 @@ test("workspace panel headers use the canonical height, inset, and icon well", a
     }
   }
 });
+
+for (const style of ["slate", "zinc"] as const) {
+  test(`Shared dark editable fields keep one surface across workspaces in ${style}`, async ({ page }) => {
+    await setupWorkspaceMocks(page, "dark");
+    await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style);
+    const expected = style === "slate" ? "rgb(18, 22, 36)" : "rgb(22, 22, 24)";
+    for (const route of ["/overview", "/inventory", "/locations", "/tools", "/security", "/exports", "/admin#system", "/profile"]) {
+      await page.goto(route);
+      await expect(page.locator(".workspace > :last-child")).toBeVisible();
+      const mismatches = await page.locator('.workspace input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="range"]):not([type="hidden"]):visible').evaluateAll((fields, colour) => fields.flatMap(field => {
+        const bg = getComputedStyle(field).backgroundColor;
+        return bg === colour || bg === "rgba(0, 0, 0, 0)" ? [] : [{ field: field.outerHTML.slice(0, 160), background: bg }];
+      }), expected);
+      expect(mismatches, route).toEqual([]);
+    }
+  });
+}

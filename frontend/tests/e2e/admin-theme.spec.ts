@@ -1294,3 +1294,32 @@ for (const style of ["light", "slate", "zinc"] as const) {
     expect(logouts).toBe(1);
   });
 }
+
+for (const style of ["slate", "zinc"] as const) {
+  test(`Shared dark field surfaces stay consistent in ${style}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.route("**/api/v1/exports/summary", route => route.fulfill({ json: { inventory_rows: 1, firewall_events: 0, exports_last_30_days: 0, last_export_at: null, last_export_type: null, last_export_detail: null } }));
+    await page.addInitScript(value => {
+      localStorage.setItem("netmap.theme", "dark"); localStorage.setItem("netmap.dark_style", value);
+    }, style);
+    const inputColour = style === "slate" ? "rgb(18, 22, 36)" : "rgb(22, 22, 24)";
+    const textareaColour = style === "slate" ? "rgb(10, 14, 31)" : "rgb(14, 14, 18)";
+    await page.goto("/admin#system");
+    const input = page.locator('.admin-task-body input:not([type="checkbox"]):not([type="color"]):not([type="file"]):visible').first();
+    const textarea = page.locator(".admin-task-body textarea:visible").first();
+    for (const [field, colour] of [[input, inputColour], [textarea, textareaColour]] as const) {
+      await expect(field).toHaveCSS("background-color", colour);
+      await field.hover(); await expect(field).toHaveCSS("background-color", colour);
+      await field.focus(); await expect(field).toHaveCSS("background-color", colour);
+    }
+    await page.screenshot({ path: `/tmp/shared-fields-${style}-admin.png`, fullPage: true });
+    await page.goto("/exports");
+    await expect(page.getByLabel("Source IP")).toHaveCSS("background-color", inputColour);
+    await page.getByLabel("Source IP").focus();
+    await expect(page.getByLabel("Source IP")).toHaveCSS("background-color", inputColour);
+    await page.goto("/overview");
+    await page.getByRole("button", { name: "+ Device", exact: true }).first().click();
+    await expect(page.locator(".modal textarea").first()).toHaveCSS("background-color", textareaColour);
+    await expect(page.locator('.modal input:not([type="checkbox"]):not([type="color"]):visible').first()).toHaveCSS("background-color", inputColour);
+  });
+}
