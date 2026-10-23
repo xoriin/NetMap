@@ -255,3 +255,39 @@ test('linked addresses, unlinked addresses and retained resources replace one de
  await page.getByRole('button',{name:'Close asset overview'}).click();
  await expect(page.locator('.topology-content.details-open')).toHaveCount(0);
 });
+
+for (const theme of ['light','dark'] as const) {
+ test(`Cloud assets and Devices share the same neutral hover treatment in ${theme}`, async ({page}) => {
+  await page.setViewportSize({width:1600,height:900});
+  await setupExternalIps(page,{theme,devices:Array.from({length:30},(_,i)=>mockDevice({id:i+1,hostname:`host-${i+1}`,ip_address:`10.0.0.${i+1}`})),
+   addresses:Array.from({length:30},(_,i)=>mockAddress({id:i+1,ip_address:`8.8.8.${i+1}`,label:`Endpoint ${i+1}`}))});
+  await page.route('**/api/v1/admin/device-types', route=>route.fulfill({json:[]}));
+  const token = (name:string) => page.evaluate(variable=>{ const probe=document.createElement('i'); probe.style.color=`var(${variable})`; document.body.append(probe); const value=getComputedStyle(probe).color; probe.remove(); return value; }, name);
+  const hovered = async (selector:string) => {
+   const el=page.locator(selector).first();
+   await el.hover();
+   await page.waitForTimeout(250);
+   const style=await el.evaluate(node=>{ const s=getComputedStyle(node); return {background:s.backgroundColor,color:s.color,border:s.borderTopColor}; });
+   await page.mouse.move(0,0);
+   return style;
+  };
+  const read = async () => {
+   const next=await hovered('.inv-pagination-btn:not(:disabled)');
+   await page.locator('.inventory-row:not(.inventory-table-header)').first().click();
+   const field=await hovered('.editable-dd');
+   const add=await page.locator('.inventory-panel-header .nm-btn--primary:visible').first().evaluate(node=>({height:getComputedStyle(node).height,radius:getComputedStyle(node).borderRadius}));
+   return {next,field,add};
+  };
+  await page.goto('/inventory#devices');
+  await page.locator('.inventory-row:not(.inventory-table-header)').first().waitFor();
+  const devices=await read();
+  await page.goto('/inventory#cloud-assets');
+  await page.locator('[data-cloud-record]').first().waitFor();
+  const cloud=await read();
+  expect(cloud).toEqual(devices);
+  const tabHoverBg=await token('--nm-tab-hover-bg');
+  expect([cloud.next.background, cloud.field.background]).not.toContain(tabHoverBg);
+  expect(cloud.next).toEqual({background:await token('--nm-btn-hover-bg'),color:await token('--nm-btn-hover-text'),border:await token('--nm-btn-hover-border')});
+  expect(cloud.field.background).toBe(await token('--nm-row-hover'));
+ });
+}

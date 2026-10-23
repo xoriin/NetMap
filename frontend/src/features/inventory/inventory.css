@@ -70,9 +70,9 @@
 }
 
 .inventory-layout .inv-pagination-btn:hover:not(:disabled) {
-  border-color: var(--nm-tab-hover-border);
-  background: var(--nm-tab-hover-bg);
-  color: var(--nm-tab-hover-text);
+  border-color: var(--nm-btn-hover-border);
+  background: var(--nm-btn-hover-bg);
+  color: var(--nm-btn-hover-text);
 }
 
 .inventory-layout .inv-search-box {
