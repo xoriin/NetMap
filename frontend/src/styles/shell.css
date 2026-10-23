@@ -387,7 +387,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x);
+  padding: var(--nm-workspace-gutter-y) max(var(--nm-workspace-gutter-x), calc((100% - var(--nm-content-max)) / 2));
   background: var(--nm-bg);
 }
 
@@ -777,7 +777,7 @@ body.route-security .app-main {
 body.route-inventory .workspace {
   height: calc(100dvh - var(--nm-topbar-height));
   overflow: hidden;
-  padding: 0;
+  padding: 0 max(0px, calc((100% - var(--nm-content-max)) / 2 - var(--nm-workspace-gutter-x)));
 }
 
 body.route-inventory .topology-layout {

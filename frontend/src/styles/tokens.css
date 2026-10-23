@@ -157,6 +157,7 @@
   --nm-topbar-height: 82px;
   --nm-popup-list-max-height: 288px;
   --nm-workspace-gutter-x: 24px;
+  --nm-content-max: 1600px;
   --nm-workspace-gutter-y: 24px;
   --nm-workspace-section-gap: 16px;
   --nm-space-1: 4px;

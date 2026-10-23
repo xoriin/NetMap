@@ -345,3 +345,28 @@ for (const style of ["slate", "zinc"] as const) {
     }
   });
 }
+
+test("page content stops at 1600px and stays centred while the top bar and Topology keep full width", async ({ page }) => {
+  await page.setViewportSize({ width: 2200, height: 1000 });
+  await setupWorkspaceMocks(page, "dark");
+  const contentBox = () => page.locator(".workspace").evaluate((node) => {
+    const style = getComputedStyle(node);
+    const box = node.getBoundingClientRect();
+    return { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight), width: box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) };
+  });
+  for (const route of ["/overview", "/ipam"]) {
+    await page.goto(route);
+    await expect(page.locator(".nm-summary-band")).toBeVisible();
+    const box = await contentBox();
+    expect(box.width, route).toBe(1600);
+    expect(Math.abs(box.left - box.right), route).toBeLessThanOrEqual(1);
+    await expect(page.locator(".app-topbar")).toHaveCSS("padding-left", "28px");
+  }
+  await page.goto("/topology");
+  await expect(page.locator("#topology")).toBeVisible();
+  await expect(page.locator(".workspace")).toHaveCSS("padding-left", "0px");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/overview");
+  await expect(page.locator(".workspace")).toHaveCSS("padding-left", "24px");
+});
+
