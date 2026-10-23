@@ -223,7 +223,7 @@
   white-space: nowrap;
   min-height: unset;
 }
-.inv-action-btn:hover:not(:disabled) { background: var(--nm-surface-soft); border-color: rgba(29,154,176,0.4); color: var(--nm-accent-strong); }
+.inv-action-btn:hover:not(:disabled) { background: var(--nm-surface-soft); border-color: var(--nm-btn-hover-border); color: var(--nm-accent-strong); }
 .inv-action-btn--primary {
   background: linear-gradient(135deg, var(--nm-accent-strong) 0%, #1a8fa0 100%);
   border-color: rgba(29, 154, 176, 0.45);
@@ -232,7 +232,7 @@
 }
 .inv-action-btn--primary:hover:not(:disabled) {
   background: linear-gradient(135deg, #175767 0%, #178496 100%);
-  border-color: rgba(29, 154, 176, 0.6);
+  border-color: var(--nm-accent);
   color: #ffffff;
 }
 .inv-action-btn--danger { background: rgba(224,80,80,0.07); border-color: rgba(224,80,80,0.25); color: #9a2020; }
@@ -633,7 +633,7 @@ body.theme-dark .inv-select { background: var(--nm-shell); border-color: color-m
 body.theme-dark .inv-select option { background: var(--nm-modal-header); color: var(--nm-text-muted); }
 body.theme-dark .inv-search-box input::placeholder { color: var(--nm-text-faint); }
 body.theme-dark .inv-action-btn { background: var(--nm-shell); border-color: color-mix(in srgb, var(--nm-border-strong) 70%, transparent); color: var(--nm-text-muted); }
-body.theme-dark .inv-action-btn:hover:not(:disabled) { background: var(--nm-shell); border-color: rgba(29,154,176,0.4); color: #4db8cc; }
+body.theme-dark .inv-action-btn:hover:not(:disabled) { background: var(--nm-shell); border-color: var(--nm-btn-hover-border); color: var(--nm-btn-hover-text); }
 body.theme-dark .inv-action-btn--primary { background: var(--nm-modal-header); border-color: rgba(255,255,255,0.1); color: var(--nm-modal-label); }
 body.theme-dark .inv-action-btn--primary:hover:not(:disabled) { background: var(--nm-btn-hover-bg); }
 body.theme-dark .inv-action-btn--danger { background: rgba(224,80,80,0.08); border-color: rgba(224,80,80,0.2); color: #e07070; }
@@ -2247,8 +2247,8 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .vlan-action-btn:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.09);
-  border-color: rgba(29, 154, 176, 0.4);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
 }
 
 .vlan-action-btn--danger {

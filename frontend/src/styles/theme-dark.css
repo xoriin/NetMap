@@ -787,8 +787,8 @@ body.theme-dark .inventory-bulk-edit button {
 }
 
 body.theme-dark .inventory-bulk-edit button:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.1);
-  border-color: rgba(29, 154, 176, 0.3);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
   color: var(--nm-text-muted);
 }
 
@@ -925,7 +925,7 @@ body.theme-dark .vlan-action-btn {
 }
 
 body.theme-dark .vlan-action-btn:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.12);
+  background: var(--nm-btn-hover-bg);
   border-color: rgba(77, 184, 204, 0.4);
 }
 

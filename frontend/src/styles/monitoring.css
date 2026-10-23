@@ -2482,8 +2482,8 @@ body.theme-dark .mon-anomaly--anomalous { color: #f87171; background: rgba(248,1
   white-space: nowrap;
 }
 .ipam-btn:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.09);
-  border-color: rgba(29, 154, 176, 0.4);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
 }
 .ipam-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -2502,7 +2502,7 @@ body.theme-dark .ipam-btn {
   border-color: rgba(77, 184, 204, 0.25);
 }
 body.theme-dark .ipam-btn:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.15);
+  background: var(--nm-btn-hover-bg);
   border-color: rgba(77, 184, 204, 0.5);
 }
 body.theme-dark .ipam-btn--primary {
