@@ -212,7 +212,7 @@
 
 .toolbar-btn--primary:hover {
   opacity: 0.88;
-  border-color: rgba(29, 154, 176, 0.6);
+  border-color: var(--nm-accent);
 }
 
 .toolbar-save-status {
@@ -262,8 +262,8 @@
 }
 
 .toolbar-btn--active:hover {
-  background: rgba(29, 154, 176, 0.2);
-  border-color: rgba(29, 154, 176, 0.45);
+  background: var(--nm-accent-soft);
+  border-color: var(--nm-btn-hover-border);
   color: #7dd8e6;
 }
 
@@ -1037,8 +1037,8 @@ body:not(.theme-dark) .toolbar-btn--active {
 }
 
 body:not(.theme-dark) .toolbar-btn--active:hover {
-  background: rgba(29, 154, 176, 0.18);
-  border-color: rgba(29, 154, 176, 0.5);
+  background: var(--nm-accent-soft);
+  border-color: var(--nm-btn-hover-border);
   color: #1a6070;
 }
 

@@ -762,7 +762,7 @@ body.route-topology .graph-surface {
 
 .topo-stat-btn:hover {
   background: #edf4fa;
-  border-color: rgba(29, 154, 176, 0.4);
+  border-color: var(--nm-btn-hover-border);
 }
 
 .topo-stat-btn--active {

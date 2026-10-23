@@ -837,8 +837,8 @@ body.theme-dark .topology-toolbar-right button {
 }
 
 body.theme-dark .topology-toolbar-right button:hover:not(:disabled) {
-  background: rgba(29, 154, 176, 0.14);
-  border-color: rgba(29, 154, 176, 0.3);
+  background: var(--nm-btn-hover-bg);
+  border-color: var(--nm-btn-hover-border);
 }
 
 body.theme-dark .security-row-group:hover {
@@ -1291,7 +1291,7 @@ body.theme-dark .topo-stat-btn {
 
 body.theme-dark .topo-stat-btn:hover {
   background: var(--nm-bg-elevated);
-  border-color: rgba(29, 154, 176, 0.4);
+  border-color: var(--nm-btn-hover-border);
 }
 
 body.theme-dark .topo-stat-btn--active {

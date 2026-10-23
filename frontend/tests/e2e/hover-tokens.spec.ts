@@ -27,6 +27,7 @@ function rawTealIn(rules: { selector: string; css: string }[], classes: string[]
 
 const AREAS: [string, string[]][] = [
   ["Inventory, VLAN and IPAM buttons", [".inv-action-btn", ".vlan-action-btn", ".ipam-btn", ".inventory-bulk-edit"]],
+  ["Monitoring and Topology toolbar buttons", [".toolbar-btn", ".topology-toolbar-right", ".topo-stat-btn"]],
 ];
 
 for (const [area, classes] of AREAS) {
