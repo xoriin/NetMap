@@ -92,7 +92,7 @@ export function TopologyWorkspace({
   const skipPersistOnNextRenderRef = useRef(false);
   const knownGroupIdsRef = useRef<Set<string>>(new Set());
   const confirmAction = useConfirm();
-  const { activeIconPackId } = useIconPacks();
+  const { activeIconPackId, iconsRevision } = useIconPacks();
   const deviceTypesQuery = useDeviceTypes(accessToken);
   const deviceTypeOptions = deviceTypesQuery.options;
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
@@ -740,7 +740,7 @@ export function TopologyWorkspace({
     setMinimapNodes(nextMiniNodes);
     const extent = cy.extent();
     setMinimapExtent({ x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 });
-  }, [activeIconPackId, filteredGraph.devices, groupDisplayPrefs, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
+  }, [activeIconPackId, iconsRevision, filteredGraph.devices, groupDisplayPrefs, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
 
   useEffect(() => {
     refreshOverlayNodesRef.current = refreshOverlayNodes;
@@ -1110,7 +1110,7 @@ export function TopologyWorkspace({
       cy.fit(undefined, 36);
       fitOnNextRenderRef.current = false;
     }
-  }, [activeIconPackId, filteredGraph, groupDisplayPrefs, layoutRevision, liveStatusByDeviceId, theme, userId]);
+  }, [activeIconPackId, iconsRevision, filteredGraph, groupDisplayPrefs, layoutRevision, liveStatusByDeviceId, theme, userId]);
 
   useEffect(() => {
     const cy = cyRef.current;

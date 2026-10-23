@@ -1,5 +1,5 @@
 import {
-  createContext, useContext, useEffect, useMemo, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
 import { storageKeys, readString, writeString } from "../utils/storage";
 import {
@@ -16,6 +16,8 @@ type IconPackApi = {
   selectIconPack: (packId: string) => void;
   addLocalIconPack: (pack: IconPack) => void;
   removeLocalIconPack: (packId: string) => void;
+  loadFullIconSet: () => void;
+  iconsRevision: number;
 };
 
 const IconPackCtx = createContext<IconPackApi | null>(null);
@@ -35,18 +37,24 @@ export function IconPackProvider({ children }: { children: ReactNode }) {
     () => readString(storageKeys.iconPack) || builtInIconPack.id,
   );
   const [iconPackError, setIconPackError] = useState<string | null>(null);
+  const [iconsRevision, setIconsRevision] = useState(0);
+
+  const loadFullIconSet = useCallback(() => {
+    void loadFullTablerIconPack().then(setTablerPack);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const tablerChosen = readString(storageKeys.iconPack) === fullTablerIconPack.id;
     async function bootstrapIconPacks() {
       setIconPackLoading(true);
       const [loaded, fullTabler] = await Promise.all([
         loadIconPacks(),
-        loadFullTablerIconPack(),
+        tablerChosen ? loadFullTablerIconPack() : null,
       ]);
       if (cancelled) return;
       setIconPacks(loaded);
-      setTablerPack(fullTabler);
+      if (fullTabler) setTablerPack(fullTabler);
       setIconPackLoading(false);
       setIconPackError(null);
     }
@@ -71,6 +79,7 @@ export function IconPackProvider({ children }: { children: ReactNode }) {
     const selected = available.some((pack) => pack.id === activeIconPackId) ? activeIconPackId : builtInIconPack.id;
     applyIconPackSelection(available, selected);
     refreshDeviceTypeIconMap();
+    setIconsRevision((current) => current + 1);
     if (selected !== activeIconPackId) {
       setActiveIconPackId(selected);
       setIconPackError("Selected icon pack was not found; reverted to Built-in.");
@@ -88,6 +97,7 @@ export function IconPackProvider({ children }: { children: ReactNode }) {
     selectIconPack: (packId: string) => {
       setIconPackError(null);
       setActiveIconPackId(packId);
+      if (packId === fullTablerIconPack.id) loadFullIconSet();
     },
     addLocalIconPack: (pack: IconPack) => {
       setLocalIconPacks((current) => {
@@ -104,7 +114,9 @@ export function IconPackProvider({ children }: { children: ReactNode }) {
       setLocalIconPacks((current) => current.filter((row) => row.id !== packId));
       setActiveIconPackId((current) => (current === packId ? builtInIconPack.id : current));
     },
-  }), [iconPacks, localIconPacks, activeIconPackId, iconPackLoading, iconPackError]);
+    loadFullIconSet,
+    iconsRevision,
+  }), [iconPacks, localIconPacks, activeIconPackId, iconPackLoading, iconPackError, loadFullIconSet, iconsRevision]);
 
   return <IconPackCtx.Provider value={api}>{children}</IconPackCtx.Provider>;
 }

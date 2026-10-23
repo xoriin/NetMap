@@ -1,5 +1,5 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { IconDeviceDesktop, IconPalette, IconTrash } from "@tabler/icons-react";
 
 import { api, type DeviceTypeOption } from "../../../api/client";
@@ -13,6 +13,7 @@ import {
   builtInIconPack,
   defaultDeviceTypeIconMap,
   fullTablerIconPack,
+  loadFullTablerIconPack,
   readDeviceTypeIconMap,
 } from "../../../icons";
 import { formatDeviceTypeLabel } from "../../../utils/format";
@@ -56,9 +57,16 @@ export function DeviceIconsTab({
   const [typeIconMap, setTypeIconMap] = useState<Record<string, string>>(() => readDeviceTypeIconMap());
   const [typeIconSaved, setTypeIconSaved] = useState(false);
 
+  const [tablerPack, setTablerPack] = useState(fullTablerIconPack);
+  useEffect(() => {
+    let live = true;
+    void loadFullTablerIconPack().then((pack) => { if (live) setTablerPack(pack); });
+    return () => { live = false; };
+  }, []);
+
   const allPacks = useMemo(
-    () => [builtInIconPack, fullTablerIconPack, ...iconPacks, ...localIconPacks],
-    [iconPacks, localIconPacks],
+    () => [builtInIconPack, tablerPack, ...iconPacks, ...localIconPacks],
+    [tablerPack, iconPacks, localIconPacks],
   );
   const activePack = allPacks.find((pack) => pack.id === activeIconPackId) ?? builtInIconPack;
   const newDeviceTypeValue = deviceTypeValueFromLabel(newDeviceTypeLabel);

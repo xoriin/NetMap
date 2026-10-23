@@ -7,6 +7,8 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WorkspaceSkeleton } from "../components/Skeleton";
 import { useTheme } from "../providers/ThemeProvider";
 import { userHasPermission } from "../utils/permissions";
+import { useIconPacks } from "../providers/IconPackProvider";
+import { whenIdle } from "../utils/idle";
 
 const OverviewWorkspace = lazy(() =>
   import("../features/overview/OverviewWorkspace").then((m) => ({ default: m.OverviewWorkspace }))
@@ -108,6 +110,9 @@ export function DashboardView({
     if (!accessToken) return;
     void api.getFavourites(accessToken).then((ids) => setFavouriteIds(new Set(ids))).catch(() => {});
   }, [accessToken]);
+
+  const { loadFullIconSet } = useIconPacks();
+  useEffect(() => whenIdle(loadFullIconSet, { afterMs: 2000 }), [loadFullIconSet]);
 
   const onToggleFavourite = useCallback(async (deviceId: number) => {
     if (!accessToken) return;
