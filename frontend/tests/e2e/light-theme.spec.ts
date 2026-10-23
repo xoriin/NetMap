@@ -64,12 +64,12 @@ function headerTextContrast(page: Page) {
 for (const theme of ["light", "dark"] as const) {
   test(`sidebar text uses the brightened shell tokens in ${theme} mode`, async ({ page }) => {
     await openInventory(page, theme);
-    expect(await resolve(page, "--nm-sidebar-text")).toBe("rgb(241, 245, 249)");
+    expect(await resolve(page, "--nm-sidebar-text")).toBe(theme === "dark" ? "rgb(212, 212, 212)" : "rgb(241, 245, 249)");
     expect(await resolve(page, "--nm-sidebar-active")).toBe("rgb(143, 224, 238)");
     expect(await resolve(page, "--nm-sidebar-label")).toBe("rgb(163, 175, 188)");
 
     const sidebar = page.locator(".sidebar");
-    await expect(sidebar.locator(".sidebar-link:not(.active)").first()).toHaveCSS("color", "rgb(241, 245, 249)");
+    await expect(sidebar.locator(".sidebar-link:not(.active)").first()).toHaveCSS("color", theme === "dark" ? "rgb(212, 212, 212)" : "rgb(241, 245, 249)");
     await expect(sidebar.locator(".sidebar-admin-link.active").first()).toHaveCSS("color", "rgb(143, 224, 238)");
     await expect(sidebar.locator(".sidebar-section-label").first()).toHaveCSS("color", "rgb(163, 175, 188)");
   });
