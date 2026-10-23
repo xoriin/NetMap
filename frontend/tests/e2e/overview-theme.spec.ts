@@ -284,3 +284,29 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await expect(page.locator(".overview-fav-search input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   });
 }
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`interactive summary cards respond to hover, keyboard and reduced motion in ${style}`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style === "zinc" ? "zinc" : "slate");
+    await setupOverview(page, style === "light" ? "light" : "dark");
+    const card = page.locator(".dash-stat--clickable").first();
+    const before = (await card.boundingBox())!;
+    await card.hover();
+    await expect(card).not.toHaveCSS("transform", "none");
+    await expect.poll(async () => Math.round(before.y - (await card.boundingBox())!.y)).toBe(3);
+    await expect(card.locator(".dash-stat-icon")).not.toHaveCSS("transform", "none");
+    await card.click();
+    await expect(page).toHaveURL(/inventory/);
+    await page.goto("/overview");
+    await card.focus();
+    await expect(card).toHaveCSS("outline-style", "solid");
+    await expect(card).toHaveCSS("outline-width", "2px");
+    await card.press("Enter");
+    await expect(page).toHaveURL(/inventory/);
+    await page.goto("/overview");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await card.hover();
+    await expect(card).toHaveCSS("transform", "none");
+    await expect(card).toHaveCSS("transition-duration", "0s");
+  });
+}

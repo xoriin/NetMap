@@ -18,11 +18,7 @@ body.route-overview .overview-workspace .dash-stat {
   border-color: var(--nm-kpi-border);
   border-radius: var(--nm-radius-lg);
   background: var(--nm-kpi-bg);
-  box-shadow: var(--nm-shadow-sm);
-}
-
-body.route-overview .overview-workspace .dash-stat:hover {
-  transform: none;
+  box-shadow: var(--nm-stat-shadow, var(--nm-shadow-sm));
 }
 
 .overview-workspace .overview-offline-panel {
