@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import "./exports.css";
-import { CalendarClock, Database, Download, FileText, History, ShieldCheck, TableProperties } from "lucide-react";
+import { Database, Download, FileText, History, ShieldCheck, TableProperties } from "lucide-react";
 import { api, type DownloadResult, type ExportSummary, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { triggerDownload } from "../../utils/download";
 import { userHasPermission } from "../../utils/permissions";
-import { DashStat } from "../../components/DashStat";
+import { PanelSkeleton } from "../../components/Skeleton";
 
 function ExportPanelHeader({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <div className="exports-panel-header nm-app-panel-header">
       <span className="exports-panel-identity">
-        <span className="exports-panel-icon">{icon}</span><strong>{title}</strong>
+        <span className="exports-panel-icon">{icon}</span><h2>{title}</h2>
       </span>
     </div>
   );
@@ -33,9 +33,10 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ExportSummary | null>(null);
+  const [summaryFailed, setSummaryFailed] = useState(false);
 
   const refreshSummary = useCallback(() => {
-    api.getExportSummary(accessToken).then(setSummary).catch(() => { /* non-critical */ });
+    api.getExportSummary(accessToken).then((data) => { setSummary(data); setSummaryFailed(false); }).catch(() => setSummaryFailed(true));
   }, [accessToken]);
 
   useEffect(() => refreshSummary(), [refreshSummary]);
@@ -147,21 +148,32 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
           </section>}
         </div>
         <aside className="exports-context" aria-label="Export information">
-          <section className="nm-panel">
-            <div className="nm-panel-header"><h2 className="nm-panel-title"><History size={16} aria-hidden="true" />Export activity</h2></div>
-            <div className="nm-panel-body">
-              <div className="dash-stats dash-stats--four exports-summary-grid nm-summary-band" aria-label="Export activity summary">
-                <DashStat className="exports-summary-card" label="Inventory rows" value={summary?.inventory_rows ?? "—"} icon={<Database size={19} />} accent="teal" />
-                <DashStat className="exports-summary-card" label="Firewall events" value={summary?.firewall_events ?? "—"} icon={<ShieldCheck size={19} />} accent="green" />
-                <DashStat className="exports-summary-card" label="Exports in 30 days" value={summary?.exports_last_30_days ?? "—"} icon={<History size={19} />} accent="blue" />
-                <DashStat className="exports-summary-card" label="Last export" value={summary?.last_export_type ?? (summary ? "None yet" : "—")} valueClassName="dash-stat-value--compact" icon={<CalendarClock size={19} />} accent="purple" />
-              </div>
-              {summary?.last_export_at && <p className="nm-panel-meta exports-last-download">Last downloaded <time dateTime={summary.last_export_at}>{new Date(summary.last_export_at).toLocaleString()}</time></p>}
+          <section className="exports-panel nm-app-panel">
+            <ExportPanelHeader icon={<History size={18} />} title="Export activity" />
+            <div className="exports-panel-body exports-activity">
+              {!summary && !summaryFailed ? <PanelSkeleton lines={3} /> : summaryFailed && !summary ? (
+                <div className="nm-alert nm-alert--error" role="alert">Export activity is unavailable. <button type="button" className="nm-btn nm-btn--sm" onClick={refreshSummary}>Retry</button></div>
+              ) : summary && <>
+                <div className="exports-activity-metric">
+                  <span className="exports-activity-symbol" aria-hidden="true"><Download size={28} /></span>
+                  <div><strong className="exports-activity-value">{summary.exports_last_30_days.toLocaleString()}</strong><span className="nm-panel-meta">Your downloads in 30 days</span></div>
+                </div>
+                <dl className="exports-availability" aria-label="Available export data">
+                  {canExportInventory && <div><dt><Database size={15} aria-hidden="true" />Inventory rows</dt><dd>{summary.inventory_rows?.toLocaleString() ?? "—"}</dd></div>}
+                  {canExportFirewall && <div><dt><ShieldCheck size={15} aria-hidden="true" />Firewall events</dt><dd>{summary.firewall_events?.toLocaleString() ?? "—"}</dd></div>}
+                </dl>
+                <div className="exports-last-download">
+                  <span className="nm-panel-meta">Latest download</span>
+                  <strong>{summary.last_export_type ?? "No downloads yet"}</strong>
+                  {summary.last_export_at && <time className="nm-panel-meta" dateTime={summary.last_export_at}>{new Date(summary.last_export_at).toLocaleString()}</time>}
+                </div>
+                {summaryFailed && <p className="nm-panel-meta" role="status">Activity could not refresh. <button type="button" className="nm-btn nm-btn--sm" onClick={refreshSummary}>Retry</button></p>}
+              </>}
             </div>
           </section>
-          <section className="nm-panel">
-            <div className="nm-panel-header"><h2 className="nm-panel-title"><FileText size={16} aria-hidden="true" />Choose a format</h2></div>
-            <div className="nm-panel-body exports-format-guide">
+          <section className="exports-panel nm-app-panel">
+            <ExportPanelHeader icon={<FileText size={18} />} title="Choose a format" />
+            <div className="exports-panel-body exports-format-guide">
               {(canExportInventory || canExportFirewall) && <>
                 <div><span className="nm-chip">CSV</span><p className="nm-panel-meta">Open in a spreadsheet to sort, filter and review rows.</p></div>
                 <div><span className="nm-chip">JSON</span><p className="nm-panel-meta">Keep structured fields for scripts and integrations.</p></div>

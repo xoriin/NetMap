@@ -63,7 +63,8 @@ body.theme-dark .exports-panel.nm-app-panel {
   color: var(--nm-text-faint);
 }
 
-.exports-panel-identity strong {
+.exports-panel-identity h2 {
+  margin: 0;
   overflow: hidden;
   color: var(--nm-modal-label);
   font-size: var(--nm-text-lg);
@@ -213,18 +214,20 @@ body.theme-dark .exports-panel .nm-select:focus {
   gap: 16px;
 }
 
-.exports-context .exports-summary-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
-}
 
-.exports-context .nm-panel-title { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
-.exports-context .dash-stat-value { overflow-wrap: anywhere; }
 .exports-stack .exports-panel-body { display: flex; flex: 1; flex-direction: column; }
 .exports-stack .exports-panel-actions { margin-top: auto; }
-.exports-last-download { margin: 16px 0 0; }
-.exports-last-download time { display: block; }
+.exports-activity { display: grid; gap: 20px; }
+.exports-activity-metric { display: flex; align-items: center; gap: 16px; padding-block: 8px; }
+.exports-activity-metric > div { display: grid; gap: 6px; min-width: 0; }
+.exports-activity-symbol { display: grid; place-items: center; width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; background: var(--nm-accent-soft); color: var(--nm-accent-strong); }
+.exports-activity-value { font-size: 36px; font-weight: 750; line-height: 1; color: var(--nm-text); overflow-wrap: anywhere; }
+.exports-availability { margin: 0; display: grid; gap: 14px; }
+.exports-availability > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.exports-availability dt { display: inline-flex; align-items: center; gap: 8px; font-size: var(--nm-text-sm); color: var(--nm-text-muted); }
+.exports-availability dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--nm-text); }
+.exports-last-download { display: grid; gap: 6px; border-top: 1px solid var(--nm-border); padding-top: 16px; }
+.exports-last-download strong { font-size: var(--nm-text-md); color: var(--nm-text); overflow-wrap: anywhere; }
 .exports-format-guide { display: grid; gap: 16px; }
 .exports-format-guide p { margin: 6px 0 0; }
 .exports-panel-actions { flex-wrap: wrap; }

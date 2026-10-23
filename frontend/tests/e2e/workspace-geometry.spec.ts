@@ -156,7 +156,7 @@ for (const theme of ["light", "dark"] as const) {
 for (const theme of ["light", "dark"] as const) {
   test(`summary cards share one canonical geometry in ${theme} mode`, async ({ page }) => {
     await setupWorkspaceMocks(page, theme);
-    const routes = ["/overview", "/inventory", "/locations", "/monitoring", "/ipam", "/tools", "/security", "/exports"];
+    const routes = ["/overview", "/inventory", "/locations", "/monitoring", "/ipam", "/tools", "/security"];
 
     for (const width of [1440, 820]) {
       await page.setViewportSize({ width, height: 900 });

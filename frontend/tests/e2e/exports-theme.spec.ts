@@ -21,17 +21,18 @@ for (const theme of ["light", "dark"] as const) {
   test(`Exports uses the approved operational panels in ${theme} mode`, async ({ page }) => {
     await setupExports(page, theme);
 
-    await expect(page.locator(".exports-summary-card")).toHaveCount(4);
-    await expect(page.locator(".exports-summary-grid")).toContainText("Inventory rows");
-    await expect(page.locator(".exports-summary-grid")).toContainText("85");
-    await expect(page.locator(".exports-summary-grid")).toContainText("1,247");
-    await expect(page.locator(".exports-summary-grid")).toContainText("Firewall events");
-    await expect(page.locator(".exports-panel")).toHaveCount(3);
+    await expect(page.locator(".exports-summary-card")).toHaveCount(0);
+    await expect(page.locator(".exports-activity-value")).toHaveText("12");
+    await expect(page.locator(".exports-activity")).toContainText("Inventory rows");
+    await expect(page.locator(".exports-activity")).toContainText("85");
+    await expect(page.locator(".exports-activity")).toContainText("1,247");
+    await expect(page.locator(".exports-activity")).toContainText("Firewall events");
+    await expect(page.locator(".exports-console-grid .exports-panel")).toHaveCount(3);
     await expect(page.locator(".exports-panel").first()).toHaveCSS("background-image", "none");
-    await expect(page.locator(".exports-panel-header")).toHaveCount(3);
-    await expect(page.locator(".exports-panel-header").nth(0)).toContainText("Device inventory");
-    await expect(page.locator(".exports-panel-header").nth(1)).toContainText("Network report");
-    await expect(page.locator(".exports-panel-header").nth(2)).toContainText("Firewall events");
+    await expect(page.locator(".exports-console-grid .exports-panel-header")).toHaveCount(3);
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(0)).toContainText("Device inventory");
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(1)).toContainText("Network report");
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(2)).toContainText("Firewall events");
     await expect(page.locator(".exports-panel-header").first()).toHaveCSS("min-height", "44px");
     await expect(page.locator(".exports-panel .nm-input").first()).toHaveCSS("background-color", theme === "dark" ? "rgb(18, 22, 36)" : "rgb(254, 254, 254)");
   });
@@ -78,7 +79,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
       const tasks = (await page.locator(".exports-console-grid").boundingBox())!;
       const context = (await page.locator(".exports-context").boundingBox())!;
-      const informationPanels = page.locator(".exports-context > .nm-panel");
+      const informationPanels = page.locator(".exports-context > .exports-panel");
       const activity = (await informationPanels.first().boundingBox())!;
       const guide = (await informationPanels.last().boundingBox())!;
       if (width > 760 && width < 1201) expect(guide.x - activity.x - activity.width).toBeCloseTo(16, 0);
@@ -110,12 +111,12 @@ test("only the exports a role may run are shown, with no access chips", async ({
   await page.route("**/api/v1/exports/summary", (route) => route.fulfill({ json: { inventory_rows: 0, firewall_events: 10, exports_last_30_days: 0, last_export_at: null, last_export_type: null, last_export_detail: null } }));
   await page.goto("/exports");
   await page.locator(".exports-layout").waitFor({ state: "visible" });
-  await expect(page.locator(".exports-panel")).toHaveCount(1);
-  await expect(page.locator(".exports-panel")).toContainText("Firewall events");
+  await expect(page.locator(".exports-console-grid .exports-panel")).toHaveCount(1);
+  await expect(page.locator(".exports-console-grid .exports-panel")).toContainText("Firewall events");
   await expect(page.locator(".exports-format-guide")).not.toContainText("PDF");
   await expect(page.locator(".exports-console-grid")).toHaveClass(/exports-console-grid--single/);
   await expect(page.getByText(/Allowed|Restricted|Your role cannot/)).toHaveCount(0);
-  const panel = await page.locator(".exports-panel").boundingBox();
+  const panel = await page.locator(".exports-console-grid .exports-panel").boundingBox();
   const grid = await page.locator(".exports-console-grid").boundingBox();
   expect(Math.abs(panel!.width - grid!.width)).toBeLessThanOrEqual(1);
 });
@@ -149,3 +150,34 @@ test("inventory and report downloads still work, with visible errors and retry",
   await page.getByRole("button", { name: "Download PDF report" }).click();
   expect((await report).suggestedFilename()).toBe("report.pdf");
 });
+
+test("export activity has one clear metric, real totals and a recoverable empty/error state", async ({ page }) => {
+  await setupExports(page, "dark");
+  await expect(page.locator(".exports-activity-value")).toHaveText("12");
+  await expect(page.locator(".exports-availability")).toContainText("85");
+  await expect(page.locator(".exports-last-download")).toContainText("Firewall events");
+  await page.route("**/api/v1/exports/summary", route => route.fulfill({ status: 503, json: { detail: "Unavailable" } }));
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText("Export activity is unavailable");
+  await page.route("**/api/v1/exports/summary", route => route.fulfill({ json: { inventory_rows: 0, firewall_events: 0, exports_last_30_days: 0, last_export_at: null, last_export_type: null, last_export_detail: null } }));
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.locator(".exports-activity-value")).toHaveText("0");
+  await expect(page.locator(".exports-last-download")).toContainText("No downloads yet");
+  await expect(page.locator(".exports-last-download time")).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`every Exports panel uses the same header as the task panels in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await setupExports(page, theme);
+    const headers = page.locator(".exports-workspace-grid .nm-app-panel-header");
+    await expect(page.getByRole("heading", { name: "Export activity" })).toBeVisible();
+    const styles = await headers.evaluateAll((nodes) => nodes.map((node) => {
+      const s = getComputedStyle(node);
+      const icon = node.querySelector(".exports-panel-icon");
+      return { height: Math.round(node.getBoundingClientRect().height), background: s.backgroundColor, title: getComputedStyle(node.querySelector("h2")!).fontSize, hasIcon: Boolean(icon) };
+    }));
+    expect(styles.length).toBe(5);
+    for (const style of styles) expect(style).toEqual(styles[0]);
+  });
+}
