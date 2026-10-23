@@ -1353,6 +1353,7 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
   }
 
   .app-topbar {
+    flex-shrink: 0;
     min-height: 56px;
     padding: 8px 16px;
     flex-wrap: wrap;

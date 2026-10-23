@@ -209,3 +209,12 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
     max-width: none;
   }
 }
+
+/* The same in-page module palette is used by Admin task panels. */
+body.theme-dark.route-overview .overview-workspace .overview-panel.nm-app-panel,
+body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
+  background: var(--nm-module-body-bg);
+}
+body.theme-dark .overview-workspace .overview-panel-header.nm-app-panel-header {
+  background: var(--nm-module-header-bg);
+}

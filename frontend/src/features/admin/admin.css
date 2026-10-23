@@ -1284,3 +1284,16 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   .admin-layout .admin-system-page .system-tab-grid { grid-template-columns: minmax(0, 1fr); }
   .admin-task-panel--connection { grid-row: auto; }
 }
+
+/* In-page task modules share Overview's surfaces, including nested task sections.
+   Popup sections keep their own palette outside Admin. */
+body.theme-dark .admin-layout .nm-app-panel,
+body.theme-dark .admin-layout .admin-system-card-body,
+body.theme-dark .admin-layout .admin-task-panel--nested {
+  background: var(--nm-module-body-bg);
+}
+body.theme-dark .admin-layout.nm-admin-workspace .nm-app-panel > .nm-app-panel-header,
+body.theme-dark .admin-layout.nm-admin-workspace .admin-panel.nm-app-panel:not(.admin-system-card) > .nm-app-panel-header,
+body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
+  background: var(--nm-module-header-bg);
+}

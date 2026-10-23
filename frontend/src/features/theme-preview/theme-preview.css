@@ -2321,3 +2321,11 @@ body.theme-dark .theme-lab-choice-menu > label input {
   gap: 8px;
   align-items: center;
 }
+
+/* Standard in-page module reference used by Overview and Admin. */
+body.theme-dark .theme-lab-review-section:first-of-type .theme-lab-panel {
+  background: var(--nm-module-body-bg);
+}
+body.theme-dark .theme-lab-review-section:first-of-type .theme-lab-panel-header {
+  background: var(--nm-module-header-bg);
+}

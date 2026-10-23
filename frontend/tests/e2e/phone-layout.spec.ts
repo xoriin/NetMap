@@ -142,3 +142,17 @@ test("the Topology toolbar stays compact on a phone so the map keeps the screen"
   await expect(toolbar.getByRole("button", { name: "Fit" })).toBeVisible();
   expect((await toolbar.boundingBox())!.height).toBeLessThan(170);
 });
+
+test("page header controls stay inside the header on a phone instead of covering the page", async ({ page }) => {
+  await boot(page);
+  await page.route("**/api/v1/syslog/status", (route) => route.fulfill({ json: { enabled: true, total_events: 1, stored_events: 1, received_packets: 1, dropped_unparsed: 0, denied_senders: 0, retention_days: 7 } }));
+  await page.route("**/api/v1/syslog/events*", (route) => route.fulfill({ json: { retention_days: 7, total: 0, offset: 0, limit: 100, events: [] } }));
+  await page.route("**/api/v1/syslog/searches", (route) => route.fulfill({ json: [] }));
+  await page.goto("/security");
+  const pause = page.getByRole("button", { name: "Pause" });
+  await expect(pause).toBeVisible();
+  const header = (await page.locator(".app-topbar").boundingBox())!;
+  const button = (await pause.boundingBox())!;
+  expect(button.y + button.height).toBeLessThanOrEqual(header.y + header.height);
+  expect((await page.locator(".dash-stats").boundingBox())!.y).toBeGreaterThanOrEqual(header.y + header.height);
+});

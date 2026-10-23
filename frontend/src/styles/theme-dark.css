@@ -42,6 +42,9 @@ html:has(body.theme-dark) {
   --nm-modal-shell: #0b1222;
   --nm-modal-header: #162033;
   --nm-modal-section: #0f172a;
+  /* In-page modules share the user-approved Overview/Admin surface pair. */
+  --nm-module-header-bg: #1d2536;
+  --nm-module-body-bg: #161d2e;
   --nm-panel-body-bg: transparent;
   --nm-track-bg: rgba(148,163,184,0.18);
   --nm-favourite: #e8b840;
@@ -159,6 +162,8 @@ html:has(body.theme-dark.theme-dark-zinc) {
   --nm-modal-shell: #111113;
   --nm-modal-header: #1f1f23;
   --nm-modal-section: #18181b;
+  --nm-module-header-bg: var(--nm-modal-header);
+  --nm-module-body-bg: var(--nm-modal-section);
   --nm-modal-label: #e4e4e7;
   --nm-popup-section-bg: #1f1f23;
   --nm-popup-section-border: #3f3f46;

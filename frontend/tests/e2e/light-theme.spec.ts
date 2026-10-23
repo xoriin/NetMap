@@ -192,7 +192,7 @@ test("small buttons use the same 12px text as standard buttons", async ({ page }
   await expect(page.locator("#probe-sm")).toHaveCSS("font-size", "12px");
 });
 
-for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(15, 23, 42)"]] as const) {
+for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(22, 29, 46)"]] as const) {
   test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);

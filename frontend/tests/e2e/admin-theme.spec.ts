@@ -83,6 +83,63 @@ const emailBranding = {
 };
 
 for (const style of ["light", "slate", "zinc"] as const) {
+  test(`Admin module surfaces match Overview in ${style}`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("response", response => { if (response.url().includes("/api/") && response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+    await setupAdminMocks(page);
+    await page.addInitScript(value => {
+      localStorage.setItem("netmap.theme", value === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", value === "zinc" ? "zinc" : "slate");
+    }, style);
+    await page.goto("/overview");
+    const overview = page.locator(".overview-panel").first();
+    await expect(overview).toBeVisible();
+    const body = await (style === "light" ? overview : overview.locator(":scope > .dash-panel-body")).evaluate(n => getComputedStyle(n).backgroundColor);
+    const header = await overview.locator(":scope > .nm-app-panel-header").evaluate(n => getComputedStyle(n).backgroundColor);
+    if (style === "slate") {
+      expect(header).toBe("rgb(29, 37, 54)");
+      expect(body).toBe("rgb(22, 29, 46)");
+    }
+    for (const section of ["system", "devices-icons", "cloud-providers", "users", "groups", "credentials", "notifications", "alerts", "automation", "security"]) {
+      await page.setViewportSize({ width: 1600, height: 1000 });
+      await page.goto(`/admin#${section}`);
+      await expect(page.locator(".admin-tab-content > .nm-app-panel").first()).toBeVisible();
+      if (section === "alerts") await page.getByRole("button", { name: "+ Add rule", exact: true }).click();
+      for (const width of [1600, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        if (process.env.NETMAP_SURFACE_SCREENSHOTS && width === 390 && section === "system") {
+          await page.screenshot({ path: `/tmp/netmap-admin-${style}-phone.png`, fullPage: true });
+        }
+        for (const panel of await page.locator(".admin-layout .nm-app-panel").all()) {
+          if (!(await panel.evaluate(n => n.classList.contains("admin-system-card")))) {
+            await expect(panel).toHaveCSS("background-color", body);
+          }
+        }
+        for (const node of await page.locator(".admin-layout .nm-app-panel-header").all()) {
+          await expect(node).toHaveCSS("background-color", header);
+        }
+        for (const node of await page.locator(".admin-system-card-body").all()) {
+          await expect(node).toHaveCSS("background-color", body);
+        }
+        if (style !== "light") {
+          for (const panel of await page.locator(".admin-task-panel--nested").all()) {
+            await expect(panel).toHaveCSS("background-color", body);
+            await expect(panel.locator(":scope > .admin-task-title")).toHaveCSS("background-color", header);
+          }
+        }
+      }
+      if (process.env.NETMAP_SURFACE_SCREENSHOTS && ["system", "notifications", "security"].includes(section)) {
+        await page.setViewportSize({ width: 1600, height: 1100 });
+        await page.screenshot({ path: `/tmp/netmap-admin-${style}-${section}.png`, fullPage: true });
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const style of ["light", "slate", "zinc"] as const) {
   test(`Admin task panels stay distinct and reflow in ${style}`, async ({ page }) => {
     await setupAdminMocks(page);
     await page.route("**/api/v1/auth/users", route => route.fulfill({ json: [
@@ -693,7 +750,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(form).toBeVisible();
         const usesCanonicalShell = await form.evaluate((element) => {
           const probe = document.createElement("span");
-          probe.style.background = "var(--nm-popup-section-bg)";
+          probe.style.background = document.body.classList.contains("theme-dark") ? "var(--nm-module-body-bg)" : "var(--nm-popup-section-bg)";
           element.appendChild(probe);
           const expected = getComputedStyle(probe).backgroundColor;
           probe.remove();
