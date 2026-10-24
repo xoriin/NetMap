@@ -1,6 +1,10 @@
 import { useState, useMemo, useRef, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 import "./vlans.css";
-import { ChevronUp, ChevronDown, Network, Search } from "lucide-react";
+import { BarChart3, ChevronUp, ChevronDown, Layers, Maximize2, Network, Search, Server } from "lucide-react";
+import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { BarList, CountUp } from "../../components/Charts";
+import { resolveEntityColor } from "../../utils/entityColor";
 import { api, type TopologyGroup, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
 import { cidrUsableHosts, formatUsableHosts } from "../../utils/ip";
@@ -291,8 +295,35 @@ export function VlanWorkspace({
     ? ({ "--vlan-grid-template": `${colWidths.map((width) => `${width}px`).join(" ")}${canWrite ? " 112px" : ""}` } as CSSProperties)
     : undefined;
 
+  const groupLabel = (g: TopologyGroup) => g.display_name || g.name;
+  const vlanBars = mergedRows.map((row) => ({
+    label: row.entity ? `${groupLabel(row.entity)}${row.entity.vlan_id ? ` · ${row.entity.vlan_id}` : ""}` : row.name,
+    value: deviceCountByGroup.get(row.name) ?? 0,
+    color: resolveEntityColor(row.entity?.color ?? null, row.name),
+  })).filter((bar) => bar.value > 0).sort((a, b) => b.value - a.value);
+  const withVlan = groups.filter((g) => g.vlan_id).length;
+  const assigned = graph.devices.filter((d) => d.topology_group && d.topology_group !== "Ungrouped").length;
+  const subnets = groups.map((g) => ({ group: g, usable: g.ip_range ? cidrUsableHosts(g.ip_range) : null })).filter((entry): entry is { group: TopologyGroup; usable: number } => entry.usable !== null);
+  const usableTotal = subnets.reduce((sum, entry) => sum + entry.usable, 0);
+  const largest = [...subnets].sort((a, b) => b.usable - a.usable)[0];
+
   return (
-    <section className="dash-layout vlan-workspace">
+    <section className="dash-layout vlan-workspace nm-motion">
+        <div className="nm-bento nm-bento--four">
+          <InsightPanel title="Devices by VLAN" icon={<BarChart3 size={16} />} className="nm-motion-item">
+            <BarList label="Devices per group or VLAN" items={vlanBars} empty="No devices are grouped yet." />
+          </InsightPanel>
+          <div className="dash-stats nm-bento-stats nm-summary-band">
+            <DashStat className="nm-motion-item" label="Groups" value={<CountUp value={groups.length} />} icon={<Layers size={20} />} accent="teal"
+              sub={groups.length && withVlan === groups.length ? "All with a VLAN ID" : `${groups.length - withVlan} without a VLAN ID`} />
+            <DashStat className="nm-motion-item" label="Devices assigned" value={<CountUp value={assigned} />} icon={<Server size={20} />} accent="green"
+              sub={`${graph.devices.length - assigned} ungrouped`} />
+            <DashStat className="nm-motion-item" label="Usable addresses" value={<CountUp value={usableTotal} />} icon={<Network size={20} />} accent="blue"
+              sub={`Across ${subnets.length} subnet${subnets.length === 1 ? "" : "s"}`} />
+            <DashStat className="nm-motion-item" label="Largest subnet" value={largest?.group.ip_range ? `/${largest.group.ip_range.split("/")[1] ?? "?"}` : "—"} icon={<Maximize2 size={20} />} accent="purple"
+              sub={largest ? `${groupLabel(largest.group)} · ${formatUsableHosts(largest.usable)} usable` : "No subnets set"} />
+          </div>
+        </div>
         {showForm && (
           <Modal
             title={effectiveEditingGroup ? "Edit group" : "New group"}
@@ -314,7 +345,7 @@ export function VlanWorkspace({
           </Modal>
         )}
 
-        <div className="panel nm-app-panel vlan-table-panel">
+        <div className="panel nm-app-panel vlan-table-panel nm-motion-item">
           <div className="vlan-toolbar nm-app-panel-header">
             <span className="vlan-panel-title">
               <span className="vlan-panel-icon" aria-hidden="true"><Network size={18} /></span>
