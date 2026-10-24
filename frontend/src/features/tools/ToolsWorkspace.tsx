@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import "./tools.css";
-import { BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, Search, Trash2 } from "lucide-react";
+import { Activity, BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, Search, Trash2 } from "lucide-react";
 import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter } from "@tabler/icons-react";
 import {
   api,
@@ -11,6 +11,9 @@ import {
 } from "../../api/client";
 import { SUBNET_REF } from "../../constants";
 import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { BarList, CountUp } from "../../components/Charts";
+import { timeAgo } from "../../utils/history";
 import { deviceLabel, formatMs } from "../../utils/format";
 import { prefixToMask, wildcardMask, ipClass, ipType } from "../../utils/ip";
 
@@ -495,10 +498,21 @@ export function ToolsWorkspace({
           </button>
         </div>
       )}
-      <div className="dash-stats dash-stats--fill tools-summary-grid nm-summary-band" aria-label="Tools summary">
-        <DashStat className="tools-summary-card" label="Available tools" value={availableTools.length} icon={<IconLayoutDashboard size={20} />} accent="teal" />
-        <DashStat className="tools-summary-card" label="Recent checks" value={recentRuns.length} icon={<Clock3 size={20} />} accent="green" />
-        <DashStat className="tools-summary-card" label="Saved results" value={savedResults.length} icon={<Bookmark size={20} />} accent="blue" />
+      <div className="nm-bento nm-bento--four nm-motion">
+        <InsightPanel title="Your recent checks" icon={<Activity size={16} />} className="nm-motion-item">
+          <p className="tool-note">Checks run from this browser, by tool.</p>
+          <BarList label="Recent checks per tool" empty="No checks run from this browser yet."
+            items={availableTools.map(({ id, label }) => ({ label, value: recentRuns.filter((run) => run.tool === id).length }))
+              .filter((item) => item.value > 0).sort((a, b) => b.value - a.value)} />
+        </InsightPanel>
+        <div className="dash-stats nm-bento-stats tools-summary-grid nm-summary-band" aria-label="Tools summary">
+          <DashStat className="tools-summary-card nm-motion-item" label="Available tools" value={<CountUp value={availableTools.length} />} icon={<IconLayoutDashboard size={20} />} accent="teal"
+            sub={availableTools.slice(0, 3).map((tool) => tool.label.split(" ")[0]).join(", ") + (availableTools.length > 3 ? "…" : "")} />
+          <DashStat className="tools-summary-card nm-motion-item" label="Recent checks" value={<CountUp value={recentRuns.length} />} icon={<Clock3 size={20} />} accent="green" sub="Kept in this browser" />
+          <DashStat className="tools-summary-card nm-motion-item" label="Saved results" value={<CountUp value={savedResults.length} />} icon={<Bookmark size={20} />} accent="blue" sub="Kept in this browser" />
+          <DashStat className="tools-summary-card nm-motion-item" label="Last check" value={recentRuns[0] ? timeAgo(recentRuns[0].ranAt) : "—"} icon={<History size={20} />} accent="purple"
+            sub={recentRuns[0] ? `${toolDefinition(recentRuns[0].tool).label} · ${recentRuns[0].target}` : "Nothing run yet"} />
+        </div>
       </div>
       <div className="tools-console-grid">
       <div className="tools-window">
