@@ -27,7 +27,7 @@ import { PanelSkeleton } from "../../components/Skeleton";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
-import { BarList, CountUp, DonutChart, type ChartColor } from "../../components/Charts";
+import { BarList, ColumnChart, CountUp, DonutChart, type ChartColor } from "../../components/Charts";
 import { InsightPanel } from "../../components/InsightPanel";
 import { SpaLink } from "../../components/SpaLink";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -419,7 +419,13 @@ export function OverviewWorkspace({
               <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>Go to Inventory</SpaLink>
             </div>
           ) : (
-            <DonutChart label="Devices by health" centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy" items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
+            <div className="overview-health-combo">
+              <DonutChart label="Devices by health" legend={false} centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
+                items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
+              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels
+                series={[{ key: "devices", label: "Devices", color: "--dash-green" }]}
+                rows={HEALTH_ITEMS.map((item) => ({ label: item.label, devices: statusCounts[item.key], color: item.color }))} />
+            </div>
           )}
         </InsightPanel>
         <div className="dash-stats nm-bento-stats nm-summary-band">

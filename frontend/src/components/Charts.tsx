@@ -57,12 +57,13 @@ export function ChartLegend({ items, unit = "" }: { items: ChartItem[]; unit?: s
 }
 
 /** Multi-segment ring on the UsageRing geometry, with a legend and per-segment tooltips. */
-export function DonutChart({ items, centre, sub, unit = "", label }: {
+export function DonutChart({ items, centre, sub, unit = "", label, legend = true }: {
   items: ChartItem[];
   centre: ReactNode;
   sub: string;
   unit?: string;
   label: string;
+  legend?: boolean;
 }) {
   const { tip, show, hide } = useTip();
   const total = items.reduce((sum, item) => sum + item.value, 0);
@@ -99,7 +100,7 @@ export function DonutChart({ items, centre, sub, unit = "", label }: {
         </svg>
         <div className="dash-donut-center"><span className="dash-donut-pct">{centre}</span><span className="dash-donut-label">{sub}</span></div>
       </div>
-      <ChartLegend items={items} unit={unit} />
+      {legend && <ChartLegend items={items} unit={unit} />}
       <ChartTooltip tip={tip} />
     </div>
   );
@@ -118,13 +119,16 @@ function roundTop(x: number, y: number, w: number, h: number, r: number) {
 
 export type ColumnSeries = { key: string; label: string; color: ChartColor };
 
-/** Stacked column chart: one axis, recessive grid, rounded data ends, per-column tooltip. */
-export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
-  rows: ({ label: string } & Record<string, number | string>)[];
+/** Stacked column chart: one axis, recessive grid, rounded data ends, per-column tooltip.
+ * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column. */
+export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28 }: {
+  rows: ({ label: string; color?: ChartColor } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
   height?: number;
   unit?: string;
+  valueLabels?: boolean;
+  barMax?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -136,7 +140,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
     observer.observe(host.current);
     return () => observer.disconnect();
   }, []);
-  const padL = 34, padB = 22, padT = 8;
+  const padL = 34, padB = 22, padT = valueLabels ? 22 : 8;
   const value = (row: (typeof rows)[number], key: string) => Number(row[key]) || 0;
   const max = Math.max(1, ...rows.map((row) => series.reduce((sum, s) => sum + value(row, s.key), 0)));
   const step = niceStep(max / 3);
@@ -144,7 +148,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
   const plotW = Math.max(0, width - padL - 4);
   const plotH = height - padB - padT;
   const slot = rows.length ? plotW / rows.length : 0;
-  const bw = Math.max(4, Math.min(28, slot * 0.6));
+  const bw = Math.max(4, Math.min(barMax, slot * 0.6));
   const every = Math.max(1, Math.ceil(rows.length / 7));
   const ticks: number[] = [];
   for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
@@ -167,7 +171,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
             const present = series.filter((s) => value(row, s.key) > 0);
             const onEnter = (event: { currentTarget: Element }) => {
               setActive(i);
-              show(event.currentTarget, row.label, series.map((s) => ({ color: s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` })));
+              show(event.currentTarget, row.label, series.map((s) => ({ color: row.color ?? s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` })));
             };
             const onLeave = () => { setActive(null); hide(); };
             return (
@@ -177,8 +181,13 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
                   const h = (value(row, s.key) / top) * plotH;
                   const y = base - h;
                   base = y;
-                  return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: `var(${s.color})` }} />;
+                  return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: `var(${row.color ?? s.color})` }} />;
                 })}
+                {valueLabels && (
+                  <text className="nm-chart-value" x={x + bw / 2} y={base - 6} textAnchor="middle">
+                    {fmt(series.reduce((sum, s) => sum + value(row, s.key), 0))}{unit}
+                  </text>
+                )}
                 {(rows.length - 1 - i) % every === 0 && (
                   <text className="nm-chart-axis" x={x + bw / 2} y={height - 6} textAnchor="middle">{row.label}</text>
                 )}

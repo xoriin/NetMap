@@ -210,3 +210,8 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
 body.theme-dark .overview-workspace .overview-panel-header.nm-app-panel-header {
   background: var(--nm-module-header-bg);
 }
+
+/* Network health hero: compact ring beside one column per health status. */
+.overview-health-combo { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: var(--nm-space-4); }
+.overview-health-combo .nm-donut-chart { justify-content: center; }
+@media (max-width: 520px) { .overview-health-combo { grid-template-columns: minmax(0, 1fr); justify-items: center; } .overview-health-combo .nm-column-chart { width: 100%; } }

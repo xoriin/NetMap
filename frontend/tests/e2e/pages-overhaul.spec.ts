@@ -193,6 +193,14 @@ test("Overview puts health beside the tiles, outages in the side column and brea
   await page.goto("/overview");
   const health = page.getByRole("region", { name: "Network health", exact: true });
   await expect(health.locator(".dash-donut-svg")).toBeVisible();
+  await expect(health.locator(".nm-chart-legend")).toHaveCount(0);
+  const statusColumns = health.locator(".nm-column-chart .nm-chart-col");
+  await expect(statusColumns).toHaveCount(5);
+  await expect(health.locator(".nm-column-chart .nm-chart-axis").filter({ hasText: /^(Online|Offline|Warning|Paused|Unknown)$/ })).toHaveCount(5);
+  await expect(health.locator(".nm-chart-value")).toHaveText(["2", "1", "0", "0", "0"]);
+  await statusColumns.first().locator(".nm-chart-hit").hover();
+  await expect(statusColumns.first().locator("path")).toHaveCSS("fill", "rgb(45, 186, 124)");
+  await expect(statusColumns.first().locator(".nm-chart-hit")).toHaveCSS("fill", "rgba(0, 0, 0, 0)");
   const tiles = page.locator(".overview-workspace .nm-bento-stats .dash-stat");
   await expect(tiles).toHaveCount(6);
   expect((await tiles.first().boundingBox())!.x).toBeGreaterThan((await health.boundingBox())!.x + (await health.boundingBox())!.width);
