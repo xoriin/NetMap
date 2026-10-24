@@ -547,16 +547,6 @@
 }
 .inv-pagination-btn:hover:not(:disabled) { background: var(--nm-btn-hover-bg); border-color: var(--nm-btn-hover-border); color: var(--nm-btn-hover-text); }
 .inv-pagination-btn:disabled { opacity: 0.35; cursor: default; }
-.inv-pagination-select {
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid rgba(200, 213, 221, 0.9);
-  border-radius: 7px;
-  background: #f8fafb;
-  font-size: 12px;
-  color: #3a5870;
-  cursor: pointer;
-}
 
 /* Details panel header */
 .inv-details-header {
@@ -655,7 +645,6 @@ body.theme-dark .inv-bulk-row { background: color-mix(in srgb, var(--nm-bg) 70%,
 body.theme-dark .inv-pagination { background: color-mix(in srgb, var(--nm-surface-soft) 60%, transparent); border-top-color: color-mix(in srgb, var(--nm-border-strong) 40%, transparent); color: var(--nm-text-faint); }
 body.theme-dark .inv-pagination-btn { background: var(--nm-shell); border-color: color-mix(in srgb, var(--nm-border-strong) 70%, transparent); color: var(--nm-text-faint); }
 body.theme-dark .inv-pagination-btn:hover:not(:disabled) { background: var(--nm-btn-hover-bg); border-color: var(--nm-btn-hover-border); color: var(--nm-btn-hover-text); }
-body.theme-dark .inv-pagination-select { background: var(--nm-shell); border-color: color-mix(in srgb, var(--nm-border-strong) 70%, transparent); color: var(--nm-text-faint); color-scheme: dark; }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 

@@ -53,7 +53,6 @@
 
 .inventory-layout .inventory-panel-header .inv-select,
 .inventory-layout .inventory-panel-header .nm-swatch-trigger,
-.inventory-layout .inv-pagination-select,
 .inventory-layout .inv-pagination-btn {
   border-color: var(--nm-border-strong);
   background: var(--nm-modal-input);
@@ -62,8 +61,7 @@
 
 .inventory-layout .inventory-panel-header .inv-select:hover,
 .inventory-layout .inventory-panel-header .nm-swatch-trigger:hover,
-.inventory-layout .inventory-panel-header .nm-swatch-trigger[aria-expanded="true"],
-.inventory-layout .inv-pagination-select:hover {
+.inventory-layout .inventory-panel-header .nm-swatch-trigger[aria-expanded="true"] {
   border-color: var(--nm-dropdown-hover-border);
   background: var(--nm-dropdown-hover-bg);
   color: var(--nm-text);
@@ -399,4 +397,27 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
 .inventory-layout > .inventory-bento { margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0; }
 @media (max-width: 760px) {
   .inventory-layout > .inventory-bento { margin: 14px 12px 0; }
+}
+
+/* Devices grow with the chosen page size; horizontal column scrolling stays local. */
+body.route-inventory .workspace:has(.inventory-layout--devices) { height: auto; overflow: visible; }
+body.route-inventory .inventory-layout--devices { height: auto; flex: 0 0 auto; }
+body.route-inventory .inventory-layout--devices .topology-content {
+  flex: 0 0 auto;
+  align-items: flex-start;
+  overflow: visible;
+}
+.inventory-layout--devices .inventory-table { flex: 0 0 auto; overflow-y: hidden; }
+body.route-inventory .inventory-layout--devices .inventory-device-sidebar.details-panel {
+  position: sticky;
+  top: calc(var(--nm-topbar-height) + var(--nm-space-4));
+  max-height: calc(100dvh - var(--nm-topbar-height) - 2 * var(--nm-space-4));
+  align-self: flex-start;
+}
+@media (max-width: 980px) {
+  body.route-inventory .inventory-layout--devices .topology-content.details-open { overflow: visible; }
+  body.route-inventory .inventory-layout--devices .inventory-device-sidebar.details-panel {
+    position: static;
+    max-height: none;
+  }
 }

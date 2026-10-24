@@ -813,6 +813,7 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
 
 .nm-input,
 .nm-select,
+.inv-pagination-select,
 .nm-textarea {
   width: 100%;
   border: 1px solid var(--nm-border);
@@ -825,9 +826,20 @@ body.theme-dark .nm-btn.nm-btn--active { border-color: rgba(34, 192, 207, 0.35);
 
 .nm-input,
 .nm-select { height: var(--nm-control-md); padding: 0 var(--nm-space-3); }
+/* Compact native pagination select; shared by Inventory and Monitoring. */
+.inv-pagination-select {
+  width: auto;
+  height: var(--nm-control-sm);
+  padding: 0 var(--nm-space-2);
+  font-size: var(--nm-text-sm);
+  cursor: pointer;
+}
+.nm-select option,
+.inv-pagination-select option { background: var(--nm-modal-input); color: var(--nm-text); }
 .nm-textarea { min-height: 80px; padding: var(--nm-space-3); resize: vertical; }
 .nm-input:focus,
 .nm-select:focus,
+.inv-pagination-select:focus,
 .nm-textarea:focus { border-color: var(--nm-focus-border); outline: 1px solid var(--nm-focus-border); outline-offset: -1px; }
 .nm-input::placeholder,
 .nm-textarea::placeholder { color: var(--nm-text-faint); }

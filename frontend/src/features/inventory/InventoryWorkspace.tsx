@@ -104,6 +104,7 @@ export function InventoryWorkspace({
   const deviceTypesQuery = useDeviceTypes(accessToken);
   const deviceTypeOptions = deviceTypesQuery.options;
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
+  const deviceWorkspaceRef = useRef<HTMLElement>(null);
   const pendingDeviceRef = useRef<number | null>(null);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<number>>(new Set());
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
@@ -688,6 +689,11 @@ export function InventoryWorkspace({
           securitySummary={deviceSecuritySummary}
         />
   );
+  useEffect(() => {
+    if (inventoryView !== "devices" || selectedDeviceId === null || !window.matchMedia("(max-width: 980px)").matches) return;
+    deviceWorkspaceRef.current?.querySelector<HTMLElement>(".inventory-device-sidebar")?.scrollIntoView({ block: "start" });
+  }, [inventoryView, selectedDeviceId]);
+
   const deviceOverview = selectedDevice && <InventoryDetailsPanel title="Device overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>{deviceDetails}</InventoryDetailsPanel>;
 
   if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate}
@@ -698,7 +704,7 @@ export function InventoryWorkspace({
     livePingEnabled={livePingEnabled} mutationError={inventoryError} />;
 
   return (
-    <section className="topology-layout inventory-layout">
+    <section className="topology-layout inventory-layout inventory-layout--devices" ref={deviceWorkspaceRef}>
       <div className="nm-bento nm-bento--four inventory-bento nm-motion">
       <InsightPanel title="Devices by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeSlices.length} type{typeSlices.length === 1 ? "" : "s"}</span>}>
         {graph.devices.length === 0 ? <p className="tool-note nm-chart-empty">No devices yet.</p>
