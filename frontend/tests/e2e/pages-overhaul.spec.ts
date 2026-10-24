@@ -151,10 +151,25 @@ test("Monitoring devices show fleet health and the slowest devices", async ({ pa
   expect((await barLabels(page, "Least uptime, last 24 h"))[0]).toBe("NAS-01 97.5%");
 });
 
-test("Locations count devices per site and list sites that need details", async ({ page }) => {
+async function legendRows(page: Page, region: string) {
+  const rows = page.getByRole("region", { name: region, exact: true }).locator(".nm-chart-legend li");
+  await expect(rows.first()).toBeVisible();
+  return rows.evaluateAll((items) => items.map((row) => row.textContent?.trim()));
+}
+
+async function expectHeroMatchesCards(page: Page, hero: string) {
+  const heroBox = (await page.getByRole("region", { name: hero, exact: true }).boundingBox())!;
+  const cards = (await page.locator(".nm-bento-stats").first().boundingBox())!;
+  expect(Math.abs(heroBox.y + heroBox.height - (cards.y + cards.height)), "the chart ends level with the summary cards").toBeLessThanOrEqual(1);
+}
+
+test("Locations ring the occupied sites, level with the summary cards", async ({ page }) => {
   await boot(page);
   await page.goto("/locations");
-  expect(await barLabels(page, "Devices by location")).toEqual(["Brisbane HQ 2", "Sydney Edge 1"]);
+  const hero = page.getByRole("region", { name: "Devices by location", exact: true });
+  await expect(hero.locator(".dash-donut-svg")).toBeVisible();
+  expect(await legendRows(page, "Devices by location"), "sites with no devices are left out").toEqual(["Brisbane HQ2", "Sydney Edge1"]);
+  await expectHeroMatchesCards(page, "Devices by location");
   const needs = page.getByRole("region", { name: "Needs details", exact: true });
   await expect(needs).toContainText("Sydney Edge");
   await expect(needs).toContainText("No address · no colour set");

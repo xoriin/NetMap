@@ -8,7 +8,7 @@ import { api, type Site, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
 import { InsightPanel } from "../../components/InsightPanel";
-import { BarList, CountUp } from "../../components/Charts";
+import { CountUp, DonutChart } from "../../components/Charts";
 import { EventList } from "../../components/EventList";
 import { resolveEntityColor } from "../../utils/entityColor";
 import { BarChart3, ClipboardList } from "lucide-react";
@@ -237,7 +237,8 @@ export function LocationsWorkspace({
       {!sitesLoading && (
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Devices by location" icon={<BarChart3 size={16} />} className="nm-motion-item">
-            <BarList label="Devices per location" items={siteBars} empty="No locations yet." />
+            {occupiedSites.length === 0 ? <p className="tool-note nm-chart-empty">{sites.length ? "No devices are placed at a location yet." : "No locations yet."}</p>
+              : <DonutChart label="Devices per location" items={occupiedSites} centre={<CountUp value={occupiedSites.reduce((sum, site) => sum + site.value, 0)} />} sub="devices" />}
           </InsightPanel>
           <div className="dash-stats nm-bento-stats loc-stats nm-summary-band">
             <DashStat className="nm-motion-item" label="Total sites" value={<CountUp value={sites.length} />} icon={<IconMapPin size={20} />} accent="teal"

@@ -2551,7 +2551,6 @@ body.route-ipam .ipam-workspace .dash-alert {
   margin: -6px 0 14px;
 }
 body.route-locations .dash-stats { margin-bottom: 0; }
-body.route-locations .loc-stats { margin-bottom: var(--nm-workspace-section-gap); }
 .ipam-delete-btn { color: var(--dash-red) !important; }
 .ipam-delete-btn:hover { opacity: 0.75; }
 
