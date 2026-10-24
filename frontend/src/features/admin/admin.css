@@ -715,19 +715,16 @@
 .admin-layout .admin-schedule-card-list {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: var(--nm-space-3);
   min-height: 0;
-  max-height: 460px;
-  padding: 10px;
-  overflow-y: auto;
 }
 
 .admin-layout .admin-schedule-card {
   display: grid;
-  gap: 10px;
+  gap: var(--nm-space-3);
   border: 1px solid var(--nm-border);
   border-radius: var(--nm-radius-md);
-  padding: 11px;
+  padding: var(--nm-space-4);
   background: var(--nm-modal-section);
 }
 
@@ -746,7 +743,8 @@
 
 .admin-layout .admin-schedule-card-heading strong {
   overflow: hidden;
-  color: var(--nm-modal-label);
+  color: var(--nm-text);
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -759,41 +757,47 @@
   white-space: nowrap;
 }
 
-.admin-layout .admin-schedule-card-meta {
+.admin-layout .admin-schedule-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--nm-border);
+  border-radius: var(--nm-radius-sm);
+  background: var(--nm-border);
 }
 
-.admin-layout .admin-schedule-card-meta > span {
-  display: grid;
-  gap: 2px;
+.admin-layout .admin-schedule-metrics > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   padding: 10px 12px;
   background: var(--nm-modal-section);
 }
 
-.admin-layout .admin-schedule-card-meta small {
-  color: var(--nm-text-faint);
-  font-size: 10px;
-  font-weight: 700;
+.admin-layout .admin-schedule-metrics svg { flex: 0 0 auto; color: var(--nm-accent); }
+.admin-layout .admin-schedule-metrics span { display: grid; gap: 2px; min-width: 0; }
+
+.admin-layout .admin-schedule-metrics dt {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.admin-layout .admin-schedule-card-meta strong {
+.admin-layout .admin-schedule-metrics dd {
+  margin: 0;
   overflow: hidden;
   color: var(--nm-text);
-  font-size: var(--nm-text-xs);
+  font-size: var(--nm-text-md);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.admin-layout .admin-schedule-card > .admin-row-actions {
-  padding-top: 9px;
-  border-top: 1px solid var(--nm-border);
-}
+.admin-layout .admin-schedule-card > .admin-row-actions { justify-content: flex-end; }
 
 .admin-layout .admin-schedule-empty {
   display: grid;
