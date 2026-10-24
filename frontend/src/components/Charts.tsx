@@ -172,6 +172,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "" }: {
             const onLeave = () => { setActive(null); hide(); };
             return (
               <g key={row.label} className={`nm-chart-col${active === i ? " is-active" : ""}`} style={{ "--nm-chart-i": i } as CSSProperties}>
+                <rect className="nm-chart-col-bg" x={padL + slot * i} y={padT} width={slot} height={plotH} aria-hidden="true" />
                 {present.map((s, si) => {
                   const h = (value(row, s.key) / top) * plotH;
                   const y = base - h;

@@ -143,6 +143,31 @@ test("chart tooltips show the hovered value", async ({ page }) => {
   await expect(page.locator(".hb-tooltip-card")).toContainText("72");
 });
 
+test("hovering a column highlights behind the bars instead of painting over them", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "slate");
+  await page.goto("/admin#notifications");
+  const column = page.locator(".nm-chart-col", { has: page.locator("path") }).first();
+  await column.locator(".nm-chart-hit").hover();
+  await expect(column).toHaveClass(/is-active/);
+  const layers = await column.evaluate((node) => {
+    const children = [...node.children];
+    const hit = node.querySelector(".nm-chart-hit")!;
+    const bg = node.querySelector(".nm-chart-col-bg");
+    const firstPath = node.querySelector("path")!;
+    return {
+      hitFill: getComputedStyle(hit).fill,
+      bgFill: bg ? getComputedStyle(bg).fill : null,
+      bgBeforeBars: bg ? children.indexOf(bg) < children.indexOf(firstPath) : false,
+      barOpacity: getComputedStyle(firstPath).opacity,
+    };
+  });
+  expect(layers.hitFill, "the hit area above the bars stays transparent").toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
+  expect(layers.bgBeforeBars, "the highlight is drawn behind the bars").toBe(true);
+  expect(layers.bgFill).toBe("rgb(30, 41, 59)");
+  expect(layers.barOpacity).toBe("1");
+});
+
 test("Notifications keeps services inside the methods panel beside type and failure cards of equal height", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupMocks(page, "slate");
