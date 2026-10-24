@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +14,8 @@ from app.models.discovery import DiscoveryObservation, DiscoveryScan, DiscoveryS
 from app.models.topology_group import TopologyGroup
 from app.models.user import User
 from app.schemas.discovery import (
+    ObservationDay,
+    ObservationSummary,
     DiscoveryHost,
     DiscoveryImportRequest,
     DiscoveryImportResult,
@@ -248,6 +250,32 @@ def run_schedule_now(
         )
     refreshed = db.get(DiscoveryScan, scan.id)
     return scan_to_read_with_inventory(refreshed or scan, db)
+
+
+@router.get("/observations/summary", response_model=ObservationSummary)
+def observation_summary(
+    _current_user: Annotated[User, Depends(require_discovery_manage)],
+    db: Annotated[Session, Depends(get_db)],
+    days: int = 14,
+) -> ObservationSummary:
+    days = max(1, min(days, 90))
+    today = datetime.now(timezone.utc).date()
+    first = today - timedelta(days=days - 1)
+    since = datetime.combine(first, datetime.min.time(), tzinfo=timezone.utc)
+    rows = db.execute(
+        select(func.date(DiscoveryObservation.first_seen_at), DiscoveryObservation.observation_type, func.count())
+        .where(DiscoveryObservation.first_seen_at >= since)
+        .group_by(func.date(DiscoveryObservation.first_seen_at), DiscoveryObservation.observation_type)
+    ).all()
+    per_day = {(first + timedelta(days=i)).isoformat(): ObservationDay(date=(first + timedelta(days=i)).isoformat()) for i in range(days)}
+    for day, kind, count in rows:
+        bucket = per_day.get(str(day))
+        if bucket is None:
+            continue
+        field = kind if kind in ("new_device", "ip_change", "disappeared") else "other"
+        setattr(bucket, field, getattr(bucket, field) + count)
+    counts = dict(db.execute(select(DiscoveryObservation.status, func.count()).group_by(DiscoveryObservation.status)).all())
+    return ObservationSummary(days=list(per_day.values()), open=counts.get("open", 0) + counts.get("acknowledged", 0), resolved=counts.get("resolved", 0))
 
 
 @router.get("/observations", response_model=list[DiscoveryObservationRead])

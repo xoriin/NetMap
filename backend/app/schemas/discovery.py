@@ -158,3 +158,17 @@ class DiscoveryObservationRead(BaseModel):
 
 class DiscoveryObservationUpdate(BaseModel):
     status: Literal["open", "acknowledged", "resolved"]
+
+
+class ObservationDay(BaseModel):
+    date: str
+    new_device: int = 0
+    ip_change: int = 0
+    disappeared: int = 0
+    other: int = 0
+
+
+class ObservationSummary(BaseModel):
+    days: list[ObservationDay]
+    open: int
+    resolved: int

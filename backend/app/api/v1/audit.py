@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -9,7 +10,7 @@ from app.api.deps import require_audit_view
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.audit import AuditLogList, AuditLogRead
+from app.schemas.audit import AuditActionCount, AuditActorCount, AuditDay, AuditLogList, AuditLogRead, AuditSummary
 from app.services.audit.service import write_audit
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -32,7 +33,54 @@ LOGIN_RESULT_LABELS = {
     "auth.login_blocked_sso_required": "Blocked (SSO required)",
 }
 
+FAILED_SIGN_IN_ACTIONS = (
+    "auth.login_failed",
+    "auth.mfa_failed",
+    "auth.login_blocked",
+    "auth.login_blocked_sso_required",
+)
+
 _IP_DETAIL_RE = re.compile(r"ip=(\S+)")
+
+
+@router.get("/summary", response_model=AuditSummary)
+def audit_summary(
+    _current_user: Annotated[User, Depends(require_audit_view)],
+    db: Annotated[Session, Depends(get_db)],
+    days: Annotated[int, Query(ge=1, le=90)] = 14,
+) -> AuditSummary:
+    today = datetime.now(timezone.utc).date()
+    first = today - timedelta(days=days - 1)
+    since = datetime.combine(first, datetime.min.time(), tzinfo=timezone.utc)
+    rows = db.execute(
+        select(func.date(AuditLog.created_at), AuditLog.action, func.count())
+        .where(AuditLog.created_at >= since)
+        .group_by(func.date(AuditLog.created_at), AuditLog.action)
+    ).all()
+    per_day = {(first + timedelta(days=i)).isoformat(): AuditDay(date=(first + timedelta(days=i)).isoformat()) for i in range(days)}
+    by_action: dict[str, int] = {}
+    for day, action, count in rows:
+        by_action[action] = by_action.get(action, 0) + count
+        bucket = per_day.get(str(day))
+        if bucket is None:
+            continue
+        if action == "auth.login_success":
+            bucket.signed_in += count
+        elif action in FAILED_SIGN_IN_ACTIONS:
+            bucket.failed += count
+    actors = db.execute(
+        select(AuditLog.actor_user_id, User.username, func.count())
+        .join(User, User.id == AuditLog.actor_user_id)
+        .where(AuditLog.created_at >= since)
+        .group_by(AuditLog.actor_user_id, User.username)
+    ).all()
+    return AuditSummary(
+        days=list(per_day.values()),
+        by_action=[AuditActionCount(action=a, count=c) for a, c in sorted(by_action.items(), key=lambda kv: (-kv[1], kv[0]))[:8]],
+        by_actor=[AuditActorCount(actor_user_id=i, username=u, count=c) for i, u, c in sorted(actors, key=lambda r: (-r[2], r[1]))[:5]],
+        total=sum(by_action.values()),
+        failed_total=sum(c for a, c in by_action.items() if a in FAILED_SIGN_IN_ACTIONS),
+    )
 
 
 @router.get("/logs", response_model=AuditLogList)
