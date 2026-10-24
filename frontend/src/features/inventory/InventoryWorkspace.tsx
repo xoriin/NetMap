@@ -15,7 +15,7 @@ import {
 } from "./inventoryNavigation";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useToast } from "../../components/Toast";
-import { Search, Star, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { Search, Star, ChevronDown, PieChart, SlidersHorizontal } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconTopologyRing } from "@tabler/icons-react";
 import {
   api,
@@ -41,6 +41,8 @@ import { ipSortKey } from "../../utils/ip";
 import { compareDevices } from "../../utils/sort";
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { CountUp, DonutChart } from "../../components/Charts";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { DeviceDetails } from "../devices/DeviceDetails";
 import { DeviceForm } from "../devices/DeviceForm";
@@ -48,6 +50,7 @@ import { createDeviceWithReservationConfirmation } from "../devices/createDevice
 import { DiscoveryModal } from "../topology/DiscoveryModal";
 import { DeviceImportModal } from "../devices/DeviceImportModal";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 
 const INVENTORY_PAGE_SIZE_KEY = "netmap.inventory.pageSize";
 const INVENTORY_PAGE_SIZE_MIGRATION_KEY = "netmap.inventory.pageSizeDefault25";
@@ -108,6 +111,15 @@ export function InventoryWorkspace({
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<InventoryStatusFilter>("all");
   const [favouriteFilter, setFavouriteFilter] = useState(false);
+  const phoneLayout = useMediaQuery("(max-width: 760px)");
+  const activeFilterCount = [selectedGroupFilter !== "all", selectedSiteFilter !== "all", selectedTypeFilter !== "all", statusFilter !== "all", favouriteFilter].filter(Boolean).length;
+  const clearFilters = () => {
+    setSelectedGroupFilter("all");
+    setSelectedSiteFilter("all");
+    setSelectedTypeFilter("all");
+    setStatusFilter("all");
+    setFavouriteFilter(false);
+  };
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const [bulkGroupId, setBulkGroupId] = useState('');
   const [bulkDeviceType, setBulkDeviceType] = useState('');
@@ -606,6 +618,16 @@ export function InventoryWorkspace({
   }
 
   const groupCount = new Set(graph.devices.map((d) => d.topology_group).filter(Boolean)).size;
+  const typeSlices = (() => {
+    const counts = new Map<string, number>();
+    for (const device of graph.devices) counts.set(device.device_type ?? "", (counts.get(device.device_type ?? "") ?? 0) + 1);
+    return [...counts].map(([value, count]) => {
+      const type = deviceTypeOptions.find((option) => option.value === value);
+      return value
+        ? { label: type?.label || formatDeviceTypeLabel(value), value: count, color: resolveEntityColor(type?.color, value) }
+        : { label: "No type", value: count, color: "--dash-muted" };
+    }).sort((a, b) => b.value - a.value);
+  })();
   // Counted against expected state, so an intentionally-offline device is
   // not an outage — and these totals match the status filter.
   const invOnlineCount = graph.devices.filter((d) => healthFor(d) === "online").length;
@@ -677,15 +699,20 @@ export function InventoryWorkspace({
 
   return (
     <section className="topology-layout inventory-layout">
-      <div className="dash-stats inventory-stats nm-summary-band">
-        <DashStat
+      <div className="nm-bento nm-bento--four inventory-bento nm-motion">
+      <InsightPanel title="Devices by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeSlices.length} type{typeSlices.length === 1 ? "" : "s"}</span>}>
+        {graph.devices.length === 0 ? <p className="tool-note nm-chart-empty">No devices yet.</p>
+          : <DonutChart label="Devices per device type" items={typeSlices} centre={<CountUp value={graph.devices.length} />} sub="devices" />}
+      </InsightPanel>
+      <div className="dash-stats inventory-stats nm-bento-stats nm-summary-band">
+        <DashStat className="nm-motion-item"
           label="Devices"
           value={graph.devices.length}
           icon={<IconServer size={20} />}
           accent="teal"
           onClick={() => setStatusFilter("all")}
         />
-        <DashStat
+        <DashStat className="nm-motion-item"
           label="Online"
           value={invOnlineCount}
           icon={<IconWifi size={20} />}
@@ -693,7 +720,7 @@ export function InventoryWorkspace({
           onClick={() => setStatusFilter((current) => current === "online" ? "all" : "online")}
           active={statusFilter === "online"}
         />
-        <DashStat
+        <DashStat className="nm-motion-item"
           label="Offline"
           value={invOfflineCount}
           icon={<IconWifiOff size={20} />}
@@ -701,7 +728,8 @@ export function InventoryWorkspace({
           onClick={() => setStatusFilter((current) => current === "offline" ? "all" : "offline")}
           active={statusFilter === "offline"}
         />
-        <DashStat label="Groups" value={groupCount} icon={<IconTopologyRing size={20} />} accent="purple" />
+        <DashStat className="nm-motion-item" label="Groups" value={groupCount} icon={<IconTopologyRing size={20} />} accent="purple" />
+      </div>
       </div>
 
       <ObservationsAlert
@@ -727,15 +755,14 @@ export function InventoryWorkspace({
             <button
               type="button"
               className={`nm-btn nm-btn--secondary nm-phone-filters-btn${phoneFiltersOpen ? " nm-btn--active" : ""}`}
-              aria-expanded={phoneFiltersOpen}
-              onClick={() => setPhoneFiltersOpen((open) => !open)}
+              aria-expanded={phoneLayout ? phoneFiltersOpen : undefined}
+              disabled={!phoneLayout && activeFilterCount === 0}
+              title={!phoneLayout && activeFilterCount > 0 ? `Clear ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"}` : undefined}
+              onClick={() => { if (phoneLayout) setPhoneFiltersOpen((open) => !open); else clearFilters(); }}
             >
               <SlidersHorizontal size={14} aria-hidden="true" />
               Filters
-              {(() => {
-                const active = [selectedGroupFilter !== "all", selectedSiteFilter !== "all", selectedTypeFilter !== "all", statusFilter !== "all", favouriteFilter].filter(Boolean).length;
-                return active > 0 ? <span className="nm-phone-filters-count">{active}</span> : null;
-              })()}
+              {activeFilterCount > 0 && <span className="nm-phone-filters-count">{activeFilterCount}</span>}
             </button>
             <div className={`nm-phone-filter-group${phoneFiltersOpen ? " is-open" : ""}`}>
             <SwatchSelect
@@ -782,7 +809,7 @@ export function InventoryWorkspace({
                   open={bulkMenuOpen}
                   onToggle={(event) => setBulkMenuOpen(event.currentTarget.open)}
                 >
-                  <summary className="nm-btn">
+                  <summary className={`nm-btn nm-btn--secondary${bulkMenuOpen ? " nm-btn--active" : ""}`}>
                     {selectedDeviceIds.size > 0 ? `${selectedDeviceIds.size} selected` : "Bulk"}
                     <ChevronDown size={13} />
                   </summary>

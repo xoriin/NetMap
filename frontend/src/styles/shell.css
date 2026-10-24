@@ -411,7 +411,7 @@ body.route-inventory .workspace > .workspace-security-alert {
   margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) var(--nm-workspace-section-gap);
 }
 
-body.route-inventory .workspace:has(.workspace-security-alert) .inventory-stats {
+body.route-inventory .workspace:has(.workspace-security-alert) .inventory-layout > .inventory-bento {
   margin-top: 0;
 }
 
@@ -434,7 +434,7 @@ body.route-inventory .workspace > .dash-alert--announcement {
   margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0;
 }
 
-body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-stats {
+body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-layout > .inventory-bento {
   margin-top: var(--nm-workspace-section-gap);
 }
 
@@ -1571,6 +1571,17 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
   display: none;
 }
 
+.nm-phone-filters-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--nm-accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
 .nm-phone-filter-group {
   display: contents;
 }
@@ -1623,16 +1634,6 @@ body.theme-dark .modal .totp-enrolment .auth-reset-info {
     margin-left: auto;
   }
 
-  .nm-phone-filters-count {
-    min-width: 18px;
-    padding: 0 5px;
-    border-radius: 999px;
-    background: var(--nm-accent);
-    color: #fff;
-    font-size: 11px;
-    line-height: 18px;
-    text-align: center;
-  }
 
   .nm-phone-filter-group {
     display: none;

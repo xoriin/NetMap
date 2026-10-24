@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Cloud, Link2, Plus, Search, Server, Star, Unlink } from "lucide-react";
+import { Cloud, Link2, PieChart, Plus, Search, Server, Star, Unlink } from "lucide-react";
 import { IconWifiOff } from "@tabler/icons-react";
 import { api, type Device, type CloudAssetType } from "../../api/client";
 import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { CountUp, DonutChart } from "../../components/Charts";
 import { EntityChip, EntityChipEmpty } from "../../components/EntityChip";
 import { CloudAssetDetails, type CloudAssetRecord, type CloudDeviceFormOptions } from "./CloudAssetDetails";
 import { CloudAssetForm } from "./CloudAssetForm";
@@ -115,6 +117,12 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   const detail = records.find(row => row.key === detailKey);
   const linkedCount = new Set(records.flatMap(row => row.deviceId !== null ? [row.deviceId] : [])).size;
   const offlineCount = new Set(records.flatMap(row => row.device && row.health === "offline" ? [row.device.id] : [])).size;
+  const kindSlices = (() => {
+    const counts = new Map<string, number>();
+    for (const row of records) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1);
+    const palette = ["--dash-blue", "--dash-amber", "--dash-purple", "--dash-teal", "--dash-indigo"] as const;
+    return [...counts].sort((a, b) => b[1] - a[1]).map(([label, value], index) => ({ label, value, color: palette[index] ?? "--dash-muted" }));
+  })();
   function options(field: "provider" | "location" | "kind", label: string) {
     return [{value:"all",label}, ...[...new Set(records.map(row => row[field]))].sort().map(value => ({value, label:value || "Unassigned"}))];
   }
@@ -141,11 +149,17 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   /> : null;
   if (query.isLoading) return <WorkspaceSkeleton />;
   return <section className="topology-layout inventory-layout inventory-cloud-layout">
-    <div className="dash-stats inventory-stats nm-summary-band">
-      <DashStat label="Cloud assets" value={query.error ? "—" : records.length} icon={<Cloud size={20} />} accent="teal" />
-      <DashStat label="Linked devices" value={query.error ? "—" : linkedCount} icon={<Link2 size={20} />} accent="green" />
-      <DashStat label="Offline" value={query.error ? "—" : offlineCount} icon={<IconWifiOff size={20} />} accent={offlineCount > 0 ? "red" : "green"} onClick={() => setMonitorFilter(value => value === "offline" ? "all" : "offline")} active={monitorFilter === "offline"} />
-      <DashStat label="Not linked" value={query.error ? "—" : records.filter(row => row.deviceId === null).length} icon={<Unlink size={20} />} accent="amber" onClick={() => setMonitorFilter(value => value === "unlinked" ? "all" : "unlinked")} active={monitorFilter === "unlinked"} />
+    <div className="nm-bento nm-bento--four inventory-bento nm-motion">
+    <InsightPanel title="Cloud assets by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{kindSlices.length} type{kindSlices.length === 1 ? "" : "s"}</span>}>
+      {query.error || records.length === 0 ? <p className="tool-note nm-chart-empty">{query.error ? "Cloud assets are unavailable." : "No cloud assets yet."}</p>
+        : <DonutChart label="Cloud assets per type" items={kindSlices} centre={<CountUp value={records.length} />} sub="assets" />}
+    </InsightPanel>
+    <div className="dash-stats inventory-stats nm-bento-stats nm-summary-band">
+      <DashStat className="nm-motion-item" label="Cloud assets" value={query.error ? "—" : records.length} icon={<Cloud size={20} />} accent="teal" />
+      <DashStat className="nm-motion-item" label="Linked devices" value={query.error ? "—" : linkedCount} icon={<Link2 size={20} />} accent="green" />
+      <DashStat className="nm-motion-item" label="Offline" value={query.error ? "—" : offlineCount} icon={<IconWifiOff size={20} />} accent={offlineCount > 0 ? "red" : "green"} onClick={() => setMonitorFilter(value => value === "offline" ? "all" : "offline")} active={monitorFilter === "offline"} />
+      <DashStat className="nm-motion-item" label="Not linked" value={query.error ? "—" : records.filter(row => row.deviceId === null).length} icon={<Unlink size={20} />} accent="amber" onClick={() => setMonitorFilter(value => value === "unlinked" ? "all" : "unlinked")} active={monitorFilter === "unlinked"} />
+    </div>
     </div>
     {mutationError && <div className="form-error" role="alert">{mutationError}</div>}
     <div className={activeOverview ? "topology-content details-open" : "topology-content"}>

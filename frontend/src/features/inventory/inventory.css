@@ -395,3 +395,8 @@ body:not(.theme-dark) .inventory-layout .inventory-row.active {
   }
 }
 
+
+.inventory-layout > .inventory-bento { margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0; }
+@media (max-width: 760px) {
+  .inventory-layout > .inventory-bento { margin: 14px 12px 0; }
+}

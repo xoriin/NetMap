@@ -305,6 +305,64 @@ test("the ports pop-up and the bulk menu stay legible in light mode", async ({ p
   expect(panel.shadow, "the bulk menu uses the shared overlay shadow").toBe("rgba(3, 10, 18, 0.24) 0px 12px 28px 0px");
 });
 
+test("Inventory devices open with a type ring level with the summary cards", async ({ page }) => {
+  await boot(page);
+  await setupInventoryMocks(page, devices);
+  await page.goto("/inventory#devices");
+  const hero = page.getByRole("region", { name: "Devices by type", exact: true });
+  await expect(hero.locator(".dash-donut-svg")).toBeVisible();
+  const rows = await legendRows(page, "Devices by type");
+  expect(rows).toHaveLength(3);
+  expect(rows.every((row) => /1$/.test(row ?? ""))).toBe(true);
+  await expectHeroMatchesCards(page, "Devices by type");
+  const heroBox = (await hero.boundingBox())!;
+  const cards = (await page.locator(".nm-bento-stats").first().boundingBox())!;
+  expect(Math.abs(heroBox.y - cards.y), "chart and cards start level").toBeLessThanOrEqual(1);
+  await page.evaluate(() => { const banner = document.createElement("div"); banner.className = "dash-alert dash-alert--announcement"; banner.textContent = "NetMap Development Image"; document.querySelector(".workspace")!.prepend(banner); });
+  await page.waitForTimeout(100);
+  const withBanner = await page.evaluate(() => {
+    const top = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().top;
+    return top(".inventory-bento > .nm-bento-stats") - top(".inventory-bento > .nm-insight");
+  });
+  expect(Math.abs(withBanner), "an announcement banner does not push the cards below the chart").toBeLessThanOrEqual(1);
+});
+
+test("the Inventory Filters button counts active filters and clears them, and Bulk matches the toolbar", async ({ page }) => {
+  await boot(page);
+  await setupInventoryMocks(page, devices);
+  await page.goto("/inventory#devices");
+  const filters = page.locator(".nm-phone-filters-btn");
+  await expect(filters).toBeVisible();
+  await expect(filters.locator(".nm-phone-filters-count")).toHaveCount(0);
+  await page.locator(".inventory-stats .dash-stat", { hasText: "Online" }).click();
+  await page.locator(".inv-fav-filter").first().click();
+  const count = filters.locator(".nm-phone-filters-count");
+  await expect(count).toHaveText("2");
+  expect(await count.evaluate((el) => getComputedStyle(el).borderRadius)).toBe("999px");
+  await filters.click();
+  await expect(count).toHaveCount(0);
+  await expect(page.locator(".inv-fav-filter").first()).toHaveAttribute("aria-pressed", "false");
+  const bulk = page.locator(".inv-bulk-menu summary");
+  await expect(bulk).toHaveClass(/nm-btn--secondary/);
+  const look = (el: Element) => { const css = getComputedStyle(el); return `${css.backgroundColor} ${css.borderTopColor} ${css.color}`; };
+  expect(await bulk.evaluate(look)).toBe(await page.getByRole("button", { name: "Import", exact: true }).evaluate(look));
+});
+
+test("Inventory cards and the type ring animate in like the other pages", async ({ page }) => {
+  await boot(page);
+  await setupInventoryMocks(page, devices);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/inventory#devices");
+  const card = page.locator(".inventory-bento .dash-stat").first();
+  await expect(card).toBeVisible();
+  expect(await card.evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-rise");
+  expect(await page.locator(".inventory-bento .nm-insight").evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-rise");
+  expect(await page.locator(".inventory-bento .nm-chart-seg").first().evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-sweep");
+  expect(await page.locator(".inventory-bento .nm-chart-legend-track > i").first().evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-grow-x");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(await card.evaluate((node) => getComputedStyle(node).animationName)).toBe("none");
+});
+
 test("Overview plays the shared entrance motion and drops it under reduced motion", async ({ page }) => {
   await boot(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
