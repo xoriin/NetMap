@@ -748,8 +748,17 @@ test("Check now sits in the popup header with the other actions", async ({ page 
   const check = actions.getByRole("button", { name: "Check now" });
   await expect(check).toBeVisible();
   const pause = actions.getByRole("button", { name: /monitoring/i });
-  expect((await check.boundingBox())!.height).toBe((await pause.boundingBox())!.height);
-  expect(Math.abs((await check.boundingBox())!.y - (await pause.boundingBox())!.y)).toBeLessThanOrEqual(1);
+  await expect(pause).toBeVisible();
+  await page.waitForFunction(() => document.getAnimations()
+    .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+    .every((animation) => animation.playState !== "running"));
+  const [checkBox, pauseBox] = await actions.evaluate((node) => {
+    const buttons = [...node.querySelectorAll("button")];
+    const find = (pattern: RegExp) => buttons.find((button) => pattern.test(button.textContent ?? ""))!.getBoundingClientRect();
+    return [find(/Check now/), find(/monitoring/i)].map((rect) => ({ y: rect.y, height: rect.height }));
+  });
+  expect(checkBox.height).toBe(pauseBox.height);
+  expect(Math.abs(checkBox.y - pauseBox.y)).toBeLessThanOrEqual(1);
 });
 
 test("a newly arrived heartbeat animates in at the end, and only that one", async ({ page }) => {
