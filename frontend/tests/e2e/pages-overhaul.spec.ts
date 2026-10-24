@@ -348,6 +348,23 @@ test("the Inventory Filters button counts active filters and clears them, and Bu
   expect(await bulk.evaluate(look)).toBe(await page.getByRole("button", { name: "Import", exact: true }).evaluate(look));
 });
 
+test("clicking a VLAN column opens that subnet in IPAM", async ({ page }) => {
+  await boot(page);
+  const subnets = [
+    { id: 7, name: "Servers subnet", cidr: "10.30.20.0/24", vlan_id: "20" },
+    { id: 8, name: "Wi-Fi subnet", cidr: "10.30.30.0/23", vlan_id: "30" },
+  ].map((subnet) => ({ ...subnet, description: null, site_id: null, gateway: null, dhcp_start: null, dhcp_end: null, dns_servers: null, notes: null, created_at: iso(48), total_hosts: 254, used: 2, utilization: 1 }));
+  await page.route("**/api/v1/ipam/summary", (route) => route.fulfill({ json: { subnet_count: 2, total_hosts: 764, used: 3, free: 761, utilization: 0.4, conflict_count: 0, dhcp_lease_count: 0, reservation_count: 0 } }));
+  await page.route("**/api/v1/ipam/subnets", (route) => route.fulfill({ json: subnets }));
+  await page.route("**/api/v1/ipam/subnets/7/addresses", (route) => route.fulfill({ json: Array.from({ length: 8 }, (_, i) => ({ ip: `10.30.20.${i}`, kind: i === 0 ? "network" : i === 1 ? "gateway" : i < 4 ? "device" : "free" })) }));
+  await page.goto("/vlans");
+  const servers = page.getByRole("region", { name: "Devices by VLAN", exact: true }).locator(".nm-chart-col").filter({ has: page.locator('[aria-label^="Servers"]') });
+  await servers.locator(".nm-chart-hit").click();
+  await expect(page).toHaveURL(/\/ipam/);
+  const dialog = page.getByRole("dialog", { name: "Servers subnet" });
+  await expect(dialog).toBeVisible();
+});
+
 test("Inventory cards and the type ring animate in like the other pages", async ({ page }) => {
   await boot(page);
   await setupInventoryMocks(page, devices);

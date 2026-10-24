@@ -38,11 +38,13 @@ export function VlanWorkspace({
   canWrite,
   graph,
   onGraphChange,
+  onNavigate,
 }: {
   accessToken: string;
   canWrite: boolean;
   graph: TopologyGraph;
   onGraphChange: () => Promise<void>;
+  onNavigate?: (route: "/ipam") => void;
 }) {
   const confirmAction = useConfirm();
   const groupsQuery = useApiQuery(() => api.topologyGroups(accessToken), [accessToken], { rememberAs: "topology.groups" });
@@ -302,7 +304,18 @@ export function VlanWorkspace({
     label: row.entity ? `${groupLabel(row.entity)}${row.entity.vlan_id ? ` · ${row.entity.vlan_id}` : ""}` : row.name,
     value: deviceCountByGroup.get(row.name) ?? 0,
     color: resolveEntityColor(row.entity?.color ?? null, row.name),
+    cidr: row.entity?.ip_range ?? null,
+    vlanId: row.entity?.vlan_id ?? null,
   })).filter((bar) => bar.value > 0).sort((a, b) => b.value - a.value);
+  const openInIpam = (label: string) => {
+    const bar = vlanBars.find((entry) => entry.label === label);
+    if (!bar || !onNavigate) return;
+    const params = new URLSearchParams();
+    if (bar.cidr) params.set("subnet", bar.cidr);
+    if (bar.vlanId) params.set("vlan", bar.vlanId);
+    onNavigate("/ipam");
+    window.history.replaceState(null, "", `/ipam${params.size ? `?${params}` : ""}#internal`);
+  };
   const withVlan = groups.filter((g) => g.vlan_id).length;
   const assigned = graph.devices.filter((d) => d.topology_group && d.topology_group !== "Ungrouped").length;
   const subnets = groups.map((g) => ({ group: g, usable: g.ip_range ? cidrUsableHosts(g.ip_range) : null })).filter((entry): entry is { group: TopologyGroup; usable: number } => entry.usable !== null);
@@ -314,7 +327,7 @@ export function VlanWorkspace({
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Devices by VLAN" icon={<BarChart3 size={16} />} className="nm-motion-item">
             {vlanBars.length === 0 ? <p className="tool-note nm-chart-empty">No devices are grouped yet.</p>
-              : <ColumnChart label="Devices per group or VLAN" height={phone ? 96 : 150} barMax={44} valueLabels scale="sqrt"
+              : <ColumnChart label="Devices per group or VLAN" height={phone ? 96 : 150} barMax={44} valueLabels scale="sqrt" onSelect={onNavigate ? openInIpam : undefined}
                   series={[{ key: "devices", label: "Devices", color: "--dash-blue" }]}
                   rows={vlanBars.map((bar) => ({ label: bar.label, devices: bar.value, color: bar.color }))} />}
           </InsightPanel>

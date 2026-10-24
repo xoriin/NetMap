@@ -197,7 +197,7 @@ export function DashboardView({
         />
       )}
       {currentRoute === "/vlans" && accessToken && (
-        <VlanWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />
+        <VlanWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} onNavigate={onNavigate} />
       )}
       {currentRoute === "/locations" && accessToken && (
         <LocationsWorkspace accessToken={accessToken} canWrite={canWrite} graph={graph} onGraphChange={onGraphChange} />

@@ -88,6 +88,16 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
   const initialReservationExpiry = () => defaultReservationExpiryEnabled ? defaultReservationExpiryDate() : "";
 
   const [selectedSubnet, setSelectedSubnet] = useState<IpamSubnet | null>(null);
+  useEffect(() => {
+    if (subnets.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const cidr = params.get("subnet");
+    const vlan = params.get("vlan");
+    if (!cidr && !vlan) return;
+    const match = subnets.find((subnet) => cidr && subnet.cidr === cidr) ?? subnets.find((subnet) => vlan && subnet.vlan_id === vlan);
+    if (match) { setSelectedSubnet(match); setAddrFilter("all"); }
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+  }, [subnets]);
 
   const [showSubnetForm, setShowSubnetForm] = useState(false);
   const [editingSubnet, setEditingSubnet] = useState<IpamSubnet | null>(null);
