@@ -195,9 +195,17 @@ test("Endpoints and Status pages list as cards on a phone", async ({ page }) => 
     { id: 1, name: "Google", url: "https://www.google.com/", enabled: true, last_status: "online", last_checked_at: "2026-10-22T00:35:47Z", uptime_24h: 99.8, uptime_7d: 99.9, avg_response_time_24h: 456, heartbeat: Array(30).fill("online") },
     { id: 2, name: "Customer API health endpoint with a long name", url: `https://api.example.com/${"segment/".repeat(12)}health`, enabled: false, last_status: "unknown", last_checked_at: null, uptime_24h: null, uptime_7d: null, avg_response_time_24h: null, heartbeat: [] },
   ] }));
-  await page.route("**/api/v1/status-pages", (route) => route.fulfill({ json: [
-    { id: 1, name: "Public status", title: "Public status", slug: "public", visibility: "public", heartbeat_window: "24h", enabled: true, created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z" },
-  ] }));
+  const statusPage = { id: 1, name: "Public status", title: "Public status", slug: "public", visibility: "public", heartbeat_window: "24h", enabled: true, created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z" };
+  await page.route("**/api/v1/status-pages**", (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api\/v1\/status-pages\/?/, "");
+    if (path === "") return route.fulfill({ json: [statusPage] });
+    if (path === "1/preview") return route.fulfill({ json: {
+      ...statusPage, groups: [], incidents: [], notices: [], maintenance: [], past: [],
+      summary: { state: "empty", label: "No systems configured", counts: {} },
+      generated_at: new Date().toISOString(), valid_until: new Date(Date.now() + 30_000).toISOString(),
+    } });
+    return route.fulfill({ json: [] });
+  });
   await page.goto("/monitoring#endpoints");
   await expectCards(page, ".monitors-table-wrap", "Google");
   expect((await page.getByPlaceholder("Search name or URL…").boundingBox())!.width).toBeGreaterThan(250);
