@@ -151,7 +151,7 @@ export function CloudAssetsPanel({ accessToken, devices, onNavigate, favouriteId
   return <section className="topology-layout inventory-layout inventory-cloud-layout">
     <div className="nm-bento nm-bento--four inventory-bento nm-motion">
     <InsightPanel title="Cloud assets by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{kindSlices.length} type{kindSlices.length === 1 ? "" : "s"}</span>}>
-      {query.error || records.length === 0 ? <p className="tool-note nm-chart-empty">{query.error ? "Cloud assets are unavailable." : "No cloud assets yet."}</p>
+      {query.error || records.length === 0 ? <p className="tool-note nm-chart-empty">{query.error ? "Cloud assets are unavailable." : "Nothing to chart yet."}</p>
         : <DonutChart label="Cloud assets per type" items={kindSlices} centre={<CountUp value={records.length} />} sub="assets" />}
     </InsightPanel>
     <div className="dash-stats inventory-stats nm-bento-stats nm-summary-band">
