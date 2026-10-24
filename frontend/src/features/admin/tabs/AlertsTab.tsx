@@ -1,16 +1,45 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { CircleCheck, CirclePause, Clock, Layers, Send } from "lucide-react";
 import {
   api,
   type AlertRule, type AlertRulePayload, type AlertRuleEventType, type TopologyGraph, type PortTarget, type Monitor,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { formatEventTime } from "../../../utils/format";
+import { DashStat } from "../../../components/DashStat";
+import { BarList, ColumnChart, CountUp } from "../../../components/Charts";
+import { EventList, type EventTone } from "../../../components/EventList";
+import { lastDays, dayKey, shortDateTime } from "../../../utils/history";
+import { AdminCard } from "../AdminCard";
 import { legacyChannelLabels, notificationTargetLabel, notificationProfileMethodLabel } from "../notificationProfiles";
 
 const INCIDENT_DEFAULT_EVENTS: AlertRuleEventType[] = ["device_offline", "device_unexpected_state", "service_down", "monitor_down"];
 const INCIDENT_NEVER_EVENTS: AlertRuleEventType[] = ["device_online", "any_status_change", "device_expected_state_restored"];
+
+const TRIGGER_NAMES: Record<AlertRuleEventType, string> = {
+  device_offline: "Goes offline",
+  device_online: "Comes online",
+  device_warning: "Warning status",
+  any_status_change: "Any status change",
+  device_unexpected_state: "Unexpected state",
+  device_expected_state_restored: "Expected state restored",
+  rtt_above: "RTT above threshold",
+  device_flapping: "Flapping",
+  ping_loss_above: "Ping loss",
+  service_down: "Service down",
+  service_slow: "Service slow",
+  monitor_down: "Endpoint down",
+  monitor_slow: "Endpoint slow",
+  monitor_certificate_expiry: "Certificate expiry",
+};
+
+function triggerTone(event: AlertRuleEventType): EventTone {
+  if (event === "device_online" || event === "device_expected_state_restored") return "online";
+  if (event.endsWith("_slow") || event === "rtt_above" || event === "ping_loss_above" || event === "monitor_certificate_expiry" || event === "device_warning" || event === "device_flapping") return "warning";
+  return "offline";
+}
 
 function newRuleForm(): AlertRulePayload {
   return {
@@ -39,7 +68,7 @@ export function AlertsTab({
 
   const rulesQuery = useApiQuery(() => api.listAlertRules(accessToken), [accessToken]);
   const profilesQuery = useApiQuery(() => api.listNotificationProfiles(accessToken), [accessToken]);
-  const deliveriesQuery = useApiQuery(() => api.listNotificationDeliveries(accessToken), [accessToken]);
+  const deliveriesQuery = useApiQuery(() => api.listNotificationDeliveries(accessToken, 500), [accessToken]);
   const portTargetsQuery = useApiQuery(() => api.listPortTargets(accessToken), [accessToken]);
   const monitorsQuery = useApiQuery(() => api.listMonitors(accessToken), [accessToken]);
 
@@ -113,9 +142,50 @@ export function AlertsTab({
     }
   }
 
+  const history = useMemo(() => {
+    const days = lastDays(14);
+    const index = new Map(days.map((d, i) => [d.key, i]));
+    const rows = days.map((d) => ({ label: d.label, sent: 0, failed: 0 }));
+    for (const d of deliveries) {
+      const i = index.get(dayKey(new Date(d.sent_at)));
+      if (i !== undefined) rows[i][d.status === "failed" ? "failed" : "sent"] += 1;
+    }
+    return rows;
+  }, [deliveries]);
+  const sent14 = history.reduce((sum, r) => sum + r.sent, 0);
+  const failed14 = history.reduce((sum, r) => sum + r.failed, 0);
+  const lastFailure = deliveries.find((d) => d.status === "failed");
+  const paused = alertRules.filter((r) => !r.enabled);
+  const triggerCounts = new Map<string, number>();
+  for (const r of alertRules) triggerCounts.set(TRIGGER_NAMES[r.event_type] ?? r.event_type, (triggerCounts.get(TRIGGER_NAMES[r.event_type] ?? r.event_type) ?? 0) + 1);
+  const triggered = [...alertRules].filter((r) => r.last_triggered_at).sort((a, b) => (b.last_triggered_at ?? "").localeCompare(a.last_triggered_at ?? "")).slice(0, 5);
+
   return (
-    <div className="admin-tab-content">
-      <section className="panel admin-panel nm-app-panel">
+    <div className="admin-tab-content nm-motion">
+      <div className="nm-bento nm-bento--four nm-bento--chart">
+        <AdminCard title="Alerts sent, last 14 days" icon={<Send size={16} />} actions={(
+          <ul className="nm-header-legend" aria-hidden="true">
+            <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
+            <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
+          </ul>
+        )}>
+          {deliveriesQuery.error ? <p className="tool-note nm-chart-empty">Delivery history is unavailable.</p>
+            : <ColumnChart label="Alert notifications per day, last 14 days, sent and failed" rows={history}
+                series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} height={168} />}
+        </AdminCard>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<IconAlertCircle size={20} />} label="Rules" value={<CountUp value={alertRules.length} />} sub={`${alertRules.length} configured`} />
+          <DashStat accent="green" className="nm-motion-item" icon={<CircleCheck size={20} />} label="Active" value={<CountUp value={alertRules.length - paused.length} />}
+            sub={paused.length ? `${paused.map((r) => r.name).join(", ")} paused` : "None paused"} />
+          <DashStat accent="green" className="nm-motion-item" icon={<Send size={20} />} label="Sent, 14 days" value={<CountUp value={sent14} />}
+            sub={sent14 + failed14 ? `${((sent14 / (sent14 + failed14)) * 100).toFixed(1)}% delivered` : "No alerts sent"} />
+          <DashStat accent="red" className="nm-motion-item" icon={<CirclePause size={20} />} label="Failed, 14 days" value={<CountUp value={failed14} />}
+            sub={lastFailure ? `Last: ${new Date(lastFailure.sent_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "No failures"} />
+        </div>
+      </div>
+      <div className="nm-console nm-console--even">
+        <div className="nm-console-main">
+      <section className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="Alert rules">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconAlertCircle size={16} />Alert Rules</h2>
           <div className="admin-panel-actions">
@@ -365,8 +435,21 @@ export function AlertsTab({
           </div>
         )}
       </section>
+        </div>
+        <aside className="nm-console-side">
+          <AdminCard title="Rules by trigger" icon={<Layers size={16} />}>
+            <BarList label="Rules per trigger" items={[...triggerCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }))} empty="No alert rules yet." />
+          </AdminCard>
+          <AdminCard title="Recently triggered" icon={<Clock size={16} />} className="nm-fill">
+            <EventList empty="No rule has fired yet." rows={triggered.map((r) => ({
+              key: r.id, tone: triggerTone(r.event_type), title: r.name, detail: TRIGGER_NAMES[r.event_type] ?? r.event_type,
+              time: shortDateTime(r.last_triggered_at ?? ""), dateTime: r.last_triggered_at ?? undefined,
+            }))} />
+          </AdminCard>
+        </aside>
+      </div>
 
-      <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel">
+      <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel nm-motion-item" aria-label="Delivery history">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconAlertCircle size={16} />Delivery history</h2>
         </div>
