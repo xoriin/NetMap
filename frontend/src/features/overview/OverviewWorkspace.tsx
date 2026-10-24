@@ -665,7 +665,7 @@ export function OverviewWorkspace({
         </div>
         <aside className="nm-console-side">
           <InsightPanel title="Current outages" icon={<IconWifiOff size={16} />} className="nm-motion-item overview-outages-panel" label="Current outages"
-            actions={<SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>Monitoring <IconArrowRight size={13} /></SpaLink>}>
+            actions={<SpaLink href="/monitoring" aria-label="Open Monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>Monitoring <IconArrowRight size={13} /></SpaLink>}>
             <div id="overview-outages" tabIndex={-1}>
               {outageCount === 0 ? <p className="tool-note nm-chart-empty">Nothing is offline right now.</p> : (
                 <ul className="nm-event-list">
@@ -693,7 +693,7 @@ export function OverviewWorkspace({
               items={slowestDevices.map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }))} />
           </InsightPanel>
           <InsightPanel title="Endpoints" icon={<Plug size={16} />} className="nm-motion-item nm-fill"
-            actions={<SpaLink href="/monitoring#endpoints" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={openEndpointMonitoring}>All <IconArrowRight size={13} /></SpaLink>}>
+            actions={<SpaLink href="/monitoring#endpoints" aria-label="All endpoints" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={openEndpointMonitoring}>All <IconArrowRight size={13} /></SpaLink>}>
             {endpointMonitors.length === 0 ? <p className="tool-note nm-chart-empty">No endpoints monitored yet.</p> : <>
               <p className="tool-note">{endpointMonitors.length} endpoint{endpointMonitors.length === 1 ? "" : "s"}{endpointUptime !== null ? ` · ${endpointUptime.toFixed(1)}% average uptime` : ""}</p>
               <BarList label="Endpoints by state" max={endpointMonitors.length} items={[
