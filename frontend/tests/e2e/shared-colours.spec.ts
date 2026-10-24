@@ -43,6 +43,8 @@ for(const theme of ['light','dark'] as const) {
   const review=page.locator('.dash-alert--changes .dash-alert-link'); await review.focus(); await expect(review).toBeFocused();
   await page.locator('.dash-alert--changes .dash-alert-dismiss').hover(); await page.locator('.dash-alert--changes .dash-alert-dismiss').click(); await expect(page.locator('.dash-alert--changes')).toHaveCount(0);
   await page.goto('/inventory#devices'); const online=page.locator('.status-pill.online').first(); await expect(online).toBeVisible();
+  await page.mouse.move(0,0);
+  await online.evaluate(n=>Promise.all((n.closest('.inventory-row') ?? n).getAnimations().filter(a=>a.effect?.getComputedTiming().endTime!==Infinity).map(a=>a.finished)));
   if(theme==='light') { expect((await colours(online)).depth).toBeGreaterThan(40); expect((await colours(online)).contrast).toBeGreaterThanOrEqual(4.5); }
   const chips=page.locator('.inventory-row .nm-chip:not(.nm-chip--empty)'); await expect(chips.first()).toBeVisible();
   for(const chip of await chips.all()) { const c=await colours(chip); expect(c.contrast).toBeGreaterThanOrEqual(4.5); expect(c.alpha).toBeCloseTo(theme==='light'?.12:.06,2); }
