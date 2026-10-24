@@ -250,7 +250,10 @@ export function MonitoringWorkspace({
   const [analysis, setAnalysis] = useState<DeviceAnalysis | null>(null);
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterSite, setFilterSite] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get("status");
+    return STATUS_FILTER_OPTIONS.some((option) => option.value === requested) ? requested! : "all";
+  });
   const [filterHealth, setFilterHealth] = useState("all");
   const [filterDeviceType, setFilterDeviceType] = useState("all");
   const [filterVlan, setFilterVlan] = useState("all");

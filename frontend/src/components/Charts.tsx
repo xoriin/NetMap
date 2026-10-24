@@ -138,8 +138,9 @@ export type ColumnSeries = { key: string; label: string; color: ChartColor };
 
 /** Stacked column chart: one axis, recessive grid, rounded data ends, per-column tooltip.
  * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column.
- * `scale="sqrt"` keeps small columns readable beside a dominant one and drops the y-axis numbers, so pair it with `valueLabels`. */
-export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28, scale = "linear" }: {
+ * `scale="sqrt"` keeps small columns readable beside a dominant one and drops the y-axis numbers, so pair it with `valueLabels`.
+ * `onSelect` makes each column a button (click, Enter or Space). */
+export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28, scale = "linear", onSelect }: {
   rows: ({ label: string; color?: ChartPaint } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
@@ -148,6 +149,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
   valueLabels?: boolean;
   barMax?: number;
   scale?: "linear" | "sqrt";
+  onSelect?: (label: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -217,8 +219,11 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
                   <text className="nm-chart-axis" x={x + bw / 2} y={height - 6} textAnchor="middle">{row.label}</text>
                 )}
                 <rect className="nm-chart-hit" x={padL + slot * i} y={padT} width={slot} height={plotH} tabIndex={0}
+                  role={onSelect ? "button" : undefined}
                   aria-label={`${row.label}: ${series.map((s) => `${s.label} ${fmt(value(row, s.key))}${unit}`).join(", ")}`}
-                  onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={onLeave} onBlur={onLeave} />
+                  onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={onLeave} onBlur={onLeave}
+                  onClick={onSelect ? () => { hide(); onSelect(row.label); } : undefined}
+                  onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); hide(); onSelect(row.label); } } : undefined} />
               </g>
             );
           })}

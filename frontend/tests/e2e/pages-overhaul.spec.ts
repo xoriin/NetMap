@@ -223,6 +223,52 @@ test("ring legends pair each name with a share bar that fills the row", async ({
   expect(shape[0].share, "1 of 2 devices fills √½ of the track on the square-root scale").toBeCloseTo(Math.SQRT1_2, 1);
 });
 
+test("Overview panels share one surface palette in Slate", async ({ page }) => {
+  await boot(page);
+  await page.addInitScript(() => { localStorage.setItem("netmap.theme", "dark"); localStorage.setItem("netmap.dark_style", "slate"); });
+  await page.goto("/overview");
+  await expect(page.getByRole("region", { name: "Current outages", exact: true })).toBeVisible();
+  const palette = await page.evaluate(() => [...document.querySelectorAll(".overview-workspace .dash-panel, .overview-workspace .nm-insight")].map((panel) => {
+    const head = panel.querySelector(":scope > .nm-app-panel-header")!;
+    const body = panel.querySelector(":scope > .dash-panel-body, :scope > .nm-chart-body")!;
+    const paint = (el: Element) => { const bg = getComputedStyle(el).backgroundColor; return bg === "rgba(0, 0, 0, 0)" ? getComputedStyle(panel).backgroundColor : bg; };
+    return `${paint(head)} / ${paint(body)}`;
+  }));
+  expect(new Set(palette).size, palette.join("\n")).toBe(1);
+});
+
+test("Current outages scroll inside a capped panel when many devices are down", async ({ page }) => {
+  await boot(page);
+  const many = Array.from({ length: 14 }, (_, i) => mockDevice({ id: 100 + i, display_name: `Down ${i + 1}`, monitor_status: "offline", expected_status: "online" }));
+  await setupTopologyMocks(page, [...devices, ...many], []);
+  await page.goto("/overview");
+  const list = page.locator("#overview-outages");
+  await expect(list.locator("li")).toHaveCount(16);
+  const box = await list.evaluate((el) => ({ client: el.clientHeight, full: el.scrollHeight, overflow: getComputedStyle(el).overflowY }));
+  expect(box.overflow).toBe("auto");
+  expect(box.full).toBeGreaterThan(box.client);
+  expect(box.client).toBeLessThanOrEqual(400);
+});
+
+test("clicking an Overview status column opens Monitoring filtered to that status", async ({ page }) => {
+  await boot(page);
+  await page.goto("/overview");
+  const offline = page.getByRole("region", { name: "Network health", exact: true }).locator(".nm-chart-col").filter({ has: page.locator('[aria-label^="Offline"]') });
+  await offline.locator(".nm-chart-hit").click();
+  await expect(page).toHaveURL(/\/monitoring/);
+  await expect(page.locator(".mon-row", { hasText: "NAS-01" })).toBeVisible();
+  await expect(page.locator(".mon-row", { hasText: "Core Router" })).toHaveCount(0);
+});
+
+test("a favourite endpoint opens its overview pop-up instead of leaving the page", async ({ page }) => {
+  await boot(page);
+  await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: monitors.map((monitor, i) => ({ ...monitor, method: "GET", auth_type: "none", interval_seconds: 60, timeout_seconds: 10, expected_status_codes: "200", is_favourite: i === 0 })) }));
+  await page.goto("/overview");
+  await page.locator(".dash-device-row--favourite .dash-device-name", { hasText: "Public API" }).click();
+  await expect(page.getByRole("dialog", { name: "Public API monitor overview" })).toBeVisible();
+  await expect(page).toHaveURL(/\/overview$/);
+});
+
 test("Overview plays the shared entrance motion and drops it under reduced motion", async ({ page }) => {
   await boot(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
@@ -275,6 +321,7 @@ test("Overview puts health beside the tiles, outages in the side column and brea
   expect((await barLabels(page, "Slowest devices, 24 h"))[0]).toBe("NAS-01 9.4 ms");
   expect(await barLabels(page, "Endpoints")).toEqual(["Up 1", "Down 1", "Paused 0"]);
   expect(await barLabels(page, "Top groups")).toEqual(["Servers 2", "Wi-Fi 1"]);
-  const pairTop = (await page.getByRole("region", { name: "Device types", exact: true }).boundingBox())!.y;
-  expect(pairTop).toBeGreaterThan((await outages.boundingBox())!.y);
+  const pair = (await page.getByRole("region", { name: "Device types", exact: true }).boundingBox())!;
+  expect(pair.y + pair.height, "Device types and Top groups sit above Favourites and Current outages").toBeLessThan((await outages.boundingBox())!.y);
+  expect(pair.y + pair.height).toBeLessThan((await page.locator(".overview-panel", { hasText: "Favourites" }).boundingBox())!.y);
 });

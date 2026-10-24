@@ -2000,7 +2000,8 @@ body.theme-dark .nm-pick-filter input {
 }
 .nm-console--even { align-items: stretch; }
 .nm-console + .nm-console,
-.nm-console + .nm-pair { margin-top: var(--nm-workspace-section-gap); }
+.nm-console + .nm-pair,
+.nm-pair + .nm-console { margin-top: var(--nm-workspace-section-gap); }
 .nm-pair:not(.nm-console-main .nm-pair) { align-items: stretch; }
 .nm-console + .admin-panel { margin-top: var(--nm-workspace-section-gap); }
 .nm-console-main,

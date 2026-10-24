@@ -1,5 +1,6 @@
 import { useEndpointMonitors } from "../../hooks/useEndpointMonitors";
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import "./overview.css";
 import { Plug, Search, Star, Timer } from "lucide-react";
 import {
@@ -16,6 +17,7 @@ import {
   type DevicePayload,
   type DashboardSummary,
   type MonitorHistoryPoint,
+  type MonitorCheckHistoryPoint,
   type TopologyGraph,
   type TopologyGroup,
   type Site,
@@ -43,6 +45,7 @@ import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 import { resolveEntityColor } from "../../utils/entityColor";
 import { navigateToMonitoringView } from "../monitoring/monitoringNavigation";
+import { MonitorDetails } from "../monitoring/MonitorDetails";
 
 type OverviewFavouriteSnapshot = {
   updatedAt: string;
@@ -177,6 +180,19 @@ export function OverviewWorkspace({
   // never affect the device counts above.
   const monitorsQuery = useEndpointMonitors(accessToken);
   const offlineEndpoints = (monitorsQuery.data ?? []).filter((monitor) => monitor.enabled && monitor.last_status === "offline");
+  const [selectedMonitorId, setSelectedMonitorId] = useState<number | null>(null);
+  const [monitorHistory, setMonitorHistory] = useState<MonitorCheckHistoryPoint[]>([]);
+  const [monitorHistoryLoading, setMonitorHistoryLoading] = useState(false);
+  const selectedMonitor = (monitorsQuery.data ?? []).find((monitor) => monitor.id === selectedMonitorId) ?? null;
+  useEffect(() => {
+    setMonitorHistory([]);
+    if (selectedMonitorId === null || !accessToken) return;
+    setMonitorHistoryLoading(true);
+    void api.getMonitorHistory(accessToken, selectedMonitorId, 24)
+      .then(setMonitorHistory)
+      .catch(() => setMonitorHistory([]))
+      .finally(() => setMonitorHistoryLoading(false));
+  }, [accessToken, selectedMonitorId]);
   const favouriteMonitors = useMemo(
     () => (monitorsQuery.data ?? []).filter((monitor) => monitor.is_favourite),
     [monitorsQuery.data],
@@ -189,6 +205,14 @@ export function OverviewWorkspace({
       // Refetch either way — on failure this restores the true server state.
       void monitorsQuery.reload({ silent: true });
     }
+  }
+
+  function openStatusInMonitoring(label: string) {
+    const item = HEALTH_ITEMS.find((entry) => entry.label === label);
+    if (!item) return;
+    onNavigate("/monitoring");
+    window.history.replaceState(null, "", `/monitoring?status=${item.key}`);
+    navigateToMonitoringView("devices", true);
   }
 
   function openEndpointMonitoring() {
@@ -422,7 +446,7 @@ export function OverviewWorkspace({
             <div className="overview-health-combo">
               <DonutChart label="Devices by health" legend={false} centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
                 items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
-              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels scale="sqrt"
+              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels scale="sqrt" onSelect={openStatusInMonitoring}
                 series={[{ key: "devices", label: "Devices", color: "--dash-green" }]}
                 rows={HEALTH_ITEMS.filter((item) => statusCounts[item.key] > 0).map((item) => ({ label: item.label, devices: statusCounts[item.key], color: item.color }))} />
             </div>
@@ -475,6 +499,28 @@ export function OverviewWorkspace({
         onNavigate={onNavigate}
       />
 
+      <div className="nm-pair">
+        <InsightPanel title="Device types" icon={<IconChartBar size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
+          <BarList label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
+            items={typeBreakdown.map(([type, count]) => ({ label: deviceTypeOptions.find((option) => option.value === type)?.label || formatDeviceTypeLabel(type), value: count, color: deviceTypeColors.get(type) ?? resolveEntityColor(null, type) }))} />
+          {vendorBreakdown.length > 0 && (
+            <>
+              <div className="dash-panel-divider" />
+              <div className="dash-panel-sub-title">Top vendors</div>
+              <div className="dash-tag-cloud">
+                {vendorBreakdown.map(([vendor, count]) => (
+                  <span key={vendor} className="dash-tag">{vendor} <span className="dash-tag-count">{count}</span></span>
+                ))}
+              </div>
+            </>
+          )}
+        </InsightPanel>
+        <InsightPanel title="Top groups" icon={<IconMap size={16} />} className="nm-motion-item"
+          actions={<SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>Manage <IconArrowRight size={12} /></SpaLink>}>
+          <BarList label="Devices per group" empty="Assign topology groups to devices to segment your network."
+            items={groupBreakdown.map(([group, count]) => ({ label: group, value: count, color: groupColors.get(group) ?? resolveEntityColor(null, group) }))} />
+        </InsightPanel>
+      </div>
       <div className="nm-console nm-console--even">
         <div className="nm-console-main">
         {/* Monitoring snapshot */}
@@ -575,11 +621,11 @@ export function OverviewWorkspace({
                         role="button"
                         tabIndex={0}
                         className="dash-device-row dash-device-row--favourite dash-device-row--action"
-                        onClick={openEndpointMonitoring}
+                        onClick={() => setSelectedMonitorId(monitor.id)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            openEndpointMonitoring();
+                            setSelectedMonitorId(monitor.id);
                           }
                         }}
                       >
@@ -672,7 +718,7 @@ export function OverviewWorkspace({
         <aside className="nm-console-side">
           <InsightPanel title="Current outages" icon={<IconWifiOff size={16} />} className="nm-motion-item overview-outages-panel" label="Current outages"
             actions={<SpaLink href="/monitoring" aria-label="Open Monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>Monitoring <IconArrowRight size={13} /></SpaLink>}>
-            <div id="overview-outages" tabIndex={-1}>
+            <div id="overview-outages" className="overview-outages-scroll" tabIndex={-1}>
               {outageCount === 0 ? <p className="tool-note nm-chart-empty">Nothing is offline right now.</p> : (
                 <ul className="nm-event-list">
                   {offlineDevices.map((d: Device) => (
@@ -712,28 +758,6 @@ export function OverviewWorkspace({
         </aside>
       </div>
 
-      <div className="nm-pair">
-        <InsightPanel title="Device types" icon={<IconChartBar size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
-          <BarList label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
-            items={typeBreakdown.map(([type, count]) => ({ label: deviceTypeOptions.find((option) => option.value === type)?.label || formatDeviceTypeLabel(type), value: count, color: deviceTypeColors.get(type) ?? resolveEntityColor(null, type) }))} />
-          {vendorBreakdown.length > 0 && (
-            <>
-              <div className="dash-panel-divider" />
-              <div className="dash-panel-sub-title">Top vendors</div>
-              <div className="dash-tag-cloud">
-                {vendorBreakdown.map(([vendor, count]) => (
-                  <span key={vendor} className="dash-tag">{vendor} <span className="dash-tag-count">{count}</span></span>
-                ))}
-              </div>
-            </>
-          )}
-        </InsightPanel>
-        <InsightPanel title="Top groups" icon={<IconMap size={16} />} className="nm-motion-item"
-          actions={<SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>Manage <IconArrowRight size={12} /></SpaLink>}>
-          <BarList label="Devices per group" empty="Assign topology groups to devices to segment your network."
-            items={groupBreakdown.map(([group, count]) => ({ label: group, value: count, color: groupColors.get(group) ?? resolveEntityColor(null, group) }))} />
-        </InsightPanel>
-      </div>
 
       {showDeviceForm && (
         <DeviceForm
@@ -969,6 +993,18 @@ export function OverviewWorkspace({
         </div>
       )}
 
+      {selectedMonitor && createPortal(
+        <div
+          className="mon-hero-backdrop monitor-http-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedMonitor.name} monitor overview`}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedMonitorId(null); }}
+        >
+          <MonitorDetails monitor={selectedMonitor} history={monitorHistory} historyLoading={monitorHistoryLoading} onClose={() => setSelectedMonitorId(null)} />
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }
