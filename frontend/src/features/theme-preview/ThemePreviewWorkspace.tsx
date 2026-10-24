@@ -429,6 +429,8 @@ export function ThemePreviewWorkspace() {
           <PreviewHeader icon={Bell} title="Action hierarchy" />
           <div className="theme-lab-panel-body">
             <div className="theme-lab-button-showcase">
+              <button type="button" className="nm-btn nm-btn--success">Acknowledge</button>
+              <button type="button" className="nm-btn nm-btn--success" disabled>Acknowledging</button>
               <button type="button" className="nm-btn nm-btn--primary">Save changes</button>
               <button type="button" className="nm-btn nm-btn--secondary">Cancel</button>
               <button type="button" className="nm-btn nm-btn--ghost"><RefreshCw size={14} />Refresh</button>

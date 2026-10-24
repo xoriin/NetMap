@@ -55,6 +55,9 @@ for (const [theme, style, thumb] of [["light", "slate", "rgba(47, 68, 91, 0.38)"
 
 test("panel headers have no dash between the icon and the title", async ({ page }) => {
   await boot(page, "light");
+  await page.route("**/api/v1/syslog/status", route => route.fulfill({ json: { enabled: false, total_events: 0, retention_days: 7, udp_enabled: false, tcp_enabled: false, tls_enabled: false, udp_port: 1514, tcp_port: 1514, tls_port: 6514, allowlist_enabled: false } }));
+  await page.route("**/api/v1/syslog/events?*", route => route.fulfill({ json: { events: [], total: 0, offset: 0, limit: 100, retention_days: 7 } }));
+  await page.route("**/api/v1/syslog/searches", route => route.fulfill({ json: [] }));
   for (const route of ["/overview", "/topology", "/vlans", "/locations", "/tools", "/profile", "/security"]) {
     await page.goto(route);
     await expect(page.locator(".nm-app-panel-header, .topology-toolbar--ribbon, .security-panel-identity").first()).toBeVisible();
@@ -62,16 +65,6 @@ test("panel headers have no dash between the icon and the title", async ({ page 
       headers.flatMap((header) => Array.from(header.querySelectorAll("span")).filter((span) => span.textContent?.trim() === "-").map(() => header.textContent?.trim().slice(0, 30))));
     expect(dashes, route).toEqual([]);
   }
-});
-
-test("Resolve on discovered changes is not a destructive red button", async ({ page }) => {
-  await boot(page, "light");
-  await page.route("**/api/v1/discovery/observations*", (route) => route.fulfill({ json: [{ id: 1, status: "open", observation_type: "new_device", ip_address: "192.168.1.3", hostname: "nas-01", mac_address: null, device_id: null, summary: "New device 192.168.1.3", details: {}, first_seen_at: "2026-10-22T09:00:00Z", last_seen_at: "2026-10-22T09:00:00Z" }] }));
-  await page.goto("/overview");
-  await page.locator(".dash-alert--changes .dash-alert-link").click();
-  const resolve = page.getByRole("button", { name: "Resolve", exact: true }).first();
-  await expect(resolve).toBeVisible();
-  await expect(resolve).not.toHaveClass(/nm-btn--danger/);
 });
 
 test("heartbeat beats stay thick on long histories", async ({ page }) => {

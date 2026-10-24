@@ -713,6 +713,20 @@ body.theme-dark .nm-swatch-list {
   color: #fff;
 }
 
+/* Positive confirmation actions share one token-derived tint in every theme. */
+.nm-btn.nm-btn--success,
+body.theme-dark .nm-btn.nm-btn--success {
+  border-color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-border));
+  background: color-mix(in srgb, var(--nm-success) 18%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
+}
+.nm-btn.nm-btn--success:hover:not(:disabled),
+body.theme-dark .nm-btn.nm-btn--success:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--nm-success) 70%, var(--nm-border));
+  background: color-mix(in srgb, var(--nm-success) 25%, var(--nm-surface));
+  color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
+}
+
 .nm-btn--danger {
   border-color: var(--nm-btn-danger-border);
   background: var(--nm-btn-danger-bg);

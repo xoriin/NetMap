@@ -5,6 +5,7 @@ import type { AppRoute } from "../routes";
 import { Modal } from "./Modal";
 import { useConfirm } from "./ConfirmDialog";
 import { TableSkeleton } from "./Skeleton";
+import "./observationsAlert.css";
 
 const OBSERVATION_TARGET_ROUTE: Record<string, AppRoute> = {
   new_device: "/inventory",
@@ -80,8 +81,8 @@ export function ObservationsAlert({
     const count = openObs.length;
     const confirmed = await confirmAction({
       title: "Clear all network changes",
-      message: `This resolves all ${count} pending network change${count !== 1 ? "s" : ""} at once.`,
-      detail: "Resolved changes are dismissed permanently and won't reappear.",
+      message: `This clears all ${count} pending network change${count !== 1 ? "s" : ""} at once.`,
+      detail: "Cleared changes are dismissed permanently and won't reappear.",
       confirmLabel: "Clear all",
       typeToConfirm: count >= 5 ? "clear" : undefined,
     });
@@ -141,7 +142,7 @@ export function ObservationsAlert({
             {actionError && <div className="error-banner">{actionError}</div>}
             <div className="obs-modal-hint-row">
               <p className="obs-modal-hint">
-                Scheduled scans detected the following changes on your network. Acknowledge to mark as seen, resolve to dismiss permanently, or click a row to jump to its device.
+                Scheduled scans detected the following changes on your network. Acknowledge to mark as seen, clear to dismiss permanently, or click a row to jump to its device.
               </p>
               {openObs.length > 0 && (
                 <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={clearAllBusy} onClick={() => void clearAll()}>
@@ -153,7 +154,7 @@ export function ObservationsAlert({
               <TableSkeleton rows={5} columns={3} />
             )}
             {obsBreakdown.length > 0 && openObs.length === 0 && (
-              <p className="obs-modal-empty">All network changes have been resolved.</p>
+              <p className="obs-modal-empty">All network changes have been cleared.</p>
             )}
             {openObs.length > 0 && (
               <div className="obs-list">
@@ -195,9 +196,9 @@ export function ObservationsAlert({
                           <button type="button" className="nm-btn" onClick={() => void applyObservation(obs)}>{applyLabel}</button>
                         )}
                         {obs.status === "open" && (
-                          <button type="button" className="nm-btn" onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
+                          <button type="button" className="nm-btn nm-btn--success" onClick={() => void updateObservation(obs, "acknowledged")}>Acknowledge</button>
                         )}
-                        <button type="button" className="nm-btn nm-btn--secondary" onClick={() => void updateObservation(obs, "resolved")}>Resolve</button>
+                        <button type="button" className="nm-btn nm-btn--danger" onClick={() => void updateObservation(obs, "resolved")}>Clear</button>
                       </div>
                     </div>
                   );

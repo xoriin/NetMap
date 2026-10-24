@@ -1,0 +1,7 @@
+/* Keep network-change actions reachable in the shared phone modal. */
+@media (max-width: 760px) {
+  .obs-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--nm-space-3); }
+  .obs-row-type-badge { justify-self: start; }
+  .obs-row-meta { white-space: normal; }
+  .obs-row-actions { justify-content: flex-end; flex-wrap: wrap; }
+}
