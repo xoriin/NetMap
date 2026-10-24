@@ -6,7 +6,33 @@ import { themeCss } from "./themeCss";
 import type { DarkStyle } from "../../../providers/ThemeProvider";
 import { REDUCED_MOTION_OVERRIDE, RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
-export type BuildStatusOptions = { css: string | null; now: Date; colorScheme?: StatusColorScheme; darkStyle?: DarkStyle };
+export type BuildStatusOptions = {
+  css: string | null; now: Date; colorScheme?: StatusColorScheme; darkStyle?: DarkStyle;
+  previousPayload?: StatusPagePayload | null;
+};
+
+// Projection emits 60 epoch-aligned slots, not individual check IDs. Compare server
+// time buckets so an all-green strip still moves when its next slot arrives.
+function arrivingBeats(payload: StatusPagePayload, previous: StatusPagePayload | null | undefined): Map<number, Set<number>> {
+  const arrivals = new Map<number, Set<number>>();
+  if (!previous || previous.slug !== payload.slug || previous.heartbeat_window !== payload.heartbeat_window) return arrivals;
+  const now = Date.parse(payload.generated_at), before = Date.parse(previous.generated_at);
+  if (!Number.isFinite(now) || !Number.isFinite(before) || now <= before) return arrivals;
+  const width = (payload.heartbeat_window === "24h" ? 86_400_000 : 3_600_000) / 60;
+  const shift = Math.floor(now / width) - Math.floor(before / width);
+  const oldItems = new Map(previous.groups.flatMap(group => group.items.map(item => [item.id, item] as const)));
+  for (const group of payload.groups) for (const item of group.items) {
+    const old = oldItems.get(item.id);
+    const length = item.heartbeats.length;
+    if (!old || !length || old.heartbeats.length !== length) continue;
+    const indices = new Set<number>();
+    // Bound catch-up motion after a hidden tab or interrupted connection.
+    for (let i = length - Math.min(shift, length, 3); i < length; i++) indices.add(i);
+    if (shift === 0 && item.heartbeats[length - 1] !== old.heartbeats[length - 1]) indices.add(length - 1);
+    if (indices.size) arrivals.set(item.id, indices);
+  }
+  return arrivals;
+}
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const LOGO_PATTERN = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -63,13 +89,15 @@ const WINDOW_LABELS: Record<string, { name: string; start: string }> = {
 type Builder = {
   doc: Document;
   now: Date;
+  arrivals: Map<number, Set<number>>;
   el: <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string | null, text?: string | null) => HTMLElementTagNameMap[K];
 };
 
-function makeBuilder(doc: Document, now: Date): Builder {
+function makeBuilder(doc: Document, now: Date, arrivals: Map<number, Set<number>>): Builder {
   return {
     doc,
     now,
+    arrivals,
     el(tag, className, text) {
       const node = doc.createElement(tag);
       if (className) node.className = className;
@@ -171,13 +199,13 @@ function heartbeatLabel(beats: StatusBeat[], window: string): string {
   return `${(WINDOW_LABELS[window] ?? WINDOW_LABELS["1h"]).name}: ${parts.join(", ")}`;
 }
 
-function heartbeatBar(b: Builder, beats: StatusBeat[], window: string): HTMLElement {
+function heartbeatBar(b: Builder, beats: StatusBeat[], window: string, itemId: number): HTMLElement {
   const bar = b.el("span", "sp-heartbeats");
   bar.setAttribute("role", "img");
   bar.setAttribute("aria-label", heartbeatLabel(beats, window));
-  beats.forEach((beat) => {
+  beats.forEach((beat, index) => {
     const kind = ["healthy", "unhealthy", "unknown", "maintenance"].includes(beat) ? beat : "unknown";
-    bar.append(b.el("span", `sp-beat sp-beat--${kind}`));
+    bar.append(b.el("span", `sp-beat sp-beat--${kind}${b.arrivals.get(itemId)?.has(index) ? " sp-beat--new" : ""}`));
   });
   return bar;
 }
@@ -295,7 +323,7 @@ function itemRow(b: Builder, item: StatusPageItemPayload, window: string): HTMLE
     b.el("span", "sp-state", ITEM_STATE_LABELS[item.state] ?? "Unknown"),
   );
   const graphs = b.el("span", "sp-graphs");
-  graphs.append(lane(b, "Status", heartbeatBar(b, item.heartbeats ?? [], window)), axis(b, window));
+  graphs.append(lane(b, "Status", heartbeatBar(b, item.heartbeats ?? [], window, item.id)), axis(b, window));
 
   if (!hasExtras) {
     const row = b.el("div", "sp-row");
@@ -463,7 +491,7 @@ function panelIcon(b: Builder, kind: "network" | "activity"): HTMLElement {
 
 export function buildStatusDocument(payload: StatusPagePayload, options: BuildStatusOptions): string {
   const doc = document.implementation.createHTMLDocument("");
-  const b = makeBuilder(doc, options.now);
+  const b = makeBuilder(doc, options.now, arrivingBeats(payload, options.previousPayload));
   doc.documentElement.lang = "en";
 
   const csp = doc.createElement("meta");

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { StatusPagePayload } from "./statusPagesApi";
 import { buildStatusDocument } from "./renderer/buildStatusDocument";
@@ -17,17 +17,22 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
   const { darkStyle } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const shownRef = useRef<string | null>(null);
-  const documentHtml = useMemo(
-    () => buildStatusDocument(payload, { css, now: new Date(), colorScheme, darkStyle }),
-    [payload, css, colorScheme, darkStyle],
-  );
+  const previousRef = useRef<StatusPagePayload | null>(null);
 
   useEffect(() => {
+    const documentHtml = buildStatusDocument(payload, {
+      css, now: new Date(), colorScheme, darkStyle, previousPayload: previousRef.current,
+    });
+    previousRef.current = payload;
     const frame = frameRef.current;
-    if (!frame || shownRef.current === documentHtml) return;
+    // Arrival markers are transient presentation, not changed content. Leaving a
+    // completed animation in place avoids resetting disclosures on the next poll.
+    const contentHtml = documentHtml.replace(/ sp-beat--new"/g, '"');
+    const hasArrivals = contentHtml !== documentHtml;
+    if (!frame || (!hasArrivals && shownRef.current === contentHtml)) return;
     frame.srcdoc = documentHtml;
-    shownRef.current = documentHtml;
-  }, [documentHtml]);
+    shownRef.current = contentHtml;
+  }, [payload, css, colorScheme, darkStyle]);
 
   return (
     <iframe

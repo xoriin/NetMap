@@ -165,6 +165,16 @@ details.sp-row[open] > summary .sp-caret::before { content: "\\25BE"; }
 .sp-beat--unhealthy { background: var(--sp-beat-unhealthy); }
 .sp-beat--unknown { background: var(--sp-beat-unknown); }
 .sp-beat--maintenance { background: var(--sp-beat-maintenance); }
+/* Match Monitoring's heartbeat arrival inside the script-free sandbox. */
+@keyframes sp-beat-arrive {
+  0% { transform: scale(1, 0); opacity: 0; filter: brightness(1.6); }
+  60% { transform: scale(1.2, 1.25); opacity: 1; filter: brightness(1.35); }
+  100% { transform: scale(1, 1); filter: none; }
+}
+.sp-beat--new {
+  transform-origin: center bottom;
+  animation: sp-beat-arrive 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
 .sp-response { display: block; height: 64px; border-radius: 6px; background: var(--sp-surface-soft); }
 .sp-response-area { fill: var(--sp-page-accent, var(--sp-accent)); fill-opacity: 0.12; stroke: none; }
 .sp-response-line { fill: none; stroke: var(--sp-page-accent, var(--sp-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
