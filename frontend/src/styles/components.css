@@ -1936,6 +1936,12 @@ body.theme-dark .nm-pick-filter input {
 .nm-chart-value-bg { fill: var(--nm-track-bg); pointer-events: none; }
 .nm-chart-value { fill: var(--nm-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
 .nm-chart-col.is-active .nm-chart-col-bg { fill: var(--nm-row-hover); }
+.nm-area-chart { min-width: 0; }
+.nm-area-chart svg { display: block; overflow: visible; }
+.nm-chart-area { fill-opacity: .16; pointer-events: none; }
+.nm-chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+.nm-chart-crosshair { stroke: var(--nm-border-strong); stroke-width: 1; pointer-events: none; }
+.nm-chart-marker { stroke: var(--nm-module-body-bg); stroke-width: 2; pointer-events: none; }
 .nm-chart-col path { transition: opacity .15s ease; }
 .has-active .nm-chart-col:not(.is-active) path { opacity: .55; }
 

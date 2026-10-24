@@ -229,6 +229,85 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
   );
 }
 
+/** Area chart: one axis, recessive grid, 2px lines over a soft fill, crosshair tooltip and markers per point. */
+export function AreaChart({ rows, series, label, height = 150, unit = "" }: {
+  rows: ({ label: string } & Record<string, number | string>)[];
+  series: ColumnSeries[];
+  label: string;
+  height?: number;
+  unit?: string;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [active, setActive] = useState<number | null>(null);
+  const { tip, show, hide } = useTip();
+  useEffect(() => {
+    if (!host.current) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry.contentRect.width)));
+    observer.observe(host.current);
+    return () => observer.disconnect();
+  }, []);
+  const padL = 34, padB = 22, padT = 10, padR = 8;
+  const value = (row: (typeof rows)[number], key: string) => Number(row[key]) || 0;
+  const max = Math.max(1, ...rows.flatMap((row) => series.map((s) => value(row, s.key))));
+  const step = niceStep(max / 3);
+  const top = Math.ceil(max / step) * step;
+  const plotW = Math.max(0, width - padL - padR);
+  const plotH = height - padB - padT;
+  const base = padT + plotH;
+  const x = (i: number) => padL + (rows.length > 1 ? (i / (rows.length - 1)) * plotW : plotW / 2);
+  const y = (v: number) => base - (v / top) * plotH;
+  const slot = rows.length > 1 ? plotW / (rows.length - 1) : plotW;
+  const every = Math.max(1, Math.ceil(rows.length / 7));
+  const ticks: number[] = [];
+  for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  return (
+    <div ref={host} className="nm-area-chart">
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label={label}>
+          {ticks.map((v) => (
+            <g key={v}>
+              <line className={v ? "nm-chart-grid" : "nm-chart-baseline"} x1={padL} x2={width - padR} y1={y(v)} y2={y(v)} />
+              <text className="nm-chart-axis" x={padL - 6} y={y(v) + 3} textAnchor="end">{fmt(Math.round(v * 10) / 10)}</text>
+            </g>
+          ))}
+          {series.map((s) => {
+            const line = rows.map((row, i) => `${i ? "L" : "M"}${x(i)},${y(value(row, s.key))}`).join("");
+            return (
+              <g key={s.key}>
+                <path className="nm-chart-area" d={`${line}L${x(rows.length - 1)},${base}L${x(0)},${base}Z`} style={{ fill: paint(s.color) }} />
+                <path className="nm-chart-line" d={line} style={{ stroke: paint(s.color) }} />
+              </g>
+            );
+          })}
+          {rows.map((row, i) => {
+            const onEnter = (event: { currentTarget: Element }) => {
+              setActive(i);
+              show(event.currentTarget, row.label, series.map((s) => ({ color: s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` })));
+            };
+            const onLeave = () => { setActive(null); hide(); };
+            return (
+              <g key={row.label} className={`nm-chart-pt${active === i ? " is-active" : ""}`}>
+                {active === i && <line className="nm-chart-crosshair" x1={x(i)} x2={x(i)} y1={padT} y2={base} />}
+                {active === i && series.map((s) => (
+                  <circle key={s.key} className="nm-chart-marker" cx={x(i)} cy={y(value(row, s.key))} r={4.5} style={{ fill: paint(s.color) }} />
+                ))}
+                {(rows.length - 1 - i) % every === 0 && (
+                  <text className="nm-chart-axis" x={x(i)} y={height - 6} textAnchor={i === 0 && rows.length > 1 ? "start" : i === rows.length - 1 && rows.length > 1 ? "end" : "middle"}>{row.label}</text>
+                )}
+                <rect className="nm-chart-hit" x={Math.max(padL, x(i) - slot / 2)} y={padT} width={Math.min(slot, plotW)} height={plotH} tabIndex={0}
+                  aria-label={`${row.label}: ${series.map((s) => `${s.label} ${fmt(value(row, s.key))}${unit}`).join(", ")}`}
+                  onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={onLeave} onBlur={onLeave} />
+              </g>
+            );
+          })}
+        </svg>
+      )}
+      <ChartTooltip tip={tip} />
+    </div>
+  );
+}
+
 /** One horizontal bar split into parts of a whole, with a legend. */
 export function StackBar({ items, label, of = "of total" }: { items: ChartItem[]; label: string; of?: string }) {
   const { tip, show, hide } = useTip();
