@@ -91,17 +91,21 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       const card = page.locator(".admin-system-card").filter({ has: page.getByRole("heading", { name: "Version", exact: true }) });
       await expect(page.locator(".app-topbar-version")).toHaveCount(0);
       await expect(card.getByText("Installed", { exact: true })).toBeVisible();
-      await expect(card.locator("dd").first()).toHaveText(`${info.channel ? `${info.channel}: ` : "v"}${info.current}`);
+      await expect(card.locator(".admin-version-now strong")).toHaveText(`${info.channel ? `${info.channel}: ` : "v"}${info.current}`);
       await expect(card.getByText("Latest", { exact: true })).toBeVisible();
       if (state === "update") {
-        const link = card.getByRole("link", { name: "v1.8.0 — update available" });
+        const link = card.getByRole("link", { name: "Update available" });
         await expect(link).toHaveAttribute("href", info.release_url);
         await expect(link).toHaveAttribute("rel", "noreferrer");
+        await expect(card.locator(".admin-version-facts dd")).toHaveText("v1.8.0");
         await link.focus();
         await expect(link).toBeFocused();
         await link.hover();
+      } else if (state === "current") {
+        await expect(card.getByText("Up to date", { exact: true })).toBeVisible();
+        await expect(card.locator(".admin-version-facts dd")).toHaveText("v1.7.0");
       } else {
-        await expect(card.getByText(state === "current" ? "v1.7.0 — up to date" : "unavailable", { exact: true })).toBeVisible();
+        await expect(card.locator(".admin-version-facts dd")).toHaveText("unavailable");
       }
       const header = card.locator(".nm-app-panel-header");
       await expect(header).toHaveCSS("height", "44px");

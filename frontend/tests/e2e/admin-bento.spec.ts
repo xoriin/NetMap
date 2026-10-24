@@ -98,3 +98,57 @@ for (const [theme, header] of [["slate", "rgb(29, 37, 54)"], ["zinc", "rgb(31, 3
     await expect(title).toHaveCSS("background-color", header);
   });
 }
+
+test("System puts App settings under the version row with the charts stacked on the right", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "slate");
+  await page.goto("/admin#system");
+  await expect(page.locator(".admin-version-hero")).toBeVisible();
+  const version = await box(page, ".admin-bento");
+  const appSettings = await box(page, ".admin-settings-card");
+  const storage = await box(page, '[aria-label="Storage"]');
+  const devices = await box(page, '[aria-label="Device status at last check"]');
+  const backupsPanel = await box(page, '[aria-label="Backup size, last 10"]');
+  const syslog = await box(page, '[aria-label="Syslog configuration"]');
+  expect(appSettings.y).toBeGreaterThan(version.y + version.height);
+  expect(storage.x).toBeGreaterThan(appSettings.x + appSettings.width);
+  expect(Math.abs(storage.y - appSettings.y)).toBeLessThanOrEqual(1);
+  expect(devices.y).toBeGreaterThan(storage.y + storage.height);
+  expect(backupsPanel.y).toBeGreaterThan(devices.y + devices.height);
+  expect(syslog.y).toBeGreaterThan(backupsPanel.y + backupsPanel.height);
+  await expect(page.locator(".admin-stats .dash-stat")).toHaveCount(6);
+  await expect(page.locator('[aria-label="Storage"] .nm-chart-seg')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Device status at last check"] .nm-chart-seg')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Backup size, last 10"] .nm-chart-col')).toHaveCount(10);
+  await expect(page.locator('[aria-label="Syslog configuration"] .nm-stackbar > span')).toHaveCount(3);
+});
+
+test("Syslog sections sit 24px apart", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "light");
+  await page.goto("/admin#system");
+  const gaps = await page.locator('[aria-label="Syslog configuration"] .admin-task-stack').evaluate((node) => {
+    const rects = [...node.children].map((child) => child.getBoundingClientRect());
+    return rects.slice(1).map((rect, i) => Math.round(rect.top - rects[i].bottom));
+  });
+  expect(gaps).toEqual([24, 24]);
+});
+
+test("chart tooltips show the hovered value", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "slate");
+  await page.goto("/admin#system");
+  await page.locator('[aria-label="Device status at last check"] .nm-chart-seg').first().focus();
+  await expect(page.locator(".hb-tooltip-card")).toContainText("Online");
+  await expect(page.locator(".hb-tooltip-card")).toContainText("72");
+});
+
+test("entrance motion plays once and is off under reduced motion", async ({ page }) => {
+  await setupMocks(page, "slate", true);
+  await page.goto("/admin#system");
+  await expect(page.locator(".nm-motion")).toHaveCount(1);
+  expect(await page.locator(".admin-settings-card").evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-rise");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const name = await page.locator(".admin-settings-card").evaluate((node) => getComputedStyle(node).animationName);
+  expect(name).toBe("none");
+});
