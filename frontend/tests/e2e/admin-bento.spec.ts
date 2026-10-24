@@ -78,7 +78,7 @@ test("light mode panels carry the stronger element shadow", async ({ page }) => 
   await setupMocks(page, "light");
   await page.goto("/admin#system");
   const shadow = await page.locator(".admin-settings-card").evaluate((node) => getComputedStyle(node).boxShadow);
-  expect(shadow).toContain("rgba(15, 35, 52, 0.14) 0px 12px 28px 0px");
+  expect(shadow).toContain("rgba(15, 35, 52, 0.11) 0px 8px 22px 0px");
 });
 
 test("light nested Admin section headers use the dark panel-header colour with white text and icon", async ({ page }) => {
