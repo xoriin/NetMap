@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { StatusPagePayload } from "../../src/features/status-pages/statusPagesApi";
 
+test.use({ locale: "en-GB", timezoneId: "Australia/Brisbane" });
+
 async function setup(page: Page, window: "1h" | "24h" = "1h") {
   const start = new Date("2026-10-24T02:00:10Z");
   await page.clock.install({ time: start });
@@ -132,14 +134,14 @@ for (const style of ["light", "slate", "zinc"] as const) {
     const before = await selected.boundingBox();
     const colour = await selected.evaluate(node => getComputedStyle(node).backgroundColor);
     await selected.hover();
-    await expect(selected).toHaveCSS("scale", "1.3 1.55");
+    await expect(selected).toHaveCSS("scale", "1.8 2.1");
     await expect(neighbour).toHaveCSS("scale", "none");
-    expect((await selected.boundingBox())!.height).toBeCloseTo(before!.height * 1.55, 0);
+    expect((await selected.boundingBox())!.height).toBeCloseTo(before!.height * 2.1, 0);
     await expect(selected).toHaveCSS("background-color", colour);
     for (const width of [1440, 820, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await selected.hover({ force: true });
-      await expect(selected).toHaveCSS("scale", "1.3 1.55");
+      await expect(selected).toHaveCSS("scale", "1.8 2.1");
       expect(await frame.locator("html").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
       await page.screenshot({ path: test.info().outputPath(`${style}-hover-${width}.png`) });
     }
@@ -153,7 +155,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
       }
     });
     await newest.hover({ force: true });
-    await expect(newest).toHaveCSS("scale", "1.3 1.55");
+    await expect(newest).toHaveCSS("scale", "1.8 2.1");
     await expect(newest).toHaveCSS("animation-name", "sp-beat-arrive");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect(newest).toHaveCSS("scale", "none");
@@ -172,3 +174,37 @@ test("touch heartbeats remain steady", async ({ browser }) => {
   await expect(beat).toHaveCSS("scale", "none");
   await context.close();
 });
+
+for (const window of ["1h", "24h"] as const) {
+  test(`heartbeat tooltips describe the actual ${window} interval and optional response`, async ({ page }) => {
+    const { body, frame, refresh } = await setup(page, window);
+    body.groups[0].items[0].response = Array(60).fill(null);
+    body.groups[0].items[0].response![58] = 23.6;
+    body.groups[0].items[0].heartbeats[58] = "unhealthy";
+    body.groups[0].items[0].heartbeats[0] = "unknown";
+    body.groups[0].items[0].heartbeats[1] = "maintenance";
+    await refresh(1);
+    const beats = frame.locator(".sp-beat");
+    const slots = frame.locator(".sp-beat-slot");
+    const choices = frame.locator(".sp-beat-choice");
+    const tooltip = await slots.nth(58).getAttribute("title");
+    expect(tooltip).toContain("Down");
+    expect(tooltip).toContain("24 Oct 2026");
+    expect(tooltip).toContain(window === "1h" ? "11:59–12:00 (Australia/Brisbane)" : "11:36–12:00 (Australia/Brisbane)");
+    expect(tooltip).toContain(window === "1h" ? "1-minute interval" : "24-minute interval");
+    expect(tooltip).toContain("Average response: 24 ms");
+    expect(await slots.first().getAttribute("title")).toContain("Unknown");
+    expect(await slots.nth(1).getAttribute("title")).toContain("Maintenance");
+    expect(await slots.last().getAttribute("title")).toContain("In progress at last update");
+    await choices.nth(58).focus();
+    await expect(choices.nth(58)).toHaveAttribute("aria-label", tooltip!);
+    await expect(beats.nth(58)).toHaveCSS("outline-style", "solid");
+    await choices.nth(58).press("ArrowRight");
+    await expect(choices.last()).toBeFocused();
+    await expect(choices.last()).toBeChecked();
+    await expect(frame.locator(".sp-beat-choice:checked")).toHaveCount(1);
+    body.groups[0].items[0].response = null;
+    await refresh(1);
+    expect(await slots.nth(58).getAttribute("title")).not.toContain("response");
+  });
+}

@@ -89,14 +89,16 @@ const WINDOW_LABELS: Record<string, { name: string; start: string }> = {
 type Builder = {
   doc: Document;
   now: Date;
+  generatedAt: number;
   arrivals: Map<number, Set<number>>;
   el: <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string | null, text?: string | null) => HTMLElementTagNameMap[K];
 };
 
-function makeBuilder(doc: Document, now: Date, arrivals: Map<number, Set<number>>): Builder {
+function makeBuilder(doc: Document, now: Date, arrivals: Map<number, Set<number>>, generatedAt: string): Builder {
   return {
     doc,
     now,
+    generatedAt: Date.parse(generatedAt),
     arrivals,
     el(tag, className, text) {
       const node = doc.createElement(tag);
@@ -199,13 +201,44 @@ function heartbeatLabel(beats: StatusBeat[], window: string): string {
   return `${(WINDOW_LABELS[window] ?? WINDOW_LABELS["1h"]).name}: ${parts.join(", ")}`;
 }
 
-function heartbeatBar(b: Builder, beats: StatusBeat[], window: string, itemId: number): HTMLElement {
+function heartbeatBar(b: Builder, item: StatusPageItemPayload, window: string): HTMLElement {
+  const beats = item.heartbeats ?? [];
   const bar = b.el("span", "sp-heartbeats");
-  bar.setAttribute("role", "img");
+  bar.setAttribute("role", "group");
   bar.setAttribute("aria-label", heartbeatLabel(beats, window));
+  const width = (window === "24h" ? 86_400_000 : 3_600_000) / 60;
+  const end = (Math.floor(b.generatedAt / width) + 1) * width;
+  const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+  const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const zone = visitorTimeZone();
   beats.forEach((beat, index) => {
     const kind = ["healthy", "unhealthy", "unknown", "maintenance"].includes(beat) ? beat : "unknown";
-    bar.append(b.el("span", `sp-beat sp-beat--${kind}${b.arrivals.get(itemId)?.has(index) ? " sp-beat--new" : ""}`));
+    const details = [item.name, { healthy: "Up", unhealthy: "Down", unknown: "Unknown", maintenance: "Maintenance" }[kind]];
+    if (Number.isFinite(end)) {
+      const start = new Date(end - (beats.length - index) * width);
+      const stop = new Date(start.getTime() + width);
+      details.push(dateFormat.format(start));
+      details.push(`${timeFormat.format(start)}–${timeFormat.format(stop)} (${zone})`);
+    } else details.push("Time unavailable");
+    details.push(`${width / 60_000}-minute interval${index === beats.length - 1 ? " · In progress at last update" : ""}`);
+    // This is a bucket average, only available when the page exposes response
+    // history. Never substitute a page-wide metric or an individual check time.
+    if (item.response?.length === beats.length) {
+      const response = item.response[index];
+      details.push(`Average response: ${typeof response === "number" && Number.isFinite(response) && response >= 0 ? `${Math.round(response)} ms` : "No data"}`);
+    }
+    const node = b.el("span", `sp-beat sp-beat--${kind}${b.arrivals.get(item.id)?.has(index) ? " sp-beat--new" : ""}`);
+    const slot = b.el("label", "sp-beat-slot");
+    slot.title = details.join("\n");
+    // Native radio navigation gives each timeline one Tab stop and arrow-key
+    // inspection without adding scripts to the sandboxed document.
+    const choice = b.el("input", "sp-beat-choice");
+    choice.type = "radio";
+    choice.name = `sp-heartbeat-${item.id}`;
+    choice.defaultChecked = index === beats.length - 1;
+    choice.setAttribute("aria-label", slot.title);
+    slot.append(choice, node);
+    bar.append(slot);
   });
   return bar;
 }
@@ -323,7 +356,7 @@ function itemRow(b: Builder, item: StatusPageItemPayload, window: string): HTMLE
     b.el("span", "sp-state", ITEM_STATE_LABELS[item.state] ?? "Unknown"),
   );
   const graphs = b.el("span", "sp-graphs");
-  graphs.append(lane(b, "Status", heartbeatBar(b, item.heartbeats ?? [], window, item.id)), axis(b, window));
+  graphs.append(lane(b, "Status", heartbeatBar(b, item, window)), axis(b, window));
 
   if (!hasExtras) {
     const row = b.el("div", "sp-row");
@@ -491,7 +524,7 @@ function panelIcon(b: Builder, kind: "network" | "activity"): HTMLElement {
 
 export function buildStatusDocument(payload: StatusPagePayload, options: BuildStatusOptions): string {
   const doc = document.implementation.createHTMLDocument("");
-  const b = makeBuilder(doc, options.now, arrivingBeats(payload, options.previousPayload));
+  const b = makeBuilder(doc, options.now, arrivingBeats(payload, options.previousPayload), payload.generated_at);
   doc.documentElement.lang = "en";
 
   const csp = doc.createElement("meta");

@@ -160,7 +160,10 @@ details.sp-row[open] > summary .sp-caret::before { content: "\\25BE"; }
 .sp-row:not([open]) .sp-lane-label { visibility: hidden; }
 .sp-heartbeats, .sp-response { flex: 1 1 0; min-width: 0; height: 24px; }
 .sp-heartbeats { display: flex; height: 26px; gap: 3px; }
-.sp-beat { flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--sp-beat-unknown); }
+.sp-beat-slot { position: relative; flex: 1 1 0; min-width: 0; }
+.sp-beat-slot:hover, .sp-beat-slot:focus-within { z-index: 1; }
+.sp-beat-choice { position: absolute; top: 50%; left: 50%; width: 1px; height: 1px; margin: 0; opacity: 0; clip-path: inset(50%); }
+.sp-beat { display: block; width: 100%; height: 100%; border-radius: 4px; background: var(--sp-beat-unknown); }
 .sp-beat--healthy { background: var(--sp-beat-healthy); }
 .sp-beat--unhealthy { background: var(--sp-beat-unhealthy); }
 .sp-beat--unknown { background: var(--sp-beat-unknown); }
@@ -175,11 +178,12 @@ details.sp-row[open] > summary .sp-caret::before { content: "\\25BE"; }
   transform-origin: center bottom;
   animation: sp-beat-arrive 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
 }
+.sp-beat-choice:focus-visible + .sp-beat { outline: 2px solid var(--nm-focus-border); outline-offset: 2px; }
 /* Independent scale composes with arrival's transform, even on the newest bar.
    Keep touch strips steady and honour reduced motion for hover as well. */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .sp-beat { transition: scale 160ms ease; }
-  .sp-beat:hover { scale: 1.3 1.55; }
+  .sp-beat-slot:hover .sp-beat, .sp-beat-choice:focus-visible + .sp-beat { scale: 1.8 2.1; }
 }
 .sp-response { display: block; height: 64px; border-radius: 6px; background: var(--sp-surface-soft); }
 .sp-response-area { fill: var(--sp-page-accent, var(--sp-accent)); fill-opacity: 0.12; stroke: none; }
