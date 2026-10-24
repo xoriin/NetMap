@@ -230,6 +230,6 @@ for (const [route, panel, limit] of [["/vlans", ".vlan-table-panel", 360], ["/mo
     await expect(box).toBeVisible();
     await page.waitForTimeout(300);
     expect((await box.boundingBox())!.height).toBeLessThan(limit);
-    expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
+    if (route === "/vlans") expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
   });
 }

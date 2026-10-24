@@ -14,6 +14,7 @@ const vlanGroup = {
 };
 
 async function setupVlans(page: Page, theme: "light" | "dark" = "dark") {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await setupCoreMocks(page);
   await setupTopologyMocks(page, [mockDevice({ topology_group: "Servers" })]);
   await page.route("**/api/v1/topology/groups*", (route) => {

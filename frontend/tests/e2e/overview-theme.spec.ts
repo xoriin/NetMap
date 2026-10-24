@@ -63,43 +63,49 @@ for (const theme of ["light", "dark"] as const) {
     await setupOverview(page, theme);
 
     const panels = page.locator(".overview-panel");
-    await expect(panels).toHaveCount(5);
+    await expect(panels).toHaveCount(2);
     await expect(panels.first()).toHaveCSS("background-image", "none");
     await expect(panels.first()).toHaveCSS("background-color", theme === "dark" ? "rgb(22, 29, 46)" : "rgb(254, 254, 254)");
 
     const headers = page.locator(".overview-panel-header");
-    await expect(headers).toHaveCount(5);
+    await expect(headers).toHaveCount(2);
     await expect(headers.first()).toHaveCSS("min-height", "44px");
-    await expect(page.locator(".overview-panel-identity")).toHaveCount(5);
+    await expect(page.locator(".overview-panel-identity")).toHaveCount(2);
     await expect(page.locator(".overview-panel-icon").first()).toHaveCSS("width", "30px");
+
+    const insights = page.locator(".overview-workspace .nm-insight");
+    await expect(insights).toHaveCount(6);
+    for (const insight of await insights.all()) await expect(insight).toHaveCSS("background-image", "none");
 
     const stat = page.locator(".dash-stat").first();
     await expect(stat).toHaveCSS("background-image", "none");
-    await expect(page.locator(".dash-stats .dash-stat-sub")).toHaveCount(0);
+    await expect(page.locator(".nm-bento-stats .dash-stat")).toHaveCount(6);
+    await expect(page.locator(".nm-bento-stats .dash-stat", { hasText: "Groups / VLANs" }).locator(".dash-stat-sub")).toHaveText("Core is the largest");
 
     const favouriteSearch = page.locator(".overview-fav-search");
     await expect(favouriteSearch).toBeVisible();
     await expect(favouriteSearch.locator("input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
-    const typeRows = page.locator(".overview-panel", { hasText: "Device types" }).locator(".dash-breakdown-row");
+    const typeRows = page.getByRole("region", { name: "Device types", exact: true }).locator(".nm-bar-list li");
     await expect(typeRows).toHaveCount(3);
-    await expect(typeRows.filter({ hasText: "Router" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#ef4444");
-    await expect(typeRows.filter({ hasText: "Switch" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#22c55e");
-    await expect(typeRows.filter({ hasText: "Server" }).locator(".overview-device-type-fill")).toHaveCSS("--overview-type-color", "#3b82f6");
+    await expect(typeRows.filter({ hasText: "Router" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(239, 68, 68)");
+    await expect(typeRows.filter({ hasText: "Switch" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(34, 197, 94)");
+    await expect(typeRows.filter({ hasText: "Server" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(59, 130, 246)");
     await expect(page.locator(".dash-device-row", { hasText: "gateway-01" }).first().locator(".dash-device-meta")).toContainText("RouterOS");
 
-    const groupRows = page.locator(".overview-panel", { hasText: "Top groups" }).locator(".dash-breakdown-row");
+    const groupRows = page.getByRole("region", { name: "Top groups", exact: true }).locator(".nm-bar-list li");
     await expect(groupRows).toHaveCount(2);
-    await expect(groupRows.nth(0).locator(".dash-breakdown-label")).toHaveText("Core");
-    await expect(groupRows.nth(0).locator(".overview-group-fill")).toHaveCSS("--overview-group-color", "#f97316");
-    await expect(groupRows.nth(1).locator(".dash-breakdown-label")).toHaveText("Servers");
-    await expect(groupRows.nth(1).locator(".overview-group-fill")).toHaveCSS("--overview-group-color", "#8b5cf6");
+    await expect(groupRows.nth(0).locator(".nm-bar-list-label")).toHaveText("Core");
+    await expect(groupRows.nth(0).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(249, 115, 22)");
+    await expect(groupRows.nth(1).locator(".nm-bar-list-label")).toHaveText("Servers");
+    await expect(groupRows.nth(1).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(139, 92, 246)");
 
     // The stat card and panel speak expected-vs-observed health, not raw
     // reachability — a device that is expected to be offline is not listed.
+    const outages = page.getByRole("region", { name: "Current outages", exact: true });
     await page.getByRole("button", { name: /Offline/ }).click();
-    await expect(page.locator(".overview-offline-panel")).toBeVisible();
-    await expect(page.locator(".overview-offline-panel .overview-panel-identity")).toContainText("Current outages");
+    await expect(outages).toBeInViewport();
+    await expect(page.locator("#overview-outages")).toBeFocused();
   });
 }
 
@@ -181,7 +187,7 @@ test("MOTD and summary cards share the canonical workspace anchor", async ({ pag
   const [workspaceBox, motdBox, summaryBox] = await Promise.all([
     page.locator(".workspace").boundingBox(),
     motd.boundingBox(),
-    page.locator(".overview-workspace > .nm-summary-band").boundingBox(),
+    page.locator(".overview-workspace > .nm-bento").boundingBox(),
   ]);
 
   expect(workspaceBox).not.toBeNull();
@@ -253,7 +259,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".dash-alert--overview-bar")).toContainText("1 endpoint offline");
     await expect(page.locator(".dash-alert--overview-bar")).not.toContainText("Paused endpoint");
     await page.locator(".dash-alert--overview-bar").getByRole("button", { name: /View/ }).click();
-    const outage = page.locator(".overview-offline-panel");
+    const outage = page.getByRole("region", { name: "Current outages", exact: true });
     await expect(outage.getByRole("link", { name: /Customer portal/ })).toHaveAttribute("href", "/monitoring#endpoints");
     await expect(outage).toHaveCSS("background-image", "none");
     await page.screenshot({ path: `/tmp/netmap-overview-${theme}.png`, fullPage: true });
@@ -270,15 +276,12 @@ for (const style of ["light", "slate", "zinc"] as const) {
   test(`Shared bar tracks and labels use the approved brightness in ${style}`, async ({ page }) => {
     await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style === "zinc" ? "zinc" : "slate");
     await setupOverview(page, style === "light" ? "light" : "dark");
-    const health = style === "light" ? "rgb(211, 211, 211)" : style === "slate" ? "rgb(48, 65, 90)" : "rgb(59, 59, 67)";
-    const distribution = style === "light" ? health : style === "slate" ? "rgb(52, 67, 91)" : "rgb(63, 63, 70)";
+    const distribution = style === "light" ? "rgb(211, 211, 211)" : style === "slate" ? "rgb(52, 67, 91)" : "rgb(63, 63, 70)";
     for (const width of [1600, 820, 430]) {
       await page.setViewportSize({ width, height: 1100 });
-      for (const track of await page.locator(".dash-health-track").all()) await expect(track).toHaveCSS("background-color", health);
-      for (const track of await page.locator(".dash-mini-track").all()) await expect(track).toHaveCSS("background-color", distribution);
-      if (style !== "light") {
-        for (const label of await page.locator(".dash-health-label, .dash-breakdown-label").all()) await expect(label).toHaveCSS("color", "rgb(254, 254, 254)");
-      }
+      const tracks = page.locator(".overview-workspace .nm-bar-list-track");
+      await expect(tracks.first()).toBeVisible();
+      for (const track of await tracks.all()) await expect(track).toHaveCSS("background-color", distribution);
       await page.screenshot({ path: `/tmp/shared-bars-${style}-${width}.png`, fullPage: true });
     }
     await expect(page.locator(".overview-fav-search input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -290,6 +293,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await page.addInitScript(value => localStorage.setItem("netmap.dark_style", value), style === "zinc" ? "zinc" : "slate");
     await setupOverview(page, style === "light" ? "light" : "dark");
     const card = page.locator(".dash-stat--clickable").first();
+    await card.evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)));
     const before = (await card.boundingBox())!;
     await card.hover();
     await expect(card).not.toHaveCSS("transform", "none");

@@ -169,17 +169,14 @@ for (const theme of ["light", "dark"] as const) {
 }
 
 for (const [theme, track] of [["light", "rgb(211, 211, 211)"], ["dark", "rgb(52, 67, 91)"]] as const) {
-  test(`Overview health and mini tracks use the track colour in ${theme} mode`, async ({ page }) => {
+  test(`Overview bar tracks use the track colour in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
     await page.addInitScript((value) => window.localStorage.setItem("netmap.theme", value), theme);
     await page.goto("/overview");
-    const tracks = page.locator(".dash-health-track, .dash-mini-track");
+    const tracks = page.locator(".overview-workspace .nm-bar-list-track");
     await expect(tracks.first()).toBeVisible();
-    for (const track_ of await tracks.all()) {
-      const health = await track_.evaluate(node => node.classList.contains("dash-health-track"));
-      await expect(track_).toHaveCSS("background-color", theme === "dark" && health ? "rgb(48, 65, 90)" : track);
-    }
+    for (const track_ of await tracks.all()) await expect(track_).toHaveCSS("background-color", track);
   });
 }
 
@@ -364,11 +361,10 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await expect(usersHeader).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(usersHeader).toHaveCSS("color", "rgb(241, 245, 249)");
   await page.goto("/admin#automation");
-  const schedules = page.locator(".nm-app-panel", { has: page.locator(".admin-schedule-task") }).first().locator(":scope > .nm-app-panel-header");
+  const schedules = page.getByRole("region", { name: "Scheduled scans", exact: true }).locator(":scope > .nm-app-panel-header");
   await expect(schedules).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(schedules.locator(".admin-section-title")).toHaveCSS("color", "rgb(241, 245, 249)");
-  await expect(page.locator(".admin-schedule-task > .nm-app-panel-header")).toHaveCount(0);
-  await expect(page.locator(".admin-schedule-task .admin-task-count")).toBeVisible();
+  await expect(schedules.locator(".admin-task-count")).toBeVisible();
 });
 
 test("light buttons: soft danger and neutral secondary are a step stronger and readable", async ({ page }) => {

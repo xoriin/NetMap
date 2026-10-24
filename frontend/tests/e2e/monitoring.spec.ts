@@ -451,23 +451,17 @@ test.describe("Monitoring layout and column sizing", () => {
     await expect(page.locator(".mon-row").first()).toBeVisible();
   });
 
-  test("scrolls the table, not the page", async ({ page }) => {
-    const pageOverflow = await page.evaluate(() => ({
-      body: document.body.scrollHeight - document.body.clientHeight,
-      doc: document.documentElement.scrollHeight - document.documentElement.clientHeight,
-    }));
-    expect(pageOverflow.body).toBeLessThanOrEqual(1);
-    expect(pageOverflow.doc).toBeLessThanOrEqual(1);
-
-    // The rows have to actually overflow, or the assertion above proves nothing.
+  test("shows the table at its natural height and scrolls the page to the insights below", async ({ page }) => {
     const body = page.locator(".mon-table-body");
-    const overflow = await body.evaluate((el) => el.scrollHeight - el.clientHeight);
-    expect(overflow).toBeGreaterThan(0);
-
-    await body.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    expect(await body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-    // Scrolling to the end of the table must not have moved the page.
-    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+    const workspace = page.locator(".workspace");
+    expect(await workspace.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
+    const latency = page.getByRole("region", { name: "Highest latency, last 24 h", exact: true });
+    await latency.scrollIntoViewIfNeeded();
+    await expect(latency).toBeInViewport();
+    const tableBottom = await page.locator(".mon-view-window").evaluate((el) => el.getBoundingClientRect().bottom);
+    const latencyTop = await latency.evaluate((el) => el.getBoundingClientRect().top);
+    expect(latencyTop).toBeGreaterThan(tableBottom);
   });
 
   test("keeps the favourite header cell above scrolled rows", async ({ page }) => {
@@ -483,9 +477,13 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(coversCorner).toBe(true);
   });
 
-  test("keeps the pagination footer in view without scrolling", async ({ page }) => {
+  test("keeps the pagination footer directly under the rows", async ({ page }) => {
     const footer = page.locator(".inv-pagination");
+    await footer.scrollIntoViewIfNeeded();
     await expect(footer).toBeInViewport();
+    const lastRow = await page.locator(".mon-row").last().evaluate((el) => el.getBoundingClientRect().bottom);
+    const footerTop = await footer.evaluate((el) => el.getBoundingClientRect().top);
+    expect(footerTop - lastRow).toBeLessThanOrEqual(24);
   });
 
   test("fills the viewport and keeps equal table gutters", async ({ page }) => {

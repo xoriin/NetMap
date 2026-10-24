@@ -163,7 +163,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     const sections = [
       ["system", 4], ["devices-icons", 4], ["cloud-providers", 2], ["users", 1],
       ["groups", 4], ["credentials", 2], ["notifications", 2], ["alerts", 1],
-      ["automation", 2], ["security", 4],
+      ["automation", 1], ["security", 4],
     ] as const;
     for (const [section, minimum] of sections) {
       await page.setViewportSize({ width: 1600, height: 1100 });
@@ -283,6 +283,7 @@ test("SSO saves fields from every task panel without replacing the stored secret
 });
 
 async function setupAdminMocks(page: Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
   await setupTopologyMocks(page);
@@ -746,7 +747,7 @@ for (const theme of ["light", "dark"] as const) {
       }
 
       if (tabName === "SNMP Profiles") {
-        const form = panel.locator(".admin-create-form");
+        const form = page.locator(".admin-tab-content .admin-create-form");
         await expect(form).toBeVisible();
         const usesCanonicalShell = await form.evaluate((element) => {
           const probe = document.createElement("span");
@@ -760,7 +761,7 @@ for (const theme of ["light", "dark"] as const) {
       }
 
       if (tabName === "Automation" || tabName === "Security") {
-        const panels = page.locator(".admin-tab-content > .nm-app-panel");
+        const panels = page.locator(".admin-tab-content > :is(.nm-bento, .nm-console, .nm-app-panel)");
         const panelCount = await panels.count();
         expect(panelCount).toBeGreaterThanOrEqual(2);
         for (let index = 1; index < panelCount; index += 1) {
@@ -773,17 +774,17 @@ for (const theme of ["light", "dark"] as const) {
       }
 
       if (tabName === "Automation") {
-        const formBox = await panel.getByRole("region", { name: "New schedule", exact: true }).boundingBox();
-        const library = panel.locator(".admin-schedule-task");
+        const formBox = await page.getByRole("region", { name: "New schedule", exact: true }).boundingBox();
+        const library = page.getByRole("region", { name: "Scheduled scans", exact: true });
         const libraryBox = await library.boundingBox();
         expect(formBox).not.toBeNull();
         expect(libraryBox).not.toBeNull();
         if (formBox && libraryBox) {
-          expect(libraryBox.x).toBeGreaterThan(formBox.x + formBox.width);
+          expect(formBox.x).toBeGreaterThan(libraryBox.x + libraryBox.width);
           expect(Math.abs(libraryBox.y - formBox.y)).toBeLessThanOrEqual(1);
         }
-        await expect(library).toContainText("Created schedules");
-        await expect(library).toContainText("Core network");
+        await expect(library.locator(".admin-schedule-card")).toContainText("Core network");
+        await expect(library.locator(".admin-schedule-metrics > div")).toHaveCount(5);
       }
 
       if (tabName === "Security") {

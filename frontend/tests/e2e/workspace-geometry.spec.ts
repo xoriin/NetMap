@@ -169,7 +169,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(card.locator(".dash-stat-icon")).toHaveCSS("height", "36px");
         await expect(card.locator(".dash-stat-value")).toHaveCSS("font-size", "24px");
         await expect(card.locator(".dash-stat-label")).toHaveCSS("font-size", "11px");
-        await expect(page.locator(".nm-summary-band .dash-stat-sub"), `${route} at ${width}px should not render summary-card subtext`).toHaveCount(0);
+        await expect(page.locator(".nm-summary-band:not(.nm-bento-stats) .dash-stat-sub"), `${route} at ${width}px should not render subtext outside a bento`).toHaveCount(0);
       }
     }
   });
@@ -185,11 +185,11 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.goto("/overview");
     await expect(page.locator(".overview-workspace > .dash-alert--overview-bar")).toBeVisible({ timeout: 10_000 });
-    await expectSectionGap(page, ".overview-workspace > .nm-summary-band", ".overview-workspace > .dash-alert--overview-bar", "Overview outage banner");
+    await expectSectionGap(page, ".overview-workspace > .nm-bento", ".overview-workspace > .dash-alert--overview-bar", "Overview outage banner");
 
     await page.goto("/monitoring");
     await expect(page.locator(".dash-layout > .dash-alert")).toBeVisible({ timeout: 10_000 });
-    await expectSectionGap(page, ".dash-layout > .nm-summary-band", ".dash-layout > .dash-alert", "Monitoring unexpected-state banner");
+    await expectSectionGap(page, ".dash-layout > .nm-bento", ".dash-layout > .dash-alert", "Monitoring unexpected-state banner");
     await expectSectionGap(page, ".dash-layout > .dash-alert", ".dash-layout > .mon-content", "Monitoring content after unexpected-state banner");
   });
 }
@@ -204,12 +204,12 @@ for (const theme of ["light", "dark"] as const) {
       }
     });
     const routes = [
-      ["/overview", ".nm-summary-band", ".dash-grids"],
+      ["/overview", ".overview-workspace > .nm-bento", ".overview-workspace > .nm-console"],
       ["/inventory", ".nm-summary-band", ".topology-content"],
-      ["/locations", ".nm-summary-band", ".locations-panel"],
-      ["/monitoring#endpoints", ".nm-summary-band", ".mon-content"],
+      ["/locations", ".locations-workspace > .nm-bento", ".locations-workspace > .nm-console"],
+      ["/monitoring#endpoints", ".dash-layout > .nm-bento", ".mon-content"],
       ["/ipam", ".ipam-bento", ".ipam-subnets-panel-wrap"],
-      ["/tools", ".nm-summary-band", ".tools-console-grid"],
+      ["/tools", ".tools-workspace > .nm-bento", ".tools-console-grid"],
       ["/security", ".nm-summary-band", ".security-content"],
       // Exports keeps its summary in the context column; its section gaps are
       // covered with the task/context reflow in exports-theme.spec.ts.

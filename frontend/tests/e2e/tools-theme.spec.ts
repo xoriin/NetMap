@@ -23,7 +23,8 @@ for (const theme of ["light", "dark"] as const) {
 
     const window = page.locator(".tools-content");
     await expect(window).toHaveCSS("background-image", "none");
-    await expect(page.locator(".tools-summary-card")).toHaveCount(3);
+    await expect(page.locator(".tools-summary-card")).toHaveCount(4);
+    await expect(page.getByRole("region", { name: "Your recent checks", exact: true })).toBeVisible();
     await expect(page.locator(".tools-library-item")).toHaveCount(0);
     await expect(page.locator(".tools-activity")).toBeVisible();
     await expect(page.locator(".tools-saved")).toBeVisible();

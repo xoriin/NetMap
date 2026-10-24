@@ -21,6 +21,7 @@ const locations = [
 ];
 
 async function setupLocations(page: Page, theme: "light" | "dark" = "dark") {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await setupCoreMocks(page);
   await setupTopologyMocks(page, [mockDevice({ site_id: 1 })]);
   await page.route("**/api/v1/topology/sites*", (route) => {
