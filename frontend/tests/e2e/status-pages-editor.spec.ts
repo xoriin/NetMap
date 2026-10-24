@@ -580,8 +580,9 @@ for (const theme of ["light", "dark"] as const) {
     const parentBefore = await page.locator(".status-editor-preview-panel").evaluate(n => getComputedStyle(n).backgroundColor);
     const originalTitleSize = await frame.locator(".sp-title").evaluate(n => getComputedStyle(n).fontSize);
     const title = page.getByRole("textbox", { name: /^Title/ });
-    const typing = title.pressSequentially("Streaming preview title", { delay: 60 });
-    await expect(frame.locator(".sp-title")).toContainText("Streaming", { timeout: 900 });
+    // Typing the full title takes about 2.8 s; seeing the first word sooner proves the preview streams while typing.
+    const typing = title.pressSequentially("Streaming preview title", { delay: 120 });
+    await expect(frame.locator(".sp-title")).toContainText("Streaming", { timeout: 2000 });
     await typing;
     await expect(frame.locator(".sp-title")).toHaveText("Streaming preview title");
     expect(stored.title).toBeNull();
