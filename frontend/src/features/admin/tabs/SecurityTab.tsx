@@ -1,12 +1,43 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
-import { useEffect, useState, type FormEvent } from "react";
-import { KeyRound, KeySquare, Shield, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { AlertCircle, KeyRound, KeySquare, Layers, Shield, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type SystemSettings, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { triggerDownload } from "../../../utils/download";
-import { TableSkeleton } from "../../../components/Skeleton";
+import { PanelSkeleton, TableSkeleton } from "../../../components/Skeleton";
+import { DashStat } from "../../../components/DashStat";
+import { BarList, ColumnChart, CountUp } from "../../../components/Charts";
+import { EventList, type EventTone } from "../../../components/EventList";
+import { AdminCard } from "../AdminCard";
+
+const EVENT_LABELS: Record<string, string> = {
+  "auth.login_success": "Signed in",
+  "auth.logout": "Signed out",
+  "auth.login_failed": "Failed sign-in",
+  "auth.mfa_failed": "Failed 2FA code",
+  "auth.login_blocked": "Sign-in blocked",
+  "auth.login_blocked_sso_required": "Blocked: SSO required",
+};
+
+export function auditEventLabel(action: string): string {
+  if (EVENT_LABELS[action]) return EVENT_LABELS[action];
+  const tail = action.includes(".") ? action.slice(action.indexOf(".") + 1) : action;
+  const words = tail.replace(/_/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : action;
+}
+
+export function auditEventTone(action: string): EventTone {
+  if (action === "auth.login_success") return "online";
+  if (action === "auth.logout") return "disabled";
+  if (action === "auth.login_failed" || action === "auth.mfa_failed") return "offline";
+  if (action.startsWith("auth.login_blocked")) return "warning";
+  return "unknown";
+}
+
+const FAILED_ACTIONS = new Set(["auth.login_failed", "auth.mfa_failed", "auth.login_blocked", "auth.login_blocked_sso_required"]);
+const shortDate = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 type SsoFormState = {
   enabled: boolean;
@@ -133,7 +164,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   }
 
   return (
-    <section className="panel admin-panel nm-app-panel">
+    <section className="panel admin-panel nm-app-panel nm-motion-item">
       <div className="admin-panel-header nm-app-panel-header">
         <h2 className="admin-section-title"><KeyRound size={16} />Single Sign-On (OIDC)</h2>
         <div className="admin-panel-actions">
@@ -330,7 +361,7 @@ function TwoFactorPanel({ accessToken }: { accessToken: string }) {
   }
 
   return (
-    <section className="panel admin-panel nm-app-panel">
+    <section className="panel admin-panel nm-app-panel nm-motion-item">
       <div className="admin-panel-header nm-app-panel-header">
         <h2 className="admin-section-title"><ShieldCheck size={16} />Two-factor authentication</h2>
       </div>
@@ -386,7 +417,7 @@ function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
   const revokedCount = keys.length - activeKeys.length;
 
   return (
-    <section className="panel admin-panel nm-app-panel">
+    <section className="panel admin-panel nm-app-panel nm-motion-item">
       <div className="admin-panel-header nm-app-panel-header">
         <h2 className="admin-section-title"><KeySquare size={16} />API Keys</h2>
         <div className="admin-panel-actions">
@@ -516,94 +547,157 @@ export function SecurityTab({
     return match ? match[1] : "—";
   }
 
+  const summaryQuery = useApiQuery(() => api.auditSummary(accessToken, 14), [accessToken]);
+  const settingsQuery = useApiQuery(showSensitivePanels ? () => api.adminSettings(accessToken) : null, [accessToken, showSensitivePanels]);
+  const oidcQuery = useApiQuery(showSensitivePanels ? () => api.getOidcSettings(accessToken) : null, [accessToken, showSensitivePanels]);
+  const keysQuery = useApiQuery(showSensitivePanels ? () => api.listAllApiKeys(accessToken) : null, [accessToken, showSensitivePanels]);
+  const failuresQuery = useApiQuery(() => api.listAuditLogs(accessToken, { limit: 50, offset: 0, category: "login" }), [accessToken]);
+  const summary = Array.isArray(summaryQuery.data?.days) ? summaryQuery.data : null;
+  const signinRows = useMemo(() => (summary?.days ?? []).map((d) => ({
+    label: new Date(`${d.date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    ok: d.signed_in,
+    bad: d.failed,
+  })), [summary]);
+  const activeKeys = (keysQuery.data ?? []).filter((k) => !k.revoked_at);
+  const neverExpire = activeKeys.filter((k) => !k.expires_at).length;
+  const policy = settingsQuery.data?.totp_required;
+  const policyLabel = policy === "all" ? "All users" : policy === "admins" ? "Admins" : policy ? "Off" : "—";
+  const recentFailures = (failuresQuery.data?.records ?? []).filter((r) => FAILED_ACTIONS.has(r.action)).slice(0, 5);
+  const motion = (i: number) => ({ "--nm-motion-i": i }) as CSSProperties;
+
+  const auditPanel = (
+        <section className="panel admin-panel nm-app-panel admin-security-audit-panel nm-fill nm-motion-item" aria-label="Login and audit history">
+          <div className="admin-panel-header nm-app-panel-header">
+            <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : auditView === "login" ? "Login History" : "Login & audit history"}</h2>
+            <div className="admin-panel-actions">
+              <button type="button" className={`nm-btn nm-btn--sm${auditView === "all" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("all"); setAuditOffset(0); }}>All activity</button>
+              <button type="button" className={`nm-btn nm-btn--sm${auditView === "login" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("login"); setAuditOffset(0); }}>Login history</button>
+              {auditView === "login" && (
+                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={exportBusy} onClick={() => void exportLoginHistory()}>
+                  {exportBusy ? "Exporting…" : "Export CSV"}
+                </button>
+              )}
+              {auditUserFilter && <button type="button" className="nm-btn" onClick={() => { setAuditUserFilter(null); setAuditOffset(0); }}>All users</button>}
+              <button type="button" className="nm-btn" onClick={() => void auditQuery.reload()}>Refresh</button>
+            </div>
+          </div>
+          {auditQuery.error && <div className="form-error">{auditQuery.error}</div>}
+          {auditView === "login" ? (
+            <div className="audit-log-table audit-log-table--login">
+              <div className="audit-log-header">
+                <span>Time</span>
+                <span>User</span>
+                <span>Result</span>
+                <span>IP address</span>
+              </div>
+              {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No login events found.</p>}
+              {auditLogs.map((log) => {
+                const dt = new Date(log.created_at);
+                const result = loginResultBadge(log.action);
+                return (
+                  <div className="audit-log-row" key={log.id}>
+                    <div className="audit-time-cell">
+                      <span className="audit-date">{dt.toLocaleDateString()}</span>
+                      <span className="audit-time">{dt.toLocaleTimeString()}</span>
+                    </div>
+                    <span className="audit-actor">{auditLogUsername(log)}</span>
+                    <span className={`notif-result${result.tone === "ok" ? " ok" : " err"}`}>{result.label}</span>
+                    <span className="audit-detail nm-table-mono">{ipFromDetail(log.detail)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="audit-log-table audit-log-table--compact" role="table">
+              <div className="audit-log-header" role="row">
+                <span>Time</span>
+                <span>Event</span>
+                <span>User</span>
+                <span>Details</span>
+              </div>
+              {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No audit records found.</p>}
+              {auditLogs.map((log) => {
+                const actor = log.actor_user_id
+                  ? (users.find((u) => u.id === log.actor_user_id)?.username ?? `#${log.actor_user_id}`)
+                  : "system";
+                const context = [log.target, log.detail].filter(Boolean).join(" · ") || "—";
+                return (
+                  <div className="audit-log-row" role="row" key={log.id}>
+                    <time className="audit-when" dateTime={log.created_at}>{shortDate(log.created_at)}</time>
+                    <span className="audit-event" title={log.action}><span className={`dash-status-dot dash-status-dot--${auditEventTone(log.action)}`} aria-hidden="true" />{auditEventLabel(log.action)}</span>
+                    <span className="audit-actor">{actor}</span>
+                    <span className="audit-context" title={context}>{context}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="audit-pagination">
+            <button type="button" className="nm-btn" disabled={auditOffset === 0} onClick={() => setAuditOffset((current) => Math.max(0, current - 50))}>← Prev</button>
+            <span>{auditOffset + 1}–{Math.min(auditOffset + 50, auditLogsTotal)} of {auditLogsTotal}</span>
+            <button type="button" className="nm-btn" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => setAuditOffset((current) => current + 50)}>Next →</button>
+          </div>
+        </section>
+  );
+
   return (
-    <div className="admin-tab-content">
-      {showSensitivePanels && <TwoFactorPanel accessToken={accessToken} />}
-      {showSensitivePanels && <SsoSettingsPanel accessToken={accessToken} />}
-      {showSensitivePanels && <ApiKeysOversightPanel accessToken={accessToken} />}
-      <section className="panel admin-panel nm-app-panel admin-security-audit-panel">
-        <div className="admin-panel-header nm-app-panel-header">
-          <h2 className="admin-section-title"><Shield size={16} />{auditUserFilter ? `Activity — ${users.find((u) => u.id === auditUserFilter)?.username ?? "user"}` : auditView === "login" ? "Login History" : "Login & Audit History"}</h2>
-          <div className="admin-panel-actions">
-            <button type="button" className={`nm-btn nm-btn--sm${auditView === "all" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("all"); setAuditOffset(0); }}>All activity</button>
-            <button type="button" className={`nm-btn nm-btn--sm${auditView === "login" ? " nm-btn--active" : ""}`} onClick={() => { setAuditView("login"); setAuditOffset(0); }}>Login history</button>
-            {auditView === "login" && (
-              <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={exportBusy} onClick={() => void exportLoginHistory()}>
-                {exportBusy ? "Exporting…" : "Export CSV"}
-              </button>
-            )}
-            {auditUserFilter && <button type="button" className="nm-btn" onClick={() => { setAuditUserFilter(null); setAuditOffset(0); }}>All users</button>}
-            <button type="button" className="nm-btn" onClick={() => void auditQuery.reload()}>Refresh</button>
-          </div>
-        </div>
-        {auditQuery.error && <div className="form-error">{auditQuery.error}</div>}
-        {auditView === "login" ? (
-          <div className="audit-log-table audit-log-table--login">
-            <div className="audit-log-header">
-              <span>Time</span>
-              <span>User</span>
-              <span>Result</span>
-              <span>IP address</span>
+    <div className="admin-tab-content nm-motion">
+      {showSensitivePanels && (
+        <>
+          <div className="nm-bento nm-bento--four nm-bento--chart">
+            <AdminCard title="Sign-ins, last 14 days" icon={<Shield size={16} />} style={motion(0)} actions={(
+              <ul className="nm-header-legend" aria-hidden="true">
+                <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Signed in</li>
+                <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
+              </ul>
+            )}>
+              {summaryQuery.isLoading ? <PanelSkeleton lines={5} />
+                : summaryQuery.error ? <p className="tool-note nm-chart-empty">Sign-in history is unavailable.</p>
+                : <ColumnChart label="Sign-ins per day, last 14 days, successful and failed" rows={signinRows}
+                    series={[{ key: "ok", label: "Signed in", color: "--dash-green" }, { key: "bad", label: "Failed", color: "--dash-red" }]} height={168} />}
+            </AdminCard>
+            <div className="dash-stats nm-bento-stats nm-summary-band">
+              <DashStat accent="amber" className="nm-motion-item" icon={<ShieldCheck size={20} />} label="Two-factor policy" value={policyLabel}
+                sub={policy === "all" ? "Required for everyone" : policy === "admins" ? "Required for admins" : "Not required"} />
+              <DashStat accent="blue" className="nm-motion-item" icon={<KeyRound size={20} />} label="Single sign-on" value={oidcQuery.data ? (oidcQuery.data.enabled ? "On" : "Off") : "—"}
+                sub={oidcQuery.data?.enabled ? `${oidcQuery.data.provider_name || "SSO"}${oidcQuery.data.require_sso ? " · required" : ""}` : "Local sign-in only"} />
+              <DashStat accent="purple" className="nm-motion-item" icon={<KeySquare size={20} />} label="API keys" value={<CountUp value={activeKeys.length} />}
+                sub={activeKeys.length ? `${neverExpire} never expire${neverExpire === 1 ? "s" : ""}` : "None issued"} />
+              <DashStat accent="red" className="nm-motion-item" icon={<AlertCircle size={20} />} label="Failed sign-ins" value={summary ? <CountUp value={summary.failed_total} /> : "—"} sub="Last 14 days" />
             </div>
-            {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No login events found.</p>}
-            {auditLogs.map((log) => {
-              const dt = new Date(log.created_at);
-              const result = loginResultBadge(log.action);
-              return (
-                <div className="audit-log-row" key={log.id}>
-                  <div className="audit-time-cell">
-                    <span className="audit-date">{dt.toLocaleDateString()}</span>
-                    <span className="audit-time">{dt.toLocaleTimeString()}</span>
-                  </div>
-                  <span className="audit-actor">{auditLogUsername(log)}</span>
-                  <span className={`notif-result${result.tone === "ok" ? " ok" : " err"}`}>{result.label}</span>
-                  <span className="audit-detail nm-table-mono">{ipFromDetail(log.detail)}</span>
-                </div>
-              );
-            })}
           </div>
-        ) : (
-          <div className="audit-log-table">
-            <div className="audit-log-header">
-              <span>Time</span>
-              <span>Event</span>
-              <span>Actor</span>
-              <span>Context</span>
+          <div className="nm-console nm-console--even">
+            <div className="nm-console-main">
+              <SsoSettingsPanel accessToken={accessToken} />
+              <ApiKeysOversightPanel accessToken={accessToken} />
             </div>
-            {auditQuery.isLoading ? <TableSkeleton rows={7} columns={4} /> : auditLogs.length === 0 && <p className="audit-empty">No audit records found.</p>}
-            {auditLogs.map((log) => {
-              const dt = new Date(log.created_at);
-              const category = log.action.split(".")[0];
-              const actor = log.actor_user_id
-                ? (users.find((u) => u.id === log.actor_user_id)?.username ?? `#${log.actor_user_id}`)
-                : "system";
-              return (
-                <div className="audit-log-row" key={log.id}>
-                  <div className="audit-time-cell">
-                    <span className="audit-date">{dt.toLocaleDateString()}</span>
-                    <span className="audit-time">{dt.toLocaleTimeString()}</span>
-                  </div>
-                  <div className="audit-event-cell">
-                    <span className={`audit-category-badge audit-category-badge--${category}`}>{category}</span>
-                    <span className="audit-action">{log.action.includes(".") ? log.action.slice(log.action.indexOf(".") + 1) : log.action}</span>
-                  </div>
-                  <span className="audit-actor">{actor}</span>
-                  <div className="audit-context-cell">
-                    {log.target && <span className="audit-target">{log.target}</span>}
-                    {log.detail && <span className="audit-detail">{log.detail}</span>}
-                    {!log.target && !log.detail && <span className="audit-detail">—</span>}
-                  </div>
-                </div>
-              );
-            })}
+            <aside className="nm-console-side">
+              <TwoFactorPanel accessToken={accessToken} />
+              <AdminCard title="Recent failed sign-ins" icon={<AlertCircle size={16} />} className="nm-fill" style={motion(3)}>
+                <EventList empty="No failed sign-ins recently." rows={recentFailures.map((r) => ({
+                  key: r.id, tone: auditEventTone(r.action), title: auditLogUsername(r),
+                  detail: `${auditEventLabel(r.action)} · ${ipFromDetail(r.detail)}`, time: shortDate(r.created_at), dateTime: r.created_at,
+                }))} />
+              </AdminCard>
+            </aside>
           </div>
-        )}
-        <div className="audit-pagination">
-          <button type="button" className="nm-btn" disabled={auditOffset === 0} onClick={() => setAuditOffset((current) => Math.max(0, current - 50))}>← Prev</button>
-          <span>{auditOffset + 1}–{Math.min(auditOffset + 50, auditLogsTotal)} of {auditLogsTotal}</span>
-          <button type="button" className="nm-btn" disabled={auditOffset + 50 >= auditLogsTotal} onClick={() => setAuditOffset((current) => current + 50)}>Next →</button>
+        </>
+      )}
+      <div className="nm-console nm-console--even">
+        <div className="nm-console-main">
+          {auditPanel}
         </div>
-      </section>
+        <aside className="nm-console-side">
+          <AdminCard title="Activity, last 14 days" icon={<Layers size={16} />} style={motion(5)}>
+            {summary ? <BarList label="Events by type" items={summary.by_action.map((a) => ({ label: auditEventLabel(a.action), value: a.count, color: FAILED_ACTIONS.has(a.action) ? "--dash-red" : a.action === "auth.login_success" ? "--dash-green" : "--dash-blue" }))} empty="No activity in the last 14 days." />
+              : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
+          </AdminCard>
+          <AdminCard title="Most active users" icon={<UsersIcon size={16} />} className="nm-fill" style={motion(6)}>
+            {summary ? <BarList label="Events per user" items={summary.by_actor.map((a) => ({ label: a.username, value: a.count }))} empty="No user activity in the last 14 days." />
+              : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
+          </AdminCard>
+        </aside>
+      </div>
     </div>
   );
 }

@@ -1335,3 +1335,11 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 .admin-backup-name { overflow-wrap: anywhere; color: var(--nm-text); font-family: monospace; font-size: 12px; }
 .admin-backup-meta { grid-column: 1; color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
 .admin-backup-row > .admin-panel-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: nowrap; }
+/* Compact audit history: one line per event */
+.admin-layout .audit-log-table--compact .audit-log-header,
+.admin-layout .audit-log-table--compact .audit-log-row { grid-template-columns: 110px minmax(150px, 0.9fr) 110px minmax(0, 1.4fr); align-items: center; padding: 9px 14px; }
+.admin-layout .audit-log-table--compact .audit-log-row { font-size: var(--nm-text-md); }
+.audit-when { color: var(--nm-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audit-event { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--nm-text); font-weight: 600; }
+.audit-context { overflow: hidden; color: var(--nm-text-muted); text-overflow: ellipsis; white-space: nowrap; }
+
