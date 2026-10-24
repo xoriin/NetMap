@@ -175,6 +175,12 @@ details.sp-row[open] > summary .sp-caret::before { content: "\\25BE"; }
   transform-origin: center bottom;
   animation: sp-beat-arrive 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
 }
+/* Independent scale composes with arrival's transform, even on the newest bar.
+   Keep touch strips steady and honour reduced motion for hover as well. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .sp-beat { transition: scale 160ms ease; }
+  .sp-beat:hover { scale: 1.3 1.55; }
+}
 .sp-response { display: block; height: 64px; border-radius: 6px; background: var(--sp-surface-soft); }
 .sp-response-area { fill: var(--sp-page-accent, var(--sp-accent)); fill-opacity: 0.12; stroke: none; }
 .sp-response-line { fill: none; stroke: var(--sp-page-accent, var(--sp-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }

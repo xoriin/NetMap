@@ -117,3 +117,58 @@ test("an unchanged poll after arrival keeps disclosures and does not restart mot
   await expect(row).toHaveAttribute("data-preserved", "yes");
   await expect(row).toHaveAttribute("open", "");
 });
+
+for (const style of ["light", "slate", "zinc"] as const) {
+  test(`heartbeat hover enlarges only the inspected bar in ${style}`, async ({ page }) => {
+    await page.addInitScript(style => {
+      if (window !== window.top) return;
+      localStorage.setItem("netmap.theme", style === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", style === "zinc" ? "zinc" : "slate");
+    }, style);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    const { frame, refresh } = await setup(page);
+    const beats = frame.locator(".sp-beat");
+    const selected = beats.nth(30), neighbour = beats.nth(31);
+    const before = await selected.boundingBox();
+    const colour = await selected.evaluate(node => getComputedStyle(node).backgroundColor);
+    await selected.hover();
+    await expect(selected).toHaveCSS("scale", "1.3 1.55");
+    await expect(neighbour).toHaveCSS("scale", "none");
+    expect((await selected.boundingBox())!.height).toBeCloseTo(before!.height * 1.55, 0);
+    await expect(selected).toHaveCSS("background-color", colour);
+    for (const width of [1440, 820, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await selected.hover({ force: true });
+      await expect(selected).toHaveCSS("scale", "1.3 1.55");
+      expect(await frame.locator("html").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+      await page.screenshot({ path: test.info().outputPath(`${style}-hover-${width}.png`) });
+    }
+    await refresh(60);
+    const newest = beats.last();
+    // The mocked clock can leave arrival at scaleY(0). Inspect midway through
+    // arrival so this checks composition on a visible, deterministic target.
+    await newest.evaluate(node => {
+      for (const animation of node.getAnimations()) {
+        animation.pause(); animation.currentTime = 350;
+      }
+    });
+    await newest.hover({ force: true });
+    await expect(newest).toHaveCSS("scale", "1.3 1.55");
+    await expect(newest).toHaveCSS("animation-name", "sp-beat-arrive");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(newest).toHaveCSS("scale", "none");
+    await expect(newest).toHaveCSS("transition-duration", "0s");
+    await page.mouse.move(0, 0);
+    await expect(selected).toHaveCSS("scale", "none");
+  });
+}
+
+test("touch heartbeats remain steady", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 900 } });
+  const page = await context.newPage();
+  const { frame } = await setup(page);
+  const beat = frame.locator(".sp-beat").nth(30);
+  await beat.hover({ force: true });
+  await expect(beat).toHaveCSS("scale", "none");
+  await context.close();
+});
