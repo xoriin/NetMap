@@ -234,17 +234,40 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
   );
 }
 
-/** Area chart: one axis, recessive grid, 2px lines over a soft fill, crosshair tooltip and markers per point. */
-export function AreaChart({ rows, series, label, height = 150, unit = "" }: {
+/** Monotone cubic path through the points: smooth, never overshooting the data. */
+function smoothPath(points: [number, number][]) {
+  if (points.length < 3) return points.map(([px, py], i) => `${i ? "L" : "M"}${px},${py}`).join("");
+  const slopes = points.slice(1).map(([px, py], i) => (py - points[i][1]) / (px - points[i][0] || 1));
+  const tangents = points.map((_, i) => {
+    if (i === 0) return slopes[0];
+    if (i === points.length - 1) return slopes[slopes.length - 1];
+    return slopes[i - 1] * slopes[i] <= 0 ? 0 : (slopes[i - 1] + slopes[i]) / 2;
+  });
+  return points.map(([px, py], i) => {
+    if (i === 0) return `M${px},${py}`;
+    const [x0, y0] = points[i - 1];
+    const dx = (px - x0) / 3;
+    return `C${x0 + dx},${y0 + tangents[i - 1] * dx} ${px - dx},${py - tangents[i] * dx} ${px},${py}`;
+  }).join("");
+}
+
+/** Area chart: one axis, recessive grid, 2px lines over a soft fill, crosshair tooltip and markers per point.
+ * `zoomable` adds wheel zoom and drag to scroll the zoomed timeline (double-click, Escape or Reset zoom to return); `reference` draws a dashed guide such as an average. */
+export function AreaChart({ rows, series, label, height = 150, unit = "", zoomable = false, reference }: {
   rows: ({ label: string } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
   height?: number;
   unit?: string;
+  zoomable?: boolean;
+  reference?: { value: number; label: string };
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const drag = useRef<{ x: number; start: number } | null>(null);
   const { tip, show, hide } = useTip();
   useEffect(() => {
     if (!host.current) return;
@@ -252,24 +275,73 @@ export function AreaChart({ rows, series, label, height = 150, unit = "" }: {
     observer.observe(host.current);
     return () => observer.disconnect();
   }, []);
-  const padL = 34, padB = 22, padT = 10, padR = 8;
+  useEffect(() => { setRange(null); }, [rows.length]);
+  const zoomState = useRef({ range, total: rows.length, padL: 34, plotW: 0 });
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!zoomable || !svg) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      const { range: current, total, padL: left, plotW: plot } = zoomState.current;
+      if (total < 5 || !plot) return;
+      event.preventDefault();
+      const [a, b] = current ?? [0, total - 1];
+      const span = b - a;
+      const ratio = Math.min(1, Math.max(0, (event.clientX - svg.getBoundingClientRect().left - left) / plot));
+      const centre = a + ratio * span;
+      const factor = Math.min(1.6, Math.max(0.6, Math.exp(event.deltaY * 0.0015)));
+      const scaled = Math.round(span * factor);
+      const next = scaled === span ? span + Math.sign(event.deltaY) : scaled;
+      if (next >= total - 1) { setRange(null); return; }
+      const width = Math.max(4, next);
+      const start = Math.min(total - 1 - width, Math.max(0, Math.round(centre - ratio * width)));
+      setRange([start, start + width]);
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, [zoomable, width]);
+  const visible = range ? rows.slice(range[0], range[1] + 1) : rows;
+  const padL = 34, padB = 22, padT = 10, padR = reference ? 52 : 8;
   const value = (row: (typeof rows)[number], key: string) => Number(row[key]) || 0;
-  const max = Math.max(1, ...rows.flatMap((row) => series.map((s) => value(row, s.key))));
+  const max = Math.max(1, reference?.value ?? 0, ...visible.flatMap((row) => series.map((s) => value(row, s.key))));
   const step = niceStep(max / 3);
   const top = Math.ceil(max / step) * step;
   const plotW = Math.max(0, width - padL - padR);
   const plotH = height - padB - padT;
   const base = padT + plotH;
-  const x = (i: number) => padL + (rows.length > 1 ? (i / (rows.length - 1)) * plotW : plotW / 2);
+  const n = visible.length;
+  zoomState.current = { range, total: rows.length, padL, plotW };
+  const x = (i: number) => padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
   const y = (v: number) => base - (v / top) * plotH;
-  const slot = rows.length > 1 ? plotW / (rows.length - 1) : plotW;
-  const every = Math.max(1, Math.ceil(rows.length / 7));
+  const slot = n > 1 ? plotW / (n - 1) : plotW;
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 90))));
   const ticks: number[] = [];
   for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  const tipRows = (row: (typeof rows)[number]) => series.map((s) => ({ color: s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` }));
+  const showAt = (i: number) => {
+    const svg = svgRef.current;
+    if (!svg || !visible[i]) return;
+    const box = svg.getBoundingClientRect();
+    const anchor = { getBoundingClientRect: () => new DOMRect(box.left + x(i), box.top + padT, 1, plotH) } as unknown as Element;
+    setActive(i);
+    show(anchor, visible[i].label, tipRows(visible[i]));
+  };
+  const indexAt = (clientX: number) => {
+    const box = svgRef.current!.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - box.left - padL) / (plotW || 1)));
+    return Math.round(ratio * (n - 1));
+  };
+  const reset = () => { setRange(null); drag.current = null; hide(); setActive(null); };
+  const zoomed = range !== null;
   return (
-    <div ref={host} className="nm-area-chart">
+    <div ref={host} className={`nm-area-chart${zoomable ? " nm-area-chart--zoomable" : ""}`}>
+      {zoomable && (
+        <div className="nm-area-chart-tools">
+          <span className="dash-panel-meta">{zoomed ? `${visible[0]?.label} – ${visible[n - 1]?.label} · drag to move along the timeline` : "Scroll over the chart to zoom"}</span>
+          {zoomed && <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={reset}>Reset zoom</button>}
+        </div>
+      )}
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label={label}>
+        <svg ref={svgRef} width={width} height={height} role="img" aria-label={label}>
           {ticks.map((v) => (
             <g key={v}>
               <line className={v ? "nm-chart-grid" : "nm-chart-baseline"} x1={padL} x2={width - padR} y1={y(v)} y2={y(v)} />
@@ -277,35 +349,67 @@ export function AreaChart({ rows, series, label, height = 150, unit = "" }: {
             </g>
           ))}
           {series.map((s) => {
-            const line = rows.map((row, i) => `${i ? "L" : "M"}${x(i)},${y(value(row, s.key))}`).join("");
+            const line = smoothPath(visible.map((row, i) => [x(i), y(value(row, s.key))]));
             return (
               <g key={s.key}>
-                <path className="nm-chart-area" d={`${line}L${x(rows.length - 1)},${base}L${x(0)},${base}Z`} style={{ fill: paint(s.color) }} />
+                <path className="nm-chart-area" d={`${line}L${x(n - 1)},${base}L${x(0)},${base}Z`} style={{ fill: paint(s.color) }} />
                 <path className="nm-chart-line" d={line} style={{ stroke: paint(s.color) }} />
               </g>
             );
           })}
-          {rows.map((row, i) => {
-            const onEnter = (event: { currentTarget: Element }) => {
-              setActive(i);
-              show(event.currentTarget, row.label, series.map((s) => ({ color: s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` })));
-            };
-            const onLeave = () => { setActive(null); hide(); };
-            return (
-              <g key={row.label} className={`nm-chart-pt${active === i ? " is-active" : ""}`}>
-                {active === i && <line className="nm-chart-crosshair" x1={x(i)} x2={x(i)} y1={padT} y2={base} />}
-                {active === i && series.map((s) => (
-                  <circle key={s.key} className="nm-chart-marker" cx={x(i)} cy={y(value(row, s.key))} r={4.5} style={{ fill: paint(s.color) }} />
-                ))}
-                {(rows.length - 1 - i) % every === 0 && (
-                  <text className="nm-chart-axis" x={x(i)} y={height - 6} textAnchor={i === 0 && rows.length > 1 ? "start" : i === rows.length - 1 && rows.length > 1 ? "end" : "middle"}>{row.label}</text>
-                )}
+          {reference && (
+            <g className="nm-chart-reference">
+              <line x1={padL} x2={width - padR} y1={y(reference.value)} y2={y(reference.value)} />
+              <text x={width - padR + 6} y={y(reference.value) + 3}>{reference.label}</text>
+            </g>
+          )}
+          {visible.map((row, i) => (
+            <g key={`${row.label}-${i}`} className={`nm-chart-pt${active === i ? " is-active" : ""}`}>
+              {active === i && <line className="nm-chart-crosshair" x1={x(i)} x2={x(i)} y1={padT} y2={base} />}
+              {active === i && series.map((s) => (
+                <circle key={s.key} className="nm-chart-marker" cx={x(i)} cy={y(value(row, s.key))} r={4.5} style={{ fill: paint(s.color) }} />
+              ))}
+              {(n - 1 - i) % every === 0 && (
+                <text className="nm-chart-axis nm-chart-axis-x" x={x(i)} y={height - 6} textAnchor={i === 0 && n > 1 ? "start" : i === n - 1 && n > 1 ? "end" : "middle"}>{row.label}</text>
+              )}
+              {!zoomable && (
                 <rect className="nm-chart-hit" x={Math.max(padL, x(i) - slot / 2)} y={padT} width={Math.min(slot, plotW)} height={plotH} tabIndex={0}
                   aria-label={`${row.label}: ${series.map((s) => `${s.label} ${fmt(value(row, s.key))}${unit}`).join(", ")}`}
-                  onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={onLeave} onBlur={onLeave} />
-              </g>
-            );
-          })}
+                  onPointerEnter={() => showAt(i)} onFocus={() => showAt(i)} onPointerLeave={() => { setActive(null); hide(); }} onBlur={() => { setActive(null); hide(); }} />
+              )}
+            </g>
+          ))}
+          {zoomable && (
+            <rect className={`nm-chart-zoom-hit${zoomed ? " is-zoomed" : ""}`} x={padL} y={padT} width={plotW} height={plotH} tabIndex={0}
+              aria-label={`${label}: scroll to zoom, drag to move along the timeline, arrow keys to read values, Escape to reset`}
+              onPointerMove={(event) => {
+                if (drag.current && range) {
+                  const span = range[1] - range[0];
+                  const shift = Math.round(((drag.current.x - event.clientX) / (plotW || 1)) * span);
+                  const start = Math.min(rows.length - 1 - span, Math.max(0, drag.current.start + shift));
+                  if (start !== range[0]) setRange([start, start + span]);
+                  hide();
+                  return;
+                }
+                showAt(indexAt(event.clientX));
+              }}
+              onPointerDown={(event) => {
+                if (!range) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                drag.current = { x: event.clientX, start: range[0] };
+              }}
+              onPointerUp={() => { drag.current = null; }}
+              onPointerLeave={() => { if (!drag.current) { setActive(null); hide(); } }}
+              onDoubleClick={reset}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") { reset(); return; }
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                event.preventDefault();
+                const from = active ?? n - 1;
+                showAt(Math.min(n - 1, Math.max(0, from + (event.key === "ArrowLeft" ? -1 : 1))));
+              }}
+              onBlur={() => { setActive(null); hide(); }} />
+          )}
         </svg>
       )}
       <ChartTooltip tip={tip} />

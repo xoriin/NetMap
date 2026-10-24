@@ -47,6 +47,46 @@ test.describe("Monitoring workspace", () => {
     await page.getByRole("link", { name: "Monitoring", exact: true }).click();
   });
 
+  test("draws response time as a tall area chart you zoom with the wheel and drag to scroll", async ({ page }) => {
+    const start = Date.UTC(2026, 9, 24, 0, 0);
+    const history = Array.from({ length: 48 }, (_, i) => ({ id: i + 1, checked_at: new Date(start + i * 30 * 60_000).toISOString(), status: "online", expected_status: "online", is_healthy: true, rtt_ms: 2 + (i % 7) * 0.4 + (i === 30 ? 9 : 0), port_results: [] }));
+    await page.route("**/api/v1/monitoring/devices/*/history*", (route) => route.fulfill({ json: history }));
+    await page.locator(".mon-row", { hasText: "Core Router With A Longer Name" }).click();
+    const chart = page.locator(".mon-chart-body .nm-area-chart");
+    await expect(chart.locator(".nm-chart-line")).toHaveCount(1);
+    expect((await chart.locator("svg").boundingBox())!.height, "the chart is tall enough to read").toBeGreaterThanOrEqual(200);
+    const line = await chart.locator(".nm-chart-line").evaluate((path) => ({ d: path.getAttribute("d") ?? "", width: getComputedStyle(path).strokeWidth, stroke: getComputedStyle(path).stroke }));
+    const accent = await page.evaluate(() => { const probe = document.createElement("span"); probe.style.color = "var(--nm-accent)"; document.body.append(probe); const c = getComputedStyle(probe).color; probe.remove(); return c; });
+    expect(line.stroke, "the line uses the theme accent").toBe(accent);
+    expect(line.d, "the line is a smooth curve").toContain("C");
+    expect(parseFloat(line.width)).toBeLessThan(2);
+    const labels = () => chart.locator(".nm-chart-axis-x").allTextContents();
+    const full = await labels();
+    const box = (await chart.locator(".nm-chart-zoom-hit").boundingBox())!;
+    const mid = { x: box.x + box.width * 0.5, y: box.y + box.height / 2 };
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x - 200, mid.y, { steps: 6 });
+    await page.mouse.up();
+    expect(await labels(), "dragging the full range does not zoom").toEqual(full);
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.wheel(0, -400);
+    const reset = page.getByRole("button", { name: "Reset zoom" });
+    await expect(reset, "scrolling up over the chart zooms in").toBeVisible();
+    const zoomed = await labels();
+    expect(zoomed).not.toEqual(full);
+    await page.mouse.move(mid.x, mid.y);
+    await page.mouse.down();
+    await page.mouse.move(mid.x - 150, mid.y, { steps: 6 });
+    await page.mouse.up();
+    const panned = await labels();
+    expect(panned, "dragging scrolls the timeline").not.toEqual(zoomed);
+    expect(panned.length, "without changing the zoom").toBe(zoomed.length);
+    await reset.click();
+    await expect(reset).toHaveCount(0);
+    expect(await labels()).toEqual(full);
+  });
+
   test("checks only the selected device and reports a busy worker", async ({ page }) => {
     const requested: string[] = [];
     let fail = false;
