@@ -79,11 +79,11 @@
   --nm-btn-hover-bg: #e4f3f5;
   --nm-btn-hover-border: #a5d7df;
   --nm-btn-hover-text: var(--nm-accent-strong);
-  --nm-btn-danger-bg: #f8e0e0;
-  --nm-btn-danger-border: #e2a3a3;
-  --nm-btn-danger-text: #ae3838;
-  --nm-btn-danger-hover-bg: #f3d0d0;
-  --nm-btn-danger-hover-border: #d48a8a;
+  --nm-btn-danger-bg: color-mix(in srgb, var(--nm-danger) 32%, var(--nm-surface));
+  --nm-btn-danger-border: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-border));
+  --nm-btn-danger-text: color-mix(in srgb, var(--nm-danger) 45%, var(--nm-text));
+  --nm-btn-danger-hover-bg: color-mix(in srgb, var(--nm-danger) 40%, var(--nm-surface));
+  --nm-btn-danger-hover-border: color-mix(in srgb, var(--nm-danger) 70%, var(--nm-border));
   --nm-page-head-bg: #fefefe;
   --nm-page-head-title: #0f3d47;
   --nm-page-head-icon-bg: var(--nm-tone-teal-deep);

@@ -379,11 +379,16 @@ test("light buttons: soft danger and neutral secondary are a step stronger and r
   await page.addInitScript(() => window.localStorage.setItem("netmap.theme", "light"));
   await page.goto("/admin#users");
   const danger = page.getByRole("button", { name: "Logout" }).first();
-  await expect(danger).toHaveCSS("background-color", "rgb(248, 224, 224)");
-  await expect(danger).toHaveCSS("border-top-color", "rgb(226, 163, 163)");
-  await expect(danger).toHaveCSS("color", "rgb(174, 56, 56)");
+  const palette = await danger.evaluate(el => {
+    const context = document.createElement("canvas").getContext("2d")!;
+    const rgb = (value: string) => { context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1); return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3); };
+    const css = getComputedStyle(el);
+    return [rgb(css.backgroundColor), rgb(css.borderTopColor), rgb(css.color)];
+  });
+  expect(palette).toEqual([[242, 197, 197], [217, 140, 143], [108, 51, 58]]);
   const ratio = await danger.evaluate((el) => {
-    const ch = (v: string) => (v.match(/[\d.]+/g) ?? []).map(Number);
+    const context = document.createElement("canvas").getContext("2d")!;
+    const ch = (value: string) => { context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1); return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3); };
     const lum = ([r, g, b]: number[]) => [r, g, b].map((c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
     const cs = getComputedStyle(el); const a = lum(ch(cs.color)); const b = lum(ch(cs.backgroundColor));
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);

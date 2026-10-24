@@ -55,7 +55,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     for (const [button, variant] of [[acknowledge, "success"], [clear, "danger"]] as const) {
       await expect(button).toHaveClass(new RegExp(`nm-btn--${variant}`));
       for (const [property, value] of Object.entries(canonical[variant]).filter(([property]) => property !== "disabledOpacity")) await expect(button).toHaveCSS(property, value);
-      const contrast = await button.evaluate(node => {
+      const measure = () => button.evaluate(node => {
         const context = document.createElement("canvas").getContext("2d")!;
         const rgba = (value: string) => { context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1); return Array.from(context.getImageData(0, 0, 1, 1).data).map((value, index) => index === 3 ? value / 255 : value); };
         const over = (fg: number[], bg: number[]) => [0, 1, 2].map(index => fg[index] * fg[3] + bg[index] * (1 - fg[3])).concat(1);
@@ -66,13 +66,22 @@ for (const style of ["light", "slate", "zinc"] as const) {
         const css = getComputedStyle(node), bg = over(rgba(css.backgroundColor), surface), fg = over(rgba(css.color), bg);
         const luminance = (values: number[]) => values.slice(0, 3).map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((total, value, index) => total + value * [.2126, .7152, .0722][index], 0);
         const a = luminance(fg), b = luminance(bg);
-        return { ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), fg };
+        return { ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), fg, bg };
       });
+      const contrast = await measure();
       expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
+      // Pin the richer fills independently of the shared owner comparison.
+      const fills = {
+        light: { success: [187, 223, 211], danger: [242, 197, 197] },
+        slate: { success: [25, 66, 67], danger: [80, 40, 53] },
+        zinc: { success: [31, 67, 57], danger: [86, 40, 42] },
+      };
+      contrast.bg.slice(0, 3).forEach((channel, index) => expect(Math.abs(channel - fills[style][variant][index])).toBeLessThanOrEqual(1));
       if (variant === "success") { expect(contrast.fg[1]).toBeGreaterThan(contrast.fg[0]); expect(contrast.fg[1]).toBeGreaterThan(contrast.fg[2]); }
       const fill = await button.evaluate(node => getComputedStyle(node).backgroundColor);
       await button.hover();
       await expect.poll(() => button.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(fill);
+      expect((await measure()).ratio).toBeGreaterThanOrEqual(4.5);
       await page.mouse.move(0, 0);
       await page.keyboard.press("Tab");
       await button.focus();

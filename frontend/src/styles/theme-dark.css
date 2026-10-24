@@ -92,11 +92,11 @@ html:has(body.theme-dark) {
   --nm-on-deep: #ffffff;
   --nm-btn-secondary-bg: #1e293b;
   --nm-btn-secondary-border: #334155;
-  --nm-btn-danger-bg: var(--nm-danger-soft);
-  --nm-btn-danger-border: rgba(217, 75, 75, 0.35);
-  --nm-btn-danger-text: #e57272;
-  --nm-btn-danger-hover-bg: rgba(217, 75, 75, 0.22);
-  --nm-btn-danger-hover-border: rgba(217, 75, 75, 0.5);
+  --nm-btn-danger-bg: color-mix(in srgb, var(--nm-danger) 32%, var(--nm-surface));
+  --nm-btn-danger-border: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-border));
+  --nm-btn-danger-text: color-mix(in srgb, var(--nm-danger) 45%, var(--nm-text));
+  --nm-btn-danger-hover-bg: color-mix(in srgb, var(--nm-danger) 40%, var(--nm-surface));
+  --nm-btn-danger-hover-border: color-mix(in srgb, var(--nm-danger) 70%, var(--nm-border));
   --nm-page-head-bg: rgba(2,6,23,0.92);
   --nm-page-head-title: var(--nm-text);
   --nm-page-head-icon-bg: var(--nm-accent-soft);

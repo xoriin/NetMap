@@ -717,13 +717,13 @@ body.theme-dark .nm-swatch-list {
 .nm-btn.nm-btn--success,
 body.theme-dark .nm-btn.nm-btn--success {
   border-color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-border));
-  background: color-mix(in srgb, var(--nm-success) 18%, var(--nm-surface));
+  background: color-mix(in srgb, var(--nm-success) 32%, var(--nm-surface));
   color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
 }
 .nm-btn.nm-btn--success:hover:not(:disabled),
 body.theme-dark .nm-btn.nm-btn--success:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--nm-success) 70%, var(--nm-border));
-  background: color-mix(in srgb, var(--nm-success) 25%, var(--nm-surface));
+  background: color-mix(in srgb, var(--nm-success) 40%, var(--nm-surface));
   color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
 }
 
@@ -797,8 +797,8 @@ body.theme-dark .nm-btn--primary { border-color: #1a6a78; background: #1a6a78; }
 body.theme-dark .nm-btn.nm-btn--primary:hover:not(:disabled) { border-color: #1f7f8f; background: #1f7f8f; color: #fff; }
 body.theme-dark .nm-btn--secondary { border-color: var(--nm-btn-secondary-border); background: var(--nm-btn-secondary-bg); color: var(--nm-text); }
 body.theme-dark .nm-btn.nm-btn--secondary:hover:not(:disabled) { border-color: var(--nm-btn-hover-border); background: var(--nm-btn-hover-bg); color: var(--nm-accent-strong); }
-body.theme-dark .nm-btn--danger { border-color: rgba(217, 75, 75, 0.35); background: var(--nm-danger-soft); color: #e57272; }
-body.theme-dark .nm-btn--danger:hover:not(:disabled) { border-color: rgba(217, 75, 75, 0.5); background: rgba(217, 75, 75, 0.22); color: #e57272; }
+body.theme-dark .nm-btn--danger { border-color: var(--nm-btn-danger-border); background: var(--nm-btn-danger-bg); color: var(--nm-btn-danger-text); }
+body.theme-dark .nm-btn--danger:hover:not(:disabled) { border-color: var(--nm-btn-danger-hover-border); background: var(--nm-btn-danger-hover-bg); color: var(--nm-btn-danger-text); }
 body.theme-dark .nm-btn--ghost { border-color: transparent; background: transparent; color: var(--nm-accent-strong); }
 body.theme-dark .nm-btn--ghost:hover:not(:disabled) { border-color: transparent; background: var(--nm-accent-soft); }
 body.theme-dark .nm-btn--icon { background: color-mix(in srgb, var(--nm-text-faint) 18%, transparent); color: var(--nm-text-muted); }
