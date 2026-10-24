@@ -72,6 +72,23 @@ async function setupMocks(page: Page, theme: "light" | "slate" | "zinc", motion 
   }, theme);
 }
 
+test("Devices & icons caps the type chart to the summary cards and scrolls inside it", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "slate");
+  const types = Array.from({ length: 14 }, (_, i) => `type-${i + 1}`);
+  await page.route("**/api/v1/admin/device-types", (route) => route.fulfill({ json: types.map((value) => ({ id: null, value, label: value, icon: "server", is_builtin: false, color: null })) }));
+  await page.route("**/api/v1/topology/graph*", (route) => route.fulfill({ json: { devices: types.flatMap((type, i) => Array.from({ length: i + 1 }, (_, n) => ({ id: i * 100 + n, device_type: type, status: "active" }))), links: [], groups: [], sites: [] } }));
+  await page.goto("/admin#devices-icons");
+  const hero = page.getByRole("region", { name: "Devices by type", exact: true });
+  await expect(hero.locator(".nm-bar-list li")).toHaveCount(14);
+  const heroBox = (await hero.boundingBox())!;
+  const cards = (await page.locator(".nm-bento-stats").first().boundingBox())!;
+  expect(Math.abs(heroBox.y + heroBox.height - (cards.y + cards.height))).toBeLessThanOrEqual(1);
+  const scroll = await hero.locator(".nm-chart-body").evaluate((body) => ({ client: body.clientHeight, full: body.scrollHeight, overflow: getComputedStyle(body).overflowY }));
+  expect(scroll.full).toBeGreaterThan(scroll.client);
+  expect(scroll.overflow).toBe("auto");
+});
+
 const box = async (page: Page, selector: string) => (await page.locator(selector).first().boundingBox())!;
 
 test("light mode panels carry the stronger element shadow", async ({ page }) => {

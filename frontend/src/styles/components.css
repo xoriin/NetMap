@@ -1986,6 +1986,11 @@ body.theme-dark .nm-pick-filter input {
 .nm-bento > .nm-summary-band { margin: 0; }
 .nm-bento .nm-bento-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .nm-bento--four .nm-bento-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1280px) {
+  .nm-bento--four:not(.nm-bento--chart) > :first-child:has(> .nm-chart-body > .nm-bar-list) { display: flex; flex-direction: column; contain: size; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-bar-list) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+}
+.nm-bento .nm-donut-chart:not(.nm-donut-chart--below) .nm-chart-legend { max-height: 116px; overflow-y: auto; }
 
 .nm-console {
   display: grid;
