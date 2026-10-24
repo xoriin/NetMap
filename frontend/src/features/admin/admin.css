@@ -1363,4 +1363,6 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
+.nm-console-side .cloud-provider-create { grid-template-columns: minmax(0, 1fr); padding: 0; border: 0; background: none; }
+.nm-console-side .cloud-provider-create > button { justify-self: start; }
 .admin-layout .admin-snmp-table .admin-col-right { text-align: right; }

@@ -120,9 +120,7 @@ export function AdminWorkspace({
           <DeviceIconsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
         )}
         {activeTab === "cloud-providers" && (
-          <div className="admin-tab-content admin-tab-content--single">
-            <CloudProvidersPanel accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
-          </div>
+          <CloudProvidersPanel accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
         )}
         {activeTab === "security" && (
           <SecurityTab
