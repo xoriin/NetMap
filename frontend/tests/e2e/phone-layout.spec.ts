@@ -5,6 +5,7 @@ const devices = Array.from({ length: 8 }, (_, i) => mockDevice({ id: i + 1, host
 
 async function boot(page: import("@playwright/test").Page, width = 375) {
   await page.setViewportSize({ width, height: 812 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await setupCoreMocks(page);
   await setupTopologyMocks(page, devices);
   await setupInventoryMocks(page, devices);
