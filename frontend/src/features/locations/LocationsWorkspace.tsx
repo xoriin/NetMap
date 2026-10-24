@@ -7,6 +7,11 @@ import { IconMapPin, IconServer, IconDeviceDesktop, IconBolt } from "@tabler/ico
 import { api, type Site, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
 import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { BarList, CountUp } from "../../components/Charts";
+import { EventList } from "../../components/EventList";
+import { resolveEntityColor } from "../../utils/entityColor";
+import { BarChart3, ClipboardList } from "lucide-react";
 import { Modal, ModalFooterActions } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 
@@ -217,20 +222,41 @@ export function LocationsWorkspace({
     void showSiteDetail(site);
   }
 
+  const siteLabel = (site: Site) => site.display_name ?? site.name;
+  const assignedTotal = [...deviceCountBySite.values()].reduce((a, b) => a + b, 0);
+  const siteBars = sites.map((site) => ({ label: siteLabel(site), value: deviceCountBySite.get(site.id) ?? 0, color: resolveEntityColor(site.color, site.name) }))
+    .sort((a, b) => b.value - a.value);
+  const occupiedSites = siteBars.filter((bar) => bar.value > 0);
+  const needsDetails = sites.map((site) => {
+    const gaps = [!site.address && "no address", !(deviceCountBySite.get(site.id) ?? 0) && "no devices", !site.color && "no colour set"].filter(Boolean) as string[];
+    return { site, gaps };
+  }).filter((entry) => entry.gaps.length > 0);
+
   return (
-    <section className="dash-layout locations-workspace">
+    <section className="dash-layout locations-workspace nm-motion">
       {!sitesLoading && (
-        <div className="dash-stats loc-stats nm-summary-band">
-          <DashStat label="Total sites" value={sites.length} icon={<IconMapPin size={20} />} accent="teal" />
-          <DashStat label="Assigned devices" value={[...deviceCountBySite.values()].reduce((a, b) => a + b, 0)} icon={<IconServer size={20} />} accent="green" />
-          <DashStat label="Unassigned" value={unassignedDeviceCount} icon={<IconDeviceDesktop size={20} />} accent={unassignedDeviceCount > 0 ? "red" : "teal"} />
-          <DashStat label="Links" value={graph.relationships.length} icon={<IconBolt size={20} />} accent="blue" />
+        <div className="nm-bento nm-bento--four">
+          <InsightPanel title="Devices by location" icon={<BarChart3 size={16} />} className="nm-motion-item">
+            <BarList label="Devices per location" items={siteBars} empty="No locations yet." />
+          </InsightPanel>
+          <div className="dash-stats nm-bento-stats loc-stats nm-summary-band">
+            <DashStat className="nm-motion-item" label="Total sites" value={<CountUp value={sites.length} />} icon={<IconMapPin size={20} />} accent="teal"
+              sub={occupiedSites[0] ? `${occupiedSites[0].label} is the largest` : "No devices placed yet"} />
+            <DashStat className="nm-motion-item" label="Assigned devices" value={<CountUp value={assignedTotal} />} icon={<IconServer size={20} />} accent="green"
+              sub={`Across ${occupiedSites.length} site${occupiedSites.length === 1 ? "" : "s"}`} />
+            <DashStat className="nm-motion-item" label="Unassigned" value={<CountUp value={unassignedDeviceCount} />} icon={<IconDeviceDesktop size={20} />} accent={unassignedDeviceCount > 0 ? "red" : "teal"}
+              sub={unassignedDeviceCount ? "Devices without a site" : "Every device has a site"} />
+            <DashStat className="nm-motion-item" label="Links" value={<CountUp value={graph.relationships.length} />} icon={<IconBolt size={20} />} accent="blue"
+              sub={graph.relationships.length ? "Topology relationships" : "No links yet"} />
+          </div>
         </div>
       )}
 
       {sitesQuery.error && <div className="error-banner">{sitesQuery.error}</div>}
 
-      <div className="nm-app-panel locations-panel">
+      <div className="nm-console">
+      <div className="nm-console-main">
+      <div className="nm-app-panel locations-panel nm-fill nm-motion-item">
         <div className="nm-app-panel-header locations-panel-header">
           <span className="locations-panel-title">
             <span className="locations-panel-icon" aria-hidden="true"><IconMapPin size={18} /></span>
@@ -324,6 +350,15 @@ export function LocationsWorkspace({
           )}
         </div>
         <div className="locations-panel-footer">Showing {filteredSortedSites.length} of {sites.length} locations</div>
+      </div>
+      </div>
+      <aside className="nm-console-side">
+        <InsightPanel title="Needs details" icon={<ClipboardList size={16} />} className="nm-fill nm-motion-item">
+          <EventList empty="Every location has an address, devices and a colour." rows={needsDetails.map(({ site, gaps }) => ({
+            key: site.id, tone: gaps.length > 1 ? "warning" : "unknown", title: siteLabel(site), detail: gaps.join(" · ").replace(/^./, (c) => c.toUpperCase()), time: site.description ?? undefined,
+          }))} />
+        </InsightPanel>
+      </aside>
       </div>
 
       {detailSite && !showForm && (
