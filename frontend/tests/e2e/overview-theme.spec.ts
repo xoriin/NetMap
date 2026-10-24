@@ -68,7 +68,7 @@ for (const theme of ["light", "dark"] as const) {
     const panels = page.locator(".overview-panel");
     await expect(panels).toHaveCount(2);
     await expect(panels.first()).toHaveCSS("background-image", "none");
-    await expect(panels.first()).toHaveCSS("background-color", theme === "dark" ? "rgb(22, 29, 46)" : "rgb(254, 254, 254)");
+    await expect(panels.first()).toHaveCSS("background-color", theme === "dark" ? "rgb(15, 23, 42)" : "rgb(254, 254, 254)");
 
     const headers = page.locator(".overview-panel-header");
     await expect(headers).toHaveCount(2);
@@ -106,7 +106,7 @@ for (const theme of ["light", "dark"] as const) {
     // The stat card and panel speak expected-vs-observed health, not raw
     // reachability — a device that is expected to be offline is not listed.
     const outages = page.getByRole("region", { name: "Current outages", exact: true });
-    await page.getByRole("button", { name: /Offline/ }).click();
+    await page.locator("button.dash-stat", { hasText: "Offline" }).click();
     await expect(outages).toBeInViewport();
     await expect(page.locator("#overview-outages")).toBeFocused();
   });
@@ -216,6 +216,7 @@ test("Overview lists favourited endpoints in the favourites panel", async ({ pag
         id: 7, name: "Status page", url: "https://status.example.com/", enabled: true,
         last_status: "online", uptime_24h: 99.9, uptime_7d: 99.5, avg_response_time_24h: 42.5,
         heartbeat: ["online", "online", "online"], is_favourite: true,
+        method: "GET", auth_type: "none", interval_seconds: 60, timeout_seconds: 10, expected_status_codes: "200",
       },
       {
         id: 8, name: "Unstarred API", url: "https://api.example.com/", enabled: true,
@@ -237,9 +238,10 @@ test("Overview lists favourited endpoints in the favourites panel", async ({ pag
   const totalCard = page.locator(".dash-stat", { hasText: "Total devices" }).first();
   await expect(totalCard.locator(".dash-stat-value")).toHaveText("1");
 
-  await favPanel.getByText("Status page").click();
-  await expect(page).toHaveURL(/\/monitoring#endpoints$/);
-  await expect(page.locator(".mon-view-window--endpoints")).toBeVisible();
+  await page.route("**/api/v1/monitors/7/history?*", (route) => route.fulfill({ json: [] }));
+  await favPanel.locator(".dash-device-name", { hasText: "Status page" }).click();
+  await expect(page.getByRole("dialog", { name: "Status page monitor overview" })).toBeVisible();
+  await expect(page).toHaveURL(/\/overview$/);
 });
 
 for (const theme of ["light", "dark"] as const) {

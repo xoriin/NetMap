@@ -204,7 +204,7 @@ for (const theme of ["light", "dark"] as const) {
       }
     });
     const routes = [
-      ["/overview", ".overview-workspace > .nm-bento", ".overview-workspace > .nm-console"],
+      ["/overview", ".overview-workspace > .nm-bento", ".overview-workspace > .nm-pair"],
       ["/inventory", ".nm-summary-band", ".topology-content"],
       ["/locations", ".locations-workspace > .nm-bento", ".locations-workspace > .nm-console"],
       ["/monitoring#endpoints", ".dash-layout > .nm-bento", ".mon-content"],
@@ -266,11 +266,11 @@ test("full-bleed workspaces keep their documented MOTD anchors at desktop and na
 
     await page.goto("/inventory");
     await expect(page.locator(".inventory-surface")).toBeVisible({ timeout: 10_000 });
-    await expectAlignedEdges(page, ".dash-alert--announcement", ".inventory-stats", `/inventory at ${width}px`);
+    await expectAlignedEdges(page, ".dash-alert--announcement", ".inventory-bento", `/inventory at ${width}px`);
     await expectAlignedEdges(page, ".dash-alert--announcement", ".inventory-surface", `/inventory at ${width}px`);
     const inventoryGap = await page.evaluate(() => {
       const banner = document.querySelector<HTMLElement>(".dash-alert--announcement")!.getBoundingClientRect();
-      const summary = document.querySelector<HTMLElement>(".inventory-stats")!.getBoundingClientRect();
+      const summary = document.querySelector<HTMLElement>(".inventory-bento")!.getBoundingClientRect();
       return summary.top - banner.bottom;
     });
     expect(inventoryGap).toBeCloseTo(16, 0);

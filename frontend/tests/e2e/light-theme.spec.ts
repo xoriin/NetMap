@@ -192,7 +192,7 @@ test("small buttons use the same 12px text as standard buttons", async ({ page }
   await expect(page.locator("#probe-sm")).toHaveCSS("font-size", "12px");
 });
 
-for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(22, 29, 46)"]] as const) {
+for (const [theme, body] of [["light", "rgb(247, 247, 247)"], ["dark", "rgb(15, 23, 42)"]] as const) {
   test(`Overview panel bodies use the panel-body surface in ${theme} mode`, async ({ page }) => {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, devices);
@@ -367,7 +367,7 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await expect(schedules.locator(".admin-task-count")).toBeVisible();
 });
 
-test("light buttons: soft danger and neutral secondary are a step stronger and readable", async ({ page }) => {
+test("light buttons: danger is neutral with a red border and label, and readable", async ({ page }) => {
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
   await setupCoreMocks(page);
   await setupTopologyMocks(page);
@@ -381,7 +381,7 @@ test("light buttons: soft danger and neutral secondary are a step stronger and r
     const css = getComputedStyle(el);
     return [rgb(css.backgroundColor), rgb(css.borderTopColor), rgb(css.color)];
   });
-  expect(palette).toEqual([[242, 197, 197], [217, 140, 143], [108, 51, 58]]);
+  expect(palette).toEqual([[236, 238, 241], [196, 122, 126], [128, 56, 61]]);
   const ratio = await danger.evaluate((el) => {
     const context = document.createElement("canvas").getContext("2d")!;
     const ch = (value: string) => { context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1); return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3); };

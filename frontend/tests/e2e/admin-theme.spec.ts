@@ -83,7 +83,7 @@ const emailBranding = {
 };
 
 for (const style of ["light", "slate", "zinc"] as const) {
-  test(`Admin module surfaces match Overview in ${style}`, async ({ page }) => {
+  test(`Admin module surfaces use the module palette in ${style}`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -96,8 +96,16 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await page.goto("/overview");
     const overview = page.locator(".overview-panel").first();
     await expect(overview).toBeVisible();
-    const body = await (style === "light" ? overview : overview.locator(":scope > .dash-panel-body")).evaluate(n => getComputedStyle(n).backgroundColor);
-    const header = await overview.locator(":scope > .nm-app-panel-header").evaluate(n => getComputedStyle(n).backgroundColor);
+    const moduleColour = (token: string) => page.evaluate((name) => {
+      const probe = document.createElement("div");
+      probe.style.background = `var(${name})`;
+      document.body.appendChild(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    }, token);
+    const body = style === "light" ? await overview.evaluate(n => getComputedStyle(n).backgroundColor) : await moduleColour("--nm-module-body-bg");
+    const header = style === "light" ? await overview.locator(":scope > .nm-app-panel-header").evaluate(n => getComputedStyle(n).backgroundColor) : await moduleColour("--nm-module-header-bg");
     if (style === "slate") {
       expect(header).toBe("rgb(29, 37, 54)");
       expect(body).toBe("rgb(22, 29, 46)");

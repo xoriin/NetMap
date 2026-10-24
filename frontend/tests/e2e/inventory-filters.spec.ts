@@ -209,7 +209,7 @@ test.describe("Inventory approved workspace hierarchy", () => {
     const [workspaceBox, motdBox, summaryBox, surfaceBox] = await Promise.all([
       page.locator(".workspace").boundingBox(),
       page.locator(".dash-alert--announcement").boundingBox(),
-      page.locator(".inventory-stats.nm-summary-band").boundingBox(),
+      page.locator(".inventory-bento").boundingBox(),
       page.locator(".inventory-surface").boundingBox(),
     ]);
     expect(workspaceBox).not.toBeNull();
