@@ -1935,7 +1935,11 @@ body.theme-dark .nm-pick-filter input {
 .nm-chart-col-bg { fill: transparent; pointer-events: none; }
 .nm-chart-value-bg { fill: var(--nm-track-bg); pointer-events: none; }
 .nm-chart-value { fill: var(--nm-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
-.nm-chart-col.is-active .nm-chart-col-bg { fill: var(--nm-row-hover); }
+.nm-chart-col.is-active path { filter: brightness(1.15); }
+@media (prefers-reduced-motion: no-preference) {
+  .nm-chart-col :is(path, .nm-chart-value-bg, .nm-chart-value) { transition: translate .16s ease, opacity .15s ease, filter .15s ease; }
+  .nm-chart-col.is-active :is(path, .nm-chart-value-bg, .nm-chart-value) { translate: 0 -4px; }
+}
 .nm-area-chart { min-width: 0; }
 .nm-area-chart svg { display: block; overflow: visible; }
 .nm-chart-area { fill-opacity: .16; pointer-events: none; }
