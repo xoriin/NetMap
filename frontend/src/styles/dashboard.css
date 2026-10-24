@@ -179,12 +179,6 @@ body.theme-dark .inv-stat-chip--muted { color: var(--nm-text-muted); border-colo
   cursor: default;
 }
 
-body.route-overview .dash-stat {
-  background:
-    linear-gradient(135deg, rgba(29, 154, 176, 0.08), rgba(255, 255, 255, 0) 44%),
-    #ffffff;
-}
-
 /* Interactive summary cards share one response in every workspace. */
 .dash-stat--clickable:is(:hover, :focus-visible) {
   --nm-kpi-border: var(--nm-kpi-deep);
@@ -523,12 +517,6 @@ body.theme-dark .dash-alert-tag--more { background: color-mix(in srgb, var(--nm-
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-body.route-overview .dash-panel {
-  background:
-    linear-gradient(135deg, rgba(29, 154, 176, 0.055), rgba(255, 255, 255, 0) 34%),
-    #ffffff;
 }
 
 .dash-panel-body {

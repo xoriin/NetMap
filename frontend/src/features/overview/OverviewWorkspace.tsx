@@ -1,7 +1,7 @@
 import { useEndpointMonitors } from "../../hooks/useEndpointMonitors";
-import { useState, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import "./overview.css";
-import { Search, Star } from "lucide-react";
+import { Plug, Search, Star, Timer } from "lucide-react";
 import {
   IconServer, IconWifi, IconWifiOff, IconMap, IconBolt,
   IconGauge, IconArrowRight, IconChartBar, IconDeviceDesktop, IconShieldCheck,
@@ -27,9 +27,10 @@ import { PanelSkeleton } from "../../components/Skeleton";
 import { formatDeviceTypeLabel, deviceLabel } from "../../utils/format";
 import { deviceHealth, deviceHealthLabel } from "../../utils/deviceHealth";
 import { DashStat } from "../../components/DashStat";
+import { BarList, CountUp, DonutChart, type ChartColor } from "../../components/Charts";
+import { InsightPanel } from "../../components/InsightPanel";
 import { SpaLink } from "../../components/SpaLink";
 import { useConfirm } from "../../components/ConfirmDialog";
-import { HealthDonut } from "../../components/HealthDonut";
 import { ObservationsAlert } from "../../components/ObservationsAlert";
 import { AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge } from "../../components/MonitorBadges";
 import { HeartbeatBar, HeartbeatTimeline } from "../../components/HeartbeatBar";
@@ -77,6 +78,14 @@ function overviewDeviceHealthLabel(device: Device): string {
   if (device.status === "disabled") return "unknown";
   return deviceHealthLabel(device);
 }
+
+const HEALTH_ITEMS: { key: "online" | "offline" | "warning" | "paused" | "unknown"; label: string; color: ChartColor }[] = [
+  { key: "online", label: "Online", color: "--dash-green" },
+  { key: "offline", label: "Offline", color: "--dash-red" },
+  { key: "warning", label: "Warning", color: "--dash-amber" },
+  { key: "paused", label: "Paused", color: "--dash-paused" },
+  { key: "unknown", label: "Unknown", color: "--dash-muted" },
+];
 
 export function OverviewWorkspace({
   accessToken,
@@ -150,7 +159,6 @@ export function OverviewWorkspace({
   const snmpProfiles = formOptionsQuery.data?.snmpProfiles ?? [];
 
   const [alertDismissed, setAlertDismissed] = useState(false);
-  const [showOfflineList, setShowOfflineList] = useState(false);
   const [favouriteSearch, setFavouriteSearch] = useState("");
   const [showDeviceForm, setShowDeviceForm] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -286,6 +294,23 @@ export function OverviewWorkspace({
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [graph.devices]);
 
+  const siteCount = useMemo(() => new Set(graph.devices.map((d) => d.site_id).filter(Boolean)).size, [graph.devices]);
+  const deviceName = (d: DeviceMonitorSummary) => d.display_name || d.hostname || d.ip_address;
+  const slowestDevices = useMemo(
+    () => monDevices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 5),
+    [monDevices],
+  );
+  const endpointMonitors = monitorsQuery.data ?? [];
+  const endpointUptimes = endpointMonitors.map((m) => m.uptime_24h).filter((v): v is number => v !== null && v !== undefined);
+  const endpointUptime = endpointUptimes.length ? endpointUptimes.reduce((sum, v) => sum + v, 0) / endpointUptimes.length : null;
+
+  function showOutages() {
+    setAlertDismissed(false);
+    const target = document.getElementById("overview-outages");
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.focus({ preventScroll: true });
+  }
+
   // Reachability is measured against actively monitored devices — paused
   // devices are not probed, so they neither help nor hurt the percentage.
   const monitorableTotal = total - statusCounts.paused;
@@ -382,29 +407,37 @@ export function OverviewWorkspace({
   }
 
   return (
-    <section className="dash-layout overview-workspace">
-      {/* Stat row */}
-      <div className="dash-stats nm-summary-band">
-        <DashStat label="Total devices" value={total} icon={<IconServer size={20} />} accent="teal" href="/inventory" onClick={() => onNavigate("/inventory")} />
-        <DashStat label="Online" value={statusCounts.online} icon={<IconWifi size={20} />} accent="green" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
-        <DashStat
-          label="Offline"
-          value={statusCounts.offline}
-          icon={<IconWifiOff size={20} />}
-          accent={statusCounts.offline > 0 ? "red" : "green"}
-          onClick={statusCounts.offline > 0 ? () => { setAlertDismissed(false); setShowOfflineList((v) => !v); } : undefined}
-          active={showOfflineList}
-        />
-        <DashStat label="Groups / VLANs" value={groupCount} icon={<IconMap size={20} />} accent="purple" href="/vlans" onClick={() => onNavigate("/vlans")} />
-        <DashStat label="Links" value={graph.relationships.length} icon={<IconBolt size={20} />} accent="blue" href="/topology" onClick={() => onNavigate("/topology")} />
-        <DashStat
-          label="Avg RTT"
-          value={fmtRtt(monFleet?.avg_rtt_ms ?? null)}
-          icon={<IconGauge size={20} />}
-          accent="indigo"
-          href="/monitoring"
-          onClick={() => onNavigate("/monitoring")}
-        />
+    <section className="dash-layout overview-workspace nm-motion">
+      <div className="nm-bento">
+        <InsightPanel title="Network health" icon={<IconGauge size={16} />} className="nm-motion-item"
+          actions={<span className="dash-panel-meta">{`${total} device${total !== 1 ? "s" : ""}`}{monFleet?.last_checked ? ` · last poll ${fmtTime(monFleet.last_checked)}` : ""}</span>}>
+          {total === 0 ? (
+            <div className="dash-empty-state">
+              <div className="dash-empty-icon"><IconServer size={22} /></div>
+              <div className="dash-empty-title">No devices yet</div>
+              <div className="dash-empty-desc">Add devices from the Inventory tab to see health here.</div>
+              <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>Go to Inventory</SpaLink>
+            </div>
+          ) : (
+            <DonutChart label="Devices by health" centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy" items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
+          )}
+        </InsightPanel>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat className="nm-motion-item" label="Total devices" value={<CountUp value={total} />} sub={`${monDevices.length} monitored · ${siteCount} site${siteCount === 1 ? "" : "s"}`}
+            icon={<IconServer size={20} />} accent="teal" href="/inventory" onClick={() => onNavigate("/inventory")} />
+          <DashStat className="nm-motion-item" label="Online" value={<CountUp value={statusCounts.online} />} sub={`${healthyPct}% of the fleet`}
+            icon={<IconWifi size={20} />} accent="green" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
+          <DashStat className="nm-motion-item" label="Offline" value={<CountUp value={statusCounts.offline} />}
+            sub={offlineDevices.length ? offlineDevices.slice(0, 3).map((d) => d.display_name || d.hostname || d.ip_address).join(", ") : "Nothing offline"}
+            icon={<IconWifiOff size={20} />} accent={statusCounts.offline > 0 ? "red" : "green"} onClick={outageCount > 0 ? showOutages : undefined} />
+          <DashStat className="nm-motion-item" label="Groups / VLANs" value={<CountUp value={groupCount} />} sub={groupBreakdown[0] ? `${groupBreakdown[0][0]} is the largest` : "No groups yet"}
+            icon={<IconMap size={20} />} accent="purple" href="/vlans" onClick={() => onNavigate("/vlans")} />
+          <DashStat className="nm-motion-item" label="Links" value={<CountUp value={graph.relationships.length} />} sub={graph.relationships.length ? "Mapped in topology" : "No links mapped yet"}
+            icon={<IconBolt size={20} />} accent="blue" href="/topology" onClick={() => onNavigate("/topology")} />
+          <DashStat className="nm-motion-item" label="Avg RTT" value={fmtRtt(monFleet?.avg_rtt_ms ?? null)}
+            sub={slowestDevices[0] ? `Slowest: ${deviceName(slowestDevices[0])} ${fmtRtt(slowestDevices[0].avg_rtt_24h)}` : "Last 24 h"}
+            icon={<IconGauge size={20} />} accent="indigo" href="/monitoring" onClick={() => onNavigate("/monitoring")} />
+        </div>
       </div>
 
       {monitorsQuery.error && <div className="nm-alert nm-alert--error" role="alert">Endpoint status could not be refreshed. Displayed results may be out of date. <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void monitorsQuery.reload()}>Retry</button></div>}
@@ -413,60 +446,19 @@ export function OverviewWorkspace({
         <div className="dash-alert dash-alert--overview-bar">
           <span className="dash-alert-dot" aria-hidden="true" />
           <strong>{offlineDevices.length > 0 ? `${offlineDevices.length} device${offlineDevices.length === 1 ? "" : "s"}` : ""}{offlineDevices.length > 0 && offlineEndpoints.length > 0 ? " and " : ""}{offlineEndpoints.length > 0 ? `${offlineEndpoints.length} endpoint${offlineEndpoints.length === 1 ? "" : "s"}` : ""} offline</strong>
-          {!showOfflineList && offlineDevices.slice(0, 6).map((d: Device) => (
+          {offlineDevices.slice(0, 6).map((d: Device) => (
             <span key={d.id} className="dash-alert-tag">{d.display_name || d.hostname || d.ip_address}</span>
           ))}
-          {!showOfflineList && offlineEndpoints.slice(0, Math.max(0, 6 - offlineDevices.length)).map((m) => <span key={`endpoint-${m.id}`} className="dash-alert-tag">{m.name}</span>)}
-          {!showOfflineList && outageCount > 6 && (
+          {offlineEndpoints.slice(0, Math.max(0, 6 - offlineDevices.length)).map((m) => <span key={`endpoint-${m.id}`} className="dash-alert-tag">{m.name}</span>)}
+          {outageCount > 6 && (
             <span className="dash-alert-tag dash-alert-tag--more">+{outageCount - 6} more</span>
           )}
-          <button type="button" className="dash-alert-link" onClick={() => setShowOfflineList((v) => !v)}>
-            {showOfflineList ? "Hide" : "View"} <IconArrowRight size={13} />
+          <button type="button" className="dash-alert-link" onClick={showOutages}>
+            View <IconArrowRight size={13} />
           </button>
-          <button type="button" className="dash-alert-dismiss" aria-label="Dismiss alert" onClick={() => { setAlertDismissed(true); setShowOfflineList(false); }}>
+          <button type="button" className="dash-alert-dismiss" aria-label="Dismiss alert" onClick={() => setAlertDismissed(true)}>
             &times;
           </button>
-        </div>
-      )}
-
-      {showOfflineList && outageCount > 0 && !alertDismissed && (
-        <div className="dash-panel nm-app-panel overview-panel overview-offline-panel">
-          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconWifiOff size={18} />} title="Current outages" meta={`${outageCount} total`} />
-            <SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>
-              View monitoring <IconArrowRight size={13} />
-            </SpaLink>
-          </div>
-          <div className="dash-panel-body">
-            <div className="dash-device-list">
-              {offlineDevices.map((d: Device) => (
-                <div key={d.id} className="dash-device-row">
-                  <span className="dash-status-dot dash-status-dot--offline" />
-                  <div className="dash-device-info">
-                    <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
-                    <span className="dash-device-meta">
-                      {d.ip_address}
-                      {d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}
-                      {d.os ? ` · ${d.os}` : ""}
-                    </span>
-                  </div>
-                  <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
-                  <span className="dash-panel-meta">
-                    {d.last_monitored_at
-                      ? `last checked ${new Date(d.last_monitored_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
-                      : "not checked yet"}
-                  </span>
-                </div>
-              ))}
-              {offlineEndpoints.map((monitor) => (
-                <SpaLink key={`endpoint-${monitor.id}`} href="/monitoring#endpoints" className="dash-device-row" onNavigate={openEndpointMonitoring}>
-                  <span className="dash-status-dot dash-status-dot--offline" />
-                  <div className="dash-device-info"><span className="dash-device-name">{monitor.name}</span><span className="dash-device-meta">{monitor.url}</span></div>
-                  <span className="dash-panel-meta">Endpoint · {monitor.last_checked_at ? `last checked ${new Date(monitor.last_checked_at).toLocaleString()}` : "not checked yet"}</span>
-                </SpaLink>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -477,207 +469,10 @@ export function OverviewWorkspace({
         onNavigate={onNavigate}
       />
 
-      {/* Main grids */}
-      <div className="dash-grids">
-
-      {/* Top row: Network health | Device types | Top groups */}
-      <div className="dash-grid-3">
-
-        {/* Network health */}
-        <div className="dash-panel nm-app-panel overview-panel">
-          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconGauge size={18} />} title="Network health" meta={`${total} device${total !== 1 ? "s" : ""}`} />
-          </div>
-          <div className="dash-panel-body">
-            {total === 0 ? (
-              <div className="dash-empty-state">
-                <div className="dash-empty-icon"><IconServer size={22} /></div>
-                <div className="dash-empty-title">No devices yet</div>
-                <div className="dash-empty-desc">Add devices from the Inventory tab to see health here.</div>
-                <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>Go to Inventory</SpaLink>
-              </div>
-            ) : (
-              <div className="dash-health-with-donut">
-                <HealthDonut statusCounts={statusCounts} total={total} pct={healthyPct} label="healthy" />
-                <div className="dash-health-bars">
-                  {([
-                    { key: "online" as const, label: "Online", color: "var(--dash-green)" },
-                    { key: "offline" as const, label: "Offline", color: "var(--dash-red)" },
-                    { key: "warning" as const, label: "Warning", color: "var(--dash-amber)" },
-                    { key: "paused" as const, label: "Paused", color: "var(--dash-paused)" },
-                    { key: "unknown" as const, label: "Unknown", color: "var(--dash-muted)" },
-                  ] as const).map(({ key, label, color }) => {
-                    const count = statusCounts[key];
-                    const pct = total > 0 ? (count / total) * 100 : 0;
-                    return (
-                      <div key={key} className="dash-health-row">
-                        <span className="dash-health-label">{label}</span>
-                        <div className="dash-health-track">
-                          <div className="dash-health-fill" style={{ width: `${pct}%`, background: color }} />
-                        </div>
-                        <span className="dash-health-count">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Device types */}
-        <div className="dash-panel nm-app-panel overview-panel">
-          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconChartBar size={18} />} title="Device types" meta={`${typeBreakdown.length} types`} />
-          </div>
-          <div className="dash-panel-body">
-            {typeBreakdown.length === 0 ? (
-              <div className="dash-empty-state">
-                <div className="dash-empty-icon"><IconChartBar size={22} /></div>
-                <div className="dash-empty-title">No device types yet</div>
-                <div className="dash-empty-desc">Assign device types in inventory to see a breakdown here.</div>
-              </div>
-            ) : (
-              <>
-                <div className="dash-breakdown">
-                  {typeBreakdown.map(([type, count]) => (
-                    <div key={type} className="dash-breakdown-row">
-                      <span className="dash-breakdown-label">{formatDeviceTypeLabel(type)}</span>
-                      <div className="dash-mini-track">
-                        <div
-                          className="dash-mini-fill overview-device-type-fill"
-                          style={{
-                            width: `${total > 0 ? (count / total) * 100 : 0}%`,
-                            "--overview-type-color": deviceTypeColors.get(type) ?? resolveEntityColor(null, type),
-                          } as CSSProperties}
-                        />
-                      </div>
-                      <span className="dash-breakdown-count">{count}</span>
-                    </div>
-                  ))}
-                </div>
-                {vendorBreakdown.length > 0 && (
-                  <>
-                    <div className="dash-panel-divider" />
-                    <div className="dash-panel-sub-title">Top vendors</div>
-                    <div className="dash-tag-cloud">
-                      {vendorBreakdown.map(([vendor, count]) => (
-                        <span key={vendor} className="dash-tag">{vendor} <span className="dash-tag-count">{count}</span></span>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Top groups */}
-        <div className="dash-panel nm-app-panel overview-panel">
-          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconMap size={18} />} title="Top groups" />
-            <SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>
-              Manage <IconArrowRight size={12} />
-            </SpaLink>
-          </div>
-          <div className="dash-panel-body">
-            {groupBreakdown.length === 0 ? (
-              <div className="dash-empty-state">
-                <div className="dash-empty-icon"><IconMap size={22} /></div>
-                <div className="dash-empty-title">No groups yet</div>
-                <div className="dash-empty-desc">Assign topology groups to devices to segment your network.</div>
-                <SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/vlans")}>Manage groups</SpaLink>
-              </div>
-            ) : (
-              <div className="dash-breakdown">
-                {groupBreakdown.map(([group, count]) => (
-                  <div key={group} className="dash-breakdown-row">
-                    <span className="dash-breakdown-label">{group}</span>
-                    <div className="dash-mini-track">
-                      <div
-                        className="dash-mini-fill overview-group-fill"
-                        style={{
-                          width: `${total > 0 ? (count / total) * 100 : 0}%`,
-                          "--overview-group-color": groupColors.get(group) ?? resolveEntityColor(null, group),
-                        } as CSSProperties}
-                      />
-                    </div>
-                    <span className="dash-breakdown-count">{count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Bottom row: Recently updated | Navigate */}
-      <div className="dash-grid-2">
-
-        {/* Recently updated */}
-        <div className="dash-panel nm-app-panel overview-panel">
-          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconDeviceDesktop size={18} />} title="Recently updated" />
-            <div className="dash-panel-actions">
-              {(canWrite || canManageDiscovery) && (
-                <>
-                  {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>
-                    + Device
-                  </button>}
-                  {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>
-                    Scan
-                  </button>}
-                </>
-              )}
-              <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/inventory")}>
-                View all <IconArrowRight size={12} />
-              </SpaLink>
-            </div>
-          </div>
-          <div className="dash-panel-body">
-            {actionError && <div className="form-error" style={{ margin: "0 0 12px" }}>{actionError}</div>}
-            {recentDevices.length === 0 ? (
-              <div className="dash-empty-state">
-                <div className="dash-empty-icon"><IconDeviceDesktop size={22} /></div>
-                <div className="dash-empty-title">No devices yet</div>
-                <div className="dash-empty-desc">Add your first device to start mapping your network.</div>
-                {(canWrite || canManageDiscovery) ? (
-                  <div className="dash-empty-actions">
-                    {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>+ Device</button>}
-                    {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>}
-                  </div>
-                ) : (
-                  <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>View inventory</SpaLink>
-                )}
-              </div>
-            ) : (
-              <div className="dash-device-list">
-                {recentDevices.map((d) => {
-                  const liveStatus = overviewDeviceHealth(d);
-                  return (
-                    <div key={d.id} className="dash-device-row">
-                      <span className={`dash-status-dot dash-status-dot--${liveStatus}`} />
-                      <div className="dash-device-info">
-                        <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
-                        <span className="dash-device-meta">
-                          {d.ip_address}
-                          {d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}
-                          {d.os ? ` · ${d.os}` : ""}
-                        </span>
-                      </div>
-                      <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
-                      <span className={`nm-status nm-status--${liveStatus}`}>{overviewDeviceHealthLabel(d)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
+      <div className="nm-console nm-console--even">
+        <div className="nm-console-main">
         {/* Monitoring snapshot */}
-        <div className="dash-panel nm-app-panel overview-panel">
+        <div className="dash-panel nm-app-panel overview-panel nm-motion-item" style={{ ["--nm-motion-i" as string]: 8 }}>
           <div className="dash-panel-header nm-app-panel-header overview-panel-header dash-panel-header--favourites">
             <OverviewPanelIdentity icon={<Star size={18} />} title="Favourites" />
             <div className="dash-panel-actions">
@@ -807,10 +602,132 @@ export function OverviewWorkspace({
             )}
           </div>
         </div>
-
+        {/* Recently updated */}
+        <div className="dash-panel nm-app-panel overview-panel nm-motion-item nm-fill" style={{ ["--nm-motion-i" as string]: 9 }}>
+          <div className="dash-panel-header nm-app-panel-header overview-panel-header">
+            <OverviewPanelIdentity icon={<IconDeviceDesktop size={18} />} title="Recently updated" />
+            <div className="dash-panel-actions">
+              {(canWrite || canManageDiscovery) && (
+                <>
+                  {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>
+                    + Device
+                  </button>}
+                  {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>
+                    Scan
+                  </button>}
+                </>
+              )}
+              <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/inventory")}>
+                View all <IconArrowRight size={12} />
+              </SpaLink>
+            </div>
+          </div>
+          <div className="dash-panel-body">
+            {actionError && <div className="form-error" style={{ margin: "0 0 12px" }}>{actionError}</div>}
+            {recentDevices.length === 0 ? (
+              <div className="dash-empty-state">
+                <div className="dash-empty-icon"><IconDeviceDesktop size={22} /></div>
+                <div className="dash-empty-title">No devices yet</div>
+                <div className="dash-empty-desc">Add your first device to start mapping your network.</div>
+                {(canWrite || canManageDiscovery) ? (
+                  <div className="dash-empty-actions">
+                    {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={busy} onClick={() => setShowDeviceForm(true)}>+ Device</button>}
+                    {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" disabled={busy} onClick={() => setShowScanModal(true)}>Scan</button>}
+                  </div>
+                ) : (
+                  <SpaLink href="/inventory" className="nm-btn nm-btn--sm nm-btn--secondary" onNavigate={() => onNavigate("/inventory")}>View inventory</SpaLink>
+                )}
+              </div>
+            ) : (
+              <div className="dash-device-list">
+                {recentDevices.map((d) => {
+                  const liveStatus = overviewDeviceHealth(d);
+                  return (
+                    <div key={d.id} className="dash-device-row">
+                      <span className={`dash-status-dot dash-status-dot--${liveStatus}`} />
+                      <div className="dash-device-info">
+                        <span className="dash-device-name">{d.display_name || d.hostname || d.ip_address}</span>
+                        <span className="dash-device-meta">
+                          {d.ip_address}
+                          {d.device_type ? ` · ${formatDeviceTypeLabel(d.device_type)}` : ""}
+                          {d.os ? ` · ${d.os}` : ""}
+                        </span>
+                      </div>
+                      <span className="dash-device-group">{d.topology_group || <span className="dash-dim">—</span>}</span>
+                      <span className={`nm-status nm-status--${liveStatus}`}>{overviewDeviceHealthLabel(d)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        </div>
+        <aside className="nm-console-side">
+          <InsightPanel title="Current outages" icon={<IconWifiOff size={16} />} className="nm-motion-item overview-outages-panel" label="Current outages"
+            actions={<SpaLink href="/monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>Monitoring <IconArrowRight size={13} /></SpaLink>}>
+            <div id="overview-outages" tabIndex={-1}>
+              {outageCount === 0 ? <p className="tool-note nm-chart-empty">Nothing is offline right now.</p> : (
+                <ul className="nm-event-list">
+                  {offlineDevices.map((d: Device) => (
+                    <li key={d.id}>
+                      <span className="dash-status-dot dash-status-dot--offline" aria-hidden="true" />
+                      <span><strong>{d.display_name || d.hostname || d.ip_address}</strong>
+                        <small>{["Device", d.ip_address, d.device_type ? formatDeviceTypeLabel(d.device_type) : null, d.os, d.topology_group].filter(Boolean).join(" · ")}</small></span>
+                      <time dateTime={d.last_monitored_at ?? undefined}>{d.last_monitored_at ? `Checked ${fmtTime(d.last_monitored_at)}` : "Not checked"}</time>
+                    </li>
+                  ))}
+                  {offlineEndpoints.map((monitor) => (
+                    <li key={`endpoint-${monitor.id}`}>
+                      <span className="dash-status-dot dash-status-dot--offline" aria-hidden="true" />
+                      <span><SpaLink href="/monitoring#endpoints" onNavigate={openEndpointMonitoring}><strong>{monitor.name}</strong></SpaLink><small>Endpoint · {monitor.url}</small></span>
+                      <time dateTime={monitor.last_checked_at ?? undefined}>{monitor.last_checked_at ? `Checked ${fmtTime(monitor.last_checked_at)}` : "Not checked"}</time>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </InsightPanel>
+          <InsightPanel title="Slowest devices, 24 h" icon={<Timer size={16} />} className="nm-motion-item">
+            <BarList label="Monitored devices with the highest average round-trip time, last 24 hours" unit=" ms" empty={monLoading ? "Loading…" : "No latency recorded yet."}
+              items={slowestDevices.map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }))} />
+          </InsightPanel>
+          <InsightPanel title="Endpoints" icon={<Plug size={16} />} className="nm-motion-item nm-fill"
+            actions={<SpaLink href="/monitoring#endpoints" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={openEndpointMonitoring}>All <IconArrowRight size={13} /></SpaLink>}>
+            {endpointMonitors.length === 0 ? <p className="tool-note nm-chart-empty">No endpoints monitored yet.</p> : <>
+              <p className="tool-note">{endpointMonitors.length} endpoint{endpointMonitors.length === 1 ? "" : "s"}{endpointUptime !== null ? ` · ${endpointUptime.toFixed(1)}% average uptime` : ""}</p>
+              <BarList label="Endpoints by state" max={endpointMonitors.length} items={[
+                { label: "Up", value: endpointMonitors.filter((m) => m.enabled && m.last_status === "online").length, color: "--dash-green" },
+                { label: "Down", value: offlineEndpoints.length, color: "--dash-red" },
+                { label: "Paused", value: endpointMonitors.filter((m) => !m.enabled).length, color: "--dash-paused" },
+              ]} />
+            </>}
+          </InsightPanel>
+        </aside>
       </div>
 
-      </div>{/* end dash-grids */}
+      <div className="nm-pair">
+        <InsightPanel title="Device types" icon={<IconChartBar size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
+          <BarList label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
+            items={typeBreakdown.map(([type, count]) => ({ label: deviceTypeOptions.find((option) => option.value === type)?.label || formatDeviceTypeLabel(type), value: count, color: deviceTypeColors.get(type) ?? resolveEntityColor(null, type) }))} />
+          {vendorBreakdown.length > 0 && (
+            <>
+              <div className="dash-panel-divider" />
+              <div className="dash-panel-sub-title">Top vendors</div>
+              <div className="dash-tag-cloud">
+                {vendorBreakdown.map(([vendor, count]) => (
+                  <span key={vendor} className="dash-tag">{vendor} <span className="dash-tag-count">{count}</span></span>
+                ))}
+              </div>
+            </>
+          )}
+        </InsightPanel>
+        <InsightPanel title="Top groups" icon={<IconMap size={16} />} className="nm-motion-item"
+          actions={<SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>Manage <IconArrowRight size={12} /></SpaLink>}>
+          <BarList label="Devices per group" empty="Assign topology groups to devices to segment your network."
+            items={groupBreakdown.map(([group, count]) => ({ label: group, value: count, color: groupColors.get(group) ?? resolveEntityColor(null, group) }))} />
+        </InsightPanel>
+      </div>
 
       {showDeviceForm && (
         <DeviceForm

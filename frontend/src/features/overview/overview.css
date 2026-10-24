@@ -21,10 +21,6 @@ body.route-overview .overview-workspace .dash-stat {
   box-shadow: var(--nm-stat-shadow, var(--nm-shadow-sm));
 }
 
-.overview-workspace .overview-offline-panel {
-  margin: 0 0 16px;
-}
-
 body.route-overview .overview-workspace .overview-panel.nm-app-panel {
   min-width: 0;
   border-color: var(--nm-border);
