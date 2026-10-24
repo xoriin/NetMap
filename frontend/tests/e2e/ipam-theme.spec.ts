@@ -299,60 +299,89 @@ test(`a reservation can be explicitly converted into a device from IPAM in ${the
 });
 }
 
-test("the dense /24 map shows all addresses without scaling or horizontal overflow", async ({ page }) => {
+test("the /24 tile map shows all addresses with a usage bar and a selected-address panel", async ({ page }) => {
   await setupIpam(page);
   await page.locator(".ipam-subnet-row").click();
 
   const dialog = page.getByRole("dialog", { name: "Core network" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".ipam-grid-row")).toHaveCount(8);
-  await expect(dialog.locator(".ipam-grid-cell")).toHaveCount(256);
+  await expect(dialog.locator(".ipam-modal-util")).toHaveCount(0);
+  const usage = dialog.locator(".ipam-usage");
+  await expect(usage.locator(".nm-stackbar")).toBeVisible();
+  await expect(usage.locator(".nm-chart-legend li").filter({ hasText: "Device" })).toContainText(/\d/);
+  await expect(usage.locator(".nm-chart-legend li").filter({ hasText: "Free" })).toContainText(/\d/);
 
-  const legendColors = await dialog.locator(".ipam-legend-dot").evaluateAll((nodes) =>
-    nodes.map((node) => getComputedStyle(node).backgroundColor),
-  );
-  expect(new Set(legendColors).size).toBeGreaterThanOrEqual(5);
-
-  const map = dialog.locator(".ipam-grid-map");
+  const map = dialog.locator(".ipam-map");
+  await expect(map.locator(".ipam-map-row")).toHaveCount(16);
+  await expect(map.locator(".ipam-tile")).toHaveCount(256);
+  await expect(map.locator(".ipam-map-head span:not(:empty)")).toHaveCount(16);
+  await expect(map.locator(".ipam-map-row").nth(1).locator(".ipam-map-label")).toHaveText(".16");
   const sizes = await map.evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.client);
-  const dialogHeightBefore = (await dialog.locator(":scope > .modal").boundingBox())?.height ?? 0;
 
-  const deviceCell = dialog.getByRole("button", { name: "10.30.20.4 · Device" });
-  const freeCell = dialog.getByRole("button", { name: "10.30.20.2 · Free" });
-  const [deviceFill, freeFill] = await Promise.all([
-    deviceCell.evaluate((node) => getComputedStyle(node).backgroundColor),
-    freeCell.evaluate((node) => getComputedStyle(node).backgroundColor),
+  const deviceTile = dialog.getByRole("button", { name: "10.30.20.4 · Device" });
+  const freeTile = dialog.getByRole("button", { name: "10.30.20.2 · Free" });
+  await expect(deviceTile).toHaveText("");
+  const box = await deviceTile.boundingBox();
+  expect(box?.height ?? 0).toBeLessThanOrEqual(34);
+  expect(box?.width ?? 0).toBeGreaterThan((box?.height ?? 0) * 1.2);
+  expect(box?.width ?? 0).toBeLessThan((box?.height ?? 0) * 1.9);
+  const fill = await dialog.locator(".ipam-ip-map").evaluate((node) => {
+    const own = node.getBoundingClientRect();
+    const detail = node.querySelector(".ipam-address-detail")!.getBoundingClientRect();
+    return { right: own.right - detail.right };
+  });
+  expect(fill.right).toBeLessThanOrEqual(1);
+  const [deviceFill, freeFill, border] = await Promise.all([
+    deviceTile.evaluate((node) => getComputedStyle(node).backgroundColor),
+    freeTile.evaluate((node) => getComputedStyle(node).backgroundColor),
+    deviceTile.evaluate((node) => getComputedStyle(node).borderTopWidth),
   ]);
   expect(deviceFill).not.toBe(freeFill);
-  await deviceCell.hover();
-  await expect(dialog.locator(".ipam-grid-detail-card .ipam-tooltip-ip")).toHaveText("10.30.20.4");
-  const detailCard = dialog.locator(".ipam-grid-detail-card");
-  await expect(detailCard.getByText("Example Networks", { exact: true })).toBeVisible();
-  const detailBox = await detailCard.boundingBox();
-  expect(detailBox).not.toBeNull();
-  expect((detailBox?.y ?? 0) + (detailBox?.height ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.height ?? 720);
-  const dialogHeightWithDevice = (await dialog.locator(":scope > .modal").boundingBox())?.height ?? 0;
-  expect(Math.abs(dialogHeightWithDevice - dialogHeightBefore)).toBeLessThanOrEqual(0.5);
+  expect(border).toBe("0px");
 
-  const firstCell = dialog.getByRole("button", { name: "10.30.20.0 · Network" });
-  await expect(firstCell).toHaveText("0");
-  const before = await firstCell.boundingBox();
-  await firstCell.hover();
-  const after = await firstCell.boundingBox();
-  expect(before).not.toBeNull();
-  expect(after).not.toBeNull();
-  expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThanOrEqual(0.5);
-  expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThanOrEqual(0.5);
-  await expect(firstCell).toHaveCSS("transform", "none");
-  await expect(dialog.locator(".ipam-grid-detail-card .ipam-tooltip-ip")).toHaveText("10.30.20.0");
+  const detail = dialog.locator(".ipam-address-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText("Select an address");
+  const mapBox = await map.boundingBox();
+  const detailBox = await detail.boundingBox();
+  expect((detailBox?.x ?? 0)).toBeGreaterThan((mapBox?.x ?? 0) + (mapBox?.width ?? 0) - 1);
+  const dialogHeightBefore = (await dialog.locator(":scope > .modal").boundingBox())?.height ?? 0;
 
-  const finalCell = dialog.getByRole("button", { name: "10.30.20.255 · Broadcast" });
-  await expect(finalCell).toHaveText("255");
-  await finalCell.focus();
-  await expect(dialog.locator(".ipam-grid-detail-card .ipam-tooltip-ip")).toHaveText("10.30.20.255");
-  const dialogHeightWithBroadcast = (await dialog.locator(":scope > .modal").boundingBox())?.height ?? 0;
-  expect(Math.abs(dialogHeightWithBroadcast - dialogHeightBefore)).toBeLessThanOrEqual(0.5);
+  await deviceTile.click();
+  await expect(deviceTile).toHaveAttribute("aria-pressed", "true");
+  await expect(detail.locator(".ipam-address-detail-ip")).toHaveText("10.30.20.4");
+  await expect(detail.getByText("Example Networks", { exact: true })).toBeVisible();
+  const dialogHeightAfter = (await dialog.locator(":scope > .modal").boundingBox())?.height ?? 0;
+  expect(Math.abs(dialogHeightAfter - dialogHeightBefore)).toBeLessThanOrEqual(0.5);
+
+  const finalTile = dialog.getByRole("button", { name: "10.30.20.255 · Broadcast" });
+  await finalTile.focus();
+  await page.keyboard.press("Enter");
+  await expect(detail.locator(".ipam-address-detail-ip")).toHaveText("10.30.20.255");
+  await expect(detail.getByRole("button", { name: "Reserve" })).toHaveCount(0);
+
+  await freeTile.click();
+  await expect(detail.locator(".ipam-address-detail-ip")).toHaveText("10.30.20.2");
+  await detail.getByRole("button", { name: "Reserve this address" }).click();
+  const reserveDialog = page.getByRole("dialog", { name: "Reserve IP address" });
+  await expect(reserveDialog.getByLabel("IP address")).toHaveValue("10.30.20.2");
+});
+
+test("the tile map stacks the address panel under the map on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setupIpam(page);
+  await page.locator(".ipam-subnet-row").click();
+  const dialog = page.getByRole("dialog", { name: "Core network" });
+  const map = dialog.locator(".ipam-map");
+  await expect(map.locator(".ipam-tile")).toHaveCount(256);
+  const sizes = await map.evaluate((node) => ({ client: node.clientWidth, scroll: node.scrollWidth }));
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.client);
+  const mapBox = await map.boundingBox();
+  const detailBox = await dialog.locator(".ipam-address-detail").boundingBox();
+  expect(detailBox?.y ?? 0).toBeGreaterThan((mapBox?.y ?? 0) + (mapBox?.height ?? 0) - 1);
+  const tileBox = await map.locator(".ipam-tile").first().boundingBox();
+  expect(tileBox?.width ?? 0).toBeGreaterThanOrEqual(12);
 });
 
 

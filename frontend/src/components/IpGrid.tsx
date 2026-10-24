@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { IpAddressEntry } from "../api/client";
+import { StackBar } from "./Charts";
 
 const IP_KIND_LABEL: Record<string, string> = {
   network: "Network", broadcast: "Broadcast", gateway: "Gateway",
   device: "Device", dhcp: "DHCP lease", reserved: "Reserved", free: "Free",
 };
+
+const MAP_KEYS: [string, string][] = [
+  ["device", "Device"], ["dhcp", "DHCP lease"], ["dhcp-pool", "DHCP pool (free)"], ["reserved", "Reserved"],
+  ["gateway", "Gateway"], ["free", "Free"], ["network", "Network / broadcast"],
+];
 
 function mapKind(entry: IpAddressEntry) {
   if (entry.kind === "free" && entry.dhcp_range) return "dhcp-pool";
@@ -16,127 +22,100 @@ function displayKind(entry: IpAddressEntry) {
   return IP_KIND_LABEL[entry.kind] ?? entry.kind;
 }
 
-function addressOctet(entry: IpAddressEntry) {
-  const parts = entry.ip.split(".");
-  return parts[parts.length - 1] ?? entry.ip;
+function addressOctet(ip: string) {
+  const parts = ip.split(".");
+  return parts[parts.length - 1] ?? ip;
 }
 
-export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEntry[]; onReserve?: (ip: string) => void; canWrite?: boolean }) {
-  const [inspectedIp, setInspectedIp] = useState<string | null>(null);
-  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
-
-  if (!entries.length) return <p className="dash-empty">Subnet too large to enumerate - showing summary only.</p>;
-
-  const inspected = entries.find((entry) => entry.ip === inspectedIp) ?? null;
-
-  const rowSize = entries.length <= 32 ? entries.length : 32;
-  const rows: IpAddressEntry[][] = [];
-  for (let i = 0; i < entries.length; i += rowSize) {
-    rows.push(entries.slice(i, i + rowSize));
-  }
-
+export function AddressUsage({ entries }: { entries: IpAddressEntry[] }) {
+  const count = (kind: IpAddressEntry["kind"]) => entries.filter((entry) => entry.kind === kind).length;
   return (
-    <div
-      className="ipam-grid"
-      onMouseMove={(event) => setPointerPosition({ x: event.clientX, y: event.clientY })}
-      onMouseLeave={() => setInspectedIp(null)}
-    >
-      <div className="ipam-grid-map-label">
-        <span>All {entries.length} positions</span>
-        <small>{rows.length} row{rows.length === 1 ? "" : "s"} · up to 32 addresses per row · hover for details</small>
-      </div>
-      <div className="ipam-grid-map">
-          {rows.map((row, rowIdx) => {
-            const firstParts = row[0].ip.split(".");
-            const lastParts = row[row.length - 1].ip.split(".");
-            const firstOctet = firstParts[firstParts.length - 1] ?? "";
-            const lastOctet = lastParts[lastParts.length - 1] ?? firstOctet;
-            return (
-              <div key={rowIdx} className="ipam-grid-row">
-                <span className="ipam-grid-row-label">{firstOctet}–{lastOctet}</span>
-                <div className="ipam-grid-row-cells">
-                  {row.map((entry) => (
-                    <button
-                      key={entry.ip}
-                      type="button"
-                      aria-label={`${entry.ip} · ${displayKind(entry)}`}
-                      aria-pressed={inspected?.ip === entry.ip}
-                      className={`ipam-grid-cell ipam-grid-cell--${mapKind(entry)}${entry.dhcp_range ? " ipam-grid-cell--dhcp-range" : ""}${canWrite && entry.kind === "free" ? " ipam-grid-cell--reservable" : ""}${inspected?.ip === entry.ip ? " is-inspected" : ""}`}
-                      onMouseEnter={() => setInspectedIp(entry.ip)}
-                      onFocus={(event) => {
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        setPointerPosition({ x: rect.right, y: rect.top + rect.height / 2 });
-                        setInspectedIp(entry.ip);
-                      }}
-                      onClick={() => { if (canWrite && entry.kind === "free" && onReserve) onReserve(entry.ip); }}
-                    >
-                      <span className="ipam-grid-cell-label">{addressOctet(entry)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-      </div>
-      {inspected && <IpDetailCard entry={inspected} canWrite={canWrite} x={pointerPosition.x} y={pointerPosition.y} />}
+    <div className="ipam-usage">
+      <StackBar label="Address usage" of="of this subnet" items={[
+        { label: "Device", value: count("device"), color: "var(--ipam-device)" },
+        { label: "DHCP lease", value: count("dhcp"), color: "var(--ipam-dhcp)" },
+        { label: "Reserved", value: count("reserved"), color: "var(--ipam-reserved)" },
+        { label: "Gateway", value: count("gateway"), color: "var(--ipam-gateway)" },
+        { label: "Free", value: count("free"), color: "var(--nm-track-bg)" },
+      ]} />
     </div>
   );
 }
 
-function IpDetailCard({ entry, canWrite, x, y }: { entry: IpAddressEntry; canWrite?: boolean; x: number; y: number }) {
-  const cardWidth = 270;
-  // Four metadata rows (DHCP range, name, MAC and vendor) are possible. Use
-  // the maximum expected card height for edge avoidance while allowing the
-  // actual card to size naturally to shorter content.
-  const cardHeightAllowance = 190;
-  const preferredLeft = x + 14 + cardWidth > window.innerWidth ? x - cardWidth - 10 : x + 14;
-  const preferredTop = y + 14 + cardHeightAllowance > window.innerHeight
-    ? y - cardHeightAllowance - 10
-    : y + 14;
-  const left = Math.max(10, Math.min(preferredLeft, window.innerWidth - cardWidth - 10));
-  const top = Math.max(10, preferredTop);
+export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEntry[]; onReserve?: (ip: string) => void; canWrite?: boolean }) {
+  const [selectedIp, setSelectedIp] = useState<string | null>(null);
+
+  if (!entries.length) return <p className="dash-empty">Subnet too large to enumerate - showing summary only.</p>;
+
+  const selected = entries.find((entry) => entry.ip === selectedIp) ?? null;
+  const rowSize = Math.min(16, entries.length);
+  const rows: IpAddressEntry[][] = [];
+  for (let i = 0; i < entries.length; i += rowSize) rows.push(entries.slice(i, i + rowSize));
+  const columns = { "--ipam-map-cols": rowSize } as CSSProperties;
+
   return (
-    <div className="ipam-tooltip-card ipam-grid-detail-card" style={{ left, top }} aria-live="polite">
-      <div className="ipam-tooltip-header">
-        <span className={`ipam-tooltip-kind-dot ipam-tooltip-kind-dot--${mapKind(entry)}`} />
-        <span className="ipam-tooltip-ip">{entry.ip}</span>
-        <span className="ipam-tooltip-kind">{displayKind(entry)}</span>
-      </div>
-      {entry.kind === "free" ? (
-        <>
-          <div className="ipam-tooltip-row ipam-tooltip-row--available">
-            <span>Status</span><span>Available{canWrite ? " - click to reserve" : ""}</span>
+    <div className="ipam-ip-map" style={columns}>
+      <div className="ipam-map-wrap">
+        <div className="ipam-map">
+          <div className="ipam-map-head" aria-hidden="true">
+            <span />
+            {rows[0].map((_, index) => <span key={index}>{index}</span>)}
           </div>
-          {entry.dhcp_range && (
-            <div className="ipam-tooltip-row">
-              <span>Range</span><span>DHCP assignment pool</span>
+          {rows.map((row) => (
+            <div key={row[0].ip} className="ipam-map-row">
+              <span className="ipam-map-label">.{addressOctet(row[0].ip)}</span>
+              {row.map((entry) => (
+                <button
+                  key={entry.ip}
+                  type="button"
+                  aria-label={`${entry.ip} · ${displayKind(entry)}`}
+                  aria-pressed={selected?.ip === entry.ip}
+                  title={entry.ip}
+                  className={`ipam-tile ipam-tile--${mapKind(entry)}${selected?.ip === entry.ip ? " is-selected" : ""}`}
+                  onClick={() => setSelectedIp(entry.ip)}
+                />
+              ))}
             </div>
-          )}
-        </>
-      ) : (
-        <>
-          {entry.dhcp_range && (
-            <div className="ipam-tooltip-row">
-              <span>Range</span><span>DHCP assignment pool</span>
-            </div>
-          )}
-          {(entry.display_name || entry.label) && (
-            <div className="ipam-tooltip-row">
-              <span>Name</span><span>{entry.display_name || entry.label}</span>
-            </div>
-          )}
-          {entry.mac_address && (
-            <div className="ipam-tooltip-row">
-              <span>MAC</span><span className="ipam-tooltip-mono">{entry.mac_address}</span>
-            </div>
-          )}
-          {entry.vendor && (
-            <div className="ipam-tooltip-row">
-              <span>Vendor</span><span>{entry.vendor}</span>
-            </div>
-          )}
-        </>
-      )}
+          ))}
+        </div>
+        <div className="ipam-map-keys">
+          {MAP_KEYS.map(([kind, label]) => (
+            <span key={kind} className="ipam-map-key"><i className={`ipam-tile ipam-tile--${kind}`} />{label}</span>
+          ))}
+        </div>
+      </div>
+      <AddressDetail entry={selected} canWrite={canWrite} onReserve={onReserve} />
     </div>
+  );
+}
+
+function AddressDetail({ entry, canWrite, onReserve }: { entry: IpAddressEntry | null; canWrite?: boolean; onReserve?: (ip: string) => void }) {
+  if (!entry) {
+    return (
+      <aside className="ipam-address-detail nm-app-panel" aria-live="polite">
+        <p className="ipam-address-detail-empty">Select an address to see its details{canWrite ? " or reserve it" : ""}.</p>
+      </aside>
+    );
+  }
+  const name = entry.display_name || entry.label;
+  return (
+    <aside className="ipam-address-detail nm-app-panel" aria-live="polite">
+      <div className="nm-app-panel-header">
+        <strong className="ipam-address-detail-ip">{entry.ip}</strong>
+        <span className="ipam-address-detail-kind"><i className={`ipam-tile ipam-tile--${mapKind(entry)}`} />{displayKind(entry)}</span>
+      </div>
+      <dl className="ipam-address-detail-list">
+        <dt>Status</dt><dd>{entry.kind === "free" ? "Available" : displayKind(entry)}</dd>
+        {name && <><dt>Name</dt><dd>{name}</dd></>}
+        {entry.mac_address && <><dt>MAC</dt><dd className="ipam-address-detail-mono">{entry.mac_address}</dd></>}
+        {entry.vendor && <><dt>Vendor</dt><dd>{entry.vendor}</dd></>}
+        {entry.dhcp_range && <><dt>Range</dt><dd>DHCP assignment pool</dd></>}
+      </dl>
+      {canWrite && entry.kind === "free" && onReserve && (
+        <div className="ipam-address-detail-actions">
+          <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => onReserve(entry.ip)}>Reserve this address</button>
+        </div>
+      )}
+    </aside>
   );
 }

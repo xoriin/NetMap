@@ -2616,114 +2616,6 @@ body.theme-dark .ipam-reservations-panel { border-color: color-mix(in srgb, var(
   margin-bottom: 14px;
 }
 
-/* IP address grid */
-.ipam-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.ipam-grid-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.ipam-grid-row-label {
-  width: 38px;
-  font-size: 10px;
-  font-family: monospace;
-  color: #8aa0b0;
-  text-align: right;
-  flex-shrink: 0;
-  line-height: 1;
-  user-select: none;
-}
-.ipam-grid-row-cells {
-  display: flex;
-  flex: 1;
-  gap: 3px;
-}
-.ipam-grid-cell {
-  flex: 1;
-  min-width: 8px;
-  height: 18px;
-  border-radius: 2px;
-  border: 1px solid rgba(0,0,0,0.06);
-  cursor: default;
-  transition: transform 0.1s;
-}
-.ipam-grid-cell--dhcp-range {
-  box-shadow: inset 0 0 0 2px rgba(10, 15, 25, 0.6), 0 0 0 1px rgba(10, 15, 25, 0.3);
-}
-.ipam-grid-cell:hover { transform: scaleY(1.4); z-index: 1; position: relative; }
-.ipam-grid-cell--has-tip { cursor: pointer; }
-
-/* IP hover card */
-.ipam-tooltip-card {
-  position: fixed;
-  z-index: 9999;
-  background: #fff;
-  border: 1px solid rgba(209, 220, 230, 0.9);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-  padding: 10px 13px 12px;
-  min-width: 200px;
-  max-width: 260px;
-  pointer-events: none;
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-.ipam-tooltip-header {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 8px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid rgba(209,220,230,0.7);
-}
-.ipam-tooltip-kind-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-.ipam-tooltip-ip {
-  font-weight: 700;
-  font-family: monospace;
-  color: #1a2e3d;
-  font-size: 13px;
-  flex: 1;
-}
-.ipam-tooltip-kind {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8aa0b0;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.ipam-tooltip-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: #3a5568;
-  font-size: 12px;
-  padding: 1px 0;
-}
-.ipam-tooltip-row span:first-child { color: var(--nm-text-faint); flex-shrink: 0; }
-.ipam-tooltip-row span:last-child { text-align: right; word-break: break-all; }
-.ipam-tooltip-mono { font-family: monospace; font-size: 11.5px; }
-.ipam-tooltip-row--available span:last-child { color: var(--dash-green); font-weight: 600; }
-
-.ipam-grid-legend {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: #7a96a8;
-}
-.ipam-legend-item { display: flex; align-items: center; gap: 4px; }
-.ipam-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
-.ipam-legend-tip { margin-left: auto; font-style: italic; opacity: 0.7; }
 .ipam-vlan-sync-label {
   display: flex;
   align-items: center;
@@ -2800,8 +2692,6 @@ body.theme-dark .ipam-vlan-sync-label { color: var(--nm-text-muted); }
 .ipam-kind-badge--free     { background: rgba(160,180,192,0.12); color: #7a96a8; }
 .ipam-kind-badge--network,
 .ipam-kind-badge--broadcast { background: rgba(148,163,184,0.15); color: #5a7a95; }
-.ipam-grid-cell--reservable { cursor: crosshair; }
-.ipam-grid-cell--reservable:hover { background: #2dba7c !important; transform: scaleY(1.4); }
 
 
 /* DHCP import textarea */
@@ -2837,13 +2727,6 @@ body.theme-dark .ipam-kind-badge--free     { background: color-mix(in srgb, var(
 body.theme-dark .ipam-lease-textarea { background: var(--nm-modal-input); border-color: var(--nm-btn-secondary-border); color: var(--nm-modal-label); }
 body.theme-dark .ipam-dhcp-range-pill { background: var(--nm-shell); border: 1.5px solid color-mix(in srgb, var(--nm-text-faint) 30%, transparent); color: var(--nm-text-muted); box-shadow: none; }
 body.theme-dark .ipam-dhcp-range-pill code { color: var(--nm-text-muted); }
-body.theme-dark .ipam-grid-cell { border-color: rgba(255,255,255,0.06); }
-body.theme-dark .ipam-grid-cell--dhcp-range { box-shadow: inset 0 0 0 2px rgba(30, 60, 95, 0.85), 0 0 0 1px rgba(30, 60, 95, 0.55); }
-body.theme-dark .ipam-tooltip-card { background: var(--nm-modal-header); border-color: var(--nm-border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-body.theme-dark .ipam-tooltip-header { border-color: var(--nm-border-strong); }
-body.theme-dark .ipam-tooltip-ip { color: #d8eaf5; }
-body.theme-dark .ipam-tooltip-row { color: var(--nm-text-muted); }
-body.theme-dark .ipam-tooltip-row span:first-child { color: var(--nm-text-faint); }
 body.theme-dark .device-form-col + .device-form-col { border-left-color: rgba(255,255,255,0.05); }
 body.theme-dark .device-form-section + .device-form-section { border-top-color: rgba(255,255,255,0.05); }
 body.theme-dark .device-form-section-title { color: var(--nm-text-faint); }

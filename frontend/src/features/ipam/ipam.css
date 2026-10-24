@@ -564,265 +564,130 @@ body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
   color: var(--nm-text);
 }
 
-/* Full /24 dense map: eight rows of 32 cells, no scaling and no overflow. */
-.ipam-detail-modal .ipam-grid {
-  display: flex;
+/* Address map: 16 square tiles per row, row/column offsets, details beside it. */
+.ipam-detail-modal .ipam-usage { padding: 14px 22px 4px; flex-shrink: 0; }
+.ipam-usage .nm-stackbar { height: 10px; }
+.ipam-usage .nm-chart-legend { display: flex; flex-wrap: wrap; gap: var(--nm-space-2) var(--nm-space-5); width: auto; margin-top: var(--nm-space-2); }
+.ipam-usage .nm-chart-legend li { display: inline-flex; align-items: center; gap: var(--nm-space-2); }
+
+.ipam-ip-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+  gap: var(--nm-space-6, 24px);
+  align-items: start;
   min-width: 0;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  --ipam-device: #4d9578;
-  --ipam-dhcp: #6484ad;
-  --ipam-reserved: #8174a3;
-  --ipam-gateway: #ad8248;
-  --ipam-system: #71808e;
 }
 
-.ipam-grid-map-label {
+.ipam-map-wrap { min-width: 0; }
+.ipam-map { display: grid; gap: 4px; min-width: 0; }
+
+.ipam-map-head,
+.ipam-map-row {
+  display: grid;
+  grid-template-columns: 40px repeat(var(--ipam-map-cols, 16), minmax(0, 1fr));
+  gap: 4px;
+  align-items: center;
+}
+
+.ipam-map-head span {
+  color: var(--nm-text-faint);
+  font-size: 10.5px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ipam-map-label {
+  padding-right: 6px;
+  color: var(--nm-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ipam-tile {
+  display: block;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--nm-track-bg);
+  cursor: pointer;
+}
+
+.ipam-tile:hover { box-shadow: 0 0 0 2px var(--nm-module-body-bg), 0 0 0 3px var(--nm-border-strong); }
+.ipam-tile:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--nm-module-body-bg), 0 0 0 4px var(--nm-focus-ring, var(--nm-accent)); }
+.ipam-tile.is-selected { box-shadow: 0 0 0 2px var(--nm-module-body-bg), 0 0 0 4px var(--nm-accent); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ipam-tile { transition: transform .12s ease, box-shadow .12s ease; }
+  .ipam-tile:hover, .ipam-tile.is-selected { transform: scale(1.08); }
+}
+
+.ipam-tile--device { background: var(--ipam-device); }
+.ipam-tile--dhcp { background: var(--ipam-dhcp); }
+.ipam-tile--dhcp-pool { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ipam-dhcp) 70%, transparent); }
+.ipam-tile--reserved { background: var(--ipam-reserved); }
+.ipam-tile--gateway { background: var(--ipam-gateway); }
+.ipam-tile--network,
+.ipam-tile--broadcast { background: repeating-linear-gradient(45deg, var(--nm-track-bg) 0 3px, transparent 3px 6px); }
+
+.ipam-map-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nm-space-2) var(--nm-space-4);
+  margin-top: var(--nm-space-3);
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-sm);
+}
+
+.ipam-map-key,
+.ipam-address-detail-kind { display: inline-flex; align-items: center; gap: 6px; }
+
+.ipam-map-key .ipam-tile,
+.ipam-address-detail-kind .ipam-tile {
+  width: 12px;
+  height: 12px;
+  aspect-ratio: auto;
+  pointer-events: none;
+  transform: none;
+}
+
+.ipam-address-detail { margin: 0; overflow: hidden; }
+
+.ipam-address-detail .nm-app-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--nm-space-3);
-  margin-bottom: 8px;
-  color: var(--nm-text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
+  gap: var(--nm-space-2);
+  padding: 10px 14px;
 }
 
-.ipam-grid-map-label small {
-  color: var(--nm-text-faint);
-  font: inherit;
-}
+.ipam-address-detail-ip { font-variant-numeric: tabular-nums; }
+.ipam-address-detail-kind { color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
 
-.ipam-grid-map {
+.ipam-address-detail-list {
   display: grid;
-  min-width: 0;
-  gap: 4px;
-  overflow: visible;
-}
-
-.ipam-detail-modal .ipam-grid-row {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-}
-
-.ipam-detail-modal .ipam-grid-row-label {
-  width: auto;
-  color: var(--nm-text-faint);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 8px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.ipam-detail-modal .ipam-grid-row-cells {
-  display: grid;
-  grid-template-columns: repeat(32, minmax(0, 1fr));
-  min-width: 0;
-  gap: 2px;
-}
-
-.ipam-detail-modal .ipam-grid-cell {
-  appearance: none;
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-  height: 27px;
-  border: 1px solid var(--nm-border);
-  border-radius: 2px;
-  padding: 0;
-  background: var(--nm-surface-soft);
-  cursor: default;
-  transform: none;
-  transition: border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
-}
-
-.ipam-grid-cell-label {
-  display: block;
-  overflow: hidden;
-  color: var(--nm-text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: clamp(7px, 0.66vw, 10px);
-  font-weight: 650;
-  line-height: 1;
-  text-align: center;
-  text-overflow: clip;
-  white-space: nowrap;
-}
-
-.ipam-detail-modal .ipam-grid-cell--device .ipam-grid-cell-label,
-.ipam-detail-modal .ipam-grid-cell--dhcp .ipam-grid-cell-label,
-.ipam-detail-modal .ipam-grid-cell--dhcp-pool .ipam-grid-cell-label,
-.ipam-detail-modal .ipam-grid-cell--reserved .ipam-grid-cell-label,
-.ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-label {
-  color: var(--nm-text);
-}
-
-.ipam-detail-modal .ipam-grid-cell:hover,
-.ipam-detail-modal .ipam-grid-cell:focus-visible,
-.ipam-detail-modal .ipam-grid-cell.is-inspected,
-.ipam-detail-modal .ipam-grid-cell--reservable:hover {
-  z-index: 1;
-  position: relative;
-  border-color: var(--nm-text);
-  outline: none;
-  background: inherit;
-  box-shadow: inset 0 0 0 1px var(--nm-text), 0 0 0 1px var(--nm-modal-shell);
-  filter: brightness(1.18);
-  transform: none;
-}
-
-.ipam-detail-modal .ipam-grid-cell--device {
-  border-color: color-mix(in srgb, var(--ipam-device) 74%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-device) 38%, var(--nm-surface-soft));
-}
-
-.ipam-detail-modal .ipam-grid-cell--dhcp,
-.ipam-detail-modal .ipam-grid-cell--dhcp-pool {
-  border-color: color-mix(in srgb, var(--ipam-dhcp) 72%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-dhcp) 36%, var(--nm-surface-soft));
-}
-
-.ipam-detail-modal .ipam-grid-cell--reserved {
-  border-color: color-mix(in srgb, var(--ipam-reserved) 74%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft));
-}
-
-.ipam-detail-modal .ipam-grid-cell--gateway {
-  border-color: color-mix(in srgb, var(--ipam-gateway) 76%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft));
-}
-
-.ipam-detail-modal .ipam-grid-cell--network,
-.ipam-detail-modal .ipam-grid-cell--broadcast {
-  opacity: 0.8;
-  border-color: color-mix(in srgb, var(--ipam-system) 62%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-system) 32%, var(--nm-surface-soft));
-}
-
-.ipam-detail-modal .ipam-grid-cell--dhcp-range {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ipam-dhcp) 58%, transparent);
-}
-
-.ipam-detail-modal .ipam-grid-cell--reservable {
-  cursor: crosshair;
-}
-
-.ipam-grid-detail-card.ipam-tooltip-card {
-  position: fixed;
-  z-index: 9999;
-  width: 270px;
-  height: auto;
-  min-width: 270px;
-  min-height: 122px;
-  max-width: 270px;
-  max-height: min(220px, calc(100dvh - 20px));
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 14px;
   margin: 0;
-  border-color: var(--nm-border-strong);
-  padding: 0;
-  background: var(--nm-modal-header);
-  box-shadow: var(--nm-shadow-md);
-  color: var(--nm-text-muted);
-  pointer-events: none;
-  overflow: hidden;
+  padding: 14px;
+  font-size: var(--nm-text-sm);
 }
 
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--device {
-  border-color: color-mix(in srgb, var(--ipam-device) 88%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-device) 56%, var(--nm-surface-soft));
+.ipam-address-detail-list dt { color: var(--nm-text-muted); }
+.ipam-address-detail-list dd { margin: 0; color: var(--nm-text); overflow-wrap: anywhere; }
+.ipam-address-detail-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ipam-address-detail-actions { display: flex; gap: var(--nm-space-2); padding: 0 14px 14px; }
+.ipam-address-detail-empty { margin: 0; padding: 18px 14px; color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
+
+@media (max-width: 760px) {
+  .ipam-ip-map { grid-template-columns: minmax(0, 1fr); }
+  .ipam-tile { height: auto; aspect-ratio: 1; }
+  .ipam-map-head, .ipam-map-row { grid-template-columns: 30px repeat(var(--ipam-map-cols, 16), minmax(0, 1fr)); gap: 3px; }
+  .ipam-map { gap: 3px; }
+  .ipam-detail-modal .ipam-usage { padding: 12px 14px 4px; }
 }
-
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp-pool {
-  border-color: color-mix(in srgb, var(--ipam-dhcp) 86%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-dhcp) 52%, var(--nm-surface-soft));
-}
-
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--reserved {
-  border-color: color-mix(in srgb, var(--ipam-reserved) 86%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-reserved) 54%, var(--nm-surface-soft));
-}
-
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway {
-  border-color: color-mix(in srgb, var(--ipam-gateway) 88%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-gateway) 56%, var(--nm-surface-soft));
-}
-
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--network,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--broadcast {
-  border-color: color-mix(in srgb, var(--ipam-system) 78%, var(--nm-border));
-  background: color-mix(in srgb, var(--ipam-system) 46%, var(--nm-surface-soft));
-}
-
-body.theme-dark .ipam-grid-cell-label {
-  color: var(--nm-text-muted);
-}
-
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--device .ipam-grid-cell-label,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp .ipam-grid-cell-label,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--dhcp-pool .ipam-grid-cell-label,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--reserved .ipam-grid-cell-label,
-body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-label {
-  color: #edf5fa;
-}
-
-.ipam-grid-detail-card .ipam-tooltip-header {
-  min-height: 34px;
-  margin: 0;
-  padding: 0 10px;
-  border-bottom-color: var(--nm-border);
-}
-
-.ipam-grid-detail-card .ipam-tooltip-ip {
-  color: var(--nm-text);
-}
-
-.ipam-grid-detail-card .ipam-tooltip-kind {
-  color: var(--nm-accent-strong);
-}
-
-.ipam-grid-detail-card .ipam-tooltip-row {
-  padding: 3px 10px;
-  color: var(--nm-text-muted);
-}
-
-.ipam-grid-detail-card .ipam-tooltip-row:last-child {
-  padding-bottom: 8px;
-}
-
-.ipam-tooltip-kind-dot--device { background: var(--ipam-device); }
-.ipam-tooltip-kind-dot--dhcp,
-.ipam-tooltip-kind-dot--dhcp-pool { background: var(--ipam-dhcp); }
-.ipam-tooltip-kind-dot--reserved { background: var(--ipam-reserved); }
-.ipam-tooltip-kind-dot--gateway { background: var(--ipam-gateway); }
-.ipam-tooltip-kind-dot--network,
-.ipam-tooltip-kind-dot--broadcast { background: var(--ipam-system); }
-.ipam-tooltip-kind-dot--free { background: var(--nm-text-faint); }
-
-.ipam-detail-modal .ipam-grid-legend {
-  --ipam-device: #4d9578;
-  --ipam-dhcp: #6484ad;
-  --ipam-reserved: #8174a3;
-  --ipam-gateway: #ad8248;
-  --ipam-system: #71808e;
-  margin-top: 10px;
-  color: var(--nm-text-faint);
-}
-
-.ipam-detail-modal .ipam-legend-dot {
-  border-color: var(--nm-border);
-  background: var(--nm-surface-soft);
-}
-
-.ipam-detail-modal .ipam-legend-dot--device { border-color: var(--ipam-device); background: color-mix(in srgb, var(--ipam-device) 42%, var(--nm-surface-soft)); }
-.ipam-detail-modal .ipam-legend-dot--dhcp,
-.ipam-detail-modal .ipam-legend-dot--dhcp-pool { border-color: var(--ipam-dhcp); background: color-mix(in srgb, var(--ipam-dhcp) 38%, var(--nm-surface-soft)); }
-.ipam-detail-modal .ipam-legend-dot--reserved { border-color: var(--ipam-reserved); background: color-mix(in srgb, var(--ipam-reserved) 38%, var(--nm-surface-soft)); }
-.ipam-detail-modal .ipam-legend-dot--gateway { border-color: var(--ipam-gateway); background: color-mix(in srgb, var(--ipam-gateway) 40%, var(--nm-surface-soft)); }
-.ipam-detail-modal .ipam-legend-dot--system { border-color: var(--ipam-system); background: color-mix(in srgb, var(--ipam-system) 28%, var(--nm-surface-soft)); }
-.ipam-detail-modal .ipam-legend-dot--free { border-color: var(--nm-border); background: var(--nm-surface-soft); }
 
 .ipam-reservations-table td.ipam-reservation-actions {
   text-align: center;
@@ -853,19 +718,6 @@ body.theme-dark .ipam-detail-modal .ipam-grid-cell--gateway .ipam-grid-cell-labe
 @media (max-width: 620px) {
   .ipam-panel-title-wrap {
     display: grid;
-    gap: 1px;
-  }
-
-  .ipam-grid-map-label small {
-    display: none;
-  }
-
-  .ipam-detail-modal .ipam-grid-row {
-    grid-template-columns: 46px minmax(0, 1fr);
-    gap: 4px;
-  }
-
-  .ipam-detail-modal .ipam-grid-row-cells {
     gap: 1px;
   }
 }

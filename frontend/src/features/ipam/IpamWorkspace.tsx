@@ -21,7 +21,7 @@ import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
 import { UtilizationBar } from "../../components/UtilizationBar";
 import { UsageRing } from "../../components/UsageRing";
-import { IpGrid } from "../../components/IpGrid";
+import { AddressUsage, IpGrid } from "../../components/IpGrid";
 import { Modal } from "../../components/Modal";
 import { MonStatusDot } from "../../components/MonitorBadges";
 import { SubnetForm } from "../ipam/SubnetForm";
@@ -1036,9 +1036,11 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
             )}
           </div>
 
-          <div className="ipam-modal-util">
-            <UtilizationBar value={selectedSubnet.utilization} />
-          </div>
+          {addresses.length > 0 ? <AddressUsage entries={addresses} /> : !addressesLoading && (
+            <div className="ipam-modal-util">
+              <UtilizationBar value={selectedSubnet.utilization} />
+            </div>
+          )}
 
           <div className="ipam-addr-tabs" role="tablist" aria-label="Address filter">
             {(
@@ -1074,12 +1076,6 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
             ) : addrFilter === "all" && addresses.length <= 256 ? (
               <div className="ipam-modal-body-inner">
                 <IpGrid entries={addresses} onReserve={openReserveDialog} canWrite={canWrite} />
-                <div className="ipam-grid-legend">
-                  {[["device","Device"], ["dhcp","DHCP lease"], ["dhcp-pool","DHCP range"], ["reserved","Reserved"], ["gateway","Gateway"], ["free","Free"], ["system","Net/Bcast"]].map(([kind, label]) => (
-                    <span key={kind} className="ipam-legend-item"><span className={`ipam-legend-dot ipam-legend-dot--${kind}`} />{label}</span>
-                  ))}
-                  {canWrite && <span className="ipam-legend-tip">· click a free address to reserve it</span>}
-                </div>
               </div>
             ) : (
               <table className="ipam-addr-table">
