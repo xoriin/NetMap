@@ -98,8 +98,7 @@ test("the endpoint popup has the interactive heartbeat and RTT graph", async ({ 
   await expect(card).toContainText("HTTP 200");
   await expect(card).toContainText("ms");
 
-  const plot = page.locator(".mon-hero .mon-sparkline-plot");
-  const box = (await plot.boundingBox())!;
+  const box = (await page.locator(".mon-hero .nm-area-chart .nm-chart-zoom-hit").boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
-  await expect(plot.locator(".mon-sparkline-readout")).toContainText("ms");
+  await expect(page.locator(".nm-chart-tip")).toContainText("ms");
 });
