@@ -1,6 +1,7 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { IconDeviceDesktop, IconPalette, IconTrash } from "@tabler/icons-react";
+import { BarChart3, Boxes, Package, Palette, Sparkles } from "lucide-react";
 
 import { api, type DeviceTypeOption } from "../../../api/client";
 import { DeviceTypeIconPicker } from "../../../components/IconPicker";
@@ -19,6 +20,10 @@ import {
 import { formatDeviceTypeLabel } from "../../../utils/format";
 import { autoEntityColor, isValidHexColor, resolveEntityColor } from "../../../utils/entityColor";
 import { EntityColorsPanel } from "./EntityColorsPanel";
+import { useApiQuery } from "../../../hooks/useApiQuery";
+import { DashStat } from "../../../components/DashStat";
+import { BarList, CountUp } from "../../../components/Charts";
+import { AdminCard } from "../AdminCard";
 
 function deviceTypeValueFromLabel(label: string) {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -48,6 +53,7 @@ export function DeviceIconsTab({
     removeLocalIconPack: onRemoveLocalIconPack,
   } = useIconPacks();
   const deviceTypesQuery = useDeviceTypes(accessToken);
+  const devicesQuery = useApiQuery(() => api.topologyGraph(accessToken).then((graph) => graph.devices), [accessToken]);
 
   const [iconModalOpen, setIconModalOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -181,9 +187,35 @@ export function DeviceIconsTab({
     }
   }
 
+  const types = deviceTypesQuery.options;
+  const devices = devicesQuery.data ?? [];
+  const builtIn = types.filter((t) => t.is_builtin);
+  const custom = types.filter((t) => !t.is_builtin);
+  const typeName = (t: DeviceTypeOption) => t.label || formatDeviceTypeLabel(t.value);
+  const listNames = (list: DeviceTypeOption[]) => list.length > 3 ? `${list.slice(0, 3).map(typeName).join(", ")}…` : list.map(typeName).join(", ");
+  const perType = new Map<string, number>();
+  for (const d of devices) if (d.device_type) perType.set(d.device_type, (perType.get(d.device_type) ?? 0) + 1);
+  const typeBars = types.map((t) => ({ label: typeName(t), value: perType.get(t.value) ?? 0, color: resolveEntityColor(t.color, t.value) }))
+    .filter((item) => item.value > 0).sort((x, y) => y.value - x.value);
+  const assigned = typeBars.reduce((sum, item) => sum + item.value, 0);
+
   return (
-    <div className="admin-tab-content admin-tab-content--single">
-      <section className="panel admin-panel nm-app-panel device-types-panel">
+    <div className="admin-tab-content nm-motion">
+      <div className="nm-bento nm-bento--four">
+        <AdminCard title="Devices by type" icon={<BarChart3 size={16} />}>
+          {devicesQuery.error ? <p className="tool-note nm-chart-empty">Device counts are unavailable.</p>
+            : <BarList label="Devices per device type" items={typeBars} empty="No devices have a type yet." />}
+        </AdminCard>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<Boxes size={20} />} label="Device types" value={<CountUp value={types.length} />} sub={`${assigned} devices assigned`} />
+          <DashStat accent="blue" className="nm-motion-item" icon={<Package size={20} />} label="Built in" value={<CountUp value={builtIn.length} />} sub={listNames(builtIn) || "None"} />
+          <DashStat accent="purple" className="nm-motion-item" icon={<Sparkles size={20} />} label="Custom" value={<CountUp value={custom.length} />} sub={listNames(custom) || "Add one alongside"} />
+          <DashStat accent="indigo" className="nm-motion-item" icon={<Palette size={20} />} label="Icon pack" value={activePack.name.replace(/^Built-in \((.*)\)$/, "$1")} sub={activePack.id === builtInIconPack.id ? "Built-in set" : "Custom set"} />
+        </div>
+      </div>
+      <div className="nm-console">
+        <div className="nm-console-main">
+      <section className="panel admin-panel nm-app-panel device-types-panel nm-fill nm-motion-item" aria-label="Device types">
         {/* Icon pack is a one-control concern, so it rides in this panel's header rather
             than occupying a panel of its own whose entire body was a single button. */}
         <div className="nm-app-panel-header admin-panel-header">
@@ -202,28 +234,6 @@ export function DeviceIconsTab({
           </button>
         </div>
 
-        <div className="admin-resource-layout">
-          <AdminTaskPanel title="New device type" icon={<IconDeviceDesktop size={18} />}>
-        <form className="device-icons-create-form" onSubmit={createDeviceType}>
-          <label className="nm-field">
-            <span>Device type</span>
-            <input
-              className="nm-input"
-              maxLength={80}
-              placeholder="e.g. UPS, PDU, iDRAC"
-              value={newDeviceTypeLabel}
-              onChange={(event) => setNewDeviceTypeLabel(event.target.value)}
-            />
-          </label>
-          <label className="nm-field">
-            <span>Default icon</span>
-            <DeviceTypeIconPicker currentIcon={newDeviceTypeIcon} onSelect={setNewDeviceTypeIcon} />
-          </label>
-          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy === "create" || !newDeviceTypeValue}>
-            {busy === "create" ? "Adding..." : "Add type"}
-          </button>
-        </form>
-          </AdminTaskPanel>
           <AdminTaskPanel title="Type library" icon={<IconDeviceDesktop size={18} />}>
 
 
@@ -346,7 +356,6 @@ export function DeviceIconsTab({
           </table>
         </div>
           </AdminTaskPanel>
-        </div>
 
         <div className="icon-mgr-device-types-actions nm-btn-row">
           <button type="button" className="nm-btn nm-btn--primary" onClick={() => saveTypeIconMap(typeIconMap)}>
@@ -358,6 +367,31 @@ export function DeviceIconsTab({
           {typeIconSaved && <span className="icon-mgr-saved-tick">Saved</span>}
         </div>
       </section>
+        </div>
+        <aside className="nm-console-side">
+          <AdminTaskPanel title="New device type" icon={<IconDeviceDesktop size={18} />} className="nm-fill">
+        <form className="device-icons-create-form" onSubmit={createDeviceType}>
+          <label className="nm-field">
+            <span>Device type</span>
+            <input
+              className="nm-input"
+              maxLength={80}
+              placeholder="e.g. UPS, PDU, iDRAC"
+              value={newDeviceTypeLabel}
+              onChange={(event) => setNewDeviceTypeLabel(event.target.value)}
+            />
+          </label>
+          <label className="nm-field">
+            <span>Default icon</span>
+            <DeviceTypeIconPicker currentIcon={newDeviceTypeIcon} onSelect={setNewDeviceTypeIcon} />
+          </label>
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={busy === "create" || !newDeviceTypeValue}>
+            {busy === "create" ? "Adding..." : "Add type"}
+          </button>
+        </form>
+          </AdminTaskPanel>
+        </aside>
+      </div>
 
       <EntityColorsPanel accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
 
