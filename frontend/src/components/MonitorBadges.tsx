@@ -38,7 +38,7 @@ export function AnomalyBadge({ level, score }: { level: string; score: number | 
 }
 
 function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
-  const valid = data.filter((d) => d.rtt_ms !== null);
+  const valid = data.filter((d) => typeof d.rtt_ms === "number");
   if (valid.length < 2) {
     return <p className="dash-empty" style={{ margin: "12px 0 0" }}>Not enough data yet.</p>;
   }
