@@ -171,6 +171,35 @@ test("VLANs count devices per group and summarise address space", async ({ page 
   await expect(page.locator(".dash-stat", { hasText: "Usable addresses" }).locator(".dash-stat-value")).toHaveText("764");
 });
 
+test("ring legends pair each name with a share bar that fills the row", async ({ page }) => {
+  await boot(page);
+  await page.goto("/monitoring");
+  const legend = page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend");
+  await expect(legend.locator("li").first()).toBeVisible();
+  const shape = await legend.evaluate((ul) => {
+    const text = (node: Element) => { const range = document.createRange(); range.selectNodeContents(node); return range.getBoundingClientRect(); };
+    const body = ul.closest(".nm-chart-body")!.getBoundingClientRect();
+    return [...ul.querySelectorAll("li")].map((li) => {
+      const track = li.querySelector(".nm-chart-legend-track")!.getBoundingClientRect();
+      const fill = li.querySelector(".nm-chart-legend-track i")!.getBoundingClientRect();
+      return {
+        barLeft: track.left,
+        nameToBar: track.left - text(li.querySelector(".nm-chart-legend-label")!).right,
+        barToValue: text(li.querySelector("strong")!).left - track.right,
+        valueToEdge: body.right - text(li.querySelector("strong")!).right,
+        share: fill.width / track.width,
+      };
+    });
+  });
+  expect(new Set(shape.map((row) => Math.round(row.barLeft))).size, "bars start in one column").toBe(1);
+  expect(Math.min(...shape.map((row) => row.nameToBar)), "the longest name sits next to its bar").toBeLessThanOrEqual(24);
+  for (const row of shape) {
+    expect(row.barToValue).toBeLessThanOrEqual(24);
+    expect(row.valueToEdge, "the row reaches across the panel").toBeLessThanOrEqual(40);
+  }
+  expect(shape[0].share, "1 of 2 devices fills √½ of the track on the square-root scale").toBeCloseTo(Math.SQRT1_2, 1);
+});
+
 test("Overview plays the shared entrance motion and drops it under reduced motion", async ({ page }) => {
   await boot(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });

@@ -3,11 +3,15 @@ import { createPortal } from "react-dom";
 
 /** A chart colour is the name of an existing token, e.g. "--dash-blue". */
 export type ChartColor = `--${string}`;
-export type ChartItem = { label: string; value: number; color: ChartColor };
+/** A token name, or a runtime entity colour such as a site's hex colour. */
+export type ChartPaint = ChartColor | (string & {});
+export type ChartItem = { label: string; value: number; color: ChartPaint };
+
+export const paint = (color?: ChartPaint) => (color?.startsWith("--") ? `var(${color})` : color ?? "var(--dash-blue)");
 
 const fmt = (n: number) => n.toLocaleString();
 
-type TipRow = { color: ChartColor; label: string; value: string };
+type TipRow = { color: ChartPaint; label: string; value: string };
 type Tip = { anchor: DOMRect; title: string; rows: TipRow[] } | null;
 
 function ChartTooltip({ tip }: { tip: Tip }) {
@@ -26,7 +30,7 @@ function ChartTooltip({ tip }: { tip: Tip }) {
       <div className="hb-tooltip-header"><span className="hb-tooltip-date">{tip.title}</span></div>
       {tip.rows.map((row) => (
         <div key={row.label} className="nm-chart-tip-row">
-          <span className="nm-chart-swatch" style={{ background: `var(${row.color})` }} aria-hidden="true" />
+          <span className="nm-chart-swatch" style={{ background: paint(row.color) }} aria-hidden="true" />
           <span>{row.label}</span>
           <strong>{row.value}</strong>
         </div>
@@ -42,14 +46,24 @@ function useTip() {
   return { tip, show, hide: () => setTip(null) };
 }
 
-export function ChartLegend({ items, unit = "" }: { items: ChartItem[]; unit?: string }) {
+export type LegendShow = "value" | "percent" | "both";
+
+export function ChartLegend({ items, unit = "", show = "value", bars = false }: { items: ChartItem[]; unit?: string; show?: LegendShow; bars?: boolean }) {
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  const pct = (value: number) => `${total ? Math.round((value / total) * 100) : 0}%`;
   return (
-    <ul className="nm-chart-legend">
-      {items.map((item) => (
+    <ul className={`nm-chart-legend${bars ? " nm-chart-legend--bars" : ""}${show === "both" ? " nm-chart-legend--both" : ""}`}>
+      {items.map((item, index) => (
         <li key={item.label}>
-          <span className="nm-chart-swatch" style={{ background: `var(${item.color})` }} aria-hidden="true" />
+          <span className="nm-chart-swatch" style={{ background: paint(item.color) }} aria-hidden="true" />
           <span className="nm-chart-legend-label">{item.label}</span>
-          <strong>{fmt(item.value)}{unit}</strong>
+          {bars && (
+            <span className="nm-chart-legend-track" aria-hidden="true">
+              <i style={{ width: `${total ? Math.sqrt(item.value / total) * 100 : 0}%`, background: paint(item.color), "--nm-chart-i": index } as CSSProperties} />
+            </span>
+          )}
+          <strong>{show === "percent" ? pct(item.value) : `${fmt(item.value)}${unit}`}</strong>
+          {show === "both" && <span className="nm-chart-legend-pct">{pct(item.value)}</span>}
         </li>
       ))}
     </ul>
@@ -57,13 +71,16 @@ export function ChartLegend({ items, unit = "" }: { items: ChartItem[]; unit?: s
 }
 
 /** Multi-segment ring on the UsageRing geometry, with a legend and per-segment tooltips. */
-export function DonutChart({ items, centre, sub, unit = "", label, legend = true }: {
+export function DonutChart({ items, centre, sub, unit = "", label, legend = true, legendShow = "value", legendPosition = "side", legendBars = true }: {
   items: ChartItem[];
   centre: ReactNode;
   sub: string;
   unit?: string;
   label: string;
   legend?: boolean;
+  legendShow?: LegendShow;
+  legendPosition?: "side" | "below";
+  legendBars?: boolean;
 }) {
   const { tip, show, hide } = useTip();
   const total = items.reduce((sum, item) => sum + item.value, 0);
@@ -72,7 +89,7 @@ export function DonutChart({ items, centre, sub, unit = "", label, legend = true
   const visible = items.filter((item) => item.value > 0);
   let offset = 0;
   return (
-    <div className="nm-donut-chart">
+    <div className={`nm-donut-chart${legendPosition === "below" ? " nm-donut-chart--below" : ""}`}>
       <div className="dash-donut-wrap nm-usage-ring nm-donut-ring">
         <svg className="dash-donut-svg" viewBox="0 0 100 100" role="img" aria-label={`${label}: ${items.map((i) => `${i.label} ${fmt(i.value)}${unit}`).join(", ")}`}>
           <circle className="nm-usage-ring-track" cx="50" cy="50" r={r} fill="none" strokeWidth="10" />
@@ -92,7 +109,7 @@ export function DonutChart({ items, centre, sub, unit = "", label, legend = true
                 strokeDashoffset={dashOffset}
                 tabIndex={0}
                 aria-label={`${item.label} ${fmt(item.value)}${unit}`}
-                style={{ stroke: `var(${item.color})`, "--nm-chart-i": index } as CSSProperties}
+                style={{ stroke: paint(item.color), "--nm-chart-i": index } as CSSProperties}
                 onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide}
               />
             );
@@ -100,7 +117,7 @@ export function DonutChart({ items, centre, sub, unit = "", label, legend = true
         </svg>
         <div className="dash-donut-center"><span className="dash-donut-pct">{centre}</span><span className="dash-donut-label">{sub}</span></div>
       </div>
-      {legend && <ChartLegend items={items} unit={unit} />}
+      {legend && <ChartLegend items={items} unit={unit} show={legendShow} bars={legendBars} />}
       <ChartTooltip tip={tip} />
     </div>
   );
@@ -123,7 +140,7 @@ export type ColumnSeries = { key: string; label: string; color: ChartColor };
  * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column.
  * `scale="sqrt"` keeps small columns readable beside a dominant one and drops the y-axis numbers, so pair it with `valueLabels`. */
 export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28, scale = "linear" }: {
-  rows: ({ label: string; color?: ChartColor } & Record<string, number | string>)[];
+  rows: ({ label: string; color?: ChartPaint } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
   height?: number;
@@ -188,7 +205,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
                   const h = total ? (value(row, s.key) / total) * colH : 0;
                   const y = base - h;
                   base = y;
-                  return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: `var(${row.color ?? s.color})` }} />;
+                  return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: paint(row.color ?? s.color) }} />;
                 })}
                 {valueLabels && (
                   <>
@@ -223,7 +240,7 @@ export function StackBar({ items, label, of = "of total" }: { items: ChartItem[]
           const onEnter = (event: { currentTarget: Element }) => show(event.currentTarget, item.label, [{ color: item.color, label: `${((item.value / total) * 100).toFixed(1)}% ${of}`, value: fmt(item.value) }]);
           return (
             <span key={item.label} tabIndex={0} aria-label={`${item.label} ${fmt(item.value)}`}
-              style={{ flex: `${item.value} 0 0`, background: `var(${item.color})`, "--nm-chart-i": index } as CSSProperties}
+              style={{ flex: `${item.value} 0 0`, background: paint(item.color), "--nm-chart-i": index } as CSSProperties}
               onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide} />
           );
         })}
@@ -264,7 +281,7 @@ export function CountUp({ value, decimals = 0, prefix = "", suffix = "" }: { val
   return <>{prefix}{shown.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{suffix}</>;
 }
 
-export type BarItem = { label: string; value: number; color?: ChartColor | string; hint?: string };
+export type BarItem = { label: string; value: number; color?: ChartPaint; hint?: string };
 
 /** Horizontal bars with a label and count per row; colours are tokens or runtime entity colours. */
 export function BarList({ items, label, max, unit = "", empty = "Nothing to show yet." }: {
@@ -277,12 +294,11 @@ export function BarList({ items, label, max, unit = "", empty = "Nothing to show
   const { tip, show, hide } = useTip();
   if (items.length === 0) return <p className="tool-note nm-chart-empty">{empty}</p>;
   const top = max ?? Math.max(1, ...items.map((item) => item.value));
-  const paint = (color?: string) => (color?.startsWith("--") ? `var(${color})` : color ?? "var(--dash-blue)");
   return (
     <ul className="nm-bar-list" aria-label={label}>
       {items.map((item, index) => {
         const value = `${item.value.toLocaleString()}${unit}`;
-        const onEnter = (event: { currentTarget: Element }) => show(event.currentTarget, item.label, [{ color: (item.color?.startsWith("--") ? item.color : "--dash-blue") as ChartColor, label: item.hint ?? label, value }]);
+        const onEnter = (event: { currentTarget: Element }) => show(event.currentTarget, item.label, [{ color: item.color ?? "--dash-blue", label: item.hint ?? label, value }]);
         return (
           <li key={item.label} tabIndex={0} aria-label={`${item.label}: ${value}`} onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide}>
             <span className="nm-bar-list-label">{item.label}</span>
