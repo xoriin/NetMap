@@ -346,7 +346,7 @@ for (const style of ["slate", "zinc"] as const) {
   });
 }
 
-test("page content stops at 1800px and stays centred while the top bar and Topology keep full width", async ({ page }) => {
+test("page content cap grows with the screen and stays centred while the top bar and Topology keep full width", async ({ page }) => {
   await page.setViewportSize({ width: 2200, height: 1000 });
   await setupWorkspaceMocks(page, "dark");
   const contentBox = () => page.locator(".workspace").evaluate((node) => {
@@ -362,6 +362,16 @@ test("page content stops at 1800px and stays centred while the top bar and Topol
     expect(Math.abs(box.left - box.right), route).toBeLessThanOrEqual(1);
     await expect(page.locator(".app-topbar")).toHaveCSS("padding-left", "28px");
   }
+  // 1080p is unaffected (the cap is never reached), 1440p widens to 80vw, very wide screens stop at 2400px.
+  for (const [viewport, expected] of [[1920, 1640], [2560, 2048], [3840, 2400]] as const) {
+    await page.setViewportSize({ width: viewport, height: 1000 });
+    await page.goto("/overview");
+    await expect(page.locator(".nm-summary-band").first()).toBeVisible({ timeout: 10_000 });
+    const box = await contentBox();
+    expect(Math.round(box.width), `${viewport}px viewport`).toBe(expected);
+    expect(Math.abs(box.left - box.right), `${viewport}px viewport`).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 2200, height: 1000 });
   await page.goto("/topology");
   await expect(page.locator("#topology")).toBeVisible();
   await expect(page.locator(".workspace")).toHaveCSS("padding-left", "0px");
