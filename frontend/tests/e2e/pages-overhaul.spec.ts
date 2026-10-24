@@ -195,9 +195,20 @@ test("Overview puts health beside the tiles, outages in the side column and brea
   await expect(health.locator(".dash-donut-svg")).toBeVisible();
   await expect(health.locator(".nm-chart-legend")).toHaveCount(0);
   const statusColumns = health.locator(".nm-column-chart .nm-chart-col");
-  await expect(statusColumns).toHaveCount(5);
-  await expect(health.locator(".nm-column-chart .nm-chart-axis").filter({ hasText: /^(Online|Offline|Warning|Paused|Unknown)$/ })).toHaveCount(5);
-  await expect(health.locator(".nm-chart-value")).toHaveText(["2", "1", "0", "0", "0"]);
+  await expect(statusColumns, "statuses with no devices are left out").toHaveCount(2);
+  await expect(health.locator(".nm-column-chart .nm-chart-axis")).toHaveText(["Online", "Offline"]);
+  await expect(health.locator(".nm-chart-value")).toHaveText(["2", "1"]);
+  const shape = await health.locator(".nm-column-chart svg").evaluate((svg) => {
+    const bars = [...svg.querySelectorAll<SVGPathElement>(".nm-chart-col path")].map((path) => path.getBBox().height);
+    const pills = [...svg.querySelectorAll(".nm-chart-col")].map((col) => {
+      const pill = col.querySelector(".nm-chart-value-bg");
+      const text = col.querySelector(".nm-chart-value")!;
+      return pill ? [...col.children].indexOf(pill) < [...col.children].indexOf(text) : false;
+    });
+    return { ratio: bars[1] / bars[0], pills };
+  });
+  expect(shape.ratio, "a square-root scale keeps small statuses readable (linear would be 0.5)").toBeCloseTo(Math.SQRT1_2, 1);
+  expect(shape.pills, "each value sits on its own pill").toEqual([true, true]);
   await statusColumns.first().locator(".nm-chart-hit").hover();
   await expect(statusColumns.first().locator("path")).toHaveCSS("fill", "rgb(45, 186, 124)");
   await expect(statusColumns.first().locator(".nm-chart-hit")).toHaveCSS("fill", "rgba(0, 0, 0, 0)");

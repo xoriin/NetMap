@@ -120,8 +120,9 @@ function roundTop(x: number, y: number, w: number, h: number, r: number) {
 export type ColumnSeries = { key: string; label: string; color: ChartColor };
 
 /** Stacked column chart: one axis, recessive grid, rounded data ends, per-column tooltip.
- * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column. */
-export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28 }: {
+ * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column.
+ * `scale="sqrt"` keeps small columns readable beside a dominant one and drops the y-axis numbers, so pair it with `valueLabels`. */
+export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28, scale = "linear" }: {
   rows: ({ label: string; color?: ChartColor } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
@@ -129,6 +130,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
   unit?: string;
   valueLabels?: boolean;
   barMax?: number;
+  scale?: "linear" | "sqrt";
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -140,7 +142,8 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
     observer.observe(host.current);
     return () => observer.disconnect();
   }, []);
-  const padL = 34, padB = 22, padT = valueLabels ? 22 : 8;
+  const sqrt = scale === "sqrt";
+  const padL = sqrt ? 4 : 34, padB = 22, padT = valueLabels ? 26 : 8;
   const value = (row: (typeof rows)[number], key: string) => Number(row[key]) || 0;
   const max = Math.max(1, ...rows.map((row) => series.reduce((sum, s) => sum + value(row, s.key), 0)));
   const step = niceStep(max / 3);
@@ -151,7 +154,8 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
   const bw = Math.max(4, Math.min(barMax, slot * 0.6));
   const every = Math.max(1, Math.ceil(rows.length / 7));
   const ticks: number[] = [];
-  for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  for (let v = 0; v <= (sqrt ? 0 : top + 1e-9); v += step) ticks.push(v);
+  const columnHeight = (total: number) => (sqrt ? Math.sqrt(total / max) : total / top) * plotH;
   return (
     <div ref={host} className="nm-column-chart">
       {width > 0 && (
@@ -161,7 +165,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
             return (
               <g key={v}>
                 <line className={v ? "nm-chart-grid" : "nm-chart-baseline"} x1={padL} x2={width - 4} y1={y} y2={y} />
-                <text className="nm-chart-axis" x={padL - 6} y={y + 3} textAnchor="end">{fmt(Math.round(v * 10) / 10)}</text>
+                {!sqrt && <text className="nm-chart-axis" x={padL - 6} y={y + 3} textAnchor="end">{fmt(Math.round(v * 10) / 10)}</text>}
               </g>
             );
           })}
@@ -169,6 +173,9 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
             const x = padL + slot * i + (slot - bw) / 2;
             let base = padT + plotH;
             const present = series.filter((s) => value(row, s.key) > 0);
+            const total = series.reduce((sum, s) => sum + value(row, s.key), 0);
+            const totalText = `${fmt(total)}${unit}`;
+            const colH = columnHeight(total);
             const onEnter = (event: { currentTarget: Element }) => {
               setActive(i);
               show(event.currentTarget, row.label, series.map((s) => ({ color: row.color ?? s.color, label: s.label, value: `${fmt(value(row, s.key))}${unit}` })));
@@ -178,15 +185,16 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
               <g key={row.label} className={`nm-chart-col${active === i ? " is-active" : ""}`} style={{ "--nm-chart-i": i } as CSSProperties}>
                 <rect className="nm-chart-col-bg" x={padL + slot * i} y={padT} width={slot} height={plotH} aria-hidden="true" />
                 {present.map((s, si) => {
-                  const h = (value(row, s.key) / top) * plotH;
+                  const h = total ? (value(row, s.key) / total) * colH : 0;
                   const y = base - h;
                   base = y;
                   return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: `var(${row.color ?? s.color})` }} />;
                 })}
                 {valueLabels && (
-                  <text className="nm-chart-value" x={x + bw / 2} y={base - 6} textAnchor="middle">
-                    {fmt(series.reduce((sum, s) => sum + value(row, s.key), 0))}{unit}
-                  </text>
+                  <>
+                    <rect className="nm-chart-value-bg" x={x + bw / 2 - (totalText.length * 7 + 14) / 2} y={base - 23} width={totalText.length * 7 + 14} height={18} rx={9} aria-hidden="true" />
+                    <text className="nm-chart-value" x={x + bw / 2} y={base - 10} textAnchor="middle">{totalText}</text>
+                  </>
                 )}
                 {(rows.length - 1 - i) % every === 0 && (
                   <text className="nm-chart-axis" x={x + bw / 2} y={height - 6} textAnchor="middle">{row.label}</text>

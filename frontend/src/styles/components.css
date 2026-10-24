@@ -1926,6 +1926,7 @@ body.theme-dark .nm-pick-filter input {
 .nm-chart-axis { fill: var(--nm-text-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .nm-chart-hit { fill: transparent; cursor: pointer; outline: none; }
 .nm-chart-col-bg { fill: transparent; pointer-events: none; }
+.nm-chart-value-bg { fill: var(--nm-track-bg); pointer-events: none; }
 .nm-chart-value { fill: var(--nm-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
 .nm-chart-col.is-active .nm-chart-col-bg { fill: var(--nm-row-hover); }
 .nm-chart-col path { transition: opacity .15s ease; }

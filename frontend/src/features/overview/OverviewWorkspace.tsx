@@ -422,9 +422,9 @@ export function OverviewWorkspace({
             <div className="overview-health-combo">
               <DonutChart label="Devices by health" legend={false} centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
                 items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
-              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels
+              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels scale="sqrt"
                 series={[{ key: "devices", label: "Devices", color: "--dash-green" }]}
-                rows={HEALTH_ITEMS.map((item) => ({ label: item.label, devices: statusCounts[item.key], color: item.color }))} />
+                rows={HEALTH_ITEMS.filter((item) => statusCounts[item.key] > 0).map((item) => ({ label: item.label, devices: statusCounts[item.key], color: item.color }))} />
             </div>
           )}
         </InsightPanel>
