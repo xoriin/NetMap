@@ -1,6 +1,6 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { Check, X, Pencil } from "lucide-react";
+import { Check, X, Pencil, KeyRound, Lock, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { IconUsers } from "@tabler/icons-react";
 import { api, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
@@ -8,6 +8,9 @@ import { userInitials } from "../../../utils/format";
 import { TableSkeleton } from "../../../components/Skeleton";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { useToast } from "../../../components/Toast";
+import { DashStat } from "../../../components/DashStat";
+import { BarList, CountUp, DonutChart } from "../../../components/Charts";
+import { AdminCard } from "../AdminCard";
 
 const BUILT_IN_ROLES = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"];
 
@@ -161,9 +164,68 @@ export function UsersTab({
     [users, userSearch],
   );
 
+  const twoFactor = users.filter((u) => u.totp_enabled).length;
+  const ssoOnly = users.filter((u) => !u.totp_enabled && u.auth_source === "oidc").length;
+  const passwordOnly = users.length - twoFactor - ssoOnly;
+  const activeCount = users.filter((u) => u.is_active).length;
+  const roleCounts = new Map<string, number>();
+  for (const u of users) roleCounts.set(u.role, (roleCounts.get(u.role) ?? 0) + 1);
+  const roleOrder = [...BUILT_IN_ROLES, ...[...roleCounts.keys()].filter((r) => !BUILT_IN_ROLES.includes(r)).sort()];
+  const roleItems = roleOrder.filter((r) => roleCounts.has(r)).map((r) => ({ label: r, value: roleCounts.get(r) ?? 0 }));
+
   return (
-    <div className="admin-tab-content">
-      <section className="panel admin-panel nm-app-panel">
+    <div className="admin-tab-content nm-motion">
+      <div className="nm-bento nm-bento--four">
+        <AdminCard title="Sign-in security" icon={<ShieldCheck size={16} />}>
+          {users.length > 0
+            ? <DonutChart label="Sign-in security" centre={<CountUp value={Math.round((twoFactor / users.length) * 100)} suffix="%" />} sub="2FA" items={[
+                { label: "Two-factor", value: twoFactor, color: "--dash-green" },
+                { label: "SSO only", value: ssoOnly, color: "--dash-blue" },
+                { label: "Password only", value: passwordOnly, color: "--dash-amber" },
+              ]} />
+            : <p className="tool-note nm-chart-empty">No users yet.</p>}
+        </AdminCard>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<UsersIcon size={20} />} label="Users" value={<CountUp value={users.length} />} sub={`${activeCount} active · ${users.length - activeCount} disabled`} />
+          <DashStat accent="green" className="nm-motion-item" icon={<ShieldCheck size={20} />} label="Two-factor" value={<CountUp value={twoFactor} />} sub={users.length ? `${Math.round((twoFactor / users.length) * 100)}% of users` : "No users"} />
+          <DashStat accent="blue" className="nm-motion-item" icon={<KeyRound size={20} />} label="SSO accounts" value={<CountUp value={users.filter((u) => u.auth_source === "oidc").length} />} sub="Signed in via OIDC" />
+          <DashStat accent="amber" className="nm-motion-item" icon={<Lock size={20} />} label="Password only" value={<CountUp value={passwordOnly} />} sub="No 2FA or SSO" />
+        </div>
+      </div>
+      <div className="nm-console nm-console--even">
+        <div className="nm-console-main">
+      <AdminTaskPanel title="Add user" icon={<IconUsers size={18} />} className="nm-fill">
+            <form className="tool-form admin-create-form" onSubmit={createUser}>
+              <div className="tool-form-grid">
+                <label>Username <input required minLength={3} maxLength={80} value={createForm.username} onChange={(e) => setCreateForm((c) => ({ ...c, username: e.target.value }))} /></label>
+                <label>Password <input required minLength={12} type="password" value={createForm.password} onChange={(e) => setCreateForm((c) => ({ ...c, password: e.target.value }))} /></label>
+              </div>
+              <div className="tool-form-grid">
+                <label>Email <input type="email" maxLength={254} placeholder="Optional — for password reset emails" value={createForm.email} onChange={(e) => setCreateForm((c) => ({ ...c, email: e.target.value }))} /></label>
+                <label>Role
+                  <select value={createForm.role} onChange={(e) => setCreateForm((c) => ({ ...c, role: e.target.value }))}>
+                    <option value="Viewer">Viewer</option>
+                    <option value="SecurityAnalyst">SecurityAnalyst</option>
+                    <option value="NetworkAdmin">NetworkAdmin</option>
+                    {canManageSuperAdmins && <option value="SuperAdmin">SuperAdmin</option>}
+                    {customRoles.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="tool-form-inline-check"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
+              <button type="submit" className="nm-btn nm-btn--primary">Create user</button>
+            </form>
+          </AdminTaskPanel>
+        </div>
+        <aside className="nm-console-side">
+          <AdminCard title="Users by role" icon={<UsersIcon size={16} />} className="nm-fill">
+            <BarList label="Users per role" items={roleItems} empty="No users yet." />
+          </AdminCard>
+        </aside>
+      </div>
+      <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Users">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconUsers size={16} />Users</h2>
           <button type="button" className="nm-btn" onClick={onReloadUsers}>Refresh</button>
@@ -292,30 +354,7 @@ export function UsersTab({
         )}
 
       </section>
-      <AdminTaskPanel title="Add user" icon={<IconUsers size={18} />}>
-        <form className="tool-form admin-create-form" onSubmit={createUser}>
-          <div className="tool-form-grid">
-            <label>Username <input required minLength={3} maxLength={80} value={createForm.username} onChange={(e) => setCreateForm((c) => ({ ...c, username: e.target.value }))} /></label>
-            <label>Password <input required minLength={12} type="password" value={createForm.password} onChange={(e) => setCreateForm((c) => ({ ...c, password: e.target.value }))} /></label>
-          </div>
-          <div className="tool-form-grid">
-            <label>Email <input type="email" maxLength={254} placeholder="Optional — for password reset emails" value={createForm.email} onChange={(e) => setCreateForm((c) => ({ ...c, email: e.target.value }))} /></label>
-            <label>Role
-              <select value={createForm.role} onChange={(e) => setCreateForm((c) => ({ ...c, role: e.target.value }))}>
-                <option value="Viewer">Viewer</option>
-                <option value="SecurityAnalyst">SecurityAnalyst</option>
-                <option value="NetworkAdmin">NetworkAdmin</option>
-                {canManageSuperAdmins && <option value="SuperAdmin">SuperAdmin</option>}
-                {customRoles.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label className="tool-form-inline-check"><input checked={createForm.is_active} type="checkbox" onChange={(e) => setCreateForm((c) => ({ ...c, is_active: e.target.checked }))} />Active on create</label>
-          <button type="submit" className="nm-btn nm-btn--primary">Create user</button>
-        </form>
-      </AdminTaskPanel>
+
     </div>
   );
 }
