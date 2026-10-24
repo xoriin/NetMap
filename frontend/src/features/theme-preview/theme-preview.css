@@ -2333,3 +2333,4 @@ body.theme-dark .theme-lab-review-section:first-of-type .theme-lab-panel-header 
 /* Neutral bar tracks share the application dark palette. */
 body.theme-dark .theme-lab-progress,
 body.theme-dark .theme-lab-progress-track { background: var(--nm-track-bg); }
+.theme-lab-charts { display: grid; gap: var(--nm-space-5); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: center; }

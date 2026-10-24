@@ -1891,3 +1891,53 @@ body.theme-dark .nm-pick-filter input {
     text-align: left;
   }
 }
+
+/* Charts (components/Charts.tsx). Colours come from --dash-* / --nm-* tokens only; tooltips reuse .hb-tooltip-card. */
+.nm-donut-chart { display: flex; align-items: center; gap: var(--nm-space-5); min-width: 0; }
+.nm-donut-chart .nm-donut-ring,
+.nm-donut-chart .nm-donut-ring .dash-donut-svg { width: 116px; height: 116px; flex: 0 0 116px; }
+.nm-chart-seg { cursor: pointer; outline: none; transition: stroke-width .12s ease; }
+.nm-chart-seg:hover, .nm-chart-seg:focus-visible { stroke-width: 12; }
+
+.nm-chart-legend { display: grid; flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; gap: var(--nm-space-2); list-style: none; }
+.nm-chart-legend li { display: grid; align-items: center; gap: var(--nm-space-2); grid-template-columns: 10px minmax(0, 1fr) auto; color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
+.nm-chart-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-chart-legend strong { color: var(--nm-text); font-variant-numeric: tabular-nums; }
+.nm-chart-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+
+.nm-column-chart { min-width: 0; }
+.nm-column-chart svg { display: block; overflow: visible; }
+.nm-chart-grid { stroke: var(--nm-border); stroke-width: 1; stroke-dasharray: 2 4; }
+.nm-chart-baseline { stroke: var(--nm-border); stroke-width: 1; }
+.nm-chart-axis { fill: var(--nm-text-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.nm-chart-hit { fill: transparent; cursor: pointer; outline: none; }
+.nm-chart-col.is-active .nm-chart-hit, .nm-chart-hit:focus-visible { fill: var(--nm-row-hover); }
+.nm-chart-col path { transition: opacity .15s ease; }
+.has-active .nm-chart-col:not(.is-active) path { opacity: .55; }
+
+.nm-stackbar { display: flex; gap: 2px; height: 12px; margin-bottom: var(--nm-space-3); overflow: hidden; border-radius: 99px; background: var(--nm-track-bg); }
+.nm-stackbar > span { min-width: 4px; cursor: pointer; outline: none; }
+.nm-stackbar > span:hover, .nm-stackbar > span:focus-visible { filter: brightness(1.15); }
+
+.nm-sparkbars { display: inline-flex; align-items: flex-end; gap: 2px; width: 98px; height: 24px; }
+.nm-sparkbars > i { flex: 1; border-radius: 2px 2px 0 0; background: var(--dash-green); }
+.nm-sparkbars > i.is-empty { background: var(--nm-track-bg); }
+
+.nm-chart-tip-row { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; margin-top: 6px; color: var(--nm-text-muted); }
+.nm-chart-tip-row strong { color: var(--nm-text); font-variant-numeric: tabular-nums; }
+
+/* Chart entrance motion: plays when the chart mounts inside .nm-motion; off under reduced motion. */
+@keyframes nm-grow-y { from { transform: scaleY(0); } 70% { transform: scaleY(1.06); } }
+@keyframes nm-grow-x { from { transform: scaleX(0); } }
+@keyframes nm-sweep { from { stroke-dasharray: 0 999; } }
+@keyframes nm-fade { from { opacity: 0; } }
+@keyframes nm-rise { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .nm-motion .nm-chart-col path { transform-box: fill-box; transform-origin: bottom; animation: nm-grow-y .65s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(250ms + var(--nm-chart-i, 0) * 35ms); }
+  .nm-motion .nm-chart-seg { animation: nm-sweep .9s cubic-bezier(.3, .7, .2, 1) both; animation-delay: calc(300ms + var(--nm-chart-i, 0) * 120ms); }
+  .nm-motion .dash-donut-center, .nm-motion .nm-chart-legend li { animation: nm-fade .6s ease-out .45s both; }
+  .nm-motion .nm-stackbar > span { transform-origin: left; animation: nm-grow-x .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(350ms + var(--nm-chart-i, 0) * 120ms); }
+  .nm-motion .nm-sparkbars > i { transform-origin: bottom; animation: nm-grow-y .5s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(400ms + var(--nm-chart-i, 0) * 25ms); }
+  .nm-motion .nm-motion-item { animation: nm-rise .5s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--nm-motion-i, 0) * 45ms); }
+}
+.nm-donut-chart .dash-donut-center { pointer-events: none; }

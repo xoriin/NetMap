@@ -38,6 +38,7 @@ import {
   Wrench,
 } from "lucide-react";
 import "./theme-preview.css";
+import { ColumnChart, DonutChart, SparkBars, StackBar } from "../../components/Charts";
 import { useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 
 const DEFAULT_TABLE_COL_WIDTHS = [190, 260, 130, 130, 120, 100];
@@ -634,6 +635,21 @@ export function ThemePreviewWorkspace() {
             {authPreview === "login" && <><div className="theme-lab-auth-copy"><h4>Welcome back</h4><p>Sign in to manage your network.</p></div><label className="theme-lab-field"><span>Email</span><input type="email" placeholder="you@example.com" /></label><label className="theme-lab-field"><span>Password</span><input type="password" placeholder="Enter your password" /></label><button type="button" className="nm-btn nm-btn--primary theme-lab-auth-submit"><KeyRound size={14} />Sign in</button><button type="button" className="theme-lab-auth-link">Forgot your password?</button></>}
             {authPreview === "setup" && <><div className="theme-lab-auth-copy"><h4>Create the administrator</h4><p>Set up the first SuperAdmin account.</p></div><label className="theme-lab-field"><span>Full name</span><input placeholder="Network administrator" /></label><label className="theme-lab-field"><span>Email</span><input type="email" placeholder="admin@example.com" /></label><label className="theme-lab-field"><span>Password</span><input type="password" placeholder="At least 12 characters" /></label><button type="button" className="nm-btn nm-btn--primary theme-lab-auth-submit"><UserRound size={14} />Create account</button></>}
             {authPreview === "reset" && <><div className="theme-lab-auth-copy"><h4>Reset your password</h4><p>We will send a secure reset link if the account exists.</p></div><div className="theme-lab-alert theme-lab-alert--info"><Info size={17} /><span><strong>No account details are revealed</strong><small>The response is identical for every email address.</small></span></div><label className="theme-lab-field"><span>Email</span><input type="email" placeholder="you@example.com" /></label><button type="button" className="nm-btn nm-btn--primary theme-lab-auth-submit">Send reset link</button><button type="button" className="theme-lab-auth-link">Back to sign in</button></>}
+          </div>
+        </div>
+      </section>
+      <section className="theme-lab-review-section">
+        <div className="theme-lab-section-heading">
+          <div><span className="theme-lab-step">20</span><h3>Charts</h3></div>
+          <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value.</p>
+        </div>
+        <div className="theme-lab-panel theme-lab-panel--shadow">
+          <PreviewHeader icon={Server} title="Chart components" />
+          <div className="theme-lab-panel-body theme-lab-charts">
+            <DonutChart label="Example storage" unit=" MB" centre="264" sub="MB" items={[{ label: "Firewall database", value: 212.6, color: "--dash-blue" }, { label: "Main database", value: 48.2, color: "--dash-amber" }, { label: "Write-ahead log", value: 3.1, color: "--dash-purple" }]} />
+            <ColumnChart label="Example deliveries per day" height={140} series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} rows={[12, 9, 14, 11, 18, 7, 6].map((sent, i) => ({ label: `Day ${i + 1}`, sent, failed: i === 2 ? 1 : 0 }))} />
+            <StackBar label="Example intake" items={[{ label: "Stored", value: 17960, color: "--dash-green" }, { label: "Dropped unparsed", value: 380, color: "--dash-amber" }, { label: "Denied senders", value: 80, color: "--dash-red" }]} />
+            <SparkBars label="Example sends per day" values={[5, 4, 6, 5, 8, 3, 2, 6, 7, 10, 7, 4, 9, 6]} />
           </div>
         </div>
       </section>
