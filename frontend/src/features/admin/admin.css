@@ -1355,4 +1355,12 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 .admin-layout .admin-snmp-table .admin-row-actions { justify-content: flex-end; }
 .admin-layout .admin-snmp-numbers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
+/* Groups: role permission lists capped at about eight rows with their own scroll */
+.admin-layout .admin-perm-scroll {
+  max-height: 330px;
+  padding-right: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 .admin-layout .admin-snmp-table .admin-col-right { text-align: right; }

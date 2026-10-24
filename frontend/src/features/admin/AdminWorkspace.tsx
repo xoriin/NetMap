@@ -139,7 +139,7 @@ export function AdminWorkspace({
           <AlertsTab accessToken={accessToken} graph={graph} />
         )}
         {activeTab === "groups" && (
-          <GroupsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />
+          <GroupsTab accessToken={accessToken} users={usersQuery.data ?? []} onError={setError} onSuccess={showSuccess} />
         )}
         {activeTab === "credentials" && (
           <CredentialsTab accessToken={accessToken} onError={setError} onSuccess={showSuccess} />

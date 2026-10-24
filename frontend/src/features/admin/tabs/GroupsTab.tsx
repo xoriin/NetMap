@@ -1,17 +1,26 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState } from "react";
 import { IconShieldCheck } from "@tabler/icons-react";
-import { api } from "../../../api/client";
+import { KeyRound, ShieldCheck, UserPlus, Users } from "lucide-react";
+import { api, type User } from "../../../api/client";
+import { DashStat } from "../../../components/DashStat";
+import { BarList, CountUp } from "../../../components/Charts";
+import { AdminCard } from "../AdminCard";
+
+const BUILT_IN_ROLES = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"];
+const roleLabel = (role: string) => role === "NetworkAdmin" ? "Network Admin" : role === "SecurityAnalyst" ? "Security Analyst" : role;
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useConfirm } from "../../../components/ConfirmDialog";
 import { PanelSkeleton } from "../../../components/Skeleton";
 
 export function GroupsTab({
   accessToken,
+  users = [],
   onError,
   onSuccess,
 }: {
   accessToken: string;
+  users?: User[];
   onError: (message: string | null) => void;
   onSuccess: (message: string | null) => void;
 }) {
@@ -81,9 +90,35 @@ export function GroupsTab({
     }
   }
 
+  const permissionCount = rolePermissions?.permissions.length ?? 0;
+  const roleNames = [...BUILT_IN_ROLES, ...Object.keys(localRolePerms).filter((r) => !BUILT_IN_ROLES.includes(r)).sort()];
+  const grantedCount = (role: string) => role === "SuperAdmin" ? permissionCount : (localRolePerms[role] ?? []).length;
+  const customCount = roleNames.length - BUILT_IN_ROLES.length;
+  const areas = new Set((rolePermissions?.permissions ?? []).map((p) => p.key.split("_")[0])).size;
+  const usersPerRole = new Map<string, number>();
+  for (const u of users) usersPerRole.set(u.role, (usersPerRole.get(u.role) ?? 0) + 1);
+  const largestRole = [...usersPerRole.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
   return (
-    <div className="admin-tab-content">
-      <section className="panel admin-panel nm-app-panel">
+    <div className="admin-tab-content nm-motion">
+      <div className="nm-bento nm-bento--four">
+        <AdminCard title="Permission coverage" icon={<ShieldCheck size={16} />}>
+          {rolePermissions ? <>
+            <p className="tool-note">Permissions granted to each role, out of {permissionCount}.</p>
+            <BarList label="Permissions granted per role" max={permissionCount}
+              items={roleNames.map((role) => ({ label: roleLabel(role), value: grantedCount(role), hint: `${grantedCount(role)} of ${permissionCount}` }))} />
+          </> : <PanelSkeleton lines={4} />}
+        </AdminCard>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<ShieldCheck size={20} />} label="Roles" value={<CountUp value={roleNames.length} />} sub={`${BUILT_IN_ROLES.length} built-in`} />
+          <DashStat accent="purple" className="nm-motion-item" icon={<UserPlus size={20} />} label="Custom groups" value={<CountUp value={customCount} />}
+            sub={customCount ? roleNames.slice(BUILT_IN_ROLES.length).join(", ") : "Add one with + New group"} />
+          <DashStat accent="blue" className="nm-motion-item" icon={<KeyRound size={20} />} label="Permissions" value={<CountUp value={permissionCount} />} sub={`Across ${areas} areas`} />
+          <DashStat accent="green" className="nm-motion-item" icon={<Users size={20} />} label="Users assigned" value={<CountUp value={users.length} />}
+            sub={largestRole ? `${roleLabel(largestRole)} is the largest role` : "No users loaded"} />
+        </div>
+      </div>
+      <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Role permissions">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconShieldCheck size={16} />Role Permissions</h2>
           <div className="admin-panel-actions">
@@ -124,18 +159,16 @@ export function GroupsTab({
         )}
 
         {rolePermissions ? (() => {
-          const BUILT_IN = ["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"] as const;
-          const customRoles = Object.keys(localRolePerms).filter(r => !["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(r)).sort();
-          const allRoles = [...BUILT_IN, ...customRoles];
           return (
             <div className="rbac-roles-grid">
-              {allRoles.map((role) => {
+              {roleNames.map((role) => {
                 const isSuperAdmin = role === "SuperAdmin";
-                const isCustom = !["SuperAdmin", "NetworkAdmin", "SecurityAnalyst", "Viewer"].includes(role);
-                const label = role === "NetworkAdmin" ? "Network Admin" : role === "SecurityAnalyst" ? "Security Analyst" : role;
+                const isCustom = !BUILT_IN_ROLES.includes(role);
                 return (
-                  <AdminTaskPanel key={role} title={label} icon={<IconShieldCheck size={18} />} className="admin-role-panel"
-                    actions={isCustom ? (<button
+                  <AdminTaskPanel key={role} title={roleLabel(role)} icon={<IconShieldCheck size={18} />} className="admin-role-panel"
+                    actions={<div className="admin-panel-actions">
+                      <span className="admin-task-count">{grantedCount(role)} of {permissionCount}</span>
+                      {isCustom && (<button
                         type="button"
                         className="nm-btn nm-btn--sm nm-btn--danger"
                         title={`Delete "${role}" group`}
@@ -148,8 +181,9 @@ export function GroupsTab({
                             confirmLabel: "Delete role",
                           }).then((confirmed) => { if (confirmed) void deleteGroup(role); });
                         }}
-                      >✕</button>) : undefined}>
-                    <ul className="rbac-perm-list">
+                      >✕</button>)}
+                    </div>}>
+                    <ul className="rbac-perm-list admin-perm-scroll">
                       {rolePermissions.permissions.map((perm) => {
                         const granted = isSuperAdmin || (localRolePerms[role] ?? []).includes(perm.key);
                         return (
