@@ -104,7 +104,7 @@ test("System puts App settings under the version row with the charts stacked on 
   await setupMocks(page, "slate");
   await page.goto("/admin#system");
   await expect(page.locator(".admin-version-hero")).toBeVisible();
-  const version = await box(page, ".admin-bento");
+  const version = await box(page, ".nm-bento");
   const appSettings = await box(page, ".admin-settings-card");
   const storage = await box(page, '[aria-label="Storage"]');
   const devices = await box(page, '[aria-label="Device status at last check"]');
@@ -116,7 +116,7 @@ test("System puts App settings under the version row with the charts stacked on 
   expect(devices.y).toBeGreaterThan(storage.y + storage.height);
   expect(backupsPanel.y).toBeGreaterThan(devices.y + devices.height);
   expect(syslog.y).toBeGreaterThan(backupsPanel.y + backupsPanel.height);
-  await expect(page.locator(".admin-stats .dash-stat")).toHaveCount(6);
+  await expect(page.locator(".nm-bento-stats .dash-stat")).toHaveCount(6);
   await expect(page.locator('[aria-label="Storage"] .nm-chart-seg')).toHaveCount(3);
   await expect(page.locator('[aria-label="Device status at last check"] .nm-chart-seg')).toHaveCount(3);
   await expect(page.locator('[aria-label="Backup size, last 10"] .nm-chart-col')).toHaveCount(10);

@@ -279,27 +279,27 @@ export function NotificationsTab({
 
   return (
     <div className="admin-tab-content nm-motion">
-      <div className="admin-bento admin-bento--four admin-bento--chart">
+      <div className="nm-bento nm-bento--four nm-bento--chart">
         <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
           <div className="admin-panel-header nm-app-panel-header">
             <h2 className="admin-section-title"><Send size={16} />Deliveries, last {HISTORY_DAYS} days</h2>
-            <ul className="admin-header-legend" aria-hidden="true">
+            <ul className="nm-header-legend" aria-hidden="true">
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
             </ul>
           </div>
-          <div className="admin-chart-body">
+          <div className="nm-chart-body">
             {deliveriesQuery.isLoading ? <PanelSkeleton lines={5} />
-              : !historyOk ? <p className="tool-note admin-chart-empty">Delivery history is unavailable.</p>
+              : !historyOk ? <p className="tool-note nm-chart-empty">Delivery history is unavailable.</p>
               : <>
                   <ColumnChart label={`Notification deliveries per day, last ${HISTORY_DAYS} days, sent and failed`} rows={history.rows}
                     series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} height={168} />
-                  {attempts === 0 && <p className="tool-note admin-chart-empty">No deliveries in the last {HISTORY_DAYS} days.</p>}
-                  {history.truncated && <p className="tool-note admin-chart-empty">Based on the latest {DELIVERY_LIMIT} deliveries.</p>}
+                  {attempts === 0 && <p className="tool-note nm-chart-empty">No deliveries in the last {HISTORY_DAYS} days.</p>}
+                  {history.truncated && <p className="tool-note nm-chart-empty">Based on the latest {DELIVERY_LIMIT} deliveries.</p>}
                 </>}
           </div>
         </section>
-        <div className="dash-stats admin-stats nm-summary-band">
+        <div className="dash-stats nm-bento-stats nm-summary-band">
           <DashStat accent="teal" className="nm-motion-item" icon={<Send size={20} />} label="Methods" value={<CountUp value={notificationProfiles.length} />}
             sub={typeEntries.map(([label]) => label).join(", ") || "None yet"} onClick={() => scrollTo("admin-notification-methods")} />
           <DashStat accent="green" className="nm-motion-item" icon={<CircleCheck size={20} />} label="Active" value={`${activeCount} of ${notificationProfiles.length}`}
@@ -312,9 +312,9 @@ export function NotificationsTab({
         </div>
       </div>
 
-      <div className="admin-console-grid admin-console-grid--even">
-        <div className="admin-main">
-          <section id="admin-notification-methods" className="panel admin-panel nm-app-panel admin-fill nm-motion-item" aria-label="Notification methods" style={motion(1)}>
+      <div className="nm-console nm-console--even">
+        <div className="nm-console-main">
+          <section id="admin-notification-methods" className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="Notification methods" style={motion(1)}>
             <div className="admin-panel-header nm-app-panel-header">
               <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification methods</h2>
               <div className="admin-panel-actions">
@@ -383,19 +383,19 @@ export function NotificationsTab({
             </div>
           </section>
         </div>
-        <aside className="admin-context">
+        <aside className="nm-console-side">
           <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by type" style={motion(2)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by type</h2></div>
-            <div className="admin-chart-body">
+            <div className="nm-chart-body">
               {typeItems.length
                 ? <DonutChart label="Methods by type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
-                : <p className="tool-note admin-chart-empty">No notification methods yet.</p>}
+                : <p className="tool-note nm-chart-empty">No notification methods yet.</p>}
             </div>
           </section>
-          <section className="panel admin-panel nm-app-panel admin-system-card admin-fill nm-motion-item" aria-label="Recent failures" style={motion(3)}>
+          <section className="panel admin-panel nm-app-panel admin-system-card nm-fill nm-motion-item" aria-label="Recent failures" style={motion(3)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><CirclePause size={16} />Recent failures</h2></div>
             {failures.length ? (
-              <ul className="admin-event-list">
+              <ul className="nm-event-list">
                 {failures.slice(0, 5).map((failure) => (
                   <li key={failure.id}>
                     <span className="dash-status-dot dash-status-dot--offline" aria-hidden="true" />
@@ -404,7 +404,7 @@ export function NotificationsTab({
                   </li>
                 ))}
               </ul>
-            ) : <div className="admin-system-card-body"><p className="tool-note admin-chart-empty">{historyOk ? `No failed deliveries in the last ${HISTORY_DAYS} days.` : "Delivery history is unavailable."}</p></div>}
+            ) : <div className="admin-system-card-body"><p className="tool-note nm-chart-empty">{historyOk ? `No failed deliveries in the last ${HISTORY_DAYS} days.` : "Delivery history is unavailable."}</p></div>}
           </section>
         </aside>
       </div>

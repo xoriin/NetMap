@@ -657,6 +657,20 @@ export type AuditLog = {
   detail: string | null;
 };
 
+export type AuditSummary = {
+  days: { date: string; signed_in: number; failed: number }[];
+  by_action: { action: string; count: number }[];
+  by_actor: { actor_user_id: number; username: string; count: number }[];
+  total: number;
+  failed_total: number;
+};
+
+export type ObservationSummary = {
+  days: { date: string; new_device: number; ip_change: number; disappeared: number; other: number }[];
+  open: number;
+  resolved: number;
+};
+
 export type AuditLogList = {
   total: number;
   limit: number;
@@ -2109,6 +2123,8 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  auditSummary: (token: string, days = 14) => request<AuditSummary>(`/api/v1/audit/summary?days=${days}`, { token }),
+  observationSummary: (token: string, days = 14) => request<ObservationSummary>(`/api/v1/discovery/observations/summary?days=${days}`, { token }),
   listAuditLogs: (token: string, params: { limit?: number; offset?: number; actor_user_id?: number; category?: "login" } = {}) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

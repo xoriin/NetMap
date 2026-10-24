@@ -245,3 +245,35 @@ export function CountUp({ value, decimals = 0, prefix = "", suffix = "" }: { val
   }, [value]);
   return <>{prefix}{shown.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{suffix}</>;
 }
+
+export type BarItem = { label: string; value: number; color?: ChartColor | string; hint?: string };
+
+/** Horizontal bars with a label and count per row; colours are tokens or runtime entity colours. */
+export function BarList({ items, label, max, unit = "", empty = "Nothing to show yet." }: {
+  items: BarItem[];
+  label: string;
+  max?: number;
+  unit?: string;
+  empty?: string;
+}) {
+  const { tip, show, hide } = useTip();
+  if (items.length === 0) return <p className="tool-note nm-chart-empty">{empty}</p>;
+  const top = max ?? Math.max(1, ...items.map((item) => item.value));
+  const paint = (color?: string) => (color?.startsWith("--") ? `var(${color})` : color ?? "var(--dash-blue)");
+  return (
+    <ul className="nm-bar-list" aria-label={label}>
+      {items.map((item, index) => {
+        const value = `${item.value.toLocaleString()}${unit}`;
+        const onEnter = (event: { currentTarget: Element }) => show(event.currentTarget, item.label, [{ color: (item.color?.startsWith("--") ? item.color : "--dash-blue") as ChartColor, label: item.hint ?? label, value }]);
+        return (
+          <li key={item.label} tabIndex={0} aria-label={`${item.label}: ${value}`} onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide}>
+            <span className="nm-bar-list-label">{item.label}</span>
+            <span className="nm-bar-list-track"><i style={{ width: `${Math.min(100, (item.value / top) * 100)}%`, background: paint(item.color), "--nm-chart-i": index } as CSSProperties} /></span>
+            <strong>{value}</strong>
+          </li>
+        );
+      })}
+      <ChartTooltip tip={tip} />
+    </ul>
+  );
+}

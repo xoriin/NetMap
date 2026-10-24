@@ -357,7 +357,7 @@ export function SystemTab({
 
   return (
     <div className="admin-tab-content admin-system-page nm-motion">
-      <div className="admin-bento">
+      <div className="nm-bento">
         <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Version" style={motion(0)}>
           <div className="system-icon-header admin-system-card-header nm-app-panel-header">
             <h2 className="admin-section-title" style={{ margin: 0 }}><IconCloud size={16} />Version</h2>
@@ -387,7 +387,7 @@ export function SystemTab({
             </button>
           </div>
         </section>
-        <div className="dash-stats admin-stats nm-summary-band">
+        <div className="dash-stats nm-bento-stats nm-summary-band">
           <DashStat accent="teal" className="nm-motion-item" icon={<Activity size={20} />} label="Live ping interval"
             value={saved.live_ping_enabled ? <CountUp value={saved.monitor_interval_seconds} suffix=" s" /> : "Off"}
             sub={saved.live_ping_enabled ? "Monitoring on" : "Background checks off"} onClick={() => scrollTo("admin-app-settings")} />
@@ -410,8 +410,8 @@ export function SystemTab({
         </div>
       </div>
 
-      <div className="admin-console-grid">
-        <div className="admin-main">
+      <div className="nm-console">
+        <div className="nm-console-main">
           <section id="admin-app-settings" className="panel admin-panel nm-app-panel admin-system-card admin-settings-card nm-motion-item" aria-label="App settings" style={motion(1)}>
             <div className="admin-system-card-header nm-app-panel-header">
               <h2 className="admin-section-title"><Settings size={16} />App settings</h2>
@@ -606,7 +606,7 @@ export function SystemTab({
               </button>
             </form>
           </section>
-          <div className="admin-pair">
+          <div className="nm-pair">
             <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Database backup and restore" style={motion(9)}>
               <div className="admin-system-card-header nm-app-panel-header">
                 <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
@@ -751,29 +751,29 @@ export function SystemTab({
           <StatusPageDefaultCssCard accessToken={accessToken} onError={onError} onSuccess={onSuccess} />
         </div>
 
-        <aside className="admin-context">
+        <aside className="nm-console-side">
           <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Storage" style={motion(2)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Storage</h2></div>
-            <div className="admin-chart-body">
+            <div className="nm-chart-body">
               {storage ? <DonutChart label="Storage" items={storage.items} unit={` ${storage.unit}`} centre={<CountUp value={storage.total} />} sub={storage.unit} />
-                : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note admin-chart-empty">Diagnostics unavailable.</p>}
+                : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
           </section>
           <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Device status at last check" style={motion(3)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Activity size={16} />Device status at last check</h2></div>
-            <div className="admin-chart-body">
+            <div className="nm-chart-body">
               {diagnostics ? (deviceTotal > 0
                 ? <DonutChart label="Device status" items={deviceItems} centre={<CountUp value={onlinePct} suffix="%" />} sub="online" />
-                : <p className="tool-note admin-chart-empty">No monitored devices yet.</p>)
-                : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note admin-chart-empty">Diagnostics unavailable.</p>}
+                : <p className="tool-note nm-chart-empty">No monitored devices yet.</p>)
+                : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
           </section>
           <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Backup size, last 10" style={motion(4)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Backup size, last 10</h2></div>
-            <div className="admin-chart-body">
+            <div className="nm-chart-body">
               {backupRows.length > 0
                 ? <ColumnChart label="Scheduled backup sizes in MB, oldest to newest" rows={backupRows} series={[{ key: "size", label: "Backup size", color: "--dash-blue" }]} unit=" MB" height={132} />
-                : <p className="tool-note admin-chart-empty">Sizes appear after the first scheduled backup.</p>}
+                : <p className="tool-note nm-chart-empty">Sizes appear after the first scheduled backup.</p>}
             </div>
           </section>
           <section id="admin-syslog" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Syslog configuration" style={motion(5)}>
@@ -790,7 +790,7 @@ export function SystemTab({
                           { label: "Dropped unparsed", value: syslogStatus.dropped_unparsed, color: "--dash-amber" },
                           { label: "Denied senders", value: syslogStatus.denied_senders, color: "--dash-red" },
                         ]} />
-                      : <p className="tool-note admin-chart-empty">No packets received since start.</p>}
+                      : <p className="tool-note nm-chart-empty">No packets received since start.</p>}
                   </AdminTaskPanel>
                   <AdminTaskPanel title="Listeners" icon={<Rss size={14} />}>
                     <dl className="admin-config-grid">
