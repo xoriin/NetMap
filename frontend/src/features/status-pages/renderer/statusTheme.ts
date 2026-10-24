@@ -47,7 +47,7 @@ export function statusThemeCss(scheme: "light" | "dark" | null, darkStyle: DarkS
   const dark = root(slate) + (darkStyle === "zinc" ? root(zinc) : "") + ":root{color-scheme:dark;}";
   const colours = root(light) + ":root{color-scheme:light;}" + (scheme === "dark" ? dark
     : scheme === null ? `@media(prefers-color-scheme:dark){${dark}}` : "");
-  // Data fonts preserve the existing no-network, script-free frame CSP.
+  // Data fonts preserve the existing data-only font policy.
   const fonts = [[400, inter400], [500, inter500], [600, inter600]]
     .map(([weight, data]) => `@font-face{font-family:Inter;font-style:normal;font-weight:${weight};font-display:swap;src:url(${data}) format('woff2');}`)
     .join("");

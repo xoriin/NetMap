@@ -20,6 +20,16 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
   const previousRef = useRef<StatusPagePayload | null>(null);
 
   useEffect(() => {
+    const dismiss = (event: KeyboardEvent) => {
+      // An opaque sandbox cannot receive key events while focus stays in the
+      // parent. Send only this fixed dismissal signal, never page/user data.
+      if (event.key === "Escape") frameRef.current?.contentWindow?.postMessage("netmap:status-heartbeat-dismiss", "*");
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, []);
+
+  useEffect(() => {
     const documentHtml = buildStatusDocument(payload, {
       css, now: new Date(), colorScheme, darkStyle, previousPayload: previousRef.current,
     });
@@ -39,7 +49,7 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
       ref={frameRef}
       className={className ? `status-page-frame ${className}` : "status-page-frame"}
       style={{ colorScheme: colorScheme ?? "normal" }}
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
+      sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts"
       referrerPolicy="no-referrer"
       title={title}
     />

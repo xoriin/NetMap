@@ -1,8 +1,10 @@
 import type { DarkStyle } from "../../../providers/ThemeProvider";
 import { statusThemeCss } from "./statusTheme";
+import { monitoringTooltipTheme } from "./monitoringTooltipTheme";
+import { HEARTBEAT_SCRIPT_CSP } from "./heartbeatScript";
 
 export const RENDERER_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";
+  `default-src 'none'; script-src '${HEARTBEAT_SCRIPT_CSP}'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'`;
 
 const STATUS_TOKENS = `
 :root {
@@ -163,28 +165,31 @@ details.sp-row[open] > summary .sp-caret::before { content: "\\25BE"; }
 .sp-beat-slot { position: relative; flex: 1 1 0; min-width: 0; }
 .sp-beat-slot:hover, .sp-beat-slot:focus-within { z-index: 1; }
 .sp-beat-choice { position: absolute; top: 50%; left: 50%; width: 1px; height: 1px; margin: 0; opacity: 0; clip-path: inset(50%); }
-.sp-beat { display: block; width: 100%; height: 100%; border-radius: 4px; background: var(--sp-beat-unknown); }
+.sp-beat { display: block; width: 100%; height: 100%; border-radius: 4px; background: var(--sp-beat-unknown); pointer-events: none; }
 .sp-beat--healthy { background: var(--sp-beat-healthy); }
 .sp-beat--unhealthy { background: var(--sp-beat-unhealthy); }
 .sp-beat--unknown { background: var(--sp-beat-unknown); }
 .sp-beat--maintenance { background: var(--sp-beat-maintenance); }
-/* Match Monitoring's heartbeat arrival inside the script-free sandbox. */
-@keyframes sp-beat-arrive {
-  0% { transform: scale(1, 0); opacity: 0; filter: brightness(1.6); }
-  60% { transform: scale(1.2, 1.25); opacity: 1; filter: brightness(1.35); }
-  100% { transform: scale(1, 1); filter: none; }
-}
-.sp-beat--new {
-  transform-origin: center bottom;
-  animation: sp-beat-arrive 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
-}
+/* Motion and selection come from Monitoring's loaded heartbeat primitives. */
 .sp-beat-choice:focus-visible + .sp-beat { outline: 2px solid var(--nm-focus-border); outline-offset: 2px; }
-/* Independent scale composes with arrival's transform, even on the newest bar.
-   Keep touch strips steady and honour reduced motion for hover as well. */
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .sp-beat { transition: scale 160ms ease; }
-  .sp-beat-slot:hover .sp-beat, .sp-beat-choice:focus-visible + .sp-beat { scale: 1.8 2.1; }
+.sp-heartbeats:not([data-sp-enhanced]):has(.sp-beat-slot:hover) .sp-beat { opacity: .5; }
+.sp-heartbeats:not([data-sp-enhanced]) .sp-beat-slot:hover .sp-beat,
+.sp-heartbeats:not([data-sp-enhanced]) .sp-beat-choice:focus-visible + .sp-beat { --hb-k: 1; opacity: 1; }
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .sp-beat { transform: none; transition: none; opacity: 1 !important; }
 }
+.sp-heartbeat-tooltip {
+  position: fixed; left: 12px; top: 12px; z-index: 9999; width: 260px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow: auto;
+  min-width: 0; color: var(--nm-text);
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.sp-heartbeat-tooltip[data-open="true"] { opacity: 1; visibility: visible; pointer-events: auto; }
+.sp-heartbeat-tooltip-status::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--sp-beat-unknown); }
+.sp-heartbeat-tooltip-status[data-state="healthy"]::before { background: var(--sp-beat-healthy); }
+.sp-heartbeat-tooltip-status[data-state="unhealthy"]::before { background: var(--sp-beat-unhealthy); }
+.sp-heartbeat-tooltip-status[data-state="maintenance"]::before { background: var(--sp-beat-maintenance); }
+.sp-heartbeat-tooltip .hb-tooltip-header { flex-wrap: wrap; }
+.sp-heartbeat-tooltip-info { display: block; color: var(--nm-text-muted); white-space: pre-line; overflow-wrap: anywhere; }
 .sp-response { display: block; height: 64px; border-radius: 6px; background: var(--sp-surface-soft); }
 .sp-response-area { fill: var(--sp-page-accent, var(--sp-accent)); fill-opacity: 0.12; stroke: none; }
 .sp-response-line { fill: none; stroke: var(--sp-page-accent, var(--sp-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -253,5 +258,5 @@ export const REDUCED_MOTION_OVERRIDE = `@layer sp-reduced-motion {
 export type StatusColorScheme = "light" | "dark" | null;
 
 export function builtinStyles(scheme: StatusColorScheme, darkStyle: DarkStyle = "slate"): string {
-  return statusThemeCss(scheme, darkStyle) + STATUS_TOKENS + BASE_STYLES;
+  return statusThemeCss(scheme, darkStyle) + STATUS_TOKENS + monitoringTooltipTheme(scheme) + BASE_STYLES;
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, test, type FrameLocator, type Page, type Route } from "@playwright/test";
 
 const SLUG = "acme";
@@ -97,18 +98,32 @@ test("public page renders without calling auth refresh", async ({ page }) => {
   expect(new Set(apiCalls)).toEqual(new Set([`/api/v1/public/status-pages/${SLUG}`]));
 });
 
-test("renderer frame is sandboxed without scripts or same-origin", async ({ page }) => {
+test("renderer only allows its hashed controller and stays isolated", async ({ page }) => {
   await blockEverythingElse(page);
   const body = payload();
   await page.route(PUBLIC_URL, (route) => fulfillPayload(route, body));
   await page.goto(`/status/${SLUG}`);
 
   const frame = page.locator("iframe.status-page-frame");
-  await expect(frame).toHaveAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
+  await expect(frame).toHaveAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox allow-scripts");
   await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
   const doc = (await frame.getAttribute("srcdoc")) ?? "";
   expect(doc).toMatch(/^<!doctype html><html[^>]*><head><meta http-equiv="Content-Security-Policy" content="default-src 'none';/);
-  expect(doc.toLowerCase()).not.toContain("<script");
+  await expect(statusFrame(page).locator("script")).toHaveCount(1);
+  const scriptText = await statusFrame(page).locator("script").textContent();
+  const csp = await statusFrame(page).locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
+  expect(csp).toContain("script-src 'sha256-" + createHash("sha256").update(scriptText!).digest("base64") + "';");
+  await expect(statusFrame(page).locator(".sp-heartbeat-tooltip")).toHaveCount(1);
+  const security = await statusFrame(page).locator("body").evaluate(node => {
+    const bad = document.createElement("script");
+    bad.textContent = "document.body.dataset.injected = 'yes'";
+    document.body.append(bad);
+    let parentAccess, storageAccess;
+    try { void parent.document.body; parentAccess = true; } catch { parentAccess = false; }
+    try { void localStorage.length; storageAccess = true; } catch { storageAccess = false; }
+    return { injected: node.dataset.injected, parentAccess, storageAccess };
+  });
+  expect(security).toEqual({ injected: undefined, parentAccess: false, storageAccess: false });
   expect(doc).not.toContain(body.generated_at);
   expect(doc).not.toContain(body.valid_until);
   expect(doc).not.toMatch(/https?:\/\//);

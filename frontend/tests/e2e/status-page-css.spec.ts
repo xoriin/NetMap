@@ -107,7 +107,7 @@ test("invalid stored css falls back to built-in style", async ({ page }) => {
   await expect(row).toBeVisible();
   expect(await computed(row, "backgroundColor")).toBe(builtin);
   await expect(frame.locator("style[data-sp-custom]")).toHaveCount(0);
-  await expect(frame.locator("script")).toHaveCount(0);
+  await expect(frame.locator("script")).toHaveCount(1);
   expect(await page.evaluate(() => document.body.dataset.pwned)).toBeUndefined();
 });
 

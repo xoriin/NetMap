@@ -3,6 +3,7 @@ import type {
   StatusPageGroupPayload, StatusPastEntry, StatusPastMaintenance, StatusPageItemPayload, StatusPagePayload, StatusSummaryState,
 } from "../statusPagesApi";
 import { themeCss } from "./themeCss";
+import { HEARTBEAT_SCRIPT } from "./heartbeatScript";
 import type { DarkStyle } from "../../../providers/ThemeProvider";
 import { REDUCED_MOTION_OVERRIDE, RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
@@ -230,13 +231,15 @@ function heartbeatBar(b: Builder, item: StatusPageItemPayload, window: string): 
     const node = b.el("span", `sp-beat sp-beat--${kind}${b.arrivals.get(item.id)?.has(index) ? " sp-beat--new" : ""}`);
     const slot = b.el("label", "sp-beat-slot");
     slot.title = details.join("\n");
+    slot.dataset.spDetails = JSON.stringify(details);
+    slot.dataset.spState = kind;
     // Native radio navigation gives each timeline one Tab stop and arrow-key
-    // inspection without adding scripts to the sandboxed document.
+    // inspection while keeping native keyboard semantics.
     const choice = b.el("input", "sp-beat-choice");
     choice.type = "radio";
     choice.name = `sp-heartbeat-${item.id}`;
     choice.defaultChecked = index === beats.length - 1;
-    choice.setAttribute("aria-label", slot.title);
+    choice.setAttribute("aria-label", details.join("\n"));
     slot.append(choice, node);
     bar.append(slot);
   });
@@ -573,5 +576,6 @@ export function buildStatusDocument(payload: StatusPagePayload, options: BuildSt
   if (payload.past.length) page.append(incidentSection(b, "sp-past", "Past incidents", payload.past));
 
   doc.body.append(page);
+  doc.body.append(b.el("script", null, HEARTBEAT_SCRIPT));
   return "<!doctype html>" + doc.documentElement.outerHTML;
 }
