@@ -4638,3 +4638,13 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
   .monitors-table-wrap .monitors-table tr > td:nth-child(10) { order: 4; flex-basis: 100%; }
 }
 
+
+/* Overview layouts: insight bento above, the table at its natural height, and the page scrolls. */
+body.route-monitoring .workspace:has(> .mon-layout--overview) { overflow-y: auto; }
+body.route-monitoring .workspace > .mon-layout--overview { flex: 0 0 auto; }
+.mon-layout--overview .mon-content { flex: 0 0 auto; }
+.mon-layout--overview .mon-content > .dash-panel { flex: 0 0 auto; }
+.mon-layout--overview .mon-table-body { overflow-x: auto; overflow-y: visible; }
+.mon-layout--overview .mon-view-window--endpoints .mon-table-body { overflow: visible; }
+.mon-layout--overview > .nm-console,
+.mon-layout--overview > .nm-pair { margin-top: var(--nm-space-4); }

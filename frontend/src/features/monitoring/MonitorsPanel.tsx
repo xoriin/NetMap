@@ -79,7 +79,7 @@ function emptyForm(): MonitorFormState {
   };
 }
 
-export type MonitorStats = { total: number; online: number; offline: number; avgRtt: number | null };
+export type MonitorStats = { total: number; online: number; offline: number; avgRtt: number | null; monitors: Monitor[] };
 
 export function MonitorsPanel({
   accessToken,
@@ -189,7 +189,7 @@ export function MonitorsPanel({
     const avgRtt = withRtt.length > 0
       ? withRtt.reduce((sum, m) => sum + (m.avg_response_time_24h ?? 0), 0) / withRtt.length
       : null;
-    return { total, online, offline, avgRtt };
+    return { total, online, offline, avgRtt, monitors };
   }, [monitors]);
 
   useEffect(() => {

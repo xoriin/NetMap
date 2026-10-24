@@ -1,7 +1,7 @@
 import { useToast } from "../../components/Toast";
 import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
-import { Search, Star, ChevronUp, ChevronDown, Activity, GripVertical, Pencil, SlidersHorizontal, X } from "lucide-react";
+import { Search, Star, ChevronUp, ChevronDown, Activity, Gauge, HeartPulse, ShieldAlert, Timer, TrendingDown, GripVertical, Pencil, SlidersHorizontal, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
 import {
   api,
@@ -17,6 +17,10 @@ import {
   MON_STATUS_COL_WIDTH, MON_FAVOURITE_COL_WIDTH, MON_MIN_COL_WIDTH,
 } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
+import { InsightPanel } from "../../components/InsightPanel";
+import { BarList, CountUp, DonutChart } from "../../components/Charts";
+import { EventList } from "../../components/EventList";
+import { shortDateTime } from "../../utils/history";
 import { PanelSkeleton, WorkspaceSkeleton } from "../../components/Skeleton";
 import {
   AnomalyBadge, MonStatusDot, RttSparkline, TrendBadge, UptimeBadge,
@@ -113,7 +117,7 @@ export function MonitoringWorkspace({
     return view === "status-pages" && !canManageStatusPages ? "devices" : view;
   }, [canManageStatusPages]);
   const [viewTab, setViewTab] = useState<MonitoringViewId>(readPermittedView);
-  const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null });
+  const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, online: 0, offline: 0, avgRtt: null, monitors: [] });
   const [colWidths, setColWidths] = useState<number[] | null>(loadMonColWidths);
   const resizingRef = useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
@@ -940,59 +944,120 @@ export function MonitoringWorkspace({
   const globalPortTargets = portTargets.filter((p) => p.device_id === null);
   const selectedPortTargets = selectedId === null ? [] : portTargets.filter((p) => p.device_id === selectedId);
 
+  const monitors = monitorStats.monitors;
+  const monitorName = (m: { name: string }) => m.name;
+  const pausedMonitors = monitors.filter((m) => !m.enabled);
+  const upMonitors = monitors.filter((m) => m.enabled && m.last_status === "online");
+  const downMonitors = monitors.filter((m) => m.enabled && m.last_status === "offline");
+  const uptimes = monitors.map((m) => m.uptime_24h).filter((v): v is number => v !== null);
+  const avgUptime = uptimes.length ? uptimes.reduce((sum, v) => sum + v, 0) / uptimes.length : null;
+  const fastest = [...monitors].filter((m) => m.avg_response_time_24h !== null).sort((a, b) => (a.avg_response_time_24h ?? 0) - (b.avg_response_time_24h ?? 0))[0];
+  const responseBars = monitors.filter((m) => m.avg_response_time_24h !== null)
+    .sort((a, b) => (b.avg_response_time_24h ?? 0) - (a.avg_response_time_24h ?? 0))
+    .map((m) => ({
+      label: monitorName(m), value: Math.round(m.avg_response_time_24h ?? 0),
+      color: !m.enabled ? "--dash-paused" : m.last_status === "offline" ? "--dash-red" : "--dash-teal",
+      hint: !m.enabled ? "Paused" : m.last_status === "offline" ? "Down" : undefined,
+    }));
+  const certs = monitors.filter((m) => m.last_cert_expires_at).sort((a, b) => (a.last_cert_expires_at ?? "").localeCompare(b.last_cert_expires_at ?? "")).slice(0, 5);
+  const daysUntil = (iso: string) => Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const outages = [...monitors].filter((m) => m.last_status === "offline" || (m.uptime_24h !== null && m.uptime_24h < 100))
+    .sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 5);
+
+  const fleetItems = fleet ? [
+    { label: "Healthy", value: fleet.healthy, color: "--dash-green" as const },
+    { label: "Unexpected", value: fleet.unhealthy, color: "--dash-red" as const },
+    { label: "Unknown", value: Math.max(0, fleet.total - fleet.healthy - fleet.unhealthy - fleet.paused), color: "--dash-muted" as const },
+    { label: "Paused", value: fleet.paused, color: "--dash-paused" as const },
+  ].filter((item) => item.value > 0) : [];
+  const deviceName = (d: DeviceMonitorSummary) => d.display_name ?? d.hostname ?? d.ip_address;
+  const latencyBars = devices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 6)
+    .map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }));
+  const uptimeBars = devices.filter((d) => d.uptime_24h !== null).sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 6)
+    .map((d) => ({ label: deviceName(d), value: Number((d.uptime_24h ?? 0).toFixed(1)), color: (d.uptime_24h ?? 0) < 99 ? "--dash-amber" : "--dash-green" }));
+  const unexpectedNames = unexpectedDevices.slice(0, 3).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ");
+
   return (
-    <section className="dash-layout">
-      {/* Stat cards — same pattern as Overview */}
+    <section className="dash-layout mon-layout--overview nm-motion">
       {viewTab === "endpoints" ? (
-        <div className="dash-stats dash-stats--monitoring nm-summary-band">
-          <DashStat label="Endpoints" value={monitorStats.total} icon={<IconPlugConnected size={20} />} accent="teal" />
-          <DashStat label="Up" value={monitorStats.online} icon={<IconWifi size={20} />} accent="green" />
-          <DashStat label="Down" value={monitorStats.offline} icon={<IconWifiOff size={20} />} accent={monitorStats.offline > 0 ? "red" : "green"} />
-          <DashStat label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} icon={<IconGauge size={20} />} accent="indigo" />
+        <div className="nm-bento nm-bento--four">
+          <InsightPanel title="Average response, last 24 h" icon={<Gauge size={16} />} className="nm-motion-item">
+            <BarList label="Average response time per endpoint, last 24 hours" unit=" ms" items={responseBars} empty="No response times recorded yet." />
+          </InsightPanel>
+          <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
+            <DashStat className="nm-motion-item" label="Endpoints" value={<CountUp value={monitorStats.total} />} icon={<IconPlugConnected size={20} />} accent="teal"
+              sub={`${monitors.length - pausedMonitors.length} enabled · ${pausedMonitors.length} paused`} />
+            <DashStat className="nm-motion-item" label="Up" value={<CountUp value={upMonitors.length} />} icon={<IconWifi size={20} />} accent="green"
+              sub={avgUptime !== null ? `${avgUptime.toFixed(1)}% average uptime` : "No uptime yet"} />
+            <DashStat className="nm-motion-item" label="Down" value={<CountUp value={downMonitors.length} />} icon={<IconWifiOff size={20} />} accent={downMonitors.length > 0 ? "red" : "green"}
+              sub={downMonitors[0] ? downMonitors.map(monitorName).join(", ") : "All endpoints responding"} />
+            <DashStat className="nm-motion-item" label="Avg response" value={monitorStats.avgRtt !== null ? `${monitorStats.avgRtt.toFixed(0)} ms` : "—"} icon={<IconGauge size={20} />} accent="indigo"
+              sub={fastest ? `Fastest: ${fastest.name} ${Math.round(fastest.avg_response_time_24h ?? 0)} ms` : "No checks yet"} />
+          </div>
         </div>
       ) : (
-      <div className="dash-stats dash-stats--monitoring nm-summary-band">
+      <div className="nm-bento">
+        <InsightPanel title="Fleet health" icon={<HeartPulse size={16} />} className="nm-motion-item">
+          {fleet && fleet.total > 0
+            ? <DonutChart label="Monitored devices by health" centre={<CountUp value={fleet.total} />} sub="Devices" items={fleetItems} />
+            : <p className="tool-note nm-chart-empty">No monitored devices yet.</p>}
+        </InsightPanel>
+      <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
         <DashStat
+          className="nm-motion-item"
           label="Monitored"
-          value={fleet?.total ?? 0}
+          value={<CountUp value={fleet?.total ?? 0} />}
+          sub="All with live ping"
           icon={<IconServer size={20} />}
           accent="teal"
           onClick={() => { setFilterStatus("all"); setFilterHealth("all"); }}
         />
         <DashStat
-          label="Live ping"
-          value={livePingEnabled ? "On" : "Off"}
-          icon={<Activity size={20} />}
-          accent={livePingEnabled ? "green" : "red"}
-        />
-        <DashStat
+          className="nm-motion-item"
           label="Healthy"
-          value={fleet?.healthy ?? 0}
+          value={<CountUp value={fleet?.healthy ?? 0} />}
+          sub="As expected"
           icon={<IconWifi size={20} />}
           accent="green"
           onClick={() => setFilterHealth((current) => current === "healthy" ? "all" : "healthy")}
           active={filterHealth === "healthy"}
         />
         <DashStat
+          className="nm-motion-item"
           label="Unexpected"
-          value={fleet?.unhealthy ?? 0}
+          value={<CountUp value={fleet?.unhealthy ?? 0} />}
+          sub={unexpectedNames || "None"}
           icon={<IconWifiOff size={20} />}
           accent={(fleet?.unhealthy ?? 0) > 0 ? "red" : "green"}
           onClick={() => setFilterHealth((current) => current === "unhealthy" ? "all" : "unhealthy")}
           active={filterHealth === "unhealthy"}
         />
-        <button
-          type="button"
-          className="dash-stat dash-stat--blue dash-stat--clickable"
+        <DashStat
+          className="nm-motion-item"
+          label="Avg RTT"
+          value={fleet?.avg_rtt_ms != null ? `${fleet.avg_rtt_ms.toFixed(1)} ms` : "—"}
+          sub="Last 24 h"
+          icon={<Timer size={20} />}
+          accent="indigo"
+        />
+        <DashStat
+          className="nm-motion-item"
+          label="Monitored ports"
+          value={<CountUp value={new Set(portTargets.map((target) => target.label)).size} />}
+          sub="Manage service checks"
+          icon={<IconPlugConnected size={20} />}
+          accent="blue"
           onClick={() => setShowPortsModal(true)}
-          title="Manage service checks"
-        >
-          <div className="dash-stat-icon"><IconPlugConnected size={20} /></div>
-          <div className="dash-stat-body">
-            <strong className="dash-stat-value">{new Set(portTargets.map((target) => target.label)).size}</strong>
-            <span className="dash-stat-label">Monitored ports</span>
-          </div>
-        </button>
+        />
+        <DashStat
+          className="nm-motion-item"
+          label="Live ping"
+          value={livePingEnabled ? "On" : "Off"}
+          sub={`Every ${monitorIntervalLabel}`}
+          icon={<Activity size={20} />}
+          accent={livePingEnabled ? "green" : "red"}
+        />
+      </div>
       </div>
       )}
 
@@ -1346,6 +1411,37 @@ export function MonitoringWorkspace({
         </div>
 
       </div>{/* end mon-content */}
+
+      {viewTab === "endpoints" ? (
+        <div className="nm-pair">
+          <InsightPanel title="Recent outages" icon={<TrendingDown size={16} />} className="nm-motion-item">
+            <EventList empty="No outages in the last 24 hours." rows={outages.map((m) => ({
+              key: m.id, tone: m.last_status === "offline" ? "offline" : "warning", title: m.name,
+              detail: `${m.uptime_24h !== null ? `${m.uptime_24h.toFixed(1)}% uptime` : "No uptime yet"}${m.last_status === "offline" ? " · down now" : ""}`,
+              time: m.last_checked_at ? shortDateTime(m.last_checked_at) : "—", dateTime: m.last_checked_at ?? undefined,
+            }))} />
+          </InsightPanel>
+          <InsightPanel title="Certificates expiring" icon={<ShieldAlert size={16} />} className="nm-motion-item">
+            <EventList empty="No TLS certificates seen yet." rows={certs.map((m) => {
+              const days = daysUntil(m.last_cert_expires_at ?? "");
+              return {
+                key: m.id, tone: days < 0 ? "offline" : days <= m.certificate_expiry_days ? "warning" : "online", title: m.name,
+                detail: m.last_cert_issuer ? `Issued by ${m.last_cert_issuer}` : "Issuer unknown",
+                time: days < 0 ? "Expired" : `${days} d`, dateTime: m.last_cert_expires_at ?? undefined,
+              };
+            })} />
+          </InsightPanel>
+        </div>
+      ) : (
+        <div className="nm-pair">
+          <InsightPanel title="Highest latency, last 24 h" icon={<Timer size={16} />} className="nm-motion-item">
+            <BarList label="Devices with the highest average round-trip time" unit=" ms" items={latencyBars} empty="No latency recorded yet." />
+          </InsightPanel>
+          <InsightPanel title="Least uptime, last 24 h" icon={<TrendingDown size={16} />} className="nm-motion-item">
+            <BarList label="Devices with the lowest uptime, last 24 hours" unit="%" max={100} items={uptimeBars} empty="No uptime recorded yet." />
+          </InsightPanel>
+        </div>
+      )}
 
       {/* Service checks modal — form on left, existing list on right */}
       {showPortsModal && (
