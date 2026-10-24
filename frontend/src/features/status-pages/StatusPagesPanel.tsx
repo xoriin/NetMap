@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { CalendarClock, Eye, Layers, PieChart, Plus, Siren } from "lucide-react";
+import { DashStat } from "../../components/DashStat";
+import { CountUp, DonutChart } from "../../components/Charts";
+import { EventList, type EventTone } from "../../components/EventList";
+import { InsightPanel } from "../../components/InsightPanel";
+import { shortDateTime } from "../../utils/history";
 import { IconBroadcast } from "@tabler/icons-react";
 import { Modal, ModalFooterActions } from "../../components/Modal";
 import { TableSkeleton } from "../../components/Skeleton";
@@ -8,8 +13,22 @@ import { useConfirm } from "../../components/ConfirmDialog";
 import { StatusPageEditor } from "./StatusPageEditor";
 import { statusPagePath } from "./statusPagesApi";
 import {
-  SLUG_HINT, isValidSlug, slugFromName, statusPagesEditorApi, type StatusPageSummary, type StatusPageVisibility,
+  SLUG_HINT, isValidSlug, slugFromName, statusManageApi, statusPagesEditorApi, type ManagedIncident, type ManagedMaintenance,
+  type StatusPageSummary, type StatusPageVisibility,
 } from "./statusPagesEditorApi";
+import type { StatusItemState } from "./statusPagesApi";
+
+type Overview = { counts: Record<StatusItemState, number>; incidents: ManagedIncident[]; maintenance: ManagedMaintenance[] };
+
+const STATE_ITEMS: { state: StatusItemState; label: string; color: `--${string}` }[] = [
+  { state: "operational", label: "Operational", color: "--dash-green" },
+  { state: "degraded", label: "Degraded", color: "--dash-amber" },
+  { state: "down", label: "Down", color: "--dash-red" },
+  { state: "maintenance", label: "Maintenance", color: "--dash-blue" },
+  { state: "unknown", label: "Unknown", color: "--dash-muted" },
+];
+
+const INCIDENT_TONE: Record<string, EventTone> = { major: "offline", partial: "warning", performance: "warning" };
 import "./statusPagesEditor.css";
 
 const WINDOW_LABELS = { "1h": "Last hour", "24h": "Last 24 hours" } as const;
@@ -108,16 +127,32 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [overview, setOverview] = useState<Overview | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setPages(await statusPagesEditorApi.list(accessToken));
+      const list = await statusPagesEditorApi.list(accessToken);
+      setPages(list);
       setError(null);
+      void loadOverview(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load status pages");
     } finally {
       setLoading(false);
     }
+  }, [accessToken]);
+
+  const loadOverview = useCallback(async (list: StatusPageSummary[]) => {
+    const counts: Record<StatusItemState, number> = { operational: 0, degraded: 0, down: 0, maintenance: 0, unknown: 0 };
+    const [previews, incidents, maintenance] = await Promise.all([
+      Promise.all(list.map((page) => statusPagesEditorApi.preview(accessToken, page.id, "public").catch(() => null))),
+      statusManageApi.incidents(accessToken).catch(() => []),
+      statusManageApi.maintenance(accessToken).catch(() => []),
+    ]);
+    for (const preview of previews) {
+      for (const state of Object.keys(counts) as StatusItemState[]) counts[state] += preview?.summary?.counts?.[state] ?? 0;
+    }
+    setOverview({ counts, incidents: Array.isArray(incidents) ? incidents : [], maintenance: Array.isArray(maintenance) ? maintenance : [] });
   }, [accessToken]);
 
   useEffect(() => { void load(); }, [load]);
@@ -149,8 +184,44 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
     );
   }
 
+  const componentTotal = overview ? Object.values(overview.counts).reduce((sum, n) => sum + n, 0) : 0;
+  const openIncidents = overview?.incidents.filter((i) => i.status !== "resolved") ?? [];
+  const upcoming = (overview?.maintenance ?? []).filter((m) => m.state !== "finished").sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const pageName = (ids: number[]) => pages.find((p) => ids.includes(p.id))?.name ?? "No page";
+  const publicCount = pages.filter((p) => p.visibility === "public").length;
+  const events = [
+    ...(overview?.incidents ?? []).map((i) => ({
+      key: `i${i.id}`, at: i.resolved_at ?? i.opened_at, tone: (i.status === "resolved" ? "online" : INCIDENT_TONE[i.severity] ?? "warning") as EventTone,
+      title: i.title, detail: `${pageName(i.page_ids)} · ${i.status}`,
+    })),
+    ...(overview?.maintenance ?? []).filter((m) => m.state !== "finished").map((m) => ({
+      key: `m${m.id}`, at: m.starts_at, tone: "disabled" as EventTone, title: m.title, detail: `${pageName(m.page_ids)} · ${m.state === "active" ? "in progress" : "scheduled"}`,
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
+
   return (
-    <div className="dash-panel nm-app-panel mon-view-window status-pages-window">
+    <div className="status-pages-overview nm-motion">
+      <div className="nm-bento nm-bento--four">
+        <InsightPanel title="Components across pages" icon={<PieChart size={16} />} className="nm-motion-item">
+          {!overview ? <TableSkeleton rows={3} columns={2} />
+            : componentTotal ? <DonutChart label="Status page components by state" centre={<CountUp value={componentTotal} />} sub="Components"
+                items={STATE_ITEMS.map((item) => ({ label: item.label, value: overview.counts[item.state], color: item.color })).filter((item) => item.value > 0)} />
+            : <p className="tool-note nm-chart-empty">No components on any status page yet.</p>}
+        </InsightPanel>
+        <div className="dash-stats nm-bento-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<IconBroadcast size={20} />} label="Status pages" value={<CountUp value={pages.length} />}
+            sub={`${publicCount} public · ${pages.length - publicCount} private`} />
+          <DashStat accent="green" className="nm-motion-item" icon={<Layers size={20} />} label="Components" value={<CountUp value={componentTotal} />}
+            sub={`${overview?.counts.operational ?? 0} operational`} />
+          <DashStat accent={openIncidents.length ? "red" : "green"} className="nm-motion-item" icon={<Siren size={20} />} label="Open incidents" value={<CountUp value={openIncidents.length} />}
+            sub={openIncidents[0] ? openIncidents[0].title : "All clear"} />
+          <DashStat accent="blue" className="nm-motion-item" icon={<CalendarClock size={20} />} label="Maintenance" value={<CountUp value={upcoming.length} />}
+            sub={upcoming[0] ? `${shortDateTime(upcoming[0].starts_at)} · ${upcoming[0].title}` : "Nothing scheduled"} />
+        </div>
+      </div>
+      <div className="nm-console">
+        <div className="nm-console-main">
+    <div className="dash-panel nm-app-panel mon-view-window status-pages-window nm-fill nm-motion-item">
       <div className="dash-panel-header nm-app-panel-header status-editor-header">
         <div className="status-editor-title">
           <span className="status-editor-icon"><IconBroadcast size={18} /></span>
@@ -207,6 +278,15 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
             </table>
           </div>
         )}
+      </div>
+    </div>
+        </div>
+        <aside className="nm-console-side">
+          <InsightPanel title="Incidents & maintenance" icon={<Eye size={16} />} className="nm-fill nm-motion-item">
+            {!overview ? <TableSkeleton rows={3} columns={1} />
+              : <EventList empty="No incidents or maintenance." rows={events.map(({ key, at, tone, title, detail }) => ({ key, tone, title, detail, time: shortDateTime(at), dateTime: at }))} />}
+          </InsightPanel>
+        </aside>
       </div>
       {creating && (
         <CreatePageModal
