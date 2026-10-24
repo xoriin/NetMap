@@ -1669,8 +1669,9 @@ body.theme-dark .modal .modal-form input.nm-color-input[type="color"] {
   border-radius: var(--nm-radius-md);
   padding: 5px 5px 7px;
   background: var(--nm-modal-header);
-  box-shadow: 0 12px 28px rgba(3, 10, 18, 0.24);
 }
+.nm-pick-menu,
+.inv-bulk-menu-panel { box-shadow: 0 12px 28px rgba(3, 10, 18, 0.24); }
 
 .nm-pick-filter {
   display: flex;

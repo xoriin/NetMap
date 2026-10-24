@@ -1653,9 +1653,12 @@ body.theme-dark .mon-ports-form-col .ep-search { color: #d8eaf5; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6a8a9a;
+  color: var(--nm-text-muted);
 }
+.mon-ports-field-label:not(:last-child) { margin-bottom: var(--nm-space-3); }
 body.theme-dark .mon-ports-field-label { color: var(--nm-text-faint); }
+body:not(.theme-dark) .mon-ports-list-col .incident-row { border: 1px solid var(--nm-border); background: var(--nm-table-row-bg); }
+body:not(.theme-dark) .mon-ports-list-col .incident-row .dash-panel-meta { color: var(--nm-text-muted); }
 .mon-ports-input {
   font: inherit;
   font-size: 13px;
@@ -1719,12 +1722,13 @@ body.theme-dark .mon-checks-group-label { color: var(--nm-text-faint); }
   background: none;
   border: none;
   cursor: pointer;
-  color: #8aa0b0;
+  color: var(--nm-text-muted);
   display: flex;
   align-items: center;
   padding: 0 2px;
   margin-left: 2px;
 }
+.mon-port-chip-del:hover { color: var(--nm-text); }
 .mon-port-row-actions { display: inline-flex; align-items: center; gap: 3px; }
 .mon-ports-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .mon-order-mode { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; margin-bottom: 12px; border: 1px solid var(--nm-border); border-radius: 6px; background: var(--nm-surface-subtle); }

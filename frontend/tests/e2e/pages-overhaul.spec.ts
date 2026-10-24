@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockDevice, mockMonitoringDevice, mockUser, setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { mockDevice, mockMonitoringDevice, mockUser, setupCoreMocks, setupInventoryMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 const iso = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
 
@@ -267,6 +267,42 @@ test("a favourite endpoint opens its overview pop-up instead of leaving the page
   await page.locator(".dash-device-row--favourite .dash-device-name", { hasText: "Public API" }).click();
   await expect(page.getByRole("dialog", { name: "Public API monitor overview" })).toBeVisible();
   await expect(page).toHaveURL(/\/overview$/);
+});
+
+test("the ports pop-up and the bulk menu stay legible in light mode", async ({ page }) => {
+  await boot(page);
+  await page.addInitScript(() => localStorage.setItem("netmap.theme", "light"));
+  const checks = [[443, "HTTPS", "https", null], [22, "SSH", "tcp", 1]].map(([port, label, check_type, device_id], i) => ({ id: i + 1, device_id, port, label, check_type, http_path: null, http_method: "GET", expected_status_min: 200, expected_status_max: 399, timeout_seconds: null, verify_tls: true, follow_redirects: true, enabled: true, created_at: iso(1) }));
+  await page.route("**/api/v1/monitoring/service-checks", (route) => route.fulfill({ json: checks }));
+  await page.goto("/monitoring");
+  await page.getByRole("button", { name: "Ports", exact: true }).first().click();
+  const modal = page.locator(".mon-ports-modal-body");
+  await expect(modal.locator(".incident-row").first()).toBeVisible();
+  const ports = await modal.evaluate((body) => {
+    const css = (el: Element | null) => (el ? getComputedStyle(el) : null);
+    const labels = [...body.querySelectorAll(".mon-ports-field-label")];
+    const row = css(body.querySelector(".mon-ports-list-col .incident-row"))!;
+    return {
+      label: css(labels[0])!.color,
+      labelGap: labels[1].getBoundingClientRect().top - labels[0].getBoundingClientRect().bottom,
+      rowBorder: `${row.borderTopWidth} ${row.borderTopColor}`,
+      icon: css(body.querySelector(".mon-port-chip-del"))!.color,
+    };
+  });
+  expect(ports.label, "field labels use the muted text token").toBe("rgb(82, 98, 114)");
+  expect(ports.labelGap, "fields do not touch the label below").toBeGreaterThanOrEqual(10);
+  expect(ports.rowBorder, "each configured check has a visible edge").toBe("1px rgb(216, 220, 225)");
+  expect(ports.icon, "edit and delete icons use the muted text token").toBe("rgb(82, 98, 114)");
+
+  await setupInventoryMocks(page, devices);
+  await page.goto("/inventory#devices");
+  await page.locator(".inv-bulk-menu summary").click();
+  const panel = await page.locator(".inv-bulk-menu-panel").evaluate((el) => {
+    const css = getComputedStyle(el);
+    return { border: css.borderTopColor, shadow: css.boxShadow };
+  });
+  expect(panel.border, "the bulk menu uses the overlay border").toBe("rgb(188, 195, 203)");
+  expect(panel.shadow, "the bulk menu uses the shared overlay shadow").toBe("rgba(3, 10, 18, 0.24) 0px 12px 28px 0px");
 });
 
 test("Overview plays the shared entrance motion and drops it under reduced motion", async ({ page }) => {

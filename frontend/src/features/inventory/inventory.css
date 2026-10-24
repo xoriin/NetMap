@@ -97,9 +97,9 @@
 }
 
 .inventory-layout .inv-bulk-menu-panel {
-  border-color: var(--nm-border);
-  background: var(--nm-modal-shell);
-  box-shadow: var(--nm-shadow-md);
+  border: 1px solid var(--nm-border-strong);
+  border-radius: var(--nm-radius-md);
+  background: var(--nm-modal-header);
 }
 
 .inventory-layout .inv-bulk-selection,
