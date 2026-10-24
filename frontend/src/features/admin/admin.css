@@ -1285,6 +1285,15 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   .admin-task-panel--connection { grid-row: auto; }
 }
 
+/* Light nested task sections use the dark sub-header role so they stand apart from the card body. */
+body:not(.theme-dark) .admin-layout .admin-task-panel--nested { border-color: var(--nm-subhead-border); }
+body:not(.theme-dark) .admin-layout .admin-task-panel--nested > .admin-task-title {
+  border-bottom-color: var(--nm-subhead-border);
+  background: var(--nm-subhead-bg);
+  color: var(--nm-subhead-text);
+}
+body:not(.theme-dark) .admin-layout .admin-task-panel--nested > .admin-task-title svg { color: var(--nm-subhead-icon); }
+
 /* In-page task modules share Overview's surfaces, including nested task sections.
    Popup sections keep their own palette outside Admin. */
 body.theme-dark .admin-layout .nm-app-panel,

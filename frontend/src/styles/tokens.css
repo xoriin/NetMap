@@ -119,6 +119,10 @@
   --nm-popup-section-title: #3a5468;
   --nm-popup-section-title-border: var(--nm-border);
   --nm-popup-section-title-bg: var(--nm-table-header-bg);
+  --nm-subhead-bg: var(--nm-panel-head-bg);
+  --nm-subhead-border: var(--nm-panel-head-bg);
+  --nm-subhead-text: #ffffff;
+  --nm-subhead-icon: #ffffff;
   --nm-popup-divider: rgba(209, 220, 230, 0.4);
   --nm-danger: #d94b4b;
   --nm-warning: #d4912c;

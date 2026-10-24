@@ -80,3 +80,21 @@ test("light mode panels carry the stronger element shadow", async ({ page }) => 
   const shadow = await page.locator(".admin-settings-card").evaluate((node) => getComputedStyle(node).boxShadow);
   expect(shadow).toContain("rgba(15, 35, 52, 0.14) 0px 12px 28px 0px");
 });
+
+test("light nested Admin section headers use the dark panel-header colour with white text and icon", async ({ page }) => {
+  await setupMocks(page, "light");
+  await page.goto("/admin#system");
+  const title = page.getByRole("region", { name: "Identity and support", exact: true }).locator(":scope > .admin-task-title");
+  await expect(title).toHaveCSS("background-color", "rgb(47, 68, 91)");
+  await expect(title).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(title.locator("svg")).toHaveCSS("color", "rgb(255, 255, 255)");
+});
+
+for (const [theme, header] of [["slate", "rgb(29, 37, 54)"], ["zinc", "rgb(31, 31, 35)"]] as const) {
+  test(`dark nested Admin section headers keep the module header colour in ${theme}`, async ({ page }) => {
+    await setupMocks(page, theme);
+    await page.goto("/admin#system");
+    const title = page.getByRole("region", { name: "Identity and support", exact: true }).locator(":scope > .admin-task-title");
+    await expect(title).toHaveCSS("background-color", header);
+  });
+}
