@@ -716,15 +716,15 @@ body.theme-dark .nm-swatch-list {
 /* Positive confirmation actions share one token-derived tint in every theme. */
 .nm-btn.nm-btn--success,
 body.theme-dark .nm-btn.nm-btn--success {
-  border-color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-border));
-  background: color-mix(in srgb, var(--nm-success) 32%, var(--nm-surface));
-  color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
+  border-color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-btn-secondary-border));
+  background: var(--nm-btn-secondary-bg);
+  color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-text));
 }
 .nm-btn.nm-btn--success:hover:not(:disabled),
 body.theme-dark .nm-btn.nm-btn--success:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--nm-success) 70%, var(--nm-border));
-  background: color-mix(in srgb, var(--nm-success) 40%, var(--nm-surface));
-  color: color-mix(in srgb, var(--nm-success) 45%, var(--nm-text));
+  border-color: color-mix(in srgb, var(--nm-success) 75%, var(--nm-btn-secondary-border));
+  background: color-mix(in srgb, var(--nm-success) 8%, var(--nm-btn-secondary-bg));
+  color: color-mix(in srgb, var(--nm-success) 55%, var(--nm-text));
 }
 
 .nm-btn--danger {

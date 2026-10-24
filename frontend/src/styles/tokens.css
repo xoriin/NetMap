@@ -79,11 +79,11 @@
   --nm-btn-hover-bg: #e4f3f5;
   --nm-btn-hover-border: #a5d7df;
   --nm-btn-hover-text: var(--nm-accent-strong);
-  --nm-btn-danger-bg: color-mix(in srgb, var(--nm-danger) 32%, var(--nm-surface));
-  --nm-btn-danger-border: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-border));
-  --nm-btn-danger-text: color-mix(in srgb, var(--nm-danger) 45%, var(--nm-text));
-  --nm-btn-danger-hover-bg: color-mix(in srgb, var(--nm-danger) 40%, var(--nm-surface));
-  --nm-btn-danger-hover-border: color-mix(in srgb, var(--nm-danger) 70%, var(--nm-border));
+  --nm-btn-danger-bg: var(--nm-btn-secondary-bg);
+  --nm-btn-danger-border: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-btn-secondary-border));
+  --nm-btn-danger-text: color-mix(in srgb, var(--nm-danger) 55%, var(--nm-text));
+  --nm-btn-danger-hover-bg: color-mix(in srgb, var(--nm-danger) 8%, var(--nm-btn-secondary-bg));
+  --nm-btn-danger-hover-border: color-mix(in srgb, var(--nm-danger) 75%, var(--nm-btn-secondary-border));
   --nm-page-head-bg: #fefefe;
   --nm-page-head-title: #0f3d47;
   --nm-page-head-icon-bg: var(--nm-tone-teal-deep);

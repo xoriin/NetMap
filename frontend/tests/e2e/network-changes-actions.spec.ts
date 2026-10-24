@@ -66,17 +66,15 @@ for (const style of ["light", "slate", "zinc"] as const) {
         const css = getComputedStyle(node), bg = over(rgba(css.backgroundColor), surface), fg = over(rgba(css.color), bg);
         const luminance = (values: number[]) => values.slice(0, 3).map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((total, value, index) => total + value * [.2126, .7152, .0722][index], 0);
         const a = luminance(fg), b = luminance(bg);
-        return { ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), fg, bg };
+        return { ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), fg, bg, surface };
       });
       const contrast = await measure();
       expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
-      // Pin the richer fills independently of the shared owner comparison.
-      const fills = {
-        light: { success: [187, 223, 211], danger: [242, 197, 197] },
-        slate: { success: [25, 66, 67], danger: [80, 40, 53] },
-        zinc: { success: [31, 67, 57], danger: [86, 40, 42] },
-      };
-      contrast.bg.slice(0, 3).forEach((channel, index) => expect(Math.abs(channel - fills[style][variant][index])).toBeLessThanOrEqual(1));
+      // Neutral button: the fill is the secondary button's neutral surface; only border and label carry the colour.
+      const neutral = await page.evaluate(() => { const probe = document.createElement("button"); probe.className = "nm-btn nm-btn--secondary"; document.body.append(probe); const bg = getComputedStyle(probe).backgroundColor; probe.remove(); return bg; });
+      await expect(button, `${variant} uses the neutral fill`).toHaveCSS("background-color", neutral);
+      const border = await button.evaluate((node) => getComputedStyle(node).borderTopColor);
+      expect(border, `${variant} border carries the colour`).not.toBe(await page.evaluate(() => { const probe = document.createElement("button"); probe.className = "nm-btn nm-btn--secondary"; document.body.append(probe); const c = getComputedStyle(probe).borderTopColor; probe.remove(); return c; }));
       if (variant === "success") { expect(contrast.fg[1]).toBeGreaterThan(contrast.fg[0]); expect(contrast.fg[1]).toBeGreaterThan(contrast.fg[2]); }
       const fill = await button.evaluate(node => getComputedStyle(node).backgroundColor);
       await button.hover();
