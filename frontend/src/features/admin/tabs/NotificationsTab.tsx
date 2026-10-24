@@ -1,17 +1,49 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { IconCloud, IconPalette } from "@tabler/icons-react";
-import { Upload } from "lucide-react";
-import { api, type EmailBrandingSettings, type NotificationProfile } from "../../../api/client";
+import { Bell, CircleCheck, CirclePause, Send, Upload } from "lucide-react";
+import { api, type EmailBrandingSettings, type NotificationDelivery, type NotificationProfile } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { Modal } from "../../../components/Modal";
 import { PanelSkeleton } from "../../../components/Skeleton";
+import { DashStat } from "../../../components/DashStat";
+import { ColumnChart, CountUp, DonutChart, SparkBars, type ChartColor, type ChartItem } from "../../../components/Charts";
 import {
   notificationMethodCatalog, appriseSupportedMethods, emptyProfileForm,
   providerForMethod, buildNotificationConfig, profileFormIsComplete,
-  populateFormFromProfile, notificationProfileMethodLabel,
+  populateFormFromProfile, notificationProfileMethodLabel, legacyChannelLabels,
   type NotificationMethodId, type NotificationProfileForm,
 } from "../notificationProfiles";
+
+const HISTORY_DAYS = 14;
+const DELIVERY_LIMIT = 500;
+const TYPE_COLORS: ChartColor[] = ["--dash-blue", "--dash-amber", "--dash-purple"];
+const motion = (index: number) => ({ "--nm-motion-i": index }) as CSSProperties;
+
+function dayKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function deliveryHistory(deliveries: NotificationDelivery[], profiles: NotificationProfile[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Array.from({ length: HISTORY_DAYS }, (_, i) => new Date(today.getTime() - (HISTORY_DAYS - 1 - i) * 86_400_000));
+  const index = new Map(days.map((d, i) => [dayKey(d), i]));
+  const rows = days.map((d) => ({ label: d.toLocaleDateString(undefined, { day: "numeric", month: "short" }), sent: 0, failed: 0 }));
+  const perProfile = new Map(profiles.map((p) => [p.id, Array(HISTORY_DAYS).fill(0) as number[]]));
+  const inWindow: NotificationDelivery[] = [];
+  for (const delivery of deliveries) {
+    const i = index.get(dayKey(new Date(delivery.sent_at)));
+    if (i === undefined) continue;
+    inWindow.push(delivery);
+    rows[i][delivery.status === "failed" ? "failed" : "sent"] += 1;
+    const id = delivery.target.startsWith("profile:") ? Number(delivery.target.slice(8)) : NaN;
+    if (delivery.status === "sent") perProfile.get(id)?.splice(i, 1, (perProfile.get(id)?.[i] ?? 0) + 1);
+  }
+  const oldest = deliveries[deliveries.length - 1];
+  const truncated = deliveries.length >= DELIVERY_LIMIT && oldest !== undefined && new Date(oldest.sent_at) >= days[0];
+  return { rows, perProfile, inWindow, truncated };
+}
 
 export function NotificationsTab({
   accessToken,
@@ -50,6 +82,8 @@ export function NotificationsTab({
   const previewBoxRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const notificationProfiles = profilesQuery.data ?? [];
+  const deliveriesQuery = useApiQuery(() => api.listNotificationDeliveries(accessToken, DELIVERY_LIMIT), [accessToken]);
+  const history = useMemo(() => deliveryHistory(deliveriesQuery.data ?? [], notificationProfiles), [deliveriesQuery.data, notificationProfiles]);
 
   useEffect(() => {
     if (brandingQuery.data) setBrandingForm(brandingQuery.data);
@@ -224,10 +258,159 @@ export function NotificationsTab({
     }
   }
 
+  const sentTotal = history.inWindow.filter((d) => d.status === "sent").length;
+  const failures = history.inWindow.filter((d) => d.status === "failed");
+  const attempts = sentTotal + failures.length;
+  const activeCount = notificationProfiles.filter((p) => p.enabled).length;
+  const disabled = notificationProfiles.filter((p) => !p.enabled);
+  const typeCounts = new Map<string, number>();
+  for (const profile of notificationProfiles) typeCounts.set(notificationProfileMethodLabel(profile), (typeCounts.get(notificationProfileMethodLabel(profile)) ?? 0) + 1);
+  const typeEntries = [...typeCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const typeItems: ChartItem[] = typeEntries.slice(0, TYPE_COLORS.length).map(([label, value], i) => ({ label, value, color: TYPE_COLORS[i] }));
+  if (typeEntries.length > TYPE_COLORS.length) typeItems.push({ label: "Other", value: typeEntries.slice(TYPE_COLORS.length).reduce((sum, [, n]) => sum + n, 0), color: "--nm-text-faint" });
+  const targetName = (target: string) => {
+    const id = target.startsWith("profile:") ? Number(target.slice(8)) : NaN;
+    return notificationProfiles.find((p) => p.id === id)?.name ?? legacyChannelLabels[target] ?? target;
+  };
+  const guided = notificationMethodCatalog.filter((m) => m.id !== "custom").map((m) => m.label);
+  const viaApprise = appriseSupportedMethods.filter((name) => !guided.some((g) => g.toLowerCase().startsWith(name.toLowerCase())));
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const historyOk = !deliveriesQuery.error;
+
   return (
-    <div className="admin-tab-content">
+    <div className="admin-tab-content nm-motion">
+      <div className="admin-bento admin-bento--four admin-bento--chart">
+        <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
+          <div className="admin-panel-header nm-app-panel-header">
+            <h2 className="admin-section-title"><Send size={16} />Deliveries, last {HISTORY_DAYS} days</h2>
+            <ul className="admin-header-legend" aria-hidden="true">
+              <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
+              <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
+            </ul>
+          </div>
+          <div className="admin-chart-body">
+            {deliveriesQuery.isLoading ? <PanelSkeleton lines={5} />
+              : !historyOk ? <p className="tool-note admin-chart-empty">Delivery history is unavailable.</p>
+              : <>
+                  <ColumnChart label={`Notification deliveries per day, last ${HISTORY_DAYS} days, sent and failed`} rows={history.rows}
+                    series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} height={168} />
+                  {attempts === 0 && <p className="tool-note admin-chart-empty">No deliveries in the last {HISTORY_DAYS} days.</p>}
+                  {history.truncated && <p className="tool-note admin-chart-empty">Based on the latest {DELIVERY_LIMIT} deliveries.</p>}
+                </>}
+          </div>
+        </section>
+        <div className="dash-stats admin-stats nm-summary-band">
+          <DashStat accent="teal" className="nm-motion-item" icon={<Send size={20} />} label="Methods" value={<CountUp value={notificationProfiles.length} />}
+            sub={typeEntries.map(([label]) => label).join(", ") || "None yet"} onClick={() => scrollTo("admin-notification-methods")} />
+          <DashStat accent="green" className="nm-motion-item" icon={<CircleCheck size={20} />} label="Active" value={`${activeCount} of ${notificationProfiles.length}`}
+            sub={disabled.length ? `${disabled.map((p) => p.name).join(", ")} disabled` : "All receiving alerts"} onClick={() => scrollTo("admin-notification-methods")} />
+          <DashStat accent="green" className="nm-motion-item" icon={<Send size={20} />} label={`Sent, ${HISTORY_DAYS} days`} value={historyOk ? <CountUp value={sentTotal} /> : "—"}
+            sub={attempts ? `${((sentTotal / attempts) * 100).toFixed(1)}% delivered` : "No deliveries"} onClick={() => scrollTo("admin-notification-methods")} />
+          <DashStat accent="red" className="nm-motion-item" icon={<CirclePause size={20} />} label={`Failed, ${HISTORY_DAYS} days`} value={historyOk ? <CountUp value={failures.length} /> : "—"}
+            sub={failures[0] ? `Last: ${targetName(failures[0].target)}, ${new Date(failures[0].sent_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "No failures"}
+            onClick={() => scrollTo("admin-notification-methods")} />
+        </div>
+      </div>
+
+      <div className="admin-console-grid admin-console-grid--even">
+        <div className="admin-main">
+          <section id="admin-notification-methods" className="panel admin-panel nm-app-panel admin-fill nm-motion-item" aria-label="Notification methods" style={motion(1)}>
+            <div className="admin-panel-header nm-app-panel-header">
+              <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification methods</h2>
+              <div className="admin-panel-actions">
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--primary"
+                  onClick={() => { setEditingProfileId(null); setProfileForm(emptyProfileForm); setShowProfileModal(true); }}
+                >
+                  + Add method
+                </button>
+                <button type="button" className="nm-btn" disabled={profileBusy} onClick={() => { void profilesQuery.reload(); void deliveriesQuery.reload(); }}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+            <p className="tool-note">Reusable methods that alerts and reminders send to.</p>
+            <div className="notif-methods-table">
+              {notificationProfiles.length === 0 ? (
+                <p className="audit-empty">No notification methods configured yet. Click <strong>+ Add method</strong> to get started.</p>
+              ) : notificationProfiles.map((profile) => (
+                <div className="notif-method-row" key={profile.id}>
+                  <div className="notif-method-info">
+                    <span className="notif-method-name">{profile.name}</span>
+                    <div className="notif-method-meta">
+                      <span className="notif-method-tag">{notificationProfileMethodLabel(profile)}</span>
+                      <span className={`notif-status-badge notif-status-badge--${profile.enabled ? "active" : "off"}`}>
+                        {profile.enabled ? "Active" : "Disabled"}
+                      </span>
+                    </div>
+                    {profileTestResult[profile.id] && (
+                      <span className={`notif-result${profileTestResult[profile.id] === "Sent successfully" ? " ok" : " err"}`} style={{ display: "block", marginTop: 5 }}>
+                        {profileTestResult[profile.id]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="notif-spark">
+                    <SparkBars values={history.perProfile.get(profile.id) ?? []} label={`${profile.name}: sends per day, last ${HISTORY_DAYS} days`} />
+                    <span className="notif-spark-label">{(() => { const sent = (history.perProfile.get(profile.id) ?? []).reduce((a, b) => a + b, 0); return sent ? `${sent.toLocaleString()} sent · ${HISTORY_DAYS} d` : `No sends · ${HISTORY_DAYS} d`; })()}</span>
+                  </div>
+                  <div className="notif-method-actions">
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => void testNotificationProfile(profile)}>
+                      Test
+                    </button>
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => { setEditingProfileId(profile.id); setProfileForm(populateFormFromProfile(profile)); setShowProfileModal(true); }}>
+                      Edit
+                    </button>
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => void toggleNotificationProfile(profile)}>
+                      {profile.enabled ? "Disable" : "Enable"}
+                    </button>
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={profileBusy} onClick={() => void deleteNotificationProfile(profile)}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="admin-services">
+              <div>
+                <span className="admin-services-label">Guided setup</span>
+                <div className="admin-service-chips">{guided.map((name) => <span key={name} className="notif-method-tag">{name}</span>)}</div>
+              </div>
+              <div>
+                <span className="admin-services-label">Through Custom Apprise URL</span>
+                <div className="admin-service-chips">{viaApprise.map((name) => <span key={name} className="notif-method-tag">{name}</span>)}<span className="notif-method-tag">and more</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <aside className="admin-context">
+          <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by type" style={motion(2)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by type</h2></div>
+            <div className="admin-chart-body">
+              {typeItems.length
+                ? <DonutChart label="Methods by type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
+                : <p className="tool-note admin-chart-empty">No notification methods yet.</p>}
+            </div>
+          </section>
+          <section className="panel admin-panel nm-app-panel admin-system-card admin-fill nm-motion-item" aria-label="Recent failures" style={motion(3)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><CirclePause size={16} />Recent failures</h2></div>
+            {failures.length ? (
+              <ul className="admin-event-list">
+                {failures.slice(0, 5).map((failure) => (
+                  <li key={failure.id}>
+                    <span className="dash-status-dot dash-status-dot--offline" aria-hidden="true" />
+                    <span><strong>{targetName(failure.target)}</strong><small>{failure.detail || "Failed"} · {failure.rule_name}</small></span>
+                    <time dateTime={failure.sent_at}>{new Date(failure.sent_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="admin-system-card-body"><p className="tool-note admin-chart-empty">{historyOk ? `No failed deliveries in the last ${HISTORY_DAYS} days.` : "Delivery history is unavailable."}</p></div>}
+          </section>
+        </aside>
+      </div>
+
       {canManageBranding && (
-        <section className="panel admin-panel nm-app-panel email-branding-panel">
+        <section className="panel admin-panel nm-app-panel email-branding-panel nm-motion-item" aria-label="Email branding" style={motion(4)}>
           <div className="admin-panel-header nm-app-panel-header">
             <h2 className="admin-section-title"><IconPalette size={16} />Email branding</h2>
           </div>
@@ -277,65 +460,6 @@ export function NotificationsTab({
           )}
         </section>
       )}
-      <section className="panel admin-panel nm-app-panel">
-        <div className="admin-panel-header nm-app-panel-header">
-          <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification methods</h2>
-          <div className="admin-panel-actions">
-            <button
-              type="button"
-              className="nm-btn nm-btn--primary"
-              onClick={() => { setEditingProfileId(null); setProfileForm(emptyProfileForm); setShowProfileModal(true); }}
-            >
-              + Add method
-            </button>
-            <button type="button" className="nm-btn" disabled={profileBusy} onClick={() => void profilesQuery.reload()}>
-              Refresh
-            </button>
-          </div>
-        </div>
-        <p className="tool-note">Create reusable notification methods. Common services have guided fields; Custom Apprise URL covers the wider Apprise catalog.</p>
-        <details className="notif-apprise-details">
-          <summary>Services available via Custom Apprise URL</summary>
-          <p className="tool-note" style={{ margin: '6px 0 0' }}>{appriseSupportedMethods.join(", ")} and more.</p>
-        </details>
-        <div className="notif-methods-table">
-          {notificationProfiles.length === 0 ? (
-            <p className="audit-empty">No notification methods configured yet. Click <strong>+ Add method</strong> to get started.</p>
-          ) : notificationProfiles.map((profile) => (
-            <div className="notif-method-row" key={profile.id}>
-              <div className="notif-method-info">
-                <span className="notif-method-name">{profile.name}</span>
-                <div className="notif-method-meta">
-                  <span className="notif-method-tag">{notificationProfileMethodLabel(profile)}</span>
-                  <span className={`notif-status-badge notif-status-badge--${profile.enabled ? "active" : "off"}`}>
-                    {profile.enabled ? "Active" : "Disabled"}
-                  </span>
-                </div>
-                {profileTestResult[profile.id] && (
-                  <span className={`notif-result${profileTestResult[profile.id] === "Sent successfully" ? " ok" : " err"}`} style={{ display: "block", marginTop: 5 }}>
-                    {profileTestResult[profile.id]}
-                  </span>
-                )}
-              </div>
-              <div className="notif-method-actions">
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => void testNotificationProfile(profile)}>
-                  Test
-                </button>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => { setEditingProfileId(profile.id); setProfileForm(populateFormFromProfile(profile)); setShowProfileModal(true); }}>
-                  Edit
-                </button>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" disabled={profileBusy} onClick={() => void toggleNotificationProfile(profile)}>
-                  {profile.enabled ? "Disable" : "Enable"}
-                </button>
-                <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" disabled={profileBusy} onClick={() => void deleteNotificationProfile(profile)}>
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {showProfileModal && (
         <Modal
           title={editingProfileId !== null ? `Edit — ${profileForm.name || "notification method"}` : "Add notification method"}

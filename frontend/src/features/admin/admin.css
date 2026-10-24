@@ -1359,8 +1359,28 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 .admin-task-stack { display: flex; flex-direction: column; gap: var(--nm-space-6); }
 .admin-task-stack > .admin-task-panel { margin: 0; }
 
+.admin-services { display: grid; gap: var(--nm-space-4); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--nm-space-4); padding-top: var(--nm-space-4); border-top: 1px solid var(--nm-border); }
+.admin-services-label { display: block; margin-bottom: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
+.admin-service-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-service-chips .notif-method-tag { margin: 0; }
+@media (max-width: 760px) { .admin-services { grid-template-columns: minmax(0, 1fr); } }
 
+.admin-event-list { display: grid; margin: 0; padding: var(--nm-space-2) 18px var(--nm-space-4); list-style: none; }
+.admin-event-list li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: var(--nm-space-3); padding: var(--nm-space-3) 0; border-bottom: 1px solid var(--nm-border); }
+.admin-event-list li:last-child { border-bottom: 0; }
+.admin-event-list strong { display: block; color: var(--nm-text); font-size: var(--nm-text-md); font-weight: 600; }
+.admin-event-list small { display: block; overflow: hidden; color: var(--nm-text-muted); font-size: var(--nm-text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.admin-event-list time { color: var(--nm-text-muted); font-size: var(--nm-text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.admin-header-legend { display: flex; gap: var(--nm-space-4); margin: 0 0 0 auto; padding: 0; list-style: none; color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
+.admin-header-legend li { display: inline-flex; align-items: center; gap: 6px; }
 
+.notif-spark { display: flex; align-items: center; gap: var(--nm-space-3); margin-left: auto; margin-right: var(--nm-space-4); }
+.notif-spark-label { min-width: 104px; color: var(--nm-text-muted); font-size: var(--nm-text-sm); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .notif-spark { margin: 0; }
+  .notif-method-row { flex-direction: column; align-items: stretch; gap: var(--nm-space-2); }
+  .notif-method-actions { flex-wrap: wrap; }
+}
 .admin-stats > :nth-child(1) { --nm-motion-i: 1; }
 .admin-stats > :nth-child(2) { --nm-motion-i: 2; }
 .admin-stats > :nth-child(3) { --nm-motion-i: 3; }

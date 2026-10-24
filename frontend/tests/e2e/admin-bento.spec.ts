@@ -143,6 +143,24 @@ test("chart tooltips show the hovered value", async ({ page }) => {
   await expect(page.locator(".hb-tooltip-card")).toContainText("72");
 });
 
+test("Notifications keeps services inside the methods panel beside type and failure cards of equal height", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1200 });
+  await setupMocks(page, "slate");
+  await page.goto("/admin#notifications");
+  const methods = page.locator('[aria-label="Notification methods"]');
+  await expect(methods.locator(".admin-services")).toBeVisible();
+  await expect(page.locator('[aria-label="Deliveries, last 14 days"] .nm-chart-col')).toHaveCount(14);
+  await expect(page.locator('[aria-label="Methods by type"] .nm-chart-seg')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Recent failures"] li')).toHaveCount(1);
+  await expect(page.locator(".notif-method-row .nm-sparkbars")).toHaveCount(3);
+  const methodsBox = await box(page, '[aria-label="Notification methods"]');
+  const types = await box(page, '[aria-label="Methods by type"]');
+  const failures = await box(page, '[aria-label="Recent failures"]');
+  expect(types.x).toBeGreaterThan(methodsBox.x + methodsBox.width);
+  expect(Math.abs(types.y - methodsBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs((failures.y + failures.height) - (methodsBox.y + methodsBox.height))).toBeLessThanOrEqual(1);
+});
+
 test("entrance motion plays once and is off under reduced motion", async ({ page }) => {
   await setupMocks(page, "slate", true);
   await page.goto("/admin#system");
