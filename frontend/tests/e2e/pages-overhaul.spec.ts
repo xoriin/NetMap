@@ -181,7 +181,15 @@ test("Locations ring the occupied sites, level with the summary cards", async ({
 test("VLANs count devices per group and summarise address space", async ({ page }) => {
   await boot(page);
   await page.goto("/vlans");
-  expect(await barLabels(page, "Devices by VLAN")).toEqual(["Servers · 20 2", "Wi-Fi · 30 1"]);
+  const vlans = page.getByRole("region", { name: "Devices by VLAN", exact: true });
+  await expect(vlans.locator(".nm-column-chart .nm-chart-axis")).toHaveText(["Servers · 20", "Wi-Fi · 30"]);
+  await expect(vlans.locator(".nm-chart-value")).toHaveText(["2", "1"]);
+  await expect(vlans.locator(".nm-chart-value-bg")).toHaveCount(2);
+  const ratio = await vlans.locator(".nm-column-chart svg").evaluate((svg) => {
+    const bars = [...svg.querySelectorAll<SVGPathElement>(".nm-chart-col path")].map((path) => path.getBBox().height);
+    return bars[1] / bars[0];
+  });
+  expect(ratio, "VLAN columns use the square-root scale").toBeCloseTo(Math.SQRT1_2, 1);
   await expect(page.locator(".dash-stat", { hasText: "Largest subnet" })).toContainText("/23");
   await expect(page.locator(".dash-stat", { hasText: "Usable addresses" }).locator(".dash-stat-value")).toHaveText("764");
 });

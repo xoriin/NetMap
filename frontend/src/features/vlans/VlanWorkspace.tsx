@@ -3,7 +3,7 @@ import "./vlans.css";
 import { BarChart3, ChevronUp, ChevronDown, Layers, Maximize2, Network, Search, Server } from "lucide-react";
 import { DashStat } from "../../components/DashStat";
 import { InsightPanel } from "../../components/InsightPanel";
-import { BarList, CountUp } from "../../components/Charts";
+import { ColumnChart, CountUp } from "../../components/Charts";
 import { resolveEntityColor } from "../../utils/entityColor";
 import { api, type TopologyGroup, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
@@ -12,6 +12,7 @@ import { Modal, ModalFooterActions } from "../../components/Modal";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { useApiQuery, useApiMutation } from "../../hooks/useApiQuery";
 import { useSortableData } from "../../hooks/useSortableData";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { TableSkeleton } from "../../components/Skeleton";
 
 const VLAN_COL_WIDTHS_KEY = "netmap.vlan_col_widths_v1";
@@ -296,6 +297,7 @@ export function VlanWorkspace({
     : undefined;
 
   const groupLabel = (g: TopologyGroup) => g.display_name || g.name;
+  const phone = useMediaQuery("(max-width: 760px)");
   const vlanBars = mergedRows.map((row) => ({
     label: row.entity ? `${groupLabel(row.entity)}${row.entity.vlan_id ? ` · ${row.entity.vlan_id}` : ""}` : row.name,
     value: deviceCountByGroup.get(row.name) ?? 0,
@@ -311,7 +313,10 @@ export function VlanWorkspace({
     <section className="dash-layout vlan-workspace nm-motion">
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Devices by VLAN" icon={<BarChart3 size={16} />} className="nm-motion-item">
-            <BarList label="Devices per group or VLAN" items={vlanBars} empty="No devices are grouped yet." />
+            {vlanBars.length === 0 ? <p className="tool-note nm-chart-empty">No devices are grouped yet.</p>
+              : <ColumnChart label="Devices per group or VLAN" height={phone ? 96 : 150} barMax={44} valueLabels scale="sqrt"
+                  series={[{ key: "devices", label: "Devices", color: "--dash-blue" }]}
+                  rows={vlanBars.map((bar) => ({ label: bar.label, devices: bar.value, color: bar.color }))} />}
           </InsightPanel>
           <div className="dash-stats nm-bento-stats nm-summary-band">
             <DashStat className="nm-motion-item" label="Groups" value={<CountUp value={groups.length} />} icon={<Layers size={20} />} accent="teal"
