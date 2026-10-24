@@ -40,13 +40,16 @@ test("route controls preserve native link and new-tab semantics", async ({ page 
       cancelable: true,
       ctrlKey: true,
     });
-    return {
-      dispatched: element.dispatchEvent(event),
-      defaultPrevented: event.defaultPrevented,
-      tagName: element.tagName,
+    let defaultPrevented = true;
+    const stopNewTab = (seen: Event) => {
+      defaultPrevented = seen.defaultPrevented;
+      seen.preventDefault();
     };
+    window.addEventListener("click", stopNewTab, { once: true });
+    element.dispatchEvent(event);
+    return { defaultPrevented, tagName: element.tagName };
   });
-  expect(modifiedClick).toEqual({ dispatched: true, defaultPrevented: false, tagName: "A" });
+  expect(modifiedClick).toEqual({ defaultPrevented: false, tagName: "A" });
   await expect(page).toHaveURL(/\/overview$/);
 
   await inventory.click();
