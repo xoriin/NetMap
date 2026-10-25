@@ -204,7 +204,7 @@ export function DeviceIconsTab({
       <div className="nm-bento nm-bento--four">
         <AdminCard title="Devices by type" icon={<BarChart3 size={16} />}>
           {devicesQuery.error ? <p className="tool-note nm-chart-empty">Device counts are unavailable.</p>
-            : <BarList label="Devices per device type" items={typeBars} empty="No devices have a type yet." />}
+            : <BarList viewId="admin.icons.device-types" label="Devices per device type" items={typeBars} empty="No devices have a type yet." />}
         </AdminCard>
         <div className="dash-stats nm-bento-stats nm-summary-band">
           <DashStat accent="teal" className="nm-motion-item" icon={<Boxes size={20} />} label="Device types" value={<CountUp value={types.length} />} sub={`${assigned} devices assigned`} />

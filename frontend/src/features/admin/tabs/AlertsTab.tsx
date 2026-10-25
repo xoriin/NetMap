@@ -170,7 +170,7 @@ export function AlertsTab({
           </ul>
         )}>
           {deliveriesQuery.error ? <p className="tool-note nm-chart-empty">Delivery history is unavailable.</p>
-            : <ColumnChart label="Alert notifications per day, last 14 days, sent and failed" rows={history}
+            : <ColumnChart viewId="admin.alerts.deliveries" label="Alert notifications per day, last 14 days, sent and failed" rows={history}
                 series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} height={168} />}
         </AdminCard>
         <div className="dash-stats nm-bento-stats nm-summary-band">
@@ -438,7 +438,7 @@ export function AlertsTab({
         </div>
         <aside className="nm-console-side">
           <AdminCard title="Rules by trigger" icon={<Layers size={16} />}>
-            <BarList label="Rules per trigger" items={[...triggerCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }))} empty="No alert rules yet." />
+            <BarList viewId="admin.alerts.triggers" label="Rules per trigger" items={[...triggerCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }))} empty="No alert rules yet." />
           </AdminCard>
           <AdminCard title="Recently triggered" icon={<Clock size={16} />} className="nm-fill">
             <EventList empty="No rule has fired yet." rows={triggered.map((r) => ({

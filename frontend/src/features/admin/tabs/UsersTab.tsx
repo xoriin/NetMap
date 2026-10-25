@@ -178,7 +178,7 @@ export function UsersTab({
       <div className="nm-bento nm-bento--four">
         <AdminCard title="Sign-in security" icon={<ShieldCheck size={16} />}>
           {users.length > 0
-            ? <DonutChart label="Sign-in security" centre={<CountUp value={Math.round((twoFactor / users.length) * 100)} suffix="%" />} sub="2FA" items={[
+            ? <DonutChart viewId="admin.users.security" viewNoun="users" label="Sign-in security" centre={<CountUp value={Math.round((twoFactor / users.length) * 100)} suffix="%" />} sub="2FA" items={[
                 { label: "Two-factor", value: twoFactor, color: "--dash-green" },
                 { label: "SSO only", value: ssoOnly, color: "--dash-blue" },
                 { label: "Password only", value: passwordOnly, color: "--dash-amber" },
@@ -221,7 +221,7 @@ export function UsersTab({
         </div>
         <aside className="nm-console-side">
           <AdminCard title="Users by role" icon={<UsersIcon size={16} />} className="nm-fill">
-            <BarList label="Users per role" items={roleItems} empty="No users yet." />
+            <BarList viewId="admin.users.roles" label="Users per role" items={roleItems} empty="No users yet." />
           </AdminCard>
         </aside>
       </div>

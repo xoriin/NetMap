@@ -1,3 +1,4 @@
+import { ChartViewsPreference } from "../../components/ChartViewsPreference";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import "./profile.css";
 import {
@@ -654,6 +655,7 @@ export function ProfileWorkspace({
           <section className="profile-preferences-panel profile-panel nm-app-panel">
             <ProfilePanelHeader icon={Palette} title="Preferences" />
             <div className="profile-panel-body">
+              <ChartViewsPreference />
               <div className="profile-pref-row">
                 <div className="profile-pref-text">
                   <strong>Colour-coded entities</strong>

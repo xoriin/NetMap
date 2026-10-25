@@ -1,3 +1,4 @@
+import { ChartPanel, ChartOptionsSlot } from "../../../components/ChartPanel";
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Activity, CalendarClock, Download, FileUp, Layers, Palette, Rss, Settings, Timer, Upload } from "lucide-react";
@@ -752,40 +753,40 @@ export function SystemTab({
         </div>
 
         <aside className="nm-console-side">
-          <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Storage" style={motion(2)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Storage</h2></div>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Storage" style={motion(2)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Storage</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
-              {storage ? <DonutChart label="Storage" items={storage.items} unit={` ${storage.unit}`} centre={<CountUp value={storage.total} />} sub={storage.unit} />
+              {storage ? <DonutChart viewId="admin.system.storage" label="Storage" items={storage.items} unit={` ${storage.unit}`} centre={<CountUp value={storage.total} />} sub={storage.unit} />
                 : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
-          </section>
-          <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Device status at last check" style={motion(3)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Activity size={16} />Device status at last check</h2></div>
+          </section></ChartPanel>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Device status at last check" style={motion(3)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Activity size={16} />Device status at last check</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {diagnostics ? (deviceTotal > 0
-                ? <DonutChart label="Device status" items={deviceItems} centre={<CountUp value={onlinePct} suffix="%" />} sub="online" />
+                ? <DonutChart viewId="admin.system.device-status" viewNoun="devices" label="Device status" items={deviceItems} centre={<CountUp value={onlinePct} suffix="%" />} sub="online" />
                 : <p className="tool-note nm-chart-empty">No monitored devices yet.</p>)
                 : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
-          </section>
-          <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Backup size, last 10" style={motion(4)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Backup size, last 10</h2></div>
+          </section></ChartPanel>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Backup size, last 10" style={motion(4)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Backup size, last 10</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {backupRows.length > 0
-                ? <ColumnChart label="Scheduled backup sizes in MB, oldest to newest" rows={backupRows} series={[{ key: "size", label: "Backup size", color: "--dash-blue" }]} unit=" MB" height={132} />
+                ? <ColumnChart viewId="admin.system.backups" label="Scheduled backup sizes in MB, oldest to newest" rows={backupRows} series={[{ key: "size", label: "Backup size", color: "--dash-blue" }]} unit=" MB" height={132} />
                 : <p className="tool-note nm-chart-empty">Sizes appear after the first scheduled backup.</p>}
             </div>
-          </section>
-          <section id="admin-syslog" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Syslog configuration" style={motion(5)}>
+          </section></ChartPanel>
+          <ChartPanel><section id="admin-syslog" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Syslog configuration" style={motion(5)}>
             <div className="admin-system-card-header nm-app-panel-header">
               <h2 className="admin-section-title"><IconDatabase size={16} />Syslog configuration</h2>
-            </div>
+            <ChartOptionsSlot /></div>
             <div className="admin-system-card-body admin-task-stack">
               {syslogStatus ? (
                 <>
                   <AdminTaskPanel title={`Intake · ${syslogStatus.received_packets.toLocaleString()} received`} icon={<Layers size={14} />}>
                     {syslogStatus.received_packets > 0
-                      ? <StackBar label="Syslog intake" of="of received" items={[
+                      ? <StackBar viewId="admin.system.syslog-intake" label="Syslog intake" of="of received" items={[
                           { label: "Stored", value: syslogStatus.stored_events, color: "--dash-green" },
                           { label: "Dropped unparsed", value: syslogStatus.dropped_unparsed, color: "--dash-amber" },
                           { label: "Denied senders", value: syslogStatus.denied_senders, color: "--dash-red" },
@@ -823,7 +824,7 @@ export function SystemTab({
                 </>
               ) : <PanelSkeleton lines={8} />}
             </div>
-          </section>
+          </section></ChartPanel>
           {diagnostics && (
             <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Runtime diagnostics" style={motion(6)}>
               <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />Runtime diagnostics</h2></div>

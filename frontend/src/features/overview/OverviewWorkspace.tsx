@@ -444,9 +444,9 @@ export function OverviewWorkspace({
             </div>
           ) : (
             <div className="overview-health-combo">
-              <DonutChart label="Devices by health" legend={false} centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
+              <DonutChart viewId="overview.health-ring" viewNoun="devices" label="Devices by health" legend={false} centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
                 items={HEALTH_ITEMS.map((item) => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
-              <ColumnChart label="Devices per health status" height={176} barMax={56} valueLabels scale="sqrt" onSelect={openStatusInMonitoring}
+              <ColumnChart viewId="overview.health-status" viewKind="parts" label="Devices per health status" height={176} barMax={56} valueLabels scale="sqrt" onSelect={openStatusInMonitoring}
                 series={[{ key: "devices", label: "Devices", color: "--dash-green" }]}
                 rows={HEALTH_ITEMS.filter((item) => statusCounts[item.key] > 0).map((item) => ({ label: item.label, devices: statusCounts[item.key], color: item.color }))} />
             </div>
@@ -501,7 +501,7 @@ export function OverviewWorkspace({
 
       <div className="nm-pair">
         <InsightPanel title="Device types" icon={<IconChartBar size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
-          <BarList label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
+          <BarList viewId="overview.device-types" label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
             items={typeBreakdown.map(([type, count]) => ({ label: deviceTypeOptions.find((option) => option.value === type)?.label || formatDeviceTypeLabel(type), value: count, color: deviceTypeColors.get(type) ?? resolveEntityColor(null, type) }))} />
           {vendorBreakdown.length > 0 && (
             <>
@@ -517,7 +517,7 @@ export function OverviewWorkspace({
         </InsightPanel>
         <InsightPanel title="Top groups" icon={<IconMap size={16} />} className="nm-motion-item"
           actions={<SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>Manage <IconArrowRight size={12} /></SpaLink>}>
-          <BarList label="Devices per group" empty="Assign topology groups to devices to segment your network."
+          <BarList viewId="overview.groups" label="Devices per group" empty="Assign topology groups to devices to segment your network."
             items={groupBreakdown.map(([group, count]) => ({ label: group, value: count, color: groupColors.get(group) ?? resolveEntityColor(null, group) }))} />
         </InsightPanel>
       </div>
@@ -741,14 +741,14 @@ export function OverviewWorkspace({
             </div>
           </InsightPanel>
           <InsightPanel title="Slowest devices, 24 h" icon={<Timer size={16} />} className="nm-motion-item">
-            <BarList label="Monitored devices with the highest average round-trip time, last 24 hours" unit=" ms" empty={monLoading ? "Loading…" : "No latency recorded yet."}
+            <BarList viewId="overview.slowest" viewKind="rank" label="Monitored devices with the highest average round-trip time, last 24 hours" unit=" ms" empty={monLoading ? "Loading…" : "No latency recorded yet."}
               items={slowestDevices.map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }))} />
           </InsightPanel>
           <InsightPanel title="Endpoints" icon={<Plug size={16} />} className="nm-motion-item nm-fill"
             actions={<SpaLink href="/monitoring#endpoints" aria-label="All endpoints" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={openEndpointMonitoring}>All <IconArrowRight size={13} /></SpaLink>}>
             {endpointMonitors.length === 0 ? <p className="tool-note nm-chart-empty">No endpoints monitored yet.</p> : <>
               <p className="tool-note">{endpointMonitors.length} endpoint{endpointMonitors.length === 1 ? "" : "s"}{endpointUptime !== null ? ` · ${endpointUptime.toFixed(1)}% average uptime` : ""}</p>
-              <BarList label="Endpoints by state" max={endpointMonitors.length} items={[
+              <BarList viewId="overview.endpoints" label="Endpoints by state" max={endpointMonitors.length} items={[
                 { label: "Up", value: endpointMonitors.filter((m) => m.enabled && m.last_status === "online").length, color: "--dash-green" },
                 { label: "Down", value: offlineEndpoints.length, color: "--dash-red" },
                 { label: "Paused", value: endpointMonitors.filter((m) => !m.enabled).length, color: "--dash-paused" },

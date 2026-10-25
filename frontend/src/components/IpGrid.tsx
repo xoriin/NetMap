@@ -31,7 +31,7 @@ export function AddressUsage({ entries }: { entries: IpAddressEntry[] }) {
   const count = (kind: IpAddressEntry["kind"]) => entries.filter((entry) => entry.kind === kind).length;
   return (
     <div className="ipam-usage">
-      <StackBar label="Address usage" of="of this subnet" items={[
+      <StackBar viewId="ipam.subnet-address-usage" label="Address usage" of="of this subnet" items={[
         { label: "Device", value: count("device"), color: "var(--ipam-device)" },
         { label: "DHCP lease", value: count("dhcp"), color: "var(--ipam-dhcp)" },
         { label: "Reserved", value: count("reserved"), color: "var(--ipam-reserved)" },

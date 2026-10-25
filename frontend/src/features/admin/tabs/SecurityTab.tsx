@@ -653,7 +653,7 @@ export function SecurityTab({
             )}>
               {summaryQuery.isLoading ? <PanelSkeleton lines={5} />
                 : summaryQuery.error ? <p className="tool-note nm-chart-empty">Sign-in history is unavailable.</p>
-                : <ColumnChart label="Sign-ins per day, last 14 days, successful and failed" rows={signinRows}
+                : <ColumnChart viewId="admin.security.signins" label="Sign-ins per day, last 14 days, successful and failed" rows={signinRows}
                     series={[{ key: "ok", label: "Signed in", color: "--dash-green" }, { key: "bad", label: "Failed", color: "--dash-red" }]} height={168} />}
             </AdminCard>
             <div className="dash-stats nm-bento-stats nm-summary-band">
@@ -689,11 +689,11 @@ export function SecurityTab({
         </div>
         <aside className="nm-console-side">
           <AdminCard title="Activity, last 14 days" icon={<Layers size={16} />} style={motion(5)}>
-            {summary ? <BarList label="Events by type" items={summary.by_action.map((a) => ({ label: auditEventLabel(a.action), value: a.count, color: FAILED_ACTIONS.has(a.action) ? "--dash-red" : a.action === "auth.login_success" ? "--dash-green" : "--dash-blue" }))} empty="No activity in the last 14 days." />
+            {summary ? <BarList viewId="admin.security.actions" label="Events by type" items={summary.by_action.map((a) => ({ label: auditEventLabel(a.action), value: a.count, color: FAILED_ACTIONS.has(a.action) ? "--dash-red" : a.action === "auth.login_success" ? "--dash-green" : "--dash-blue" }))} empty="No activity in the last 14 days." />
               : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
           </AdminCard>
           <AdminCard title="Most active users" icon={<UsersIcon size={16} />} className="nm-fill" style={motion(6)}>
-            {summary ? <BarList label="Events per user" items={summary.by_actor.map((a) => ({ label: a.username, value: a.count }))} empty="No user activity in the last 14 days." />
+            {summary ? <BarList viewId="admin.security.actors" label="Events per user" items={summary.by_actor.map((a) => ({ label: a.username, value: a.count }))} empty="No user activity in the last 14 days." />
               : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
           </AdminCard>
         </aside>

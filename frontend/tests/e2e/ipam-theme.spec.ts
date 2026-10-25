@@ -96,6 +96,15 @@ for (const theme of ["light", "dark"] as const) {
     }
 
     await expect(page.locator(".ipam-data-table th").first()).toHaveCSS("border-right-width", "0px");
+    const personal = page.locator('[data-chart-id="ipam.address-space"]');
+    await page.getByRole('button', { name: 'Visual options: Address space', exact: true }).click();
+    await personal.getByRole('button', { name: 'Data table', exact: true }).click();
+    await expect(personal.locator('tbody tr')).toHaveCount(2);
+    await expect(personal.locator('tbody')).toContainText('Used');
+    await expect(personal.locator('tbody')).toContainText('Free');
+    expect(await personal.locator('tbody tr td:nth-child(2)').allTextContents()).toEqual(['4', '250']);
+    await personal.getByRole('button', { name: 'Cancel', exact: true }).click();
+
   });
 }
 

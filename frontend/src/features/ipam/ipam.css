@@ -863,3 +863,5 @@ body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
+
+.ipam-space-panel > .nm-personal-chart > :is(.nm-personal-renderer, .nm-chart-settings) { margin: var(--nm-space-4) 18px; width: auto; }

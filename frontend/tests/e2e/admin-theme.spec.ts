@@ -84,6 +84,7 @@ const emailBranding = {
 
 for (const style of ["light", "slate", "zinc"] as const) {
   test(`Admin module surfaces use the module palette in ${style}`, async ({ page }) => {
+    test.setTimeout(120_000);
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -115,6 +116,18 @@ for (const style of ["light", "slate", "zinc"] as const) {
       await page.goto(`/admin#${section}`);
       await expect(page.locator(".admin-tab-content .nm-app-panel").first()).toBeVisible();
       if (section === "alerts") await page.getByRole("button", { name: "+ Add rule", exact: true }).click();
+      // Every rendered full-size chart must belong to a personal-view adapter, in every Admin tab.
+      const ownership = await page.locator('.admin-layout :is(.nm-donut-chart, .nm-column-chart, .nm-area-chart, .nm-stackbar-chart, .nm-bar-list)').evaluateAll(charts => charts.every(chart => chart.closest('[data-chart-id]')));
+      expect(ownership).toBe(true);
+      await expect(page.locator(".admin-layout .nm-chart-local-action")).toHaveCount(0);
+      const options = page.getByRole('button', { name: /^Visual options:/ });
+      if (await options.count()) {
+        await options.first().click();
+        await expect(page.locator('.nm-chart-settings')).toBeVisible();
+        await page.locator('.nm-chart-settings').getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(page.locator('.nm-chart-settings')).toHaveCount(0);
+      }
+
       for (const width of [1600, 390]) {
         await page.setViewportSize({ width, height: 1000 });
         if (process.env.NETMAP_SURFACE_SCREENSHOTS && width === 390 && section === "system") {

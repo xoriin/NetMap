@@ -238,7 +238,7 @@ export function AutomationTab({
         )}>
           {!canManageDiscovery ? <p className="tool-note nm-chart-empty">Change history needs discovery access.</p>
             : summaryQuery.error ? <p className="tool-note nm-chart-empty">Change history is unavailable.</p>
-            : <ColumnChart label="Changes found per day, last 14 days, by type" rows={changeRows} height={168}
+            : <ColumnChart viewId="admin.automation.changes" label="Changes found per day, last 14 days, by type" rows={changeRows} height={168}
                 series={[
                   { key: "new_device", label: "New devices", color: "--dash-blue" },
                   { key: "ip_change", label: "Address changes", color: "--dash-amber" },

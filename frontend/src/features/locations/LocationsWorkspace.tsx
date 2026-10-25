@@ -238,7 +238,7 @@ export function LocationsWorkspace({
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Devices by location" icon={<BarChart3 size={16} />} className="nm-motion-item">
             {occupiedSites.length === 0 ? <p className="tool-note nm-chart-empty">{sites.length ? "No devices are placed at a location yet." : "No locations yet."}</p>
-              : <DonutChart label="Devices per location" items={occupiedSites} centre={<CountUp value={occupiedSites.reduce((sum, site) => sum + site.value, 0)} />} sub="devices" />}
+              : <DonutChart viewId="locations.devices" label="Devices per location" items={occupiedSites} centre={<CountUp value={occupiedSites.reduce((sum, site) => sum + site.value, 0)} />} sub="devices" />}
           </InsightPanel>
           <div className="dash-stats nm-bento-stats loc-stats nm-summary-band">
             <DashStat className="nm-motion-item" label="Total sites" value={<CountUp value={sites.length} />} icon={<IconMapPin size={20} />} accent="teal"

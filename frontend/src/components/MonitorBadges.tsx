@@ -45,7 +45,7 @@ function RttSparklineImpl({ data }: { data: MonitorHistoryPoint[] }) {
   const avg = valid.reduce((sum, d) => sum + (d.rtt_ms as number), 0) / valid.length;
   const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
-    <AreaChart label="Response time" unit=" ms" height={220} zoomable
+    <AreaChart viewId="monitoring.response-history" viewKind="time" label="Response time" unit=" ms" height={220} zoomable
       reference={{ value: avg, label: `avg ${avg.toFixed(1)}` }}
       series={[{ key: "rtt", label: "Round-trip time", color: "--nm-accent" }]}
       rows={valid.map((d) => ({ label: time(d.checked_at), rtt: Number((d.rtt_ms as number).toFixed(2)) }))} />

@@ -708,7 +708,7 @@ export function InventoryWorkspace({
       <div className="nm-bento nm-bento--four inventory-bento nm-motion">
       <InsightPanel title="Devices by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeSlices.length} type{typeSlices.length === 1 ? "" : "s"}</span>}>
         {graph.devices.length === 0 ? <p className="tool-note nm-chart-empty">No devices yet.</p>
-          : <DonutChart label="Devices per device type" items={typeSlices} centre={<CountUp value={graph.devices.length} />} sub="devices" />}
+          : <DonutChart viewId="inventory.device-types" label="Devices per device type" items={typeSlices} centre={<CountUp value={graph.devices.length} />} sub="devices" />}
       </InsightPanel>
       <div className="dash-stats inventory-stats nm-bento-stats nm-summary-band">
         <DashStat className="nm-motion-item"

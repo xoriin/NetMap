@@ -86,7 +86,7 @@ export function CredentialsTab({
       <div className="nm-bento nm-bento--four">
         <AdminCard title="Profiles by version" icon={<PieChart size={16} />}>
           {snmpProfiles.length
-            ? <DonutChart label="SNMP profiles by version" centre={<CountUp value={snmpProfiles.length} />} sub="Profiles" items={[
+            ? <DonutChart viewId="admin.snmp.versions" label="SNMP profiles by version" centre={<CountUp value={snmpProfiles.length} />} sub="Profiles" items={[
                 { label: "SNMPv3", value: v3, color: "--dash-green" },
                 { label: "SNMPv2c", value: v2, color: "--dash-blue" },
               ]} />

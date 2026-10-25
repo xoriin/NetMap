@@ -105,7 +105,7 @@ export function GroupsTab({
         <AdminCard title="Permission coverage" icon={<ShieldCheck size={16} />}>
           {rolePermissions ? <>
             <p className="tool-note">Permissions granted to each role, out of {permissionCount}.</p>
-            <BarList label="Permissions granted per role" max={permissionCount}
+            <BarList viewId="admin.groups.permissions" viewKind="rank" label="Permissions granted per role" max={permissionCount}
               items={roleNames.map((role) => ({ label: roleLabel(role), value: grantedCount(role), hint: `${grantedCount(role)} of ${permissionCount}` }))} />
           </> : <PanelSkeleton lines={4} />}
         </AdminCard>

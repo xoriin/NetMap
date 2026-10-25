@@ -1,3 +1,5 @@
+import { ChartPanel, ChartOptionsSlot } from "../../components/ChartPanel";
+import { PersonalChart } from "../../components/PersonalChart";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./security.css";
 import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties, PieChart, Users } from "lucide-react";
@@ -413,10 +415,12 @@ export function SecurityWorkspace({
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
       <div className="security-bento">
-        <section className="security-insight security-mix-panel nm-app-panel" aria-label="Traffic mix">
+        <ChartPanel><section className="security-insight security-mix-panel nm-app-panel" aria-label="Traffic mix">
           <div className="security-panel-header nm-app-panel-header">
             <span className="security-panel-identity"><span className="security-panel-icon"><PieChart size={18} /></span><strong>Traffic mix</strong><small>{events.length} loaded events</small></span>
+            <ChartOptionsSlot />
           </div>
+          <PersonalChart id="security.traffic-mix" label="Traffic mix" base="ring" data={{ kind: "parts", noun: "events", rows: [{ label: "Blocked", value: actionMix.blocked, color: "--dash-red" }, { label: "Passed", value: actionMix.passed, color: "--dash-green" }, { label: "Other", value: actionMix.other, color: "--nm-text-faint" }], series: [{ key: "value", label: "Events", color: "--dash-blue" }] }}>
           <div className="security-mix-body">
             <UsageRing pct={actionMix.pct} label="blocked" tone="danger" />
             <ul className="security-mix-legend">
@@ -425,11 +429,14 @@ export function SecurityWorkspace({
               <li><span className="security-mix-swatch security-mix-swatch--other" aria-hidden="true" /><span>Other</span><strong>{actionMix.other}</strong></li>
             </ul>
           </div>
-        </section>
-        <section className="security-insight security-sources-panel nm-app-panel" aria-label="Top sources">
+          </PersonalChart>
+        </section></ChartPanel>
+        <ChartPanel><section className="security-insight security-sources-panel nm-app-panel" aria-label="Top sources">
           <div className="security-panel-header nm-app-panel-header">
             <span className="security-panel-identity"><span className="security-panel-icon"><Users size={18} /></span><strong>Top sources</strong><small>{topSources.length ? `Top ${topSources.length}` : "No events"}</small></span>
+            <ChartOptionsSlot />
           </div>
+          <PersonalChart id="security.top-sources" label="Top sources" base="bars" data={{ kind: "rank", rows: topSources.map(source => ({ label: source.ip, blocked: source.blocked, other: source.total - source.blocked })), series: [{ key: "blocked", label: "Blocked", color: "--dash-red" }, { key: "other", label: "Other events", color: "--dash-blue" }] }}>
           <div className="security-sources-body">
             {topSources.length === 0 ? <div className="dash-empty">No events loaded</div> : topSources.map((source) => (
               <div key={source.ip} className="security-source-row">
@@ -439,7 +446,8 @@ export function SecurityWorkspace({
               </div>
             ))}
           </div>
-        </section>
+          </PersonalChart>
+        </section></ChartPanel>
       <div className="dash-stats dash-stats--four security-summary-grid nm-summary-band" aria-label="Security ingestion summary">
         <DashStat className="security-summary-card" label="Stored events" value={status?.stored_events ?? status?.total_events ?? 0} icon={<Database size={19} />} accent="teal" />
         <DashStat className="security-summary-card" label="Received packets" value={status?.received_packets ?? 0} icon={<Radio size={19} />} accent="green" />

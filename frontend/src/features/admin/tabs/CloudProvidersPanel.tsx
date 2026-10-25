@@ -102,7 +102,7 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
     <div className="nm-bento nm-bento--four">
       <AdminCard title="External IPs by provider" icon={<PieChart size={16} />}>
         {usageQuery.error ? <p className="tool-note nm-chart-empty">External IP usage is unavailable.</p>
-          : totalIps ? <DonutChart label="External IP addresses by provider" centre={<CountUp value={totalIps} />} sub="IPs" items={usageItems} />
+          : totalIps ? <DonutChart viewId="admin.cloud.addresses" label="External IP addresses by provider" centre={<CountUp value={totalIps} />} sub="IPs" items={usageItems} />
           : <p className="tool-note nm-chart-empty">No external IPs recorded yet.</p>}
       </AdminCard>
       <div className="dash-stats nm-bento-stats nm-summary-band">

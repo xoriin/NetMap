@@ -501,7 +501,7 @@ export function ToolsWorkspace({
       <div className="nm-bento nm-bento--four nm-motion">
         <InsightPanel title="Your recent checks" icon={<Activity size={16} />} className="nm-motion-item">
           <p className="tool-note">Checks run from this browser, by tool.</p>
-          <BarList label="Recent checks per tool" empty="No checks run from this browser yet."
+          <BarList viewId="tools.recent-checks" label="Recent checks per tool" empty="No checks run from this browser yet."
             items={availableTools.map(({ id, label }) => ({ label, value: recentRuns.filter((run) => run.tool === id).length }))
               .filter((item) => item.value > 0).sort((a, b) => b.value - a.value)} />
         </InsightPanel>

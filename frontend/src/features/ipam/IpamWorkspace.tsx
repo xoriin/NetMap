@@ -1,3 +1,5 @@
+import { ChartPanel, ChartOptionsSlot } from "../../components/ChartPanel";
+import { PersonalChart } from "../../components/PersonalChart";
 import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent, type ReactNode } from "react";
 import "./ipam.css";
 import {
@@ -534,10 +536,12 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
   return (
     <section className="dash-layout ipam-workspace">
       <div className="ipam-bento">
-        <div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
+        <ChartPanel><div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
           <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
             <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
+            <ChartOptionsSlot />
           </div>
+          <PersonalChart id="ipam.address-space" label="Address space" base="ring" data={{ kind: "parts", noun: "hosts", rows: [{ label: "Used", value: summary?.used ?? 0, color: "--dash-green" }, { label: "Free", value: summary?.free ?? 0, color: "--nm-text-faint" }], series: [{ key: "value", label: "Hosts", color: "--dash-green" }] }}>
           <div className="dash-panel-body ipam-space-body">
             <UsageRing pct={usedPct} label="used" />
             <ul className="ipam-space-legend">
@@ -550,7 +554,8 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
               ))}
             </ul>
           </div>
-        </div>
+          </PersonalChart>
+        </div></ChartPanel>
         {summaryCards}
       </div>
 

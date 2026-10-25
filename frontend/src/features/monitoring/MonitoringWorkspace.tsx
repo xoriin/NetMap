@@ -985,7 +985,7 @@ export function MonitoringWorkspace({
       {viewTab === "endpoints" ? (
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Average response, last 24 h" icon={<Gauge size={16} />} className="nm-motion-item">
-            <BarList label="Average response time per endpoint, last 24 hours" unit=" ms" items={responseBars} empty="No response times recorded yet." />
+            <BarList viewId="monitoring.endpoint-response" viewKind="rank" label="Average response time per endpoint, last 24 hours" unit=" ms" items={responseBars} empty="No response times recorded yet." />
           </InsightPanel>
           <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
             <DashStat className="nm-motion-item" label="Endpoints" value={<CountUp value={monitorStats.total} />} icon={<IconPlugConnected size={20} />} accent="teal"
@@ -1002,7 +1002,7 @@ export function MonitoringWorkspace({
       <div className="nm-bento">
         <InsightPanel title="Fleet health" icon={<HeartPulse size={16} />} className="nm-motion-item">
           {fleet && fleet.total > 0
-            ? <DonutChart label="Monitored devices by health" centre={<CountUp value={fleet.total} />} sub="Devices" items={fleetItems} />
+            ? <DonutChart viewId="monitoring.fleet-health" label="Monitored devices by health" centre={<CountUp value={fleet.total} />} sub="Devices" items={fleetItems} />
             : <p className="tool-note nm-chart-empty">No monitored devices yet.</p>}
         </InsightPanel>
       <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
@@ -1081,7 +1081,7 @@ export function MonitoringWorkspace({
         <div className="nm-pair mon-device-insights">
           <InsightPanel title="Highest latency, last 24 h" icon={<Timer size={16} />} className="nm-motion-item">
             <p className="tool-note">Average RTT per device · highest first</p>
-            {latencyRows.length ? <AreaChart
+            {latencyRows.length ? <AreaChart viewId="monitoring.device-latency" viewKind="rank"
               label="Devices ranked by average round-trip time, last 24 hours"
               rows={latencyRows}
               series={[{ key: "value", label: "Average RTT", color: "--dash-indigo" }]}
@@ -1090,7 +1090,7 @@ export function MonitoringWorkspace({
           </InsightPanel>
           <InsightPanel title="Least uptime, last 24 h" icon={<TrendingDown size={16} />} className="nm-motion-item">
             <p className="tool-note">Uptime per device · lowest first</p>
-            {uptimeRows.length ? <AreaChart
+            {uptimeRows.length ? <AreaChart viewId="monitoring.device-uptime" viewKind="rank"
               label="Devices ranked by uptime, last 24 hours"
               rows={uptimeRows}
               series={[{ key: "value", label: "Uptime", color: "--dash-amber" }]}

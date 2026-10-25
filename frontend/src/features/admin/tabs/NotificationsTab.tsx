@@ -1,3 +1,4 @@
+import { ChartPanel, ChartOptionsSlot } from "../../../components/ChartPanel";
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { IconCloud, IconPalette } from "@tabler/icons-react";
@@ -280,25 +281,26 @@ export function NotificationsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four nm-bento--chart">
-        <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
+        <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
           <div className="admin-panel-header nm-app-panel-header">
             <h2 className="admin-section-title"><Send size={16} />Deliveries, last {HISTORY_DAYS} days</h2>
             <ul className="nm-header-legend" aria-hidden="true">
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
             </ul>
+            <ChartOptionsSlot />
           </div>
           <div className="nm-chart-body">
             {deliveriesQuery.isLoading ? <PanelSkeleton lines={5} />
               : !historyOk ? <p className="tool-note nm-chart-empty">Delivery history is unavailable.</p>
               : <>
-                  <ColumnChart label={`Notification deliveries per day, last ${HISTORY_DAYS} days, sent and failed`} rows={history.rows}
+                  <ColumnChart viewId="admin.notifications.deliveries" label={`Notification deliveries per day, last ${HISTORY_DAYS} days, sent and failed`} rows={history.rows}
                     series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} height={168} />
                   {attempts === 0 && <p className="tool-note nm-chart-empty">No deliveries in the last {HISTORY_DAYS} days.</p>}
                   {history.truncated && <p className="tool-note nm-chart-empty">Based on the latest {DELIVERY_LIMIT} deliveries.</p>}
                 </>}
           </div>
-        </section>
+        </section></ChartPanel>
         <div className="dash-stats nm-bento-stats nm-summary-band">
           <DashStat accent="teal" className="nm-motion-item" icon={<Send size={20} />} label="Methods" value={<CountUp value={notificationProfiles.length} />}
             sub={typeEntries.map(([label]) => label).join(", ") || "None yet"} onClick={() => scrollTo("admin-notification-methods")} />
@@ -384,14 +386,14 @@ export function NotificationsTab({
           </section>
         </div>
         <aside className="nm-console-side">
-          <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by type" style={motion(2)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by type</h2></div>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by type" style={motion(2)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by type</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {typeItems.length
-                ? <DonutChart label="Methods by type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
+                ? <DonutChart viewId="admin.notifications.methods" label="Methods by type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
                 : <p className="tool-note nm-chart-empty">No notification methods yet.</p>}
             </div>
-          </section>
+          </section></ChartPanel>
           <section className="panel admin-panel nm-app-panel admin-system-card nm-fill nm-motion-item" aria-label="Recent failures" style={motion(3)}>
             <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><CirclePause size={16} />Recent failures</h2></div>
             {failures.length ? (

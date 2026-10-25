@@ -74,6 +74,14 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".security-results-meta")).toContainText("1 results");
     await expect(page.locator(".security-row")).toContainText("10.0.0.1");
     await expect(page.locator(".security-search input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    for (const [id, label] of [['security.traffic-mix', 'Traffic mix'], ['security.top-sources', 'Top sources']]) {
+      const personal = page.locator(`[data-chart-id="${id}"]`);
+      await page.getByRole('button', { name: `Visual options: ${label}`, exact: true }).click();
+      await personal.getByRole('button', { name: 'Columns', exact: true }).click();
+      await expect(personal.locator('.nm-personal-plot')).toBeVisible();
+      await personal.getByRole('button', { name: 'Cancel', exact: true }).click();
+    }
+
   });
 }
 

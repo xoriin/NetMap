@@ -327,7 +327,7 @@ export function VlanWorkspace({
         <div className="nm-bento nm-bento--four">
           <InsightPanel title="Devices by VLAN" icon={<BarChart3 size={16} />} className="nm-motion-item">
             {vlanBars.length === 0 ? <p className="tool-note nm-chart-empty">No devices are grouped yet.</p>
-              : <ColumnChart label="Devices per group or VLAN" height={phone ? 96 : 150} barMax={44} valueLabels scale="sqrt" onSelect={onNavigate ? openInIpam : undefined}
+              : <ColumnChart viewId="vlans.devices" viewKind="parts" label="Devices per group or VLAN" height={phone ? 96 : 150} barMax={44} valueLabels scale="sqrt" onSelect={onNavigate ? openInIpam : undefined}
                   series={[{ key: "devices", label: "Devices", color: "--dash-blue" }]}
                   rows={vlanBars.map((bar) => ({ label: bar.label, devices: bar.value, color: bar.color }))} />}
           </InsightPanel>

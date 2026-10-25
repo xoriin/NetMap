@@ -209,3 +209,7 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
 @media (max-width: 520px) { .overview-health-combo { grid-template-columns: minmax(0, 1fr); justify-items: center; } .overview-health-combo .nm-column-chart { width: 100%; } }
 
 .overview-outages-scroll { max-height: 360px; overflow-y: auto; }
+
+/* A personal view/editor uses the health panel width instead of the compact ring slot. */
+.overview-health-combo:has(.nm-personal-chart--editing),
+.overview-health-combo:has([data-chart-custom="true"]) { grid-template-columns: minmax(0, 1fr); }
