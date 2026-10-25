@@ -1,7 +1,7 @@
 import { useToast } from "../../components/Toast";
 import { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback, useContext, type DragEvent, type FormEvent } from "react";
 import { useSortableData } from "../../hooks/useSortableData";
-import { Search, Star, ChevronUp, ChevronDown, Activity, Gauge, HeartPulse, ShieldAlert, Timer, TrendingDown, GripVertical, Pencil, SlidersHorizontal, X } from "lucide-react";
+import { Search, Star, ChevronUp, ChevronDown, Activity, Gauge, HeartPulse, ShieldAlert, Timer, TrendingDown, Network, GripVertical, Pencil, SlidersHorizontal, X } from "lucide-react";
 import { IconServer, IconWifi, IconWifiOff, IconAlertCircle, IconPlugConnected, IconGauge } from "@tabler/icons-react";
 import {
   api,
@@ -18,7 +18,7 @@ import {
 } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
 import { InsightPanel } from "../../components/InsightPanel";
-import { AreaChart, BarList, CountUp, DonutChart } from "../../components/Charts";
+import { BarList, CountUp, DonutChart } from "../../components/Charts";
 import { EventList } from "../../components/EventList";
 import { shortDateTime } from "../../utils/history";
 import { PanelSkeleton, WorkspaceSkeleton } from "../../components/Skeleton";
@@ -967,17 +967,33 @@ export function MonitoringWorkspace({
   const outages = [...monitors].filter((m) => m.last_status === "offline" || (m.uptime_24h !== null && m.uptime_24h < 100))
     .sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 5);
 
-  const fleetItems = fleet ? [
-    { label: "Healthy", value: fleet.healthy, color: "--dash-green" as const },
-    { label: "Unexpected", value: fleet.unhealthy, color: "--dash-red" as const },
-    { label: "Unknown", value: Math.max(0, fleet.total - fleet.healthy - fleet.unhealthy - fleet.paused), color: "--dash-muted" as const },
-    { label: "Paused", value: fleet.paused, color: "--dash-paused" as const },
-  ].filter((item) => item.value > 0) : [];
+  // Charts use the same complete filtered set as the table, before pagination.
+  // Keep the server's expected-state health classification rather than raw up/down.
+  const filteredHealth = { healthy: 0, unhealthy: 0, unknown: 0, paused: 0 };
+  for (const device of filteredDevices) {
+    const health = device.health_status;
+    if (health === "healthy" || health === "unhealthy" || health === "paused") filteredHealth[health]++;
+    else filteredHealth.unknown++;
+  }
+  const fleetItems = [
+    { label: "Healthy", value: filteredHealth.healthy, color: "--dash-green" as const },
+    { label: "Unexpected", value: filteredHealth.unhealthy, color: "--dash-red" as const },
+    { label: "Unknown", value: filteredHealth.unknown, color: "--dash-muted" as const },
+    { label: "Paused", value: filteredHealth.paused, color: "--dash-paused" as const },
+  ].filter((item) => item.value > 0);
   const deviceName = (d: DeviceMonitorSummary) => d.display_name ?? d.hostname ?? d.ip_address;
-  const latencyRows = devices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 6)
+  const latencyRows = filteredDevices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 6)
     .map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)) }));
-  const uptimeRows = devices.filter((d) => d.uptime_24h !== null).sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 6)
-    .map((d) => ({ label: deviceName(d), value: Number(((d.uptime_24h ?? 0) * 100).toFixed(1)) }));
+  const vlanCounts = new Map<string, number>();
+  for (const device of filteredDevices) {
+    const vlan = device.vlan_id?.trim() ?? "";
+    vlanCounts.set(vlan, (vlanCounts.get(vlan) ?? 0) + 1);
+  }
+  const vlanRows = [...vlanCounts].map(([vlan, value]) => ({
+    label: vlan ? `VLAN ${vlan}` : "No VLAN",
+    value,
+    color: vlan ? resolveEntityColor(null, `vlan-${vlan}`) : "--dash-muted",
+  })).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, undefined, { numeric: true }));
   const unexpectedNames = unexpectedDevices.slice(0, 3).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ");
 
   return (
@@ -1001,9 +1017,9 @@ export function MonitoringWorkspace({
       ) : (
       <div className="nm-bento">
         <InsightPanel title="Fleet health" icon={<HeartPulse size={16} />} className="nm-motion-item">
-          {fleet && fleet.total > 0
-            ? <DonutChart viewId="monitoring.fleet-health" label="Monitored devices by health" centre={<CountUp value={fleet.total} />} sub="Devices" items={fleetItems} />
-            : <p className="tool-note nm-chart-empty">No monitored devices yet.</p>}
+          {filteredDevices.length > 0
+            ? <DonutChart viewId="monitoring.fleet-health" label="Monitored devices by health" centre={<CountUp value={filteredDevices.length} />} sub="Devices" items={fleetItems} />
+            : <p className="tool-note nm-chart-empty">{devices.length === 0 ? "No monitored devices yet." : "No devices match the current filters."}</p>}
         </InsightPanel>
       <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
         <DashStat
@@ -1079,23 +1095,20 @@ export function MonitoringWorkspace({
 
       {viewTab === "devices" && (
         <div className="nm-pair mon-device-insights">
-          <InsightPanel title="Highest latency, last 24 h" icon={<Timer size={16} />} className="nm-motion-item">
-            <p className="tool-note">Average RTT per device · highest first</p>
-            {latencyRows.length ? <AreaChart viewId="monitoring.device-latency" viewKind="rank"
+          <InsightPanel title="Highest Latency" icon={<Timer size={16} />} className="nm-motion-item">
+            <BarList viewId="monitoring.device-latency" viewKind="rank"
               label="Devices ranked by average round-trip time, last 24 hours"
-              rows={latencyRows}
-              series={[{ key: "value", label: "Average RTT", color: "--dash-indigo" }]}
-              unit=" ms" height={180}
-            /> : <p className="tool-note nm-chart-empty">No latency recorded yet.</p>}
+              items={latencyRows.map(row => ({ ...row, color: "--dash-indigo" }))}
+              unit=" ms"
+              empty="No latency recorded yet."
+            />
           </InsightPanel>
-          <InsightPanel title="Least uptime, last 24 h" icon={<TrendingDown size={16} />} className="nm-motion-item">
-            <p className="tool-note">Uptime per device · lowest first</p>
-            {uptimeRows.length ? <AreaChart viewId="monitoring.device-uptime" viewKind="rank"
-              label="Devices ranked by uptime, last 24 hours"
-              rows={uptimeRows}
-              series={[{ key: "value", label: "Uptime", color: "--dash-amber" }]}
-              unit="%" height={180}
-            /> : <p className="tool-note nm-chart-empty">No uptime recorded yet.</p>}
+          <InsightPanel title="Devices by VLAN" icon={<Network size={16} />} className="nm-motion-item">
+            <BarList viewId="monitoring.device-vlans" viewKind="parts"
+              label="Devices per VLAN"
+              items={vlanRows}
+              empty={devices.length === 0 ? "No monitored devices yet." : "No devices match the current filters."}
+            />
           </InsightPanel>
         </div>
       )}
