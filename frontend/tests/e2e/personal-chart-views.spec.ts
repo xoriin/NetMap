@@ -198,3 +198,46 @@ test('display options persist independently of the chart form and reset to produ
   await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
   await expect(chart.locator('.nm-donut-chart .nm-chart-legend strong')).toHaveCount(3);
 });
+
+for (const theme of ['light', 'slate', 'zinc']) {
+  test(`selected bars retain default geometry in ${theme}`, async ({ page }) => {
+    await boot(page, theme);
+    await page.goto('/overview');
+    const chart = page.locator('[data-chart-id="overview.device-types"]');
+    const panel = chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]');
+    const trigger = panel.getByRole('button', { name: /^Visual options:/ });
+    for (const width of [1440, 820, 390]) {
+      await page.setViewportSize({ width, height: 1050 });
+      const geometry = () => chart.evaluate(el => {
+        const host = el.getBoundingClientRect();
+        return [...el.querySelectorAll('.nm-bar-list-track')].map(track => {
+          const box = track.getBoundingClientRect(), fill = track.firstElementChild!.getBoundingClientRect();
+          return [box.x - host.x, box.y - host.y, box.width, box.height, fill.width];
+        });
+      });
+      await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
+      const before = await geometry();
+      await trigger.click();
+      await chart.getByRole('button', { name: 'Bars', exact: true }).click();
+      await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
+      await chart.getByRole('button', { name: 'Close visual options', exact: true }).click();
+      const after = await geometry();
+      expect(after).toHaveLength(before.length);
+      after.forEach((row, i) => row.forEach((value, j) => expect(Math.abs(value - before[i][j])).toBeLessThan(1)));
+      await chart.screenshot({ path: test.info().outputPath(`bars-${theme}-${width}.png`) });
+      await trigger.click();
+      await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
+      await chart.getByRole('button', { name: 'Close visual options', exact: true }).click();
+    }
+  });
+}
+
+test('canonical chart preview shows the shared personal controls', async ({ page }) => {
+  test.skip(process.env.NETMAP_UI_PREVIEW_TESTS !== '1', 'Live Vite preview only');
+  await boot(page);
+  await page.goto('/theme-preview');
+  const chart = page.locator('[data-chart-id="preview.personal-chart"]');
+  await expect(chart).toBeVisible();
+  await chart.scrollIntoViewIfNeeded();
+  await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: '/tmp/netmap-chart-preview-before.png' });
+});

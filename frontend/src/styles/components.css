@@ -2115,10 +2115,6 @@ body.theme-dark .nm-pick-filter input {
 .nm-personal-ring-centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .nm-personal-ring-centre strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .nm-personal-ring-centre span { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
-.nm-personal-bars { display: grid; grid-template-columns: minmax(70px, max-content) minmax(0, 1fr) auto; gap: var(--nm-space-3); }
-.nm-personal-bar-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; gap: var(--nm-space-3); font-size: var(--nm-text-sm); }
-.nm-personal-bar-label { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nm-personal-bar-row strong { text-align: right; font-variant-numeric: tabular-nums; }
 .nm-personal-treemap { position: relative; height: 180px; }
 .nm-personal-treemap > div { position: absolute; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: var(--nm-space-2); padding: 0; background: color-mix(in srgb, var(--nm-chart-paint) 26%, var(--nm-surface)); overflow-wrap: anywhere; }
 .nm-personal-treemap span { padding: 4px 6px 0; font-size: var(--nm-text-sm); }
@@ -2137,8 +2133,8 @@ body.theme-dark .nm-pick-filter input {
 .nm-personal-renderer .nm-chart-legend { margin-top: var(--nm-space-3); }
 .nm-personal-ring-layout .nm-chart-legend { margin-top: 0; }
 @media (min-width: 1280px) {
-  .nm-bento--four:not(.nm-bento--chart) > :first-child:not(:has(.nm-personal-chart--editing)):has(> .nm-chart-body > .nm-personal-chart > .nm-bar-list) { display: flex; flex-direction: column; contain: size; }
-  .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-personal-chart > .nm-bar-list):not(:has(.nm-personal-chart--editing)) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child:not(:has(.nm-personal-chart--editing)):has(> .nm-chart-body > .nm-personal-chart > .nm-bar-list, .nm-chart-body > .nm-personal-chart > .nm-personal-renderer > .nm-bar-list) { display: flex; flex-direction: column; contain: size; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-personal-chart > .nm-bar-list, > .nm-personal-chart > .nm-personal-renderer > .nm-bar-list):not(:has(.nm-personal-chart--editing)) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 }
 @media (max-width: 760px) {
   .nm-chart-gallery { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -2146,7 +2142,6 @@ body.theme-dark .nm-pick-filter input {
   .nm-chart-settings-footer > span { width: 100%; margin: 0; order: 3; }
   .nm-chart-settings-footer > :first-child { margin-right: auto; }
   .nm-personal-ring { width: 100px; height: 100px; flex-basis: 100px; }
-  .nm-personal-bar-label { max-width: 100px; }
 }
 
 .nm-bento:has(.nm-personal-chart--editing) { align-items: start; }

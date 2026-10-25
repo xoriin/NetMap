@@ -474,26 +474,29 @@ export function CountUp({ value, decimals = 0, prefix = "", suffix = "" }: { val
 export type BarItem = { label: string; value: number; color?: ChartPaint; hint?: string };
 
 /** Horizontal bars with a label and count per row; colours are tokens or runtime entity colours. */
-export function BarList({ items, label, max, unit = "", empty = "Nothing to show yet." }: {
+export function BarList({ items, label, max, unit = "", empty = "Nothing to show yet.", showValues = true, formatValue, onSelect }: {
   items: BarItem[];
   label: string;
   max?: number;
   unit?: string;
   empty?: string;
+  showValues?: boolean;
+  formatValue?: (value: number) => string;
+  onSelect?: (label: string) => void;
 }) {
   const { tip, show, hide } = useTip();
   if (items.length === 0) return <p className="tool-note nm-chart-empty">{empty}</p>;
-  const top = max ?? Math.max(1, ...items.map((item) => item.value));
+  const top = max ?? (Math.max(0, ...items.map((item) => item.value)) || 1);
   return (
     <ul className="nm-bar-list" aria-label={label}>
       {items.map((item, index) => {
-        const value = `${item.value.toLocaleString()}${unit}`;
+        const value = formatValue ? formatValue(item.value) : `${item.value.toLocaleString()}${unit}`;
         const onEnter = (event: { currentTarget: Element }) => show(event.currentTarget, item.label, [{ color: item.color ?? "--dash-blue", label: item.hint ?? label, value }]);
         return (
-          <li key={item.label} tabIndex={0} aria-label={`${item.label}: ${value}`} onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide}>
+          <li key={item.label} tabIndex={0} role={onSelect ? "button" : undefined} aria-label={`${item.label}: ${value}`} onPointerEnter={onEnter} onFocus={onEnter} onPointerLeave={hide} onBlur={hide} onClick={onSelect ? () => { hide(); onSelect(item.label); } : onEnter} onKeyDown={event => { if (onSelect && ["Enter", " "].includes(event.key)) { event.preventDefault(); hide(); onSelect(item.label); } }}>
             <span className="nm-bar-list-label">{item.label}</span>
             <span className="nm-bar-list-track"><i style={{ width: `${Math.min(100, (item.value / top) * 100)}%`, background: paint(item.color), "--nm-chart-i": index } as CSSProperties} /></span>
-            <strong>{value}</strong>
+            <strong>{showValues ? value : null}</strong>
           </li>
         );
       })}

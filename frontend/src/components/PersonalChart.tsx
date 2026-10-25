@@ -8,7 +8,7 @@ import { defaultChartView, type ChartForm, type ChartViewOptions } from '../util
 import { PersonalChartRenderer } from './PersonalChartRenderer';
 
 export type ChartData = {
-  kind: 'parts' | 'rank' | 'time'; unit?: string; noun?: string;
+  kind: 'parts' | 'rank' | 'time'; unit?: string; noun?: string; maximum?: number;
   rows: ({ label: string; color?: ChartPaint } & Record<string, number | string | undefined>)[];
   series: ColumnSeries[]; onSelect?: (label: string) => void;
   reference?: { value: number; label: string }; zoomable?: boolean;

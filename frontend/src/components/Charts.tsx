@@ -16,5 +16,5 @@ export function StackBar(props: Parameters<typeof Stack>[0] & PersonalProps) {
   return <PersonalChart id={props.viewId} label={props.label} base="stacked" data={{ kind: 'parts', rows: props.items.map(d => ({ ...d, value: d.value })), series: [{ key: 'value', label: props.label, color: '--dash-blue' }] }}><Stack {...props} /></PersonalChart>;
 }
 export function BarList(props: Parameters<typeof Bars>[0] & PersonalProps) {
-  return <PersonalChart id={props.viewId} label={props.label} base="bars" data={{ kind: props.viewKind ?? 'parts', unit: props.unit, rows: props.items.map(d => ({ ...d, value: d.value })), series: [{ key: 'value', label: props.label, color: '--dash-blue' }] }}><Bars {...props} /></PersonalChart>;
+  return <PersonalChart id={props.viewId} label={props.label} base="bars" data={{ kind: props.viewKind ?? 'parts', unit: props.unit, maximum: props.max, rows: props.items.map(d => ({ ...d, value: d.value })), series: [{ key: 'value', label: props.label, color: '--dash-blue' }] }}><Bars {...props} /></PersonalChart>;
 }

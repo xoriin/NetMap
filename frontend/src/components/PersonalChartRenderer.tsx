@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AreaChart, ChartLegend, ChartTooltip, useTip, paint, smoothPath } from './ChartPrimitives';
+import { AreaChart, BarList, ChartLegend, ChartTooltip, useTip, paint, smoothPath } from './ChartPrimitives';
 import type { ChartData } from './PersonalChart';
 import type { ChartViewOptions } from '../utils/chartViews';
 
@@ -62,8 +62,7 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
     </svg>{options.type === 'ring' && <div className="nm-personal-ring-centre"><strong>{fmt(total)}</strong><span>{data.noun ?? 'Total'}</span></div>}</div>;
     content = <div className={`nm-personal-ring-layout${options.position === 'below' ? ' nm-personal-ring-layout--below' : ''}`}>{visual}{options.labels ? legend : options.legend && <ChartLegend items={items} bars={options.tracks} show={options.values} unit={unit} hideValues />}</div>;
   } else if (options.type === 'bars') {
-    const maximum = Math.max(0, ...rows.flatMap(row => data.series.map(s => number(row[s.key])))) || 1;
-    content = <div className="nm-personal-bars">{rows.flatMap(row => data.series.map((s, si) => <div className="nm-personal-bar-row" key={`${row.label}-${s.key}`} {...markEvents(row)}><span className="nm-personal-bar-label" title={row.label}>{row.label}{data.series.length > 1 ? ` · ${s.label}` : ''}</span><span className="nm-bar-list-track"><i style={{ width: `${number(row[s.key]) / maximum * 100}%`, background: paint(colour(row, si)) }} /></span>{options.labels && <strong>{display(number(row[s.key]))}</strong>}</div>))}</div>;
+    content = <BarList label={label} max={data.maximum} showValues={options.labels} unit={unit} formatValue={parts && options.values !== 'value' ? display : undefined} onSelect={data.onSelect ? value => data.onSelect?.(rows.find(row => data.series.some(s => `${row.label} · ${s.label}` === value))?.label ?? value) : undefined} items={rows.flatMap(row => data.series.map((s, si) => ({ label: data.series.length > 1 ? `${row.label} · ${s.label}` : row.label, value: number(row[s.key]), color: colour(row, si), hint: s.label })))} />;
   } else if (options.type === 'stacked') {
     content = <><div className="nm-stackbar" role="img" aria-label={label}>{rows.filter(d => totalOf(d) > 0).map(row => <span key={row.label} style={{ flex: `${totalOf(row)} 0 0`, background: paint(colour(row)) }} {...markEvents(row)} />)}</div>{options.labels ? legend : options.legend && <ChartLegend items={items} bars={options.tracks} hideValues />}</>;
   } else if (options.type === 'treemap') {
