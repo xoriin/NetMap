@@ -1,5 +1,7 @@
 import { ChartPanel, ChartOptionsSlot } from "../../components/ChartPanel";
-import { PersonalChart } from "../../components/PersonalChart";
+import { PersonalChart, type ChartData } from "../../components/PersonalChart";
+import { PersonalChartRenderer } from "../../components/PersonalChartRenderer";
+import { chartDefaults } from "../../utils/chartViews";
 import { useState, useEffect, useMemo, useCallback, useContext, type FormEvent, type ReactNode } from "react";
 import "./ipam.css";
 import {
@@ -22,7 +24,6 @@ import {
 import { TopbarNoteCtx } from "../../context";
 import { DashStat } from "../../components/DashStat";
 import { UtilizationBar } from "../../components/UtilizationBar";
-import { UsageRing } from "../../components/UsageRing";
 import { AddressUsage, IpGrid } from "../../components/IpGrid";
 import { Modal } from "../../components/Modal";
 import { MonStatusDot } from "../../components/MonitorBadges";
@@ -496,13 +497,15 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
   const errorConflicts = conflicts.filter((c) => c.severity === "error");
   const warnConflicts = conflicts.filter((c) => c.severity === "warning");
   const totalHosts = summary?.total_hosts ?? 0;
-  const usedPct = totalHosts > 0 ? Math.round(((summary?.used ?? 0) / totalHosts) * 100) : 0;
-  const spaceLegend = [
-    { label: "Used", value: summary?.used ?? 0, tone: "used" },
-    { label: "Reserved", value: summary?.reservation_count ?? 0, tone: "reserved" },
-    { label: "DHCP leases", value: summary?.dhcp_lease_count ?? 0, tone: "dhcp" },
-    { label: "Free", value: summary?.free ?? 0, tone: "free" },
-  ];
+  const addressSpaceChart: ChartData = {
+    kind: "parts", noun: "hosts", maximum: totalHosts,
+    defaultView: { bars: true, legend: false, bar_position: "right", category: "Used" },
+    rows: [
+      { label: "Used", value: summary?.used ?? 0, color: "--dash-green" },
+      { label: "Free", value: summary?.free ?? 0, color: "--nm-text-faint" },
+    ],
+    series: [{ key: "value", label: "Hosts", color: "--dash-green" }],
+  };
   const busiestSubnets = [...subnets].sort((a, b) => b.utilization - a.utilization).slice(0, 5);
 
   const summaryCards = (
@@ -541,19 +544,9 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
             <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
             <ChartOptionsSlot />
           </div>
-          <PersonalChart id="ipam.address-space" label="Address space" base="ring" data={{ kind: "parts", noun: "hosts", rows: [{ label: "Used", value: summary?.used ?? 0, color: "--dash-green" }, { label: "Free", value: summary?.free ?? 0, color: "--nm-text-faint" }], series: [{ key: "value", label: "Hosts", color: "--dash-green" }] }}>
-          <div className="dash-panel-body ipam-space-body">
-            <UsageRing pct={usedPct} label="used" />
-            <ul className="ipam-space-legend">
-              {spaceLegend.map((item) => (
-                <li key={item.label}>
-                  <span className={`ipam-space-swatch ipam-space-swatch--${item.tone}`} aria-hidden="true" />
-                  <span className="ipam-space-label">{item.label}</span>
-                  <strong>{item.value}</strong>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <PersonalChart id="ipam.address-space" label="Address space" base="gauge" data={addressSpaceChart}>
+            <PersonalChartRenderer label="Address space" data={addressSpaceChart}
+              options={{ ...chartDefaults("gauge", false, addressSpaceChart.defaultView), type: "gauge" }} />
           </PersonalChart>
         </div></ChartPanel>
         {summaryCards}

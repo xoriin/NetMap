@@ -4,7 +4,17 @@ export * from './ChartPrimitives';
 
 type PersonalProps = { viewId?: string; viewNoun?: string; viewKind?: ChartData['kind'] };
 export function DonutChart(props: Parameters<typeof Ring>[0] & PersonalProps) {
-  return <PersonalChart id={props.viewId} label={props.label} base="ring" data={{ kind: 'parts', defaultLegend: props.legend ?? true, unit: props.unit, noun: props.viewNoun ?? props.sub, rows: props.items.map(d => ({ label: d.label, value: d.value, color: d.color })), series: [{ key: 'value', label: props.sub, color: '--dash-blue' }] }}><Ring {...props} /></PersonalChart>;
+  const breakdownBars = props.legend ?? true;
+  const position = props.legendPosition === 'below' ? 'bottom' : 'right';
+  const native = breakdownBars ? <div className="nm-chart-composition"><div className="nm-chart-pair nm-personal-ring-layout" data-legend-position={position} data-chart-pair="bars">
+    <div className="nm-chart-pair-visual"><Ring {...props} legend={false} /></div>
+    <div className="nm-chart-element" data-chart-element="bars"><Bars label={props.label} items={props.items} unit={props.unit} formatValue={props.legendShow && props.legendShow !== 'value' ? value => {
+      const total = props.items.reduce((sum, item) => sum + item.value, 0);
+      const percent = `${total ? Math.round(value / total * 100) : 0}%`;
+      return props.legendShow === 'percent' ? percent : `${value.toLocaleString()}${props.unit ?? ''} · ${percent}`;
+    } : undefined} /></div>
+  </div></div> : <Ring {...props} />;
+  return <PersonalChart id={props.viewId} label={props.label} base="ring" data={{ kind: 'parts', defaultLegend: props.legend ?? true, defaultView: breakdownBars ? { bars: true, legend: false, bar_position: position } : undefined, unit: props.unit, noun: props.viewNoun ?? props.sub, rows: props.items.map(d => ({ label: d.label, value: d.value, color: d.color })), series: [{ key: 'value', label: props.sub, color: '--dash-blue' }] }}>{native}</PersonalChart>;
 }
 export function ColumnChart(props: Parameters<typeof Columns>[0] & PersonalProps) {
   return <PersonalChart id={props.viewId} label={props.label} base="columns" data={{ kind: props.viewKind ?? 'time', rows: props.rows, series: props.series, unit: props.unit, onSelect: props.onSelect }}><Columns {...props} /></PersonalChart>;
