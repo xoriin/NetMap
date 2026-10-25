@@ -190,7 +190,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/monitoring");
     await expect(page.locator(".dash-layout > .dash-alert")).toBeVisible({ timeout: 10_000 });
     await expectSectionGap(page, ".dash-layout > .nm-bento", ".dash-layout > .dash-alert", "Monitoring unexpected-state banner");
-    await expectSectionGap(page, ".dash-layout > .dash-alert", ".dash-layout > .mon-content", "Monitoring content after unexpected-state banner");
+    await expectSectionGap(page, ".dash-layout > .dash-alert", ".dash-layout > .mon-device-insights", "Monitoring insights after unexpected-state banner");
+    await expectSectionGap(page, ".dash-layout > .mon-device-insights", ".dash-layout > .mon-content", "Monitoring table after device insights");
   });
 }
 

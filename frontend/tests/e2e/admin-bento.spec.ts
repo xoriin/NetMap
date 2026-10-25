@@ -140,7 +140,7 @@ test("System puts App settings under the version row with the charts stacked on 
   await expect(page.locator('[aria-label="Syslog configuration"] .nm-stackbar > span')).toHaveCount(3);
 });
 
-test("Syslog sections sit 24px apart", async ({ page }) => {
+test("Syslog sections sit 12px apart", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupMocks(page, "light");
   await page.goto("/admin#system");
@@ -148,7 +148,7 @@ test("Syslog sections sit 24px apart", async ({ page }) => {
     const rects = [...node.children].map((child) => child.getBoundingClientRect());
     return rects.slice(1).map((rect, i) => Math.round(rect.top - rects[i].bottom));
   });
-  expect(gaps).toEqual([24, 24]);
+  expect(gaps).toEqual([12, 12]);
 });
 
 test("chart tooltips show the hovered value", async ({ page }) => {
@@ -216,3 +216,45 @@ test("entrance motion plays once and is off under reduced motion", async ({ page
   const name = await page.locator(".admin-settings-card").evaluate((node) => getComputedStyle(node).animationName);
   expect(name).toBe("none");
 });
+
+for (const theme of ['light', 'slate', 'zinc']) {
+  test(`column totals have cornered nonzero badges and themed shading in ${theme}`, async ({ page }) => {
+    await setupMocks(page, theme);
+    const samples = [{ ...backups[0], size_bytes: 0 }, { ...backups[1], size_bytes: 12_000_000 }];
+    await page.route('**/api/v1/exports/scheduled-backups', route => route.fulfill({ json: samples }));
+    await page.goto('/admin#system');
+    const chart = page.locator('[data-chart-id="admin.system.backups"]');
+    await chart.scrollIntoViewIfNeeded();
+    await expect(chart.locator('.nm-chart-value')).toHaveText(['12 MB']);
+    await expect(chart.locator('.nm-chart-value-bg')).toHaveCount(1);
+    await expect(chart.locator('.nm-chart-value-bg')).toHaveAttribute('rx', '4');
+    const paint = await chart.evaluate(el => {
+      const value = el.querySelector('.nm-chart-value-bg')!;
+      const bar = el.querySelector('.nm-chart-col path')!;
+      const header = el.closest('section')!.querySelector('.nm-app-panel-header')!;
+      return { value: getComputedStyle(value).fill, shadow: getComputedStyle(bar).filter, header: getComputedStyle(header).backgroundColor };
+    });
+    if (theme === 'light') {
+      expect(paint.header).toBe('rgb(47, 68, 91)');
+      expect(paint.shadow).toContain('drop-shadow');
+      expect(paint.shadow).not.toContain('rgba(0, 0, 0, 0)');
+    } else {
+      const channels = await chart.locator('.nm-chart-value-bg').evaluate(el => {
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d')!; ctx.fillStyle = getComputedStyle(el).fill; ctx.fillRect(0, 0, 1, 1);
+        return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3);
+      });
+      const track = theme === 'slate' ? [52, 67, 91] : [63, 63, 70];
+      channels.forEach((value, index) => expect(value).toBeGreaterThan(track[index]));
+    }
+    await page.getByRole('button', { name: 'Visual options: Scheduled backup sizes in MB, oldest to newest', exact: true }).click();
+    await chart.getByLabel('Show legend', { exact: true }).check();
+    await expect(chart.locator('.nm-personal-plot .nm-chart-value')).toHaveText(['12 MB']);
+    await expect(chart.locator('.nm-personal-plot .nm-chart-value-bg')).toHaveAttribute('rx', '4');
+    await chart.getByLabel('Show values', { exact: true }).uncheck();
+    await expect(chart.locator('.nm-chart-value-bg')).toHaveCount(0);
+    await chart.getByLabel('Show values', { exact: true }).check();
+    await chart.getByRole('button', { name: 'Close visual options', exact: true }).click();
+    await chart.locator('xpath=ancestor::section[1]').screenshot({ path: test.info().outputPath(`column-values-${theme}.png`) });
+  });
+}

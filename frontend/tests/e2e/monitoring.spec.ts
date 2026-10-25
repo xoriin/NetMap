@@ -508,6 +508,7 @@ test.describe("Monitoring layout and column sizing", () => {
     const body = page.locator(".mon-table-body");
     await body.evaluate((el) => { el.scrollTop = 300; });
     const corner = page.locator(".mon-table--fleet thead th").first();
+    await corner.scrollIntoViewIfNeeded();
     const box = await corner.boundingBox();
     expect(box).not.toBeNull();
     const coversCorner = await page.evaluate(({ x, y }) => {
@@ -559,6 +560,7 @@ test.describe("Monitoring layout and column sizing", () => {
 
   async function dragDivider(page: import("@playwright/test").Page, handleIdx: number, dx: number) {
     const handle = page.locator(".mon-table--fleet .mon-col-resize-handle").nth(handleIdx);
+    await handle.scrollIntoViewIfNeeded();
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -594,6 +596,7 @@ test.describe("Monitoring layout and column sizing", () => {
     const before = await headerWidths(page);
 
     const handle = page.locator(".mon-table--fleet .mon-col-resize-handle").nth(1);
+    await handle.scrollIntoViewIfNeeded();
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();

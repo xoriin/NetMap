@@ -28,6 +28,11 @@ async function boot(page: Page, theme = 'slate') {
   return { fail: (value: boolean) => { failSave = value; }, views: () => views };
 }
 
+async function place(chart: ReturnType<Page['locator']>, element: string, other: string, position: string) {
+  const word = { top: 'above', bottom: 'below', left: 'left of', right: 'right of' }[position];
+  await chart.getByRole('button', { name: `Place ${element} ${word} ${other}`, exact: true }).click();
+}
+
 for (const theme of ['light', 'slate', 'zinc']) {
   test(`personal chart gallery fills panels and remembers settings in ${theme}`, async ({ page }) => {
     const errors: string[] = [];
@@ -44,7 +49,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     for (const visual of ['Ring', 'Pie', 'Bars', 'Columns', 'Stacked bar', 'Line', 'Area', 'Dot plot', 'Treemap', 'Gauge', 'Number', 'Data table']) {
       await options.getByRole('button', { name: visual, exact: true }).click();
       await expect(options.getByRole('button', { name: visual, exact: true })).toHaveAttribute('aria-pressed', 'true');
-      await expect(chart.locator('.nm-personal-renderer')).toBeVisible();
+      await expect(chart.locator('.nm-personal-renderer, .nm-chart-composition').first()).toBeVisible();
     }
     await options.getByRole('button', { name: 'Columns', exact: true }).click();
     await options.getByRole('button', { name: 'Save my view', exact: true }).click();
@@ -139,7 +144,7 @@ test('time series keep chronological order and multi-series values when switchin
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1050 });
     for (const position of ['left', 'right', 'top', 'bottom']) {
-      await chart.getByLabel('Legend position', { exact: true }).selectOption(position);
+      await place(chart, 'Legend', (await chart.getByRole('group', { name: 'Visual type', exact: true }).getByRole('button', { pressed: true }).textContent())!, position);
       await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', position);
       await expect.poll(() => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest('[data-chart-element="chart"]')!.getBoundingClientRect().width))).toBeLessThan(1);
       await expect(chart.locator('.nm-chart-legend-label')).toHaveText(['Sent', 'Failed']);
@@ -148,7 +153,7 @@ test('time series keep chronological order and multi-series values when switchin
   }
   await chart.getByLabel('Show legend', { exact: true }).uncheck();
   await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
-  await expect(chart.getByLabel('Legend position', { exact: true })).toBeDisabled();
+  await expect(chart.getByRole('group', { name: 'Arrangement', exact: true })).toHaveCount(0);
   await expect(chart.locator('.nm-chart-area')).toHaveCount(2);
 });
 
@@ -196,8 +201,10 @@ test('display options persist independently of the chart form and reset to produ
   const trigger = page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true });
   await trigger.click();
   await chart.getByRole('button', { name: 'Ring', exact: true }).click();
+  await chart.getByLabel('Show bars', { exact: true }).uncheck();
+  await chart.getByLabel('Show legend', { exact: true }).check();
   await chart.getByLabel('Values', { exact: true }).selectOption('both');
-  await chart.getByLabel('Legend position', { exact: true }).selectOption('bottom');
+  await place(chart, 'Legend', 'Ring', 'bottom');
   await chart.getByLabel('Order', { exact: true }).selectOption('name');
   await expect(chart.locator('.nm-chart-legend-label')).toHaveText(['Access_point', 'router', 'server']);
   await expect(chart.locator('.nm-chart-legend-pct')).toHaveText(['33%', '33%', '33%']);
@@ -208,10 +215,10 @@ test('display options persist independently of the chart form and reset to produ
   await expect(chart.locator('.nm-chart-legend strong')).toHaveCount(0);
   await trigger.click();
   await expect(chart.getByLabel('Values', { exact: true })).toHaveValue('both');
-  await expect(chart.getByLabel('Legend position', { exact: true })).toHaveValue('bottom');
+  await expect(chart.getByRole('button', { name: 'Place Legend below Ring', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(chart.getByLabel('Show values', { exact: true })).not.toBeChecked();
   await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
-  await expect(chart.locator('.nm-donut-chart .nm-chart-legend strong')).toHaveCount(3);
+  await expect(chart.locator('.nm-bar-list strong')).toHaveCount(3);
 });
 
 for (const theme of ['light', 'slate', 'zinc']) {
@@ -264,12 +271,14 @@ for (const theme of ['light', 'slate', 'zinc']) {
     const chart = page.locator('[data-chart-id="inventory.device-types"]');
     const trigger = page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true });
     await trigger.click();
+    await chart.getByLabel('Show bars', { exact: true }).uncheck();
+    await chart.getByLabel('Show legend', { exact: true }).check();
     for (const type of ['Ring', 'Pie', 'Stacked bar']) {
       await chart.getByRole('button', { name: type, exact: true }).click();
       for (const width of [1440, 820, 390]) {
         await page.setViewportSize({ width, height: 1050 });
         for (const position of ['top', 'bottom', 'left', 'right']) {
-          await chart.getByLabel('Legend position', { exact: true }).selectOption(position);
+          await place(chart, 'Legend', (await chart.getByRole('group', { name: 'Visual type', exact: true }).getByRole('button', { pressed: true }).textContent())!, position);
           const pair = chart.locator('.nm-chart-pair');
           await expect(pair).toHaveAttribute('data-legend-position', position);
           const boxes = await pair.evaluate(el => {
@@ -290,12 +299,12 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await page.reload();
     await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', 'right');
     await trigger.click();
-    await chart.getByLabel('Legend position', { exact: true }).selectOption('left');
+    await place(chart, 'Legend', 'Stacked bar', 'left');
     await chart.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', 'right');
     await trigger.click();
     await chart.getByRole('button', { name: 'Ring', exact: true }).click();
-    await chart.getByLabel('Legend position', { exact: true }).selectOption('top');
+    await place(chart, 'Legend', 'Ring', 'top');
     await chart.getByLabel('Show values', { exact: true }).uncheck();
     await chart.screenshot({ path: test.info().outputPath(`placement-${theme}.png`) });
     for (const legacy of ['side', 'below']) {
@@ -316,6 +325,8 @@ for (const theme of ['light', 'slate', 'zinc']) {
     const chart = page.locator('[data-chart-id="inventory.device-types"]');
     const trigger = page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true });
     await trigger.click();
+    await chart.getByLabel('Show bars', { exact: true }).uncheck();
+    await chart.getByLabel('Show legend', { exact: true }).check();
     await chart.getByRole('button', { name: 'Stacked bar', exact: true }).click();
     await expect(chart.locator('.nm-stackbar')).toHaveCount(1);
     await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
@@ -329,7 +340,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     for (const width of [1440, 820, 390, 320]) {
       await page.setViewportSize({ width, height: 1050 });
       for (const position of ['top', 'bottom', 'left', 'right']) {
-        await chart.getByLabel('Bars position', { exact: true }).selectOption(position);
+        await place(chart, 'Bars', 'Ring', position);
         const pair = chart.locator('.nm-chart-pair[data-chart-pair="bars"]');
         await expect(pair).toHaveAttribute('data-legend-position', position);
         const placement = await pair.evaluate(el => {
@@ -355,11 +366,10 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await chart.getByLabel('Show chart', { exact: true }).uncheck();
     await expect(chart.locator('.nm-personal-ring')).toHaveCount(0);
     await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
-    await chart.getByLabel('Show legend', { exact: true }).check();
-    await chart.getByLabel('Legend position', { exact: true }).selectOption('top');
+    await expect(chart.getByLabel('Show legend', { exact: true })).toHaveCount(0);
     await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
     await expect(chart.getByRole('status')).toHaveText('My view saved');
-    expect(state.views()['inventory.device-types']).toMatchObject({ version: 2, chart: false, bars: true, legend: true, bar_position: 'right', position: 'top' });
+    expect(state.views()['inventory.device-types']).toMatchObject({ version: 2, chart: false, bars: true, legend: false, bar_position: 'right' });
     await page.reload();
     await expect(chart.locator('.nm-personal-ring')).toHaveCount(0);
     await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
@@ -367,7 +377,6 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await chart.getByRole('button', { name: 'Pie', exact: true }).click();
     await chart.getByLabel('Show chart', { exact: true }).check();
     await chart.getByLabel('Show bars', { exact: true }).uncheck();
-    await chart.getByLabel('Show legend', { exact: true }).uncheck();
     await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(3);
     await chart.getByLabel('Show values', { exact: true }).uncheck();
     await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(0);
@@ -377,7 +386,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: test.info().outputPath(`pie-${theme}.png`) });
     await chart.getByLabel('Show bars', { exact: true }).check();
-    await chart.getByLabel('Bars position', { exact: true }).selectOption('right');
+    await place(chart, 'Bars', 'Pie', 'right');
     await chart.evaluate(el => { for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) ancestor.scrollTop = 0; });
     await page.evaluate(() => window.scrollTo(0, 0));
     await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: test.info().outputPath(`composition-${theme}.png`) });
@@ -386,7 +395,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await trigger.click();
     await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
     await expect(chart.locator('.nm-donut-chart')).toBeVisible();
-    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
   });
 }
 
@@ -395,7 +404,7 @@ test('legacy tracks translate into optional bars and selecting Bars never duplic
   state.views()['inventory.device-types'] = { version: 1, type: 'ring', legend: true, tracks: true, position: 'side' };
   await page.goto('/inventory');
   const chart = page.locator('[data-chart-id="inventory.device-types"]');
-  await expect(chart.locator('.nm-personal-ring')).toBeVisible();
+  await expect(chart.locator('.nm-personal-ring, .nm-donut-ring')).toBeVisible();
   await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
   await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
   await page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true }).click();
@@ -413,7 +422,7 @@ test('legacy tracks translate into optional bars and selecting Bars never duplic
   await expect(chart).toContainText('Choose a chart, bars or legend to display.');
   await page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true }).click();
   await chart.getByLabel('Show chart', { exact: true }).check();
-  await expect(chart.locator('.nm-personal-ring')).toBeVisible();
+  await expect(chart.locator('.nm-personal-ring, .nm-donut-ring')).toBeVisible();
 });
 
 test('pie labels handle a single slice, dominant data and small slices without overlap', async ({ page }) => {
@@ -438,4 +447,95 @@ test('pie labels handle a single slice, dominant data and small slices without o
   await setupTopologyMocks(page, [], []);
   await page.reload();
   await expect(chart).toHaveCount(0);
+});
+
+for (const theme of ['light', 'slate', 'zinc']) {
+  test(`overview keeps both visual choices while saving pair placement in ${theme}`, async ({ page }) => {
+    const state = await boot(page, theme);
+    await page.goto('/overview');
+    const ring = page.locator('[data-chart-id="overview.health-ring"]');
+    const breakdown = page.locator('[data-chart-id="overview.health-status"]');
+    const pair = page.locator('.overview-health-combo');
+    const open = page.getByRole('button', { name: 'Visual options: Devices per health status', exact: true });
+    await expect(ring.locator('.nm-donut-ring')).toBeVisible();
+    await expect(breakdown.locator('.nm-column-chart')).toBeVisible();
+    await open.click();
+    await breakdown.getByRole('button', { name: 'Number', exact: true }).click();
+    await breakdown.getByRole('button', { name: 'Place Health breakdown below Health ring', exact: true }).click();
+    await breakdown.getByRole('button', { name: 'Save my view', exact: true }).click();
+    await expect(breakdown.getByRole('status')).toHaveText('My view saved');
+    await breakdown.getByRole('button', { name: 'Close visual options', exact: true }).click();
+    await expect(ring.locator('.nm-donut-ring')).toBeVisible();
+    await expect(breakdown.locator('.nm-personal-number')).toBeVisible();
+    await expect(pair).toHaveAttribute('data-first-position', 'top');
+    expect(state.views()['overview.health-layout']).toMatchObject({ position: 'top' });
+    await page.reload();
+    await expect(pair).toHaveAttribute('data-first-position', 'top');
+    await expect(breakdown.locator('.nm-personal-number')).toBeVisible();
+    await open.click();
+    await breakdown.getByRole('button', { name: 'Place Health breakdown left of Health ring', exact: true }).click();
+    await breakdown.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(pair).toHaveAttribute('data-first-position', 'top');
+    await open.click();
+    await breakdown.getByRole('button', { name: 'Reset this chart', exact: true }).click();
+    await breakdown.getByRole('button', { name: 'Close visual options', exact: true }).click();
+    await expect(breakdown.locator('.nm-column-chart')).toBeVisible();
+    await expect(pair).toHaveAttribute('data-first-position', 'left');
+    await expect(ring.locator('.nm-donut-ring')).toBeVisible();
+    await pair.screenshot({ path: test.info().outputPath(`overview-pair-${theme}.png`) });
+  });
+
+  test(`ring metric formatting works without a legend and default bars have scrollbar clearance in ${theme}`, async ({ page }) => {
+    await boot(page, theme);
+    await setupTopologyMocks(page, Array.from({ length: 12 }, (_, i) => mockDevice({ id: i + 1, device_type: `type-${i}` })), []);
+    await page.goto('/inventory');
+    const chart = page.locator('[data-chart-id="inventory.device-types"]');
+    await expect(chart.locator('.nm-bar-list li')).toHaveCount(12);
+    await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
+    const clearance = await chart.locator('[data-chart-element="bars"]').evaluate(el => ({
+      padding: parseFloat(getComputedStyle(el).paddingInlineEnd),
+      gutter: getComputedStyle(el).scrollbarGutter,
+      right: el.getBoundingClientRect().right - el.querySelector('strong')!.getBoundingClientRect().right,
+    }));
+    expect(clearance.padding).toBe(12);
+    expect(clearance.gutter).toBe('stable');
+    expect(clearance.right).toBeGreaterThanOrEqual(12);
+    await page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true }).click();
+    await expect(chart.getByLabel('Show legend', { exact: true })).toHaveCount(0);
+    await chart.getByLabel('Show bars', { exact: true }).uncheck();
+    await chart.getByLabel('Values', { exact: true }).selectOption('percent');
+    await chart.getByLabel('Value to display', { exact: true }).selectOption('Type 0');
+    await expect(chart.locator('.nm-personal-ring-centre strong')).toHaveText('8.33%');
+    await chart.getByLabel('Values', { exact: true }).selectOption('both');
+    await expect(chart.locator('.nm-personal-ring-centre strong')).toHaveText('1');
+    await expect(chart.locator('.nm-personal-ring-centre small')).toHaveText('8.33%');
+    await chart.getByRole('button', { name: 'Number', exact: true }).click();
+    await expect(chart.locator('.nm-personal-number')).toHaveText('18.33%Type 0');
+    await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
+    await page.reload();
+    await expect(chart.locator('.nm-personal-number')).toHaveText('18.33%Type 0');
+  });
+}
+
+test('IPAM resets to a Used gauge left of Used and Free bars with an inset right edge', async ({ page }) => {
+  const state = await boot(page);
+  await page.route('**/api/v1/ipam/summary', route => route.fulfill({ json: { total_hosts: 100, used: 25, free: 75, subnet_count: 1, reservation_count: 5, dhcp_lease_count: 10 } }));
+  await page.goto('/ipam');
+  const chart = page.locator('[data-chart-id="ipam.address-space"]');
+  await expect(chart.locator('.nm-personal-gauge text')).toHaveText('25%');
+  await expect(chart.locator('.nm-bar-list-label')).toHaveText(['Used', 'Free']);
+  const geometry = await chart.evaluate(el => {
+    const gauge = el.querySelector('.nm-personal-gauge')!.getBoundingClientRect();
+    const bars = el.querySelector('.nm-bar-list')!.getBoundingClientRect();
+    return { gaugeRight: gauge.right, barsLeft: bars.left, inset: el.getBoundingClientRect().right - bars.right };
+  });
+  expect(geometry.gaugeRight).toBeLessThan(geometry.barsLeft);
+  expect(geometry.inset).toBeGreaterThanOrEqual(30);
+  state.views()['ipam.address-space'] = { version: 2, type: 'number', bars: false, legend: false };
+  await page.reload();
+  await expect(chart.locator('.nm-personal-number')).toBeVisible();
+  await page.getByRole('button', { name: 'Visual options: Address space', exact: true }).click();
+  await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
+  await expect(chart.locator('.nm-personal-gauge text')).toHaveText('25%');
+  await expect(chart.locator('.nm-bar-list-label')).toHaveText(['Used', 'Free']);
 });

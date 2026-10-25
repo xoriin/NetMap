@@ -161,7 +161,10 @@ for (const theme of ['light','dark'] as const) {
   const cloudStats=await page.locator('.inventory-stats').boundingBox();
   const cloudPanel=await page.locator('.inventory-surface').boundingBox();
   expect(cloudStats).toEqual(stats);
-  expect(cloudPanel).toEqual(panel);
+  // Both tables share the same workspace anchor and width; natural row height follows their data.
+  expect(cloudPanel!.x).toBe(panel!.x);
+  expect(cloudPanel!.y).toBe(panel!.y);
+  expect(cloudPanel!.width).toBe(panel!.width);
   await expect(page.locator('[data-cloud-record="address-1"] .status-pill')).toHaveText('expected offline');
   await page.getByRole('button',{name:'Filter by provider'}).click();
   await page.getByRole('option',{name:'AWS',exact:true}).click();

@@ -954,8 +954,8 @@ for (const theme of ["light", "dark"] as const) {
     const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
     const space = page.locator(".ipam-bento .ipam-space-panel");
     await expect(space.getByRole("heading", { name: "Address space" })).toBeVisible();
-    await expect(space.locator(".dash-donut-pct")).toHaveText("2%");
-    const legend = space.locator(".ipam-space-legend");
+    await expect(space.locator(".nm-personal-gauge text")).toHaveText("1.57%");
+    const legend = space.locator(".nm-bar-list");
     await expect(legend).toContainText("Used");
     await expect(legend).toContainText("4");
     await expect(legend).toContainText("Free");

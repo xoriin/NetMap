@@ -152,7 +152,7 @@ test("Monitoring devices show fleet health and the slowest devices", async ({ pa
 });
 
 async function legendRows(page: Page, region: string) {
-  const rows = page.getByRole("region", { name: region, exact: true }).locator(".nm-chart-legend li");
+  const rows = page.getByRole("region", { name: region, exact: true }).locator(".nm-bar-list li");
   await expect(rows.first()).toBeVisible();
   return rows.evaluateAll((items) => items.map((row) => row.textContent?.trim()));
 }
@@ -198,11 +198,13 @@ test("ring bars are optional and use the canonical bar grid", async ({ page }) =
   await boot(page);
   await page.goto("/monitoring");
   const panel = page.getByRole("region", { name: "Fleet health", exact: true });
-  await expect(panel.locator('.nm-chart-legend li').first()).toBeVisible();
-  await expect(panel.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+  await expect(panel.locator('.nm-bar-list li').first()).toBeVisible();
+  await expect(panel.locator('.nm-chart-legend-track')).toHaveCount(0);
   await panel.getByRole('button', { name: /^Visual options:/ }).click();
+  await panel.getByLabel('Show bars', { exact: true }).uncheck();
+  await expect(panel.locator('.nm-bar-list')).toHaveCount(0);
   await panel.getByLabel('Show bars', { exact: true }).check();
-  await panel.getByLabel('Show legend', { exact: true }).uncheck();
+  await expect(panel.getByLabel('Show legend', { exact: true })).toHaveCount(0);
   const shape = await panel.locator('.nm-bar-list').evaluate(ul => [...ul.querySelectorAll('li')].map(li => {
     const track = li.querySelector('.nm-bar-list-track')!.getBoundingClientRect();
     return { left: track.left, height: track.height, share: li.querySelector('i')!.getBoundingClientRect().width / track.width, numberWidth: li.querySelector('strong')!.getBoundingClientRect().width, gap: getComputedStyle(ul).rowGap };

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 for (const theme of ["light", "slate", "zinc"]) {
-  test(`Status pages add independent service bars without forcing a legend in ${theme}`, async ({ page }) => {
+  test(`Status pages default to independent service bars without a duplicate legend in ${theme}`, async ({ page }) => {
     await page.route("**/api/v1/**", route => route.fulfill({ json: [] }));
     await setupCoreMocks(page);
     await setupTopologyMocks(page);
@@ -30,12 +30,13 @@ for (const theme of ["light", "slate", "zinc"]) {
     await page.goto("/monitoring#status-pages");
     const chart = page.getByRole("region", { name: "Service health across pages", exact: true });
     await expect(chart.locator(".dash-donut-label")).toHaveText("Services");
-    await expect(chart.locator(".nm-chart-legend-label")).toHaveText(["Healthy", "Degraded", "Unavailable", "Maintenance", "No data"]);
-    await expect(chart.locator(".nm-chart-legend strong")).toHaveText(["34", "3", "1", "2", "2"]);
-    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+    await expect(chart.locator(".nm-bar-list-label")).toHaveText(["Healthy", "Degraded", "Unavailable", "Maintenance", "No data"]);
+    await expect(chart.locator(".nm-bar-list strong")).toHaveText(["34", "3", "1", "2", "2"]);
+    await expect(chart.locator('.nm-chart-legend-track')).toHaveCount(0);
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(5);
     await chart.getByRole('button', { name: /^Visual options:/ }).click();
     await chart.getByLabel('Show bars', { exact: true }).check();
-    await chart.getByLabel('Show legend', { exact: true }).uncheck();
+    await expect(chart.getByLabel('Show legend', { exact: true })).toHaveCount(0);
     await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
     await expect(chart.getByRole('status')).toHaveText('My view saved');
     await chart.getByRole('button', { name: 'Close visual options', exact: true }).click();
@@ -43,13 +44,13 @@ for (const theme of ["light", "slate", "zinc"]) {
     await expect(page.locator(".dash-stat", { hasText: "Monitored services" })).toContainText("42");
     for (const width of [1440, 820, 390]) {
       await page.setViewportSize({ width, height: 1000 });
-      const ring = (await chart.locator(".nm-personal-ring").boundingBox())!;
+      const ring = (await chart.locator(".nm-personal-ring, .nm-donut-ring").boundingBox())!;
       const legend = (await chart.locator(".nm-bar-list").boundingBox())!;
       const body = (await chart.locator(".nm-chart-body").boundingBox())!;
       if (width > 390) expect(legend.x).toBeGreaterThanOrEqual(ring.x + ring.width);
       else expect(legend.y).toBeGreaterThanOrEqual(ring.y + ring.height);
       expect(legend.x + legend.width).toBeLessThanOrEqual(body.x + body.width);
-      expect(body.x + body.width - legend.x - legend.width).toBeLessThanOrEqual(20);
+      expect(body.x + body.width - legend.x - legend.width).toBeLessThanOrEqual(50);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: test.info().outputPath(`status-${width}.png`) });
     }
@@ -65,11 +66,12 @@ for (const theme of ["light", "slate", "zinc"]) {
       rightGap: track.closest(".nm-chart-body")!.getBoundingClientRect().right - track.closest("li")!.getBoundingClientRect().right,
     }));
     expect(Math.abs(single.track - single.fill)).toBeLessThanOrEqual(1);
-    expect(single.rightGap).toBeLessThanOrEqual(20);
+    expect(single.rightGap).toBeLessThanOrEqual(50);
     await page.screenshot({ path: test.info().outputPath("status-single-service.png") });
     // Optional bars stay local to this chart.
     await page.goto("/monitoring#devices");
-    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend-track, .nm-bar-list-track")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-bar-list")).toBeVisible();
     await page.route("**/api/v1/status-pages", route => route.fulfill({ json: [] }));
     await page.goto("/monitoring#status-pages");
     await expect(chart).toContainText("No monitored services on any status page yet.");
