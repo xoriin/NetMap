@@ -57,7 +57,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def import_all_models() -> None:
-    from app.models import alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, status_page, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
+    from app.models import chart_view, alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, status_page, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
 
 
 def init_db() -> None:
@@ -189,6 +189,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0081_status_pages", _migrate_status_pages)
         _run_migration(conn, inspector, "0082_cloud_asset_types", _migrate_cloud_asset_types)
         _run_migration(conn, inspector, "0083_shrink_avatars", _migrate_shrink_avatars)
+        _run_migration(conn, inspector, "0084_user_chart_views", _migrate_chart_views)
 
 
 
@@ -2263,3 +2264,9 @@ def _migrate_user_totp(conn, inspector) -> None:
     for col, sql in column_sql.items():
         if col not in existing:
             conn.execute(text(sql))
+
+
+def _migrate_chart_views(conn, inspector) -> None:
+    from app.models.chart_view import ChartView
+
+    ChartView.__table__.create(bind=conn, checkfirst=True)

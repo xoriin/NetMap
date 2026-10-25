@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, alerts, api_keys, audit, auth, dashboard, discovery, exports, ipam, lldp, monitoring, monitors, oidc, status_integrations, status_pages, status_public, system, syslog, topology, tools
+from app.api.v1 import admin, chart_views, alerts, api_keys, audit, auth, dashboard, discovery, exports, ipam, lldp, monitoring, monitors, oidc, status_integrations, status_pages, status_public, system, syslog, topology, tools
 
 router = APIRouter()
 
@@ -13,6 +13,7 @@ async def health_check() -> dict[str, str]:
 router.include_router(system.router)
 router.include_router(admin.router)
 router.include_router(auth.router)
+router.include_router(chart_views.router)
 router.include_router(oidc.router)
 router.include_router(api_keys.router)
 router.include_router(audit.router)
