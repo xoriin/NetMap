@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, StrictBool, Field
 
 
 class ChartViewOptions(BaseModel):
@@ -31,3 +31,5 @@ class ChartViewOptions(BaseModel):
     chart: StrictBool = True
     bars: StrictBool = False
     bar_position: Literal["top", "bottom", "left", "right"] = "right"
+
+    category: str | None = Field(default=None, max_length=240)

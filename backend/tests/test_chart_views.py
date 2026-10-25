@@ -204,3 +204,19 @@ def test_independent_chart_elements_round_trip_without_changing_legacy_records()
     for payload in [dict(chart="false"), dict(bars="true"), dict(bar_position="free")]:
         with pytest.raises(ValidationError):
             ChartViewOptions(version=2, **payload)
+
+
+def test_metric_category_is_bounded_and_round_trips():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[User.__table__, ChartView.__table__])
+    with Session(engine) as db:
+        user = User(username="metric", password_hash="x", role="Viewer")
+        db.add(user)
+        db.commit()
+        for category in [None, "", "Online", "x" * 240]:
+            save_view("metric.chart", ChartViewOptions(version=2, type="ring", category=category, values="both"), user, db)
+            db.expire_all()
+            assert list_views(user, db)["metric.chart"].category == category
+    for category in ["x" * 241, {"label": "Online"}, 123]:
+        with pytest.raises(ValidationError):
+            ChartViewOptions(version=2, category=category)
