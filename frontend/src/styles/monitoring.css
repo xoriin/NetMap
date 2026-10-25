@@ -4534,3 +4534,4 @@ body.route-monitoring .workspace > .mon-layout--overview { flex: 0 0 auto; }
 .mon-layout--overview .mon-view-window--endpoints .mon-table-body { overflow: visible; }
 .mon-layout--overview > .nm-console,
 .mon-layout--overview > .nm-pair { margin-top: var(--nm-space-4); }
+.mon-layout--overview > .mon-device-insights { margin-top: 0; margin-bottom: var(--nm-space-4); }

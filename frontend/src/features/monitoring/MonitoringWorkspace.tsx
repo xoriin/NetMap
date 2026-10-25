@@ -18,7 +18,7 @@ import {
 } from "../../utils/monitoring";
 import { DashStat } from "../../components/DashStat";
 import { InsightPanel } from "../../components/InsightPanel";
-import { BarList, CountUp, DonutChart } from "../../components/Charts";
+import { AreaChart, BarList, CountUp, DonutChart } from "../../components/Charts";
 import { EventList } from "../../components/EventList";
 import { shortDateTime } from "../../utils/history";
 import { PanelSkeleton, WorkspaceSkeleton } from "../../components/Skeleton";
@@ -974,10 +974,10 @@ export function MonitoringWorkspace({
     { label: "Paused", value: fleet.paused, color: "--dash-paused" as const },
   ].filter((item) => item.value > 0) : [];
   const deviceName = (d: DeviceMonitorSummary) => d.display_name ?? d.hostname ?? d.ip_address;
-  const latencyBars = devices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 6)
-    .map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }));
-  const uptimeBars = devices.filter((d) => d.uptime_24h !== null).sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 6)
-    .map((d) => ({ label: deviceName(d), value: Number((d.uptime_24h ?? 0).toFixed(1)), color: (d.uptime_24h ?? 0) < 99 ? "--dash-amber" : "--dash-green" }));
+  const latencyRows = devices.filter((d) => d.avg_rtt_24h !== null).sort((a, b) => (b.avg_rtt_24h ?? 0) - (a.avg_rtt_24h ?? 0)).slice(0, 6)
+    .map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)) }));
+  const uptimeRows = devices.filter((d) => d.uptime_24h !== null).sort((a, b) => (a.uptime_24h ?? 0) - (b.uptime_24h ?? 0)).slice(0, 6)
+    .map((d) => ({ label: deviceName(d), value: Number(((d.uptime_24h ?? 0) * 100).toFixed(1)) }));
   const unexpectedNames = unexpectedDevices.slice(0, 3).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ");
 
   return (
@@ -1074,6 +1074,29 @@ export function MonitoringWorkspace({
             {unexpectedDevices.slice(0, 4).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ")}
             {unexpectedDevices.length > 4 && ` and ${unexpectedDevices.length - 4} more`}
           </span>
+        </div>
+      )}
+
+      {viewTab === "devices" && (
+        <div className="nm-pair mon-device-insights">
+          <InsightPanel title="Highest latency, last 24 h" icon={<Timer size={16} />} className="nm-motion-item">
+            <p className="tool-note">Average RTT per device · highest first</p>
+            {latencyRows.length ? <AreaChart
+              label="Devices ranked by average round-trip time, last 24 hours"
+              rows={latencyRows}
+              series={[{ key: "value", label: "Average RTT", color: "--dash-indigo" }]}
+              unit=" ms" height={180}
+            /> : <p className="tool-note nm-chart-empty">No latency recorded yet.</p>}
+          </InsightPanel>
+          <InsightPanel title="Least uptime, last 24 h" icon={<TrendingDown size={16} />} className="nm-motion-item">
+            <p className="tool-note">Uptime per device · lowest first</p>
+            {uptimeRows.length ? <AreaChart
+              label="Devices ranked by uptime, last 24 hours"
+              rows={uptimeRows}
+              series={[{ key: "value", label: "Uptime", color: "--dash-amber" }]}
+              unit="%" height={180}
+            /> : <p className="tool-note nm-chart-empty">No uptime recorded yet.</p>}
+          </InsightPanel>
         </div>
       )}
 
@@ -1415,7 +1438,7 @@ export function MonitoringWorkspace({
 
       </div>{/* end mon-content */}
 
-      {viewTab === "endpoints" ? (
+      {viewTab === "endpoints" && (
         <div className="nm-pair">
           <InsightPanel title="Recent outages" icon={<TrendingDown size={16} />} className="nm-motion-item">
             <EventList empty="No outages in the last 24 hours." rows={outages.map((m) => ({
@@ -1433,15 +1456,6 @@ export function MonitoringWorkspace({
                 time: days < 0 ? "Expired" : `${days} d`, dateTime: m.last_cert_expires_at ?? undefined,
               };
             })} />
-          </InsightPanel>
-        </div>
-      ) : (
-        <div className="nm-pair">
-          <InsightPanel title="Highest latency, last 24 h" icon={<Timer size={16} />} className="nm-motion-item">
-            <BarList label="Devices with the highest average round-trip time" unit=" ms" items={latencyBars} empty="No latency recorded yet." />
-          </InsightPanel>
-          <InsightPanel title="Least uptime, last 24 h" icon={<TrendingDown size={16} />} className="nm-motion-item">
-            <BarList label="Devices with the lowest uptime, last 24 hours" unit="%" max={100} items={uptimeBars} empty="No uptime recorded yet." />
           </InsightPanel>
         </div>
       )}

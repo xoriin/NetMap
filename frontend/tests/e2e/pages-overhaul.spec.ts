@@ -20,8 +20,8 @@ const devices = [
 ];
 
 const monitorDevices = [
-  mockMonitoringDevice({ device_id: 1, display_name: "Core Router", avg_rtt_24h: 1.2, uptime_24h: 100, health_status: "healthy" }),
-  mockMonitoringDevice({ device_id: 2, display_name: "NAS-01", avg_rtt_24h: 9.4, uptime_24h: 97.5, health_status: "unhealthy", status: "offline" }),
+  mockMonitoringDevice({ device_id: 1, display_name: "Core Router", avg_rtt_24h: 1.2, uptime_24h: 1, health_status: "healthy" }),
+  mockMonitoringDevice({ device_id: 2, display_name: "NAS-01", avg_rtt_24h: 9.4, uptime_24h: 0.975, health_status: "unhealthy", status: "offline" }),
 ];
 
 const monitors = [
@@ -147,8 +147,8 @@ test("Monitoring devices show fleet health and the slowest devices", async ({ pa
   await page.goto("/monitoring#devices");
   await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".dash-donut-svg")).toBeVisible();
   await expect(page.locator(".nm-bento .dash-stat")).toHaveCount(6);
-  expect((await barLabels(page, "Highest latency, last 24 h"))[0]).toBe("NAS-01 9.4 ms");
-  expect((await barLabels(page, "Least uptime, last 24 h"))[0]).toBe("NAS-01 97.5%");
+  await expect(page.getByRole("region", { name: "Highest latency, last 24 h", exact: true }).locator(".nm-chart-hit").first()).toHaveAttribute("aria-label", "NAS-01: Average RTT 9.4 ms");
+  await expect(page.getByRole("region", { name: "Least uptime, last 24 h", exact: true }).locator(".nm-chart-hit").first()).toHaveAttribute("aria-label", "NAS-01: Uptime 97.5%");
 });
 
 async function legendRows(page: Page, region: string) {

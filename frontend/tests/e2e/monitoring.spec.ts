@@ -491,7 +491,7 @@ test.describe("Monitoring layout and column sizing", () => {
     await expect(page.locator(".mon-row").first()).toBeVisible();
   });
 
-  test("shows the table at its natural height and scrolls the page to the insights below", async ({ page }) => {
+  test("shows the table at its natural height with device insights above it", async ({ page }) => {
     const body = page.locator(".mon-table-body");
     expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
     const workspace = page.locator(".workspace");
@@ -499,9 +499,9 @@ test.describe("Monitoring layout and column sizing", () => {
     const latency = page.getByRole("region", { name: "Highest latency, last 24 h", exact: true });
     await latency.scrollIntoViewIfNeeded();
     await expect(latency).toBeInViewport();
-    const tableBottom = await page.locator(".mon-view-window").evaluate((el) => el.getBoundingClientRect().bottom);
-    const latencyTop = await latency.evaluate((el) => el.getBoundingClientRect().top);
-    expect(latencyTop).toBeGreaterThan(tableBottom);
+    const tableTop = await page.locator(".mon-view-window").evaluate((el) => el.getBoundingClientRect().top);
+    const latencyBottom = await latency.evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(latencyBottom).toBeLessThan(tableTop);
   });
 
   test("keeps the favourite header cell above scrolled rows", async ({ page }) => {
