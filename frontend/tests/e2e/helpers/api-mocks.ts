@@ -64,6 +64,7 @@ export const BUILT_IN_CLOUD_ASSET_TYPES = [
 ].map(([value, label]) => ({ id: null as number | null, value, label, is_builtin: true }));
 
 export async function setupCoreMocks(page: Page, announcement: string | null = null) {
+  await page.route("**/api/v1/auth/me/chart-views", route => route.fulfill({ json: {} }));
   await guardApiRequests(page.context());
   await page.context().routeWebSocket(url => url.pathname === "/api/v1/syslog/events/live", socket => {
     let authenticated = false;

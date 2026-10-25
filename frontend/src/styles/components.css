@@ -2088,3 +2088,65 @@ body.theme-dark .nm-pick-filter input {
 .nm-insight-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .nm-insight-title strong { overflow: hidden; color: inherit; font-size: var(--nm-text-lg, 15px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nm-insight > .nm-chart-body { padding: var(--nm-space-4) 18px; }
+
+/* Personal chart views: shared across every chart panel; canonical controls own their states. */
+.nm-chart-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
+.nm-chart-actions:empty { display: none; }
+.nm-personal-chart, .nm-personal-renderer { width: 100%; min-width: 0; }
+.nm-chart-local-action { display: flex; justify-content: flex-end; margin-bottom: var(--nm-space-2); }
+.nm-chart-settings { margin-top: var(--nm-space-4); border-top: 1px solid var(--nm-border); }
+.nm-chart-settings-heading { display: flex; align-items: center; gap: var(--nm-space-2); padding: var(--nm-space-3) 0; }
+.nm-chart-settings-heading > button { margin-left: auto; }
+.nm-chart-settings-body { display: grid; gap: var(--nm-space-3); }
+.nm-chart-gallery { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--nm-space-2); }
+.nm-chart-gallery .nm-chart-choice { display: flex; flex-direction: column; justify-content: center; gap: var(--nm-space-2); min-width: 0; min-height: 64px; padding: var(--nm-space-2) 4px; white-space: normal; text-align: center; }
+.nm-chart-display-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--nm-space-3); }
+.nm-chart-display-options .nm-select { width: 100%; min-width: 0; }
+.nm-chart-switches { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-3); }
+.nm-chart-switches > label { display: flex; align-items: center; gap: var(--nm-space-2); font-size: var(--nm-text-sm); }
+.nm-chart-settings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); padding-top: var(--nm-space-4); }
+.nm-chart-settings-footer > span { margin-left: auto; }
+.nm-chart-save-error { color: var(--nm-danger); font-size: var(--nm-text-sm); }
+.nm-personal-ring-layout { display: flex; align-items: center; gap: var(--nm-space-4); }
+.nm-personal-ring-layout--below { flex-direction: column; }
+.nm-personal-ring-layout .nm-chart-legend { flex: 1 1 auto; min-width: 0; width: 100%; }
+.nm-personal-ring { position: relative; flex: 0 0 116px; width: 116px; height: 116px; }
+.nm-personal-ring svg { width: 100%; height: 100%; overflow: visible; }
+.nm-personal-ring-centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.nm-personal-ring-centre strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nm-personal-ring-centre span { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; color: var(--nm-text-muted); font-size: var(--nm-text-xs); }
+.nm-personal-bars { display: grid; grid-template-columns: minmax(70px, max-content) minmax(0, 1fr) auto; gap: var(--nm-space-3); }
+.nm-personal-bar-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; gap: var(--nm-space-3); font-size: var(--nm-text-sm); }
+.nm-personal-bar-label { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-personal-bar-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.nm-personal-treemap { position: relative; height: 180px; }
+.nm-personal-treemap > div { position: absolute; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: var(--nm-space-2); padding: 0; background: color-mix(in srgb, var(--nm-chart-paint) 26%, var(--nm-surface)); overflow-wrap: anywhere; }
+.nm-personal-treemap span { padding: 4px 6px 0; font-size: var(--nm-text-sm); }
+.nm-personal-treemap strong { padding: 0 6px 4px; }
+.nm-personal-gauge { max-width: 240px; margin: auto; text-align: center; }
+.nm-personal-gauge svg { width: 100%; display: block; }
+.nm-personal-gauge text { fill: var(--nm-text); font-size: 28px; }
+.nm-personal-gauge > span { font-size: var(--nm-text-sm); color: var(--nm-text-muted); }
+.nm-personal-number { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--nm-space-2); min-height: 150px; }
+.nm-personal-number strong { font-size: 40px; font-variant-numeric: tabular-nums; }
+.nm-personal-number span { color: var(--nm-text-muted); }
+.nm-personal-table { max-height: 320px; overflow: auto; }
+.nm-personal-plot { display: block; max-width: 100%; }
+.nm-personal-value { fill: var(--nm-text); }
+.nm-personal-plot .nm-chart-hit:focus-visible { outline: 2px solid var(--nm-focus-border); }
+.nm-personal-renderer .nm-chart-legend { margin-top: var(--nm-space-3); }
+.nm-personal-ring-layout .nm-chart-legend { margin-top: 0; }
+@media (min-width: 1280px) {
+  .nm-bento--four:not(.nm-bento--chart) > :first-child:not(:has(.nm-personal-chart--editing)):has(> .nm-chart-body > .nm-personal-chart > .nm-bar-list) { display: flex; flex-direction: column; contain: size; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-personal-chart > .nm-bar-list):not(:has(.nm-personal-chart--editing)) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+}
+@media (max-width: 760px) {
+  .nm-chart-gallery { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .nm-chart-display-options { grid-template-columns: minmax(0, 1fr); }
+  .nm-chart-settings-footer > span { width: 100%; margin: 0; order: 3; }
+  .nm-chart-settings-footer > :first-child { margin-right: auto; }
+  .nm-personal-ring { width: 100px; height: 100px; flex-basis: 100px; }
+  .nm-personal-bar-label { max-width: 100px; }
+}
+
+.nm-bento:has(.nm-personal-chart--editing) { align-items: start; }

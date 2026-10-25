@@ -1,3 +1,4 @@
+import { ChartViewsProvider } from "./providers/ChartViewsProvider";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
@@ -469,6 +470,7 @@ function WorkspaceApp() {
               <span>{appSettings.announcement}</span>
             </div>
           )}
+          <ChartViewsProvider key={user.id} token={accessToken}>
           <DashboardView
             accessToken={accessToken}
             currentRoute={currentRoute}
@@ -492,6 +494,7 @@ function WorkspaceApp() {
             onOpenWhatsNew={openWhatsNew}
             versionInfo={versionInfo}
           />
+          </ChartViewsProvider>
           {showWhatsNew && versionInfo && (
             <WhatsNewModal versionInfo={versionInfo} onClose={closeWhatsNew} />
           )}

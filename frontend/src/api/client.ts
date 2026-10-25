@@ -1,3 +1,4 @@
+import type { ChartViewOptions } from "../utils/chartViews";
 export type UserRole = "SuperAdmin" | "NetworkAdmin" | "SecurityAnalyst" | "Viewer";
 
 export type User = {
@@ -1483,6 +1484,10 @@ function readCookie(name: string): string | null {
 }
 
 export const api = {
+  chartViews: (token: string) => request<Record<string, ChartViewOptions>>("/api/v1/auth/me/chart-views", { token }),
+  saveChartView: (token: string, id: string, options: ChartViewOptions) => request<ChartViewOptions>(`/api/v1/auth/me/chart-views/${encodeURIComponent(id)}`, { token, method: "PUT", body: JSON.stringify(options) }),
+  resetChartView: (token: string, id: string) => request<void>(`/api/v1/auth/me/chart-views/${encodeURIComponent(id)}`, { token, method: "DELETE" }),
+  resetChartViews: (token: string) => request<void>("/api/v1/auth/me/chart-views", { token, method: "DELETE" }),
   setupStatus: () => request<{ needs_setup: boolean }>("/api/v1/setup/status"),
   createAdmin: (username: string, password: string) =>
     request<User>("/api/v1/setup/admin", {

@@ -1,3 +1,4 @@
+import { InsightPanel } from "../../components/InsightPanel";
 import {
   AlertTriangle,
   Bell,
@@ -652,6 +653,7 @@ export function ThemePreviewWorkspace() {
             <ColumnChart label="Example deliveries per day" height={140} series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} rows={[12, 9, 14, 11, 18, 7, 6].map((sent, i) => ({ label: `Day ${i + 1}`, sent, failed: i === 2 ? 1 : 0 }))} />
             <StackBar label="Example intake" items={[{ label: "Stored", value: 17960, color: "--dash-green" }, { label: "Dropped unparsed", value: 380, color: "--dash-amber" }, { label: "Denied senders", value: 80, color: "--dash-red" }]} />
             <SparkBars label="Example sends per day" values={[5, 4, 6, 5, 8, 3, 2, 6, 7, 10, 7, 4, 9, 6]} />
+            <InsightPanel title="Personal chart views" icon={<Server size={18} />}><DonutChart viewId="preview.personal-chart" label="Personal chart example" centre="42" sub="Services" items={[{ label: "Healthy", value: 34, color: "--dash-green" }, { label: "Degraded", value: 3, color: "--dash-amber" }, { label: "Unavailable", value: 1, color: "--dash-red" }, { label: "Maintenance", value: 2, color: "--dash-blue" }, { label: "No data", value: 2, color: "--nm-text-faint" }]} /></InsightPanel>
           </div>
         </div>
       </section>
