@@ -148,3 +148,18 @@ def test_concurrent_different_chart_saves_preserve_each_override(tmp_path):
         db.add(ChartView(user_id=user_id, chart_id="retired.chart", options='{"version":99}'))
         db.commit()
         assert "retired.chart" not in list_views(db.get(User, user_id), db)
+
+
+@pytest.mark.parametrize("position", ["top", "bottom", "left", "right", "side", "below"])
+def test_legend_positions_round_trip_and_preserve_legacy_choices(position):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[User.__table__, ChartView.__table__])
+    with Session(engine) as db:
+        user = User(username="viewer", password_hash="x", role="Viewer")
+        db.add(user)
+        db.commit()
+        save_view("inventory.types", ChartViewOptions(type="ring", position=position), user, db)
+        db.expire_all()
+        assert list_views(user, db)["inventory.types"].position == position
+    with pytest.raises(ValidationError):
+        ChartViewOptions(position="floating")

@@ -4,7 +4,7 @@ import { ChartArea, ChartBar, ChartBarStacked, ChartColumn, ChartLine, ChartPie,
 import type { ChartPaint, ColumnSeries } from './ChartPrimitives';
 import { useChartPanelTarget } from './ChartPanel';
 import { useChartViews } from '../providers/ChartViewsProvider';
-import { defaultChartView, type ChartForm, type ChartViewOptions } from '../utils/chartViews';
+import { chartLegendPosition, defaultChartView, type ChartForm, type ChartViewOptions } from '../utils/chartViews';
 import { PersonalChartRenderer } from './PersonalChartRenderer';
 
 export type ChartData = {
@@ -48,7 +48,7 @@ export function PersonalChart({ id, label, base, data, children }: { id?: string
     finally { setBusy(false); }
   };
   const parts = data.kind === 'parts' && data.series.length === 1;
-  const hasLegend = ['ring', 'pie', 'stacked'].includes(selected);
+  const hasLegend = ['ring', 'pie', 'stacked'].includes(selected) || data.series.length > 1 && ['columns', 'line', 'area', 'dots'].includes(selected);
   return <div className={`nm-personal-chart${open ? ' nm-personal-chart--editing' : ''}`} data-chart-id={id} data-chart-custom={draft || saved ? "true" : undefined}>
     {target ? createPortal(action, target) : <div className="nm-chart-local-action">{action}</div>}
     {!draft && Object.keys(defaultChartView).every(key => options[key as keyof ChartViewOptions] === defaultChartView[key as keyof ChartViewOptions]) ? children : <PersonalChartRenderer data={data} options={{ ...options, type: selected }} label={label} />}
@@ -61,9 +61,9 @@ export function PersonalChart({ id, label, base, data, children }: { id?: string
         <div className="nm-chart-display-options">
           <label className="nm-field"><span className="nm-field-label">Values</span><select className="nm-select" aria-label="Values" value={options.values} disabled={busy || !parts || ['gauge', 'number', 'table'].includes(selected)} onChange={e => changed('values', e.target.value as ChartViewOptions['values'])}><option value="value">Values</option><option value="percent">Percentages</option><option value="both">Values and percentages</option></select></label>
           <label className="nm-field"><span className="nm-field-label">Order</span><select className="nm-select" aria-label="Order" value={options.order} disabled={busy || data.kind === 'time' || ['gauge', 'number'].includes(selected)} onChange={e => changed('order', e.target.value as ChartViewOptions['order'])}><option value="original">Default order</option><option value="largest">Largest first</option><option value="smallest">Smallest first</option><option value="name">Name A–Z</option></select></label>
-          <label className="nm-field"><span className="nm-field-label">Legend position</span><select className="nm-select" aria-label="Legend position" value={options.position} disabled={busy || !['ring', 'pie'].includes(selected) || !options.legend} onChange={e => changed('position', e.target.value as ChartViewOptions['position'])}><option value="side">Beside the visual</option><option value="below">Below the visual</option></select></label>
+          <label className="nm-field"><span className="nm-field-label">Legend position</span><select className="nm-select" aria-label="Legend position" value={chartLegendPosition(options.position)} disabled={busy || !hasLegend || !options.legend} onChange={e => changed('position', e.target.value as ChartViewOptions['position'])}><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left</option><option value="right">Right</option></select></label>
         </div>
-        <div className="nm-chart-switches">{([['legend', 'Show legend', !hasLegend], ['labels', 'Show values', ['gauge', 'number', 'table'].includes(selected) || !!data.zoomable && ['line', 'area'].includes(selected)], ['tracks', 'Legend share bars', !hasLegend || !options.legend]] as const).map(([key, text, disabled]) => <label key={key}><input type="checkbox" checked={options[key]} disabled={busy || disabled} onChange={e => changed(key, e.target.checked)} />{text}</label>)}</div>
+        <div className="nm-chart-switches">{([['legend', 'Show legend', !hasLegend], ['labels', 'Show values', ['gauge', 'number', 'table'].includes(selected) || !!data.zoomable && ['line', 'area'].includes(selected)], ['tracks', 'Legend share bars', !parts || !hasLegend || !options.legend]] as const).map(([key, text, disabled]) => <label key={key}><input type="checkbox" checked={options[key]} disabled={busy || disabled} onChange={e => changed(key, e.target.checked)} />{text}</label>)}</div>
       </div>
       {error && <p className="nm-chart-save-error" role="alert">{error}</p>}
       <div className="nm-chart-settings-footer"><button type="button" className="nm-btn nm-btn--ghost" disabled={busy || prefs.loading || !!prefs.error} onClick={() => void mutate(true)}>Reset this chart</button><span role="status" className="dash-panel-meta">{busy ? 'Saving…' : notice || (saved ? 'My saved view' : 'Default view')}</span><button type="button" className="nm-btn" disabled={busy} onClick={() => { setDraft(null); setError(''); setNotice(saved ? 'My saved view' : 'Default view'); close(); }}>Cancel</button><button type="button" className="nm-btn nm-btn--primary" disabled={busy || prefs.loading || !!prefs.error} onClick={() => void mutate(false)}>Save my view</button></div>

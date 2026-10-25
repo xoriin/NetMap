@@ -22,7 +22,7 @@ class ChartViewOptions(BaseModel):
     ] = "default"
     values: Literal["value", "percent", "both"] = "value"
     order: Literal["original", "largest", "smallest", "name"] = "original"
-    position: Literal["side", "below"] = "side"
+    position: Literal["top", "bottom", "left", "right", "side", "below"] = "side"
     legend: StrictBool = True
     labels: StrictBool = True
     tracks: StrictBool = True

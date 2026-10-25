@@ -135,6 +135,20 @@ test('time series keep chronological order and multi-series values when switchin
   expect(values.slice(1)).toEqual(['1', '1']);
   await chart.getByRole('button', { name: 'Area', exact: true }).click();
   await expect(chart.locator('.nm-chart-area')).toHaveCount(2);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1050 });
+    for (const position of ['left', 'right', 'top', 'bottom']) {
+      await chart.getByLabel('Legend position', { exact: true }).selectOption(position);
+      await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', position);
+      await expect.poll(() => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+      await expect(chart.locator('.nm-chart-legend-label')).toHaveText(['Sent', 'Failed']);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+  }
+  await chart.getByLabel('Show legend', { exact: true }).uncheck();
+  await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
+  await expect(chart.getByLabel('Legend position', { exact: true })).toBeDisabled();
+  await expect(chart.locator('.nm-chart-area')).toHaveCount(2);
 });
 
 test('failed preference loads offer retry and never overwrite saved choices', async ({ page }) => {
@@ -182,7 +196,7 @@ test('display options persist independently of the chart form and reset to produ
   await trigger.click();
   await chart.getByRole('button', { name: 'Ring', exact: true }).click();
   await chart.getByLabel('Values', { exact: true }).selectOption('both');
-  await chart.getByLabel('Legend position', { exact: true }).selectOption('below');
+  await chart.getByLabel('Legend position', { exact: true }).selectOption('bottom');
   await chart.getByLabel('Order', { exact: true }).selectOption('name');
   await expect(chart.locator('.nm-chart-legend-label')).toHaveText(['Access_point', 'router', 'server']);
   await expect(chart.locator('.nm-chart-legend-pct')).toHaveText(['33%', '33%', '33%']);
@@ -193,7 +207,7 @@ test('display options persist independently of the chart form and reset to produ
   await expect(chart.locator('.nm-chart-legend strong')).toHaveCount(0);
   await trigger.click();
   await expect(chart.getByLabel('Values', { exact: true })).toHaveValue('both');
-  await expect(chart.getByLabel('Legend position', { exact: true })).toHaveValue('below');
+  await expect(chart.getByLabel('Legend position', { exact: true })).toHaveValue('bottom');
   await expect(chart.getByLabel('Show values', { exact: true })).not.toBeChecked();
   await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
   await expect(chart.locator('.nm-donut-chart .nm-chart-legend strong')).toHaveCount(3);
@@ -239,5 +253,57 @@ test('canonical chart preview shows the shared personal controls', async ({ page
   const chart = page.locator('[data-chart-id="preview.personal-chart"]');
   await expect(chart).toBeVisible();
   await chart.scrollIntoViewIfNeeded();
-  await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: '/tmp/netmap-chart-preview-before.png' });
+  await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: test.info().outputPath('chart-preview.png') });
 });
+
+for (const theme of ['light', 'slate', 'zinc']) {
+  test(`paired visuals support saved four-way legend placement in ${theme}`, async ({ page }) => {
+    const state = await boot(page, theme);
+    await page.goto('/inventory');
+    const chart = page.locator('[data-chart-id="inventory.device-types"]');
+    const trigger = page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true });
+    await trigger.click();
+    for (const type of ['Ring', 'Pie', 'Stacked bar']) {
+      await chart.getByRole('button', { name: type, exact: true }).click();
+      for (const width of [1440, 820, 390]) {
+        await page.setViewportSize({ width, height: 1050 });
+        for (const position of ['top', 'bottom', 'left', 'right']) {
+          await chart.getByLabel('Legend position', { exact: true }).selectOption(position);
+          const pair = chart.locator('.nm-chart-pair');
+          await expect(pair).toHaveAttribute('data-legend-position', position);
+          const boxes = await pair.evaluate(el => {
+            const visual = el.querySelector('.nm-chart-pair-visual')!.getBoundingClientRect();
+            const legend = el.querySelector('.nm-chart-legend')!.getBoundingClientRect();
+            return { vx: visual.x, vy: visual.y, vr: visual.right, vb: visual.bottom, lx: legend.x, ly: legend.y, lr: legend.right, lb: legend.bottom };
+          });
+          if (position === 'top') expect(boxes.lb).toBeLessThan(boxes.vy);
+          if (position === 'bottom') expect(boxes.ly).toBeGreaterThan(boxes.vb);
+          if (position === 'left') expect(boxes.lr).toBeLessThan(boxes.vx);
+          if (position === 'right') expect(boxes.lx).toBeGreaterThan(boxes.vr);
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        }
+      }
+    }
+    await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
+    await expect(chart.getByRole('status')).toHaveText('My view saved');
+    await page.reload();
+    await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', 'right');
+    await trigger.click();
+    await chart.getByLabel('Legend position', { exact: true }).selectOption('left');
+    await chart.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', 'right');
+    await trigger.click();
+    await chart.getByRole('button', { name: 'Ring', exact: true }).click();
+    await chart.getByLabel('Legend position', { exact: true }).selectOption('top');
+    await chart.getByLabel('Show values', { exact: true }).uncheck();
+    await chart.screenshot({ path: test.info().outputPath(`placement-${theme}.png`) });
+    for (const legacy of ['side', 'below']) {
+      state.views()['inventory.device-types'] = { type: 'pie', position: legacy };
+      await page.reload();
+      await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', legacy === 'side' ? 'right' : 'bottom');
+    }
+    await trigger.click();
+    await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
+    await expect(chart.locator('.nm-donut-chart')).toBeVisible();
+  });
+}
