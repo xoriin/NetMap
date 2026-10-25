@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, StrictBool
 
 class ChartViewOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    version: Literal[1] = 1
+    version: Literal[1, 2] = 1
     type: Literal[
         "default",
         "ring",
@@ -26,3 +26,8 @@ class ChartViewOptions(BaseModel):
     legend: StrictBool = True
     labels: StrictBool = True
     tracks: StrictBool = True
+
+    # v2 composes these independently; v1 tracks remain readable for compatibility.
+    chart: StrictBool = True
+    bars: StrictBool = False
+    bar_position: Literal["top", "bottom", "left", "right"] = "right"

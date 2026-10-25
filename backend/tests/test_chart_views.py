@@ -163,3 +163,44 @@ def test_legend_positions_round_trip_and_preserve_legacy_choices(position):
         assert list_views(user, db)["inventory.types"].position == position
     with pytest.raises(ValidationError):
         ChartViewOptions(position="floating")
+
+
+def test_independent_chart_elements_round_trip_without_changing_legacy_records():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine, tables=[User.__table__, ChartView.__table__])
+    with Session(engine) as db:
+        user = User(username="viewer", password_hash="x", role="Viewer")
+        db.add(user)
+        db.commit()
+        legacy = ChartViewOptions(version=1, type="ring", tracks=True, position="below")
+        save_view("legacy.chart", legacy, user, db)
+        for chart, bars, legend in [
+            (True, False, False),
+            (False, True, False),
+            (False, False, True),
+            (True, True, True),
+        ]:
+            options = ChartViewOptions(
+                version=2,
+                type="pie",
+                chart=chart,
+                bars=bars,
+                legend=legend,
+                bar_position="left",
+                position="top",
+            )
+            save_view("composed.chart", options, user, db)
+            db.expire_all()
+            saved = list_views(user, db)["composed.chart"]
+            assert (saved.chart, saved.bars, saved.legend, saved.bar_position, saved.position) == (
+                chart,
+                bars,
+                legend,
+                "left",
+                "top",
+            )
+        assert list_views(user, db)["legacy.chart"].version == 1
+        assert list_views(user, db)["legacy.chart"].tracks is True
+    for payload in [dict(chart="false"), dict(bars="true"), dict(bar_position="free")]:
+        with pytest.raises(ValidationError):
+            ChartViewOptions(version=2, **payload)
