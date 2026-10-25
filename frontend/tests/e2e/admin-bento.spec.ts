@@ -107,7 +107,7 @@ test("light nested Admin section headers use the dark panel-header colour with w
   await expect(title.locator("svg")).toHaveCSS("color", "rgb(255, 255, 255)");
 });
 
-for (const [theme, header] of [["slate", "rgb(29, 37, 54)"], ["zinc", "rgb(31, 31, 35)"]] as const) {
+for (const [theme, header] of [["slate", "rgb(22, 32, 51)"], ["zinc", "rgb(31, 31, 35)"]] as const) {
   test(`dark nested Admin section headers keep the module header colour in ${theme}`, async ({ page }) => {
     await setupMocks(page, theme);
     await page.goto("/admin#system");

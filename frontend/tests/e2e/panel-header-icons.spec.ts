@@ -73,7 +73,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
       const colours = await page.locator(HEADERS).evaluateAll(headers => headers
         .filter(header => (header as HTMLElement).offsetParent && !header.closest(".modal"))
         .map(header => ({ name: header.textContent?.trim().slice(0, 50), background: getComputedStyle(header).backgroundColor })));
-      const allowed = theme === "light" ? ["rgb(47, 68, 91)"] : theme === "zinc" ? ["rgb(31, 31, 35)"] : ["rgb(29, 37, 54)", "rgb(22, 32, 51)"];
+      const allowed = theme === "light" ? ["rgb(47, 68, 91)"] : theme === "zinc" ? ["rgb(31, 31, 35)"] : ["rgb(22, 32, 51)"];
       for (const header of colours) expect(allowed, `${route}: ${header.name}`).toContain(header.background);
       expect(errors).toEqual([]);
       if (process.env.NETMAP_SURFACE_SCREENSHOTS) await page.screenshot({ path: `/tmp/netmap-page-${route.replace(/[^a-z0-9]/gi, "-")}-${theme}.png`, fullPage: true });

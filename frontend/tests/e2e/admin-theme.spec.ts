@@ -83,7 +83,7 @@ const emailBranding = {
 };
 
 for (const style of ["light", "slate", "zinc"] as const) {
-  test(`Admin module surfaces use the module palette in ${style}`, async ({ page }) => {
+  test(`Admin module surfaces match rendered Overview panels in ${style}`, async ({ page }) => {
     test.setTimeout(120_000);
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -97,19 +97,12 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await page.goto("/overview");
     const overview = page.locator(".overview-panel").first();
     await expect(overview).toBeVisible();
-    const moduleColour = (token: string) => page.evaluate((name) => {
-      const probe = document.createElement("div");
-      probe.style.background = `var(${name})`;
-      document.body.appendChild(probe);
-      const colour = getComputedStyle(probe).backgroundColor;
-      probe.remove();
-      return colour;
-    }, token);
-    const body = style === "light" ? await overview.evaluate(n => getComputedStyle(n).backgroundColor) : await moduleColour("--nm-module-body-bg");
-    const header = style === "light" ? await overview.locator(":scope > .nm-app-panel-header").evaluate(n => getComputedStyle(n).backgroundColor) : await moduleColour("--nm-module-header-bg");
+    if (process.env.NETMAP_SURFACE_SCREENSHOTS) await page.screenshot({ path: `/tmp/netmap-admin-${style}-overview.png`, fullPage: true });
+    const body = await overview.evaluate(n => getComputedStyle(n).backgroundColor);
+    const header = await overview.locator(":scope > .nm-app-panel-header").evaluate(n => getComputedStyle(n).backgroundColor);
     if (style === "slate") {
-      expect(header).toBe("rgb(29, 37, 54)");
-      expect(body).toBe("rgb(22, 29, 46)");
+      expect(header).toBe("rgb(22, 32, 51)");
+      expect(body).toBe("rgb(15, 23, 42)");
     }
     for (const section of ["system", "devices-icons", "cloud-providers", "users", "groups", "credentials", "notifications", "alerts", "automation", "security"]) {
       await page.setViewportSize({ width: 1600, height: 1000 });
@@ -134,9 +127,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
           await page.screenshot({ path: `/tmp/netmap-admin-${style}-phone.png`, fullPage: true });
         }
         for (const panel of await page.locator(".admin-layout .nm-app-panel").all()) {
-          if (!(await panel.evaluate(n => n.classList.contains("admin-system-card")))) {
-            await expect(panel).toHaveCSS("background-color", body);
-          }
+          await expect(panel).toHaveCSS("background-color", body);
         }
         for (const node of await page.locator(".admin-layout .nm-app-panel-header").all()) {
           await expect(node).toHaveCSS("background-color", header);
@@ -151,7 +142,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
           }
         }
       }
-      if (process.env.NETMAP_SURFACE_SCREENSHOTS && ["system", "notifications", "security"].includes(section)) {
+      if (process.env.NETMAP_SURFACE_SCREENSHOTS && ["system", "devices-icons", "notifications", "security"].includes(section)) {
         await page.setViewportSize({ width: 1600, height: 1100 });
         await page.screenshot({ path: `/tmp/netmap-admin-${style}-${section}.png`, fullPage: true });
       }

@@ -44,9 +44,9 @@ html:has(body.theme-dark) {
   --nm-modal-shell: #0b1222;
   --nm-modal-header: #162033;
   --nm-modal-section: #0f172a;
-  /* In-page modules share the user-approved Overview/Admin surface pair. */
-  --nm-module-header-bg: #1d2536;
-  --nm-module-body-bg: #161d2e;
+  /* Admin modules share the canonical panel surfaces used by Overview. */
+  --nm-module-header-bg: var(--nm-modal-header);
+  --nm-module-body-bg: var(--nm-modal-section);
   --nm-panel-body-bg: transparent;
   --nm-track-bg: #34435b;
   --nm-chart-value-bg: color-mix(in srgb, var(--nm-track-bg) 80%, var(--nm-text) 20%);
