@@ -204,7 +204,7 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
       <div className="nm-bento nm-bento--four">
         <InsightPanel title="Service health across pages" icon={<PieChart size={16} />} className="nm-motion-item">
           {!overview ? <TableSkeleton rows={3} columns={2} />
-            : componentTotal ? <DonutChart label="Status page services by state" centre={<CountUp value={componentTotal} />} sub="Services" legendBars={false}
+            : componentTotal ? <DonutChart label="Status page services by state" centre={<CountUp value={componentTotal} />} sub="Services"
                 items={STATE_ITEMS.map((item) => ({ label: item.label, value: overview.counts[item.state], color: item.color })).filter((item) => item.value > 0)} />
             : <p className="tool-note nm-chart-empty">No monitored services on any status page yet.</p>}
         </InsightPanel>
