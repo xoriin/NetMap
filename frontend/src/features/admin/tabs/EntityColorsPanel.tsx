@@ -137,7 +137,7 @@ export function EntityColorsPanel({
     <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Group and location colours">
       <div className="nm-app-panel-header admin-panel-header">
         <span className="admin-panel-identity">
-          <span className="admin-panel-icon" aria-hidden="true"><IconPalette size={17} /></span>
+          <span className="nm-app-panel-icon" aria-hidden="true"><IconPalette size={17} /></span>
           <span className="admin-panel-title-wrap">
             <span className="admin-panel-title">Group &amp; Location Colours</span>
             <span className="admin-panel-meta">Chips in the inventory table</span>

@@ -760,7 +760,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(header).toHaveCSS("background-image", "none");
       expect(Math.round((await header.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(44);
       const headerBox = await header.boundingBox();
-      const iconBox = await header.locator(".admin-section-title svg, .admin-panel-icon svg").first().boundingBox();
+      const iconBox = await header.locator(".admin-section-title svg, .nm-app-panel-icon svg").first().boundingBox();
       expect(headerBox).not.toBeNull();
       expect(iconBox).not.toBeNull();
       if (headerBox && iconBox) {
@@ -1338,5 +1338,62 @@ for (const style of ["slate", "zinc"] as const) {
     await page.getByRole("button", { name: "+ Device", exact: true }).first().click();
     await expect(page.locator(".modal textarea").first()).toHaveCSS("background-color", textareaColour);
     await expect(page.locator('.modal input:not([type="checkbox"]):not([type="color"]):visible').first()).toHaveCSS("background-color", inputColour);
+  });
+}
+
+for (const theme of ["light", "slate", "zinc"]) {
+  test(`Devices and Icons uses canonical table and header colours in ${theme}`, async ({ page }) => {
+    await setupAdminMocks(page);
+    await page.addInitScript(theme => {
+      localStorage.setItem("netmap.theme", theme === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", theme === "zinc" ? "zinc" : "slate");
+    }, theme);
+    await page.goto("/admin#devices-icons");
+    const panel = page.locator(".device-types-panel");
+    const cell = panel.locator("tbody td").first();
+    await expect(cell).toBeVisible();
+    await page.mouse.move(0, 0);
+    const colours = await page.evaluate(() => {
+      const values: Record<string, string> = {};
+      for (const token of ["--nm-table-row-bg", "--nm-table-header-bg", "--nm-row-hover"]) {
+        const probe = document.createElement("span"); probe.style.background = `var(${token})`;
+        document.body.appendChild(probe); values[token] = getComputedStyle(probe).backgroundColor; probe.remove();
+      }
+      return values;
+    });
+    await expect(panel.locator("thead th").first()).toHaveCSS("background-color", colours["--nm-table-header-bg"]);
+    await page.screenshot({ path: `/tmp/netmap-devices-icons-${theme}.png`, fullPage: true });
+    await expect(panel.locator(".nm-table-wrap")).toHaveCSS("background-color", colours["--nm-table-row-bg"]);
+    await cell.hover();
+    await expect(cell.locator("..")).toHaveCSS("background-color", colours["--nm-row-hover"]);
+    for (const button of await panel.locator(".dtype-icon-current").all()) {
+      const fits = await button.evaluate(el => el.getBoundingClientRect().right <= el.closest("td")!.getBoundingClientRect().right);
+      expect(fits, "icon choices stay inside their own table column").toBe(true);
+    }
+    const picker = panel.locator(".dtype-icon-current").first();
+    const canonical = panel.getByRole("button", { name: "Icon packs", exact: true });
+    const buttonColours = await canonical.evaluate(el => ({ background: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color }));
+    await page.mouse.move(0, 0);
+    await expect(picker).toHaveCSS("background-color", buttonColours.background);
+    await expect(picker).toHaveCSS("color", buttonColours.color);
+    await picker.click();
+    const modal = page.getByRole("dialog", { name: "Choose Icon", exact: true });
+    await expect(modal).toHaveAttribute("aria-modal", "true");
+    await expect(modal.locator(".modal-header")).toBeVisible();
+    await expect(modal.locator("input")).toHaveClass(/nm-input/);
+    await modal.locator("input").fill("no matching glyph");
+    await expect(modal.locator(".icon-picker-empty")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(modal).toHaveCount(0);
+    await expect(picker).toBeFocused();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await picker.click();
+    await expect(modal).toBeVisible();
+    const bounds = (await modal.locator(".modal").boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: `/tmp/netmap-icon-picker-${theme}-phone.png` });
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeFocused();
   });
 }

@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ChevronDown, Palette } from "lucide-react";
+import { Modal } from "./Modal";
+import "./IconPicker.css";
 import {
   allRuntimePacks,
   deviceIconPath,
@@ -20,7 +22,7 @@ function IconPickerGlyph({
     return <img src={def.url} width={32} height={32} alt={def.label} className="icon-picker-img" />;
   }
   return (
-    <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke={active ? strokeColor : "#5b7c91"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke={active ? strokeColor : "var(--nm-text-muted)"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <g dangerouslySetInnerHTML={{ __html: def.path ?? "" }} />
     </svg>
   );
@@ -28,7 +30,7 @@ function IconPickerGlyph({
 
 function IconPickerModal({
   value,
-  strokeColor = "#3b7cc9",
+  strokeColor = "var(--nm-accent-strong)",
   onSelect,
   onClose,
 }: {
@@ -64,23 +66,12 @@ function IconPickerModal({
   const q = search.trim().toLowerCase();
   const filtered = q ? tabIcons.filter((o) => o.label.toLowerCase().includes(q)) : tabIcons;
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
   return (
-    <div className="icon-picker-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="icon-picker-modal" role="dialog" aria-label="Choose icon">
-        <div className="icon-picker-header">
-          <span className="icon-picker-title">Choose icon</span>
-          <button type="button" className="icon-picker-close" onClick={onClose}>✕</button>
-        </div>
+    <Modal title="Choose Icon" titleIcon={<Palette size={18} />} onCancel={onClose} modalClassName="icon-picker-modal">
         <div className="icon-picker-search-row">
           <input
             autoFocus
-            className="icon-picker-search"
+            className="nm-input icon-picker-search"
             placeholder="Search icons..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -129,8 +120,7 @@ function IconPickerModal({
             </p>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -142,15 +132,17 @@ export function DeviceTypeIconPicker({
   onSelect: (icon: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="dtype-icon-picker">
       <button
         type="button"
-        className="dtype-icon-current"
+        ref={triggerRef}
+        className="nm-btn nm-btn--sm dtype-icon-current"
         title="Click to change icon"
         onClick={() => setOpen(true)}
       >
-        <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="#3b7cc9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="var(--nm-accent-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <g dangerouslySetInnerHTML={{ __html: deviceIconPath(currentIcon) }} />
         </svg>
         <span>{iconLabel(currentIcon)}</span>
@@ -160,7 +152,7 @@ export function DeviceTypeIconPicker({
         <IconPickerModal
           value={currentIcon}
           onSelect={onSelect}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); triggerRef.current?.focus(); }}
         />
       )}
     </div>
@@ -177,12 +169,14 @@ export function IconPickerTrigger({
   onChange: (icon: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const strokeColor = color || "#3b7cc9";
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const strokeColor = color || "var(--nm-accent-strong)";
   return (
     <div className="icon-picker-trigger-wrap">
       <button
         type="button"
-        className="icon-picker-trigger-btn"
+        ref={triggerRef}
+        className="nm-btn icon-picker-trigger-btn"
         onClick={() => setOpen(true)}
       >
         <svg viewBox="0 0 24 24" width={28} height={28} fill="none" stroke={strokeColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -199,7 +193,7 @@ export function IconPickerTrigger({
           value={value}
           strokeColor={strokeColor}
           onSelect={onChange}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); triggerRef.current?.focus(); }}
         />
       )}
     </div>

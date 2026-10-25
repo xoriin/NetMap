@@ -220,7 +220,7 @@ export function DeviceIconsTab({
             than occupying a panel of its own whose entire body was a single button. */}
         <div className="nm-app-panel-header admin-panel-header">
           <span className="admin-panel-identity">
-            <span className="admin-panel-icon" aria-hidden="true"><IconDeviceDesktop size={17} /></span>
+            <span className="nm-app-panel-icon" aria-hidden="true"><IconDeviceDesktop size={17} /></span>
             <span className="admin-panel-title-wrap">
               <span className="admin-panel-title">Device Types</span>
               <span className="admin-panel-meta">

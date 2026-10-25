@@ -1066,19 +1066,6 @@
   gap: 9px;
 }
 
-.admin-layout .admin-panel-icon {
-  display: inline-flex;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--nm-tab-hover-border);
-  border-radius: var(--nm-radius-md);
-  background: var(--nm-accent-soft);
-  color: var(--nm-accent);
-}
-
 .admin-layout .admin-panel-title-wrap {
   display: flex;
   min-width: 0;

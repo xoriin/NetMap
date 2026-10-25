@@ -117,7 +117,7 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
   <section className="panel admin-panel nm-app-panel cloud-provider-admin nm-fill nm-motion-item" aria-label="Cloud providers">
     <div className="nm-app-panel-header admin-panel-header">
       <span className="admin-panel-identity">
-        <span className="admin-panel-icon" aria-hidden="true"><Globe size={17} /></span>
+        <span className="nm-app-panel-icon" aria-hidden="true"><Globe size={17} /></span>
         <span className="admin-panel-title-wrap">
           <span className="admin-panel-title">Cloud Providers</span>
           <span className="admin-panel-meta">Shared by External IPs and Cloud assets</span>
