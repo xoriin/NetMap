@@ -135,7 +135,7 @@
 
 .admin-system-page .admin-panel {
   border-color: var(--nm-border);
-  background: var(--nm-modal-section);
+  background: var(--nm-module-body-bg);
   box-shadow: var(--nm-shadow-sm);
 }
 
@@ -143,7 +143,7 @@
   display: block;
   overflow: hidden;
   padding: 0;
-  background: var(--nm-modal-shell);
+  background: var(--nm-module-body-bg);
 }
 
 .admin-system-card-header {
@@ -159,7 +159,7 @@
 
 .admin-system-card-body {
   padding: var(--nm-space-5);
-  background: var(--nm-modal-section);
+  background: var(--nm-module-body-bg);
 }
 
 .admin-system-card-body > :first-child {
@@ -255,7 +255,7 @@
   border-color: var(--nm-border);
   border-radius: var(--nm-radius-lg);
   padding: 0 16px 16px;
-  background: var(--nm-modal-section);
+  background: var(--nm-module-body-bg);
   box-shadow: var(--nm-shadow-sm);
 }
 
@@ -277,7 +277,7 @@
 .admin-layout .admin-panel.nm-app-panel.admin-system-card {
   display: block;
   padding: 0;
-  background: var(--nm-modal-shell);
+  background: var(--nm-module-body-bg);
 }
 
 .admin-layout.nm-admin-workspace .admin-system-card > .nm-app-panel-header {
@@ -289,7 +289,7 @@
 
 .admin-layout .admin-system-card-body {
   padding: 16px;
-  background: var(--nm-modal-section);
+  background: var(--nm-module-body-bg);
 }
 
 .admin-layout .admin-section-title {
@@ -1297,6 +1297,7 @@ body:not(.theme-dark) .admin-layout .admin-task-panel--nested > .admin-task-titl
    Popup sections keep their own palette outside Admin. */
 body.theme-dark .admin-layout .nm-app-panel,
 body.theme-dark .admin-layout .admin-system-card-body,
+body.theme-dark .admin-layout .admin-task-body,
 body.theme-dark .admin-layout .admin-task-panel--nested {
   background: var(--nm-module-body-bg);
 }
@@ -1318,6 +1319,7 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 
 .admin-task-stack { display: flex; flex-direction: column; gap: var(--nm-space-6); }
 .admin-task-stack > .admin-task-panel { margin: 0; }
+#admin-syslog > .admin-task-stack { gap: var(--nm-space-3); }
 
 .admin-services { display: grid; gap: var(--nm-space-4); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--nm-space-4); padding-top: var(--nm-space-4); border-top: 1px solid var(--nm-border); }
 .admin-services-label { display: block; margin-bottom: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
