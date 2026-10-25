@@ -115,7 +115,7 @@ export function MonitorDetails({
           <div className="mon-hero-col">
             <section className="mon-hero-section">
               <div className="mon-hero-section-title">
-                HTTP performance
+                HTTP Performance
                 <span className="dash-panel-meta">loaded history</span>
               </div>
               <div className="mon-analysis-body">
@@ -130,7 +130,7 @@ export function MonitorDetails({
             </section>
 
             <section className="mon-hero-section">
-              <div className="mon-hero-section-title">Endpoint configuration</div>
+              <div className="mon-hero-section-title">Endpoint Configuration</div>
               <div className="mon-analysis-body">
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Request method</span><strong className="mon-analysis-val">{monitor.http_method}</strong></div>
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Accepted status</span><strong className="mon-analysis-val">{monitor.accepted_status_codes}</strong></div>
@@ -148,7 +148,7 @@ export function MonitorDetails({
             </section>
 
             <section className="mon-hero-section">
-              <div className="mon-hero-section-title">TLS certificate</div>
+              <div className="mon-hero-section-title">TLS Certificate</div>
               <div className="mon-analysis-body">
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Expires</span><strong className="mon-analysis-val">{monitor.last_cert_expires_at ? new Date(monitor.last_cert_expires_at).toLocaleDateString() : "Not available"}</strong></div>
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Days remaining</span><strong className={certDaysRemaining !== null && certDaysRemaining <= monitor.certificate_expiry_days ? "mon-analysis-val mon-analysis-val--warn" : "mon-analysis-val"}>{certDaysRemaining ?? "—"}</strong></div>
@@ -172,7 +172,7 @@ export function MonitorDetails({
             </section>
 
             <section className="mon-hero-section">
-              <div className="mon-hero-section-title">Response time</div>
+              <div className="mon-hero-section-title">Response Time</div>
               <div className="mon-chart-body">
                 {historyLoading && history.length === 0 ? (
                   <PanelSkeleton lines={3} />
@@ -191,7 +191,7 @@ export function MonitorDetails({
 
             <section className="mon-hero-section">
               <div className="mon-hero-section-title">
-                Recent HTTP checks
+                Recent HTTP Checks
                 <span className="dash-panel-meta">{history.length} loaded</span>
               </div>
               <div className="monitor-http-history">

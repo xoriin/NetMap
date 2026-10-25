@@ -202,14 +202,14 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
   return (
     <div className="status-pages-overview nm-motion">
       <div className="nm-bento nm-bento--four">
-        <InsightPanel title="Service health across pages" icon={<PieChart size={16} />} className="nm-motion-item">
+        <InsightPanel hero title="Service Health Across Pages" icon={<PieChart size={16} />} className="nm-motion-item">
           {!overview ? <TableSkeleton rows={3} columns={2} />
             : componentTotal ? <DonutChart viewId="status-pages.services" label="Status page services by state" centre={<CountUp value={componentTotal} />} sub="Services"
                 items={STATE_ITEMS.map((item) => ({ label: item.label, value: overview.counts[item.state], color: item.color })).filter((item) => item.value > 0)} />
             : <p className="tool-note nm-chart-empty">No monitored services on any status page yet.</p>}
         </InsightPanel>
         <div className="dash-stats nm-bento-stats nm-summary-band">
-          <DashStat accent="teal" className="nm-motion-item" icon={<IconBroadcast size={20} />} label="Status pages" value={<CountUp value={pages.length} />}
+          <DashStat accent="teal" className="nm-motion-item" icon={<IconBroadcast size={20} />} label="Status Pages" value={<CountUp value={pages.length} />}
             sub={`${publicCount} public · ${pages.length - publicCount} private`} />
           <DashStat accent="green" className="nm-motion-item" icon={<Layers size={20} />} label="Monitored services" value={<CountUp value={componentTotal} />}
             sub={`${overview?.counts.operational ?? 0} healthy`} />
@@ -225,7 +225,7 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
       <div className="dash-panel-header nm-app-panel-header status-editor-header">
         <div className="status-editor-title">
           <span className="status-editor-icon"><IconBroadcast size={18} /></span>
-          <strong>Status pages</strong>
+          <strong>Status Pages</strong>
           {!loading && <span className="status-editor-count">{pages.length} page{pages.length === 1 ? "" : "s"}</span>}
         </div>
         <div className="mon-panel-controls">
@@ -282,7 +282,7 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
     </div>
         </div>
         <aside className="nm-console-side">
-          <InsightPanel title="Incidents & maintenance" icon={<Eye size={16} />} className="nm-fill nm-motion-item">
+          <InsightPanel title="Incidents & Maintenance" icon={<Eye size={16} />} className="nm-fill nm-motion-item">
             {!overview ? <TableSkeleton rows={3} columns={1} />
               : <EventList empty="No incidents or maintenance." rows={events.map(({ key, at, tone, title, detail }) => ({ key, tone, title, detail, time: shortDateTime(at), dateTime: at }))} />}
           </InsightPanel>

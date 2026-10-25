@@ -32,7 +32,7 @@ export function RelationshipDetails({
       <div className="details-heading relationship-detail__heading">
         <span className="relationship-detail__heading-icon" aria-hidden="true"><Link2 size={17} /></span>
         <div className="details-heading-body">
-          <h3>Link details</h3>
+          <h3>Link Details</h3>
           <p>{relationship.relationship_type || "Network link"}</p>
         </div>
         {speedLabel && <span className="relationship-detail__speed-pill">{speedLabel}</span>}

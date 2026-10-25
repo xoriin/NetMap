@@ -97,7 +97,7 @@ for (const theme of ["light", "dark"] as const) {
 
     await expect(page.locator(".ipam-data-table th").first()).toHaveCSS("border-right-width", "0px");
     const personal = page.locator('[data-chart-id="ipam.address-space"]');
-    await page.getByRole('button', { name: 'Visual options: Address space', exact: true }).click();
+    await page.getByRole('button', { name: 'Visual options: Address Space', exact: true }).click();
     await personal.getByRole('button', { name: 'Data table', exact: true }).click();
     await expect(personal.locator('tbody tr')).toHaveCount(2);
     await expect(personal.locator('tbody')).toContainText('Used');
@@ -953,7 +953,7 @@ for (const theme of ["light", "dark"] as const) {
     await setupIpam(page, theme);
     const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
     const space = page.locator(".ipam-bento .ipam-space-panel");
-    await expect(space.getByRole("heading", { name: "Address space" })).toBeVisible();
+    await expect(space.getByRole("heading", { name: "Address Space" })).toBeVisible();
     await expect(space.locator(".nm-personal-gauge text")).toHaveText("1.57%");
     const legend = space.locator(".nm-bar-list");
     await expect(legend).toContainText("Used");
@@ -961,7 +961,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(legend).toContainText("Free");
     await expect(legend).toContainText("250");
     const context = page.locator(".ipam-context");
-    await expect(context.getByRole("heading", { name: "Busiest subnets" })).toBeVisible();
+    await expect(context.getByRole("heading", { name: "Busiest Subnets" })).toBeVisible();
     await expect(context.locator(".ipam-busiest-row").first()).toContainText("Core network");
     await expect(context.locator(".ipam-busiest-row").first()).toContainText("2%");
 

@@ -361,7 +361,7 @@ test("light Admin users and schedule headers carry the navy band", async ({ page
   await expect(usersHeader).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(usersHeader).toHaveCSS("color", "rgb(241, 245, 249)");
   await page.goto("/admin#automation");
-  const schedules = page.getByRole("region", { name: "Scheduled scans", exact: true }).locator(":scope > .nm-app-panel-header");
+  const schedules = page.getByRole("region", { name: "Scheduled Scans", exact: true }).locator(":scope > .nm-app-panel-header");
   await expect(schedules).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(schedules.locator(".admin-section-title")).toHaveCSS("color", "rgb(241, 245, 249)");
   await expect(schedules.locator(".admin-task-count")).toBeVisible();

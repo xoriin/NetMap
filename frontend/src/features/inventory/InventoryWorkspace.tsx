@@ -694,7 +694,7 @@ export function InventoryWorkspace({
     deviceWorkspaceRef.current?.querySelector<HTMLElement>(".inventory-device-sidebar")?.scrollIntoView({ block: "start" });
   }, [inventoryView, selectedDeviceId]);
 
-  const deviceOverview = selectedDevice && <InventoryDetailsPanel title="Device overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>{deviceDetails}</InventoryDetailsPanel>;
+  const deviceOverview = selectedDevice && <InventoryDetailsPanel title="Device Overview" icon={<IconServer size={17} />} onClose={() => setSelectedDeviceId(null)}>{deviceDetails}</InventoryDetailsPanel>;
 
   if (inventoryView === "cloud-assets") return <CloudAssetsPanel accessToken={accessToken} devices={graph.devices} onNavigate={onNavigate}
     favouriteIds={favouriteIds} onToggleFavourite={onToggleFavourite} onOpenDevice={setSelectedDeviceId}
@@ -706,7 +706,7 @@ export function InventoryWorkspace({
   return (
     <section className="topology-layout inventory-layout inventory-layout--devices" ref={deviceWorkspaceRef}>
       <div className="nm-bento nm-bento--four inventory-bento nm-motion">
-      <InsightPanel title="Devices by type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeSlices.length} type{typeSlices.length === 1 ? "" : "s"}</span>}>
+      <InsightPanel hero title="Devices by Type" icon={<PieChart size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeSlices.length} type{typeSlices.length === 1 ? "" : "s"}</span>}>
         {filteredDevices.length === 0 ? <p className="tool-note nm-chart-empty">{graph.devices.length === 0 ? "No devices yet." : "No devices match the current filters."}</p>
           : <DonutChart viewId="inventory.device-types" label="Devices per device type" items={typeSlices} centre={<CountUp value={filteredDevices.length} />} sub="devices" />}
       </InsightPanel>

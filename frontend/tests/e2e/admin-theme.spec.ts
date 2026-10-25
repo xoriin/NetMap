@@ -271,10 +271,10 @@ test("System task panels retain all drafts after a failed save and retry togethe
     return route.fulfill({ json: { ...settings, ...saved } });
   });
   await page.goto("/admin#system");
-  await page.getByRole("region", { name: "Identity and support", exact: true }).getByLabel("App name", { exact: true }).fill("Operations console");
-  await page.getByRole("region", { name: "Monitoring and network checks", exact: true }).getByLabel("Live ping interval (seconds)").fill("240");
-  await page.getByRole("region", { name: "IP reservation policy", exact: true }).getByRole("checkbox", { name: /Default new IP reservations/ }).uncheck();
-  await page.getByRole("region", { name: "Session policy", exact: true }).getByLabel("Idle session timeout (minutes)").fill("30");
+  await page.getByRole("region", { name: "Identity and Support", exact: true }).getByLabel("App name", { exact: true }).fill("Operations console");
+  await page.getByRole("region", { name: "Monitoring and Network Checks", exact: true }).getByLabel("Live ping interval (seconds)").fill("240");
+  await page.getByRole("region", { name: "IP Reservation Policy", exact: true }).getByRole("checkbox", { name: /Default new IP reservations/ }).uncheck();
+  await page.getByRole("region", { name: "Session Policy", exact: true }).getByLabel("Idle session timeout (minutes)").fill("30");
   const save = page.getByRole("button", { name: "Save settings", exact: true });
   await save.click();
   await expect(page.getByText("Settings service unavailable [503]", { exact: true })).toBeVisible();
@@ -293,9 +293,9 @@ test("SSO saves fields from every task panel without replacing the stored secret
     return route.fulfill({ json: { ...oidcSettings, client_secret_set: true, ...saved } });
   });
   await page.goto("/admin#security");
-  await page.getByRole("region", { name: "Provider connection", exact: true }).getByLabel("Provider name (login button label)").fill("Company sign-in");
-  await page.getByRole("region", { name: "User provisioning", exact: true }).getByLabel("Allowed email domains", { exact: false }).fill("example.com");
-  await page.getByRole("region", { name: "Role mapping", exact: true }).getByLabel("Group claim name", { exact: true }).fill("team_roles");
+  await page.getByRole("region", { name: "Provider Connection", exact: true }).getByLabel("Provider name (login button label)").fill("Company sign-in");
+  await page.getByRole("region", { name: "User Provisioning", exact: true }).getByLabel("Allowed email domains", { exact: false }).fill("example.com");
+  await page.getByRole("region", { name: "Role Mapping", exact: true }).getByLabel("Group claim name", { exact: true }).fill("team_roles");
   await page.getByRole("button", { name: "Save SSO settings", exact: true }).click();
   await expect.poll(() => saved).not.toBeNull();
   expect(saved).toMatchObject({ provider_name: "Company sign-in", allowed_email_domains: "example.com", group_claim: "team_roles" });
@@ -795,8 +795,8 @@ for (const theme of ["light", "dark"] as const) {
       }
 
       if (tabName === "Automation") {
-        const formBox = await page.getByRole("region", { name: "New schedule", exact: true }).boundingBox();
-        const library = page.getByRole("region", { name: "Scheduled scans", exact: true });
+        const formBox = await page.getByRole("region", { name: "New Schedule", exact: true }).boundingBox();
+        const library = page.getByRole("region", { name: "Scheduled Scans", exact: true });
         const libraryBox = await library.boundingBox();
         expect(formBox).not.toBeNull();
         expect(libraryBox).not.toBeNull();
@@ -1237,10 +1237,10 @@ test("App settings keeps its tasks in two stacked columns", async ({ page }) => 
   await setupAdminMocks(page);
   await page.goto("/admin#system");
   const region = (name: string) => page.getByRole("region", { name, exact: true }).boundingBox();
-  const identity = await region("Identity and support");
-  const session = await region("Session policy");
-  const monitoring = await region("Monitoring and network checks");
-  const reservation = await region("IP reservation policy");
+  const identity = await region("Identity and Support");
+  const session = await region("Session Policy");
+  const monitoring = await region("Monitoring and Network Checks");
+  const reservation = await region("IP Reservation Policy");
   expect(Math.abs(session!.x - identity!.x)).toBeLessThanOrEqual(1);
   expect(session!.y - (identity!.y + identity!.height)).toBeLessThanOrEqual(20);
   expect(Math.abs(reservation!.x - monitoring!.x)).toBeLessThanOrEqual(1);
@@ -1307,7 +1307,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await expect(page.getByText("Settings saved", { exact: true })).toBeVisible();
     expect(stored.idle_timeout_minutes).toBe(1);
     await page.clock.fastForward(61_000);
-    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign In", exact: true })).toBeVisible();
     expect(logouts).toBe(1);
   });
 }

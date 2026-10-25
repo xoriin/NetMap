@@ -297,7 +297,7 @@ export function StatusMaintenancePanel({ accessToken, page, canManageAlerts }: {
   return (
     <div className="status-editor-panels">
       <section className="nm-app-panel status-editor-panel status-maintenance-panel">
-        <StatusEditorPanelHeader icon={CalendarClock} title="Scheduled maintenance" meta={windows ? `${shown.length} window${shown.length === 1 ? "" : "s"}` : undefined}>
+        <StatusEditorPanelHeader icon={CalendarClock} title="Scheduled Maintenance" meta={windows ? `${shown.length} window${shown.length === 1 ? "" : "s"}` : undefined}>
           <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={!pages} onClick={() => setEditing("new")}>
             <Plus size={14} /> Schedule maintenance
           </button>

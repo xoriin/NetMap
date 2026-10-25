@@ -221,7 +221,7 @@ export function ThemePreviewWorkspace() {
           <p>Compact attached header, clear body well, restrained border and very light elevation.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={Server} title="Service configuration" trailing={<span className="theme-lab-status">Enabled</span>} />
+          <PreviewHeader icon={Server} title="Service Configuration" trailing={<span className="theme-lab-status">Enabled</span>} />
           <div className="theme-lab-panel-body theme-lab-form-grid">
             <label className="theme-lab-field">
               <span>Display name</span>
@@ -398,7 +398,7 @@ export function ThemePreviewWorkspace() {
           <p>Every common input is shown together, including help, validation, read-only and disabled states.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={SlidersHorizontal} title="Connection settings" trailing={<span className="theme-lab-status">Required fields</span>} />
+          <PreviewHeader icon={SlidersHorizontal} title="Connection Settings" trailing={<span className="theme-lab-status">Required fields</span>} />
           <div className="theme-lab-panel-body theme-lab-control-grid">
             <label className="theme-lab-field"><span>Name</span><input defaultValue="Core gateway" /></label>
             <label className="theme-lab-field"><span>Device type</span><select defaultValue="router"><option value="router">Router</option><option value="switch">Switch</option></select></label>
@@ -427,7 +427,7 @@ export function ThemePreviewWorkspace() {
           <p>Button hierarchy stays calm; feedback uses a narrow colour cue rather than filling the entire panel.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={Bell} title="Action hierarchy" />
+          <PreviewHeader icon={Bell} title="Action Hierarchy" />
           <div className="theme-lab-panel-body">
             <div className="theme-lab-button-showcase">
               <button type="button" className="nm-btn nm-btn--success">Acknowledge</button>
@@ -456,7 +456,7 @@ export function ThemePreviewWorkspace() {
         </div>
         <div className="theme-lab-state-grid">
           <div className="theme-lab-panel theme-lab-panel--shadow theme-lab-mini-table-window">
-            <PreviewHeader icon={TableProperties} title="Selectable rows" trailing={<button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => setSortAscending((value) => !value)}>Name {sortAscending ? "↑" : "↓"}</button>} />
+            <PreviewHeader icon={TableProperties} title="Selectable Rows" trailing={<button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => setSortAscending((value) => !value)}>Name {sortAscending ? "↑" : "↓"}</button>} />
             {selectedRows.length > 0 && <div className="theme-lab-bulk-bar"><strong>{selectedRows.length} selected</strong><button type="button" className="nm-btn nm-btn--sm nm-btn--secondary">Assign group</button><button type="button" className="nm-btn nm-btn--sm nm-btn--danger">Delete</button></div>}
             <div className="theme-lab-mini-rows">
               {[...sampleRows].sort((a, b) => sortAscending ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)).map((row) => (
@@ -467,7 +467,7 @@ export function ThemePreviewWorkspace() {
           </div>
           <div className="theme-lab-table-state-stack">
             <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Clock3} title="Loading" /><div className="theme-lab-skeleton-list" aria-label="Loading table example"><i /><i /><i /></div></div>
-            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Search} title="No results" /><div className="theme-lab-empty"><Search size={22} /><strong>No matching assets</strong><small>Clear the filters or try a broader search.</small><button type="button" className="nm-btn nm-btn--sm nm-btn--secondary">Clear filters</button></div></div>
+            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Search} title="No Results" /><div className="theme-lab-empty"><Search size={22} /><strong>No matching assets</strong><small>Clear the filters or try a broader search.</small><button type="button" className="nm-btn nm-btn--sm nm-btn--secondary">Clear filters</button></div></div>
           </div>
         </div>
       </section>
@@ -478,7 +478,7 @@ export function ThemePreviewWorkspace() {
           <p>Subsections stay quieter than their parent, while footer actions keep deliberate distance from the content.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={Layers3} title="Advanced configuration" trailing={<button type="button" className="theme-lab-collapse" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((open) => !open)}>{advancedOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />} {advancedOpen ? "Collapse" : "Expand"}</button>} />
+          <PreviewHeader icon={Layers3} title="Advanced Configuration" trailing={<button type="button" className="theme-lab-collapse" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((open) => !open)}>{advancedOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />} {advancedOpen ? "Collapse" : "Expand"}</button>} />
           {advancedOpen && <div className="theme-lab-panel-body"><div className="theme-lab-nested"><div><LockKeyhole size={17} /><span><strong>Transport security</strong><small>Optional certificate and client authentication.</small></span></div><label className="theme-lab-field"><span>Minimum TLS version</span><select defaultValue="1.2"><option value="1.2">TLS 1.2</option><option value="1.3">TLS 1.3</option></select></label></div><div className="theme-lab-panel-actions"><button type="button" className="nm-btn nm-btn--secondary">Cancel</button><button type="button" className="nm-btn nm-btn--primary">Apply configuration</button></div></div>}
         </div>
       </section>
@@ -489,8 +489,8 @@ export function ThemePreviewWorkspace() {
           <p>Both use the same palette; the popup receives slightly stronger elevation and a compact title bar.</p>
         </div>
         <div className="theme-lab-hierarchy-grid">
-          <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Server} title="Device overview" trailing={<span className="theme-lab-row-state">Online</span>} /><div className="theme-lab-detail-body"><div className="theme-lab-detail-hero"><span className="theme-lab-panel-icon"><Server size={18} /></span><div><strong>Core gateway</strong><small>10.30.20.1 · Router</small></div></div><dl><div><dt>Uptime</dt><dd>99.98%</dd></div><div><dt>Last checked</dt><dd>12 seconds ago</dd></div><div><dt>Response</dt><dd>12 ms</dd></div></dl></div></div>
-          <div className="theme-lab-popup-stage"><div className="theme-lab-popup-card"><PreviewHeader icon={Plus} title="Add location" trailing={<button type="button" className="theme-lab-icon-button" aria-label="Close example"><CircleX size={17} /></button>} /><div className="theme-lab-panel-body"><label className="theme-lab-field"><span>Location name</span><input placeholder="e.g. Brisbane office" /></label><div className="theme-lab-panel-actions"><button type="button" className="nm-btn nm-btn--secondary">Cancel</button><button type="button" className="nm-btn nm-btn--primary">Add location</button></div></div></div></div>
+          <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Server} title="Device Overview" trailing={<span className="theme-lab-row-state">Online</span>} /><div className="theme-lab-detail-body"><div className="theme-lab-detail-hero"><span className="theme-lab-panel-icon"><Server size={18} /></span><div><strong>Core gateway</strong><small>10.30.20.1 · Router</small></div></div><dl><div><dt>Uptime</dt><dd>99.98%</dd></div><div><dt>Last checked</dt><dd>12 seconds ago</dd></div><div><dt>Response</dt><dd>12 ms</dd></div></dl></div></div>
+          <div className="theme-lab-popup-stage"><div className="theme-lab-popup-card"><PreviewHeader icon={Plus} title="Add Location" trailing={<button type="button" className="theme-lab-icon-button" aria-label="Close example"><CircleX size={17} /></button>} /><div className="theme-lab-panel-body"><label className="theme-lab-field"><span>Location name</span><input placeholder="e.g. Brisbane office" /></label><div className="theme-lab-panel-actions"><button type="button" className="nm-btn nm-btn--secondary">Cancel</button><button type="button" className="nm-btn nm-btn--primary">Add location</button></div></div></div></div>
         </div>
       </section>
 
@@ -500,7 +500,7 @@ export function ThemePreviewWorkspace() {
           <p>Charts, health strips and progress indicators stay readable without turning the panel into a colour wash.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={Gauge} title="Service health" trailing={<span className="theme-lab-status">Last 24 hours</span>} />
+          <PreviewHeader icon={Gauge} title="Service Health" trailing={<span className="theme-lab-status">Last 24 hours</span>} />
           <div className="theme-lab-data-grid">
             <div className="theme-lab-donut" aria-label="98 percent healthy"><span><strong>98%</strong><small>Healthy</small></span></div>
             <div className="theme-lab-metric-stack"><div><span><strong>Response time</strong><small>42 ms average</small></span><div className="theme-lab-spark"><RttWave /></div></div><div><span><strong>Availability</strong><small>One brief interruption</small></span><div className="theme-lab-heartbeat">{Array.from({ length: 24 }, (_, index) => <i className={index === 16 ? "is-down" : index === 15 ? "is-warning" : ""} key={index} />)}</div></div><div><span><strong>Storage used</strong><small>68 GB of 100 GB</small></span><div className="theme-lab-progress"><i style={{ width: "68%" }} /></div></div></div>
@@ -555,15 +555,15 @@ export function ThemePreviewWorkspace() {
         </div>
         <div className="theme-lab-overlay-grid">
           <div className="theme-lab-panel theme-lab-panel--shadow theme-lab-choice-panel">
-            <PreviewHeader icon={MousePointer2} title="Choice controls" />
+            <PreviewHeader icon={MousePointer2} title="Choice Controls" />
             <div className="theme-lab-panel-body theme-lab-choice-body">
               <div className="theme-lab-field"><span>Location combobox</span><div className="theme-lab-combobox"><button type="button" aria-expanded={choiceMenuOpen} onClick={() => setChoiceMenuOpen((open) => !open)}><Map size={15} /><span>{choiceValue}</span><ChevronDown size={14} /></button>{choiceMenuOpen && <div className="theme-lab-choice-menu"><label><Search size={13} /><input aria-label="Filter example locations" placeholder="Search locations" /></label><div className="theme-lab-choice-list" role="listbox" aria-label="Example locations">{["Brisbane office", "Sydney data centre", "Remote site"].map((choice) => <button type="button" role="option" aria-selected={choiceValue === choice} className={choiceValue === choice ? "is-selected" : ""} key={choice} onClick={() => { setChoiceValue(choice); setChoiceMenuOpen(false); }}><span className="theme-lab-swatch" style={{ background: choice === "Brisbane office" ? "#39b6c7" : choice === "Sydney data centre" ? "#8b78d4" : "#da9d4b" }} />{choice}{choiceValue === choice && <Check size={14} />}</button>)}</div><button type="button" className="theme-lab-choice-create" onClick={() => setChoiceMenuOpen(false)}><Plus size={14} />Create location…</button></div>}</div></div>
               <div className="theme-lab-field"><span>Compact action menu</span><div className="theme-lab-action-menu"><button type="button" className="nm-btn nm-btn--secondary">Options <ChevronDown size={14} /></button><div role="menu"><button type="button"><Wrench size={14} />Edit settings</button><button type="button"><RefreshCw size={14} />Run again</button><hr /><button type="button" className="is-danger"><Trash2 size={14} />Delete item</button></div></div></div>
             </div>
           </div>
           <div className="theme-lab-overlay-stack">
-            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Palette} title="Chips and badges" /><div className="theme-lab-chip-showcase"><span className="theme-lab-entity-chip"><i style={{ background: "#39b6c7" }} />Production</span><span className="theme-lab-entity-chip"><Server size={13} />Router</span><span className="theme-lab-row-state">Online</span><span className="theme-lab-row-state theme-lab-row-state--warning">Warning</span><span className="theme-lab-neutral-pill">Paused</span></div></div>
-            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Info} title="Tooltip and focus" /><div className="theme-lab-tooltip-stage"><button type="button" className="theme-lab-tooltip-target" aria-describedby="preview-tooltip"><Info size={16} />Hover or focus</button><div className="theme-lab-tooltip" id="preview-tooltip" role="tooltip"><strong>Monitoring interval</strong><span>How often NetMap checks this target.</span></div></div></div>
+            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Palette} title="Chips and Badges" /><div className="theme-lab-chip-showcase"><span className="theme-lab-entity-chip"><i style={{ background: "#39b6c7" }} />Production</span><span className="theme-lab-entity-chip"><Server size={13} />Router</span><span className="theme-lab-row-state">Online</span><span className="theme-lab-row-state theme-lab-row-state--warning">Warning</span><span className="theme-lab-neutral-pill">Paused</span></div></div>
+            <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Info} title="Tooltip and Focus" /><div className="theme-lab-tooltip-stage"><button type="button" className="theme-lab-tooltip-target" aria-describedby="preview-tooltip"><Info size={16} />Hover or focus</button><div className="theme-lab-tooltip" id="preview-tooltip" role="tooltip"><strong>Monitoring interval</strong><span>How often NetMap checks this target.</span></div></div></div>
           </div>
         </div>
       </section>
@@ -575,7 +575,7 @@ export function ThemePreviewWorkspace() {
         </div>
         <div className="theme-lab-feedback-stage">
           <div className="theme-lab-confirm-card">
-            <PreviewHeader icon={AlertTriangle} title="Delete 12 devices" />
+            <PreviewHeader icon={AlertTriangle} title="Delete 12 Devices" />
             <div className="theme-lab-confirm-body"><div className="theme-lab-confirm-warning"><AlertTriangle size={20} /><div><strong>This cannot be undone</strong><p>The selected devices and their monitoring history will be permanently removed.</p></div></div><label className="theme-lab-field"><span>Type <code>delete</code> to continue</span><input value={confirmValue} onChange={(event) => setConfirmValue(event.target.value)} placeholder="delete" /></label><div className="theme-lab-panel-actions"><button type="button" className="nm-btn nm-btn--secondary">Cancel</button><button type="button" className="nm-btn nm-btn--danger" disabled={confirmValue !== "delete"}><Trash2 size={14} />Delete devices</button></div></div>
           </div>
           <div className="theme-lab-toast-column" aria-label="Notification examples">
@@ -596,7 +596,7 @@ export function ThemePreviewWorkspace() {
           <p>Progress communicates the current phase, retained results and whether the user may safely leave.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={ScanLine} title="Network discovery" trailing={<span className={`theme-lab-status${scanRunning ? " is-running" : ""}`}>{scanRunning ? "Running" : "Ready"}</span>} />
+          <PreviewHeader icon={ScanLine} title="Network Discovery" trailing={<span className={`theme-lab-status${scanRunning ? " is-running" : ""}`}>{scanRunning ? "Running" : "Ready"}</span>} />
           <div className="theme-lab-scan-body">
             <div className="theme-lab-scan-summary"><span className="theme-lab-panel-icon"><Network size={18} /></span><div><strong>10.30.20.0/24</strong><small>ARP, ping and service detection · estimated 2–4 minutes</small></div><button type="button" className="nm-btn nm-btn--primary" onClick={() => setScanRunning((running) => !running)}>{scanRunning ? <><CircleX size={14} />Stop scan</> : <><Play size={14} />Start scan</>}</button></div>
             <div className="theme-lab-progress-track"><i style={{ width: scanRunning ? "62%" : "0%" }} /></div>
@@ -613,7 +613,7 @@ export function ThemePreviewWorkspace() {
         </div>
         <div className="theme-lab-special-grid">
           <div className="theme-lab-panel theme-lab-panel--shadow">
-            <PreviewHeader icon={Network} title="IP address views" trailing={<span className="theme-lab-result-count">10.30.20.0/24</span>} />
+            <PreviewHeader icon={Network} title="IP Address Views" trailing={<span className="theme-lab-result-count">10.30.20.0/24</span>} />
             <div className="theme-lab-ipam-preview">
               <div className="theme-lab-ipam-variants" role="tablist" aria-label="IP address layout examples">{(["map", "list", "strip"] as const).map((view) => <button type="button" role="tab" aria-selected={ipamPreview === view} className={ipamPreview === view ? "is-active" : ""} key={view} onClick={() => setIpamPreview(view)}>{view === "map" ? "Dense map" : view === "list" ? "Compact list" : "Utilization strip"}</button>)}</div>
               {ipamPreview === "map" && <div className="theme-lab-ip-map-wrap"><div className="theme-lab-ip-map-label"><span>All 256 positions</span><small>Eight rows · 32 addresses per row · hover for details</small></div><div className="theme-lab-ip-map-scroll"><div className="theme-lab-ip-map-rows">{Array.from({ length: 8 }, (_, rowIndex) => <div className="theme-lab-ip-map-row" key={rowIndex}><span>.{rowIndex * 32}–.{rowIndex * 32 + 31}</span><div>{Array.from({ length: 32 }, (_, columnIndex) => { const index = rowIndex * 32 + columnIndex; const state = previewIpClass(index); return <button type="button" aria-label={`10.30.20.${index}`} aria-describedby="theme-lab-ip-detail" className={`theme-lab-ip-map-cell ${state}${hoveredPreviewIp === index ? " is-inspected" : ""}`} key={index} onMouseEnter={() => setHoveredPreviewIp(index)} onFocus={() => setHoveredPreviewIp(index)} />; })}</div></div>)}</div></div><div className="theme-lab-ip-legend"><span><i className="is-used" />Device</span><span><i className="is-dhcp" />DHCP pool</span><span><i className="is-reserved" />Reserved</span><span><i />Free</span><span><i className="is-system" />Network / broadcast</span></div></div>}
@@ -622,7 +622,7 @@ export function ThemePreviewWorkspace() {
               {ipamPreview === "map" && <div className="theme-lab-ip-tooltip" id="theme-lab-ip-detail"><header><i className={previewIpClass(hoveredPreviewIp) || "is-free"} />10.30.20.{hoveredPreviewIp} <span>{previewIpKind(hoveredPreviewIp)}</span></header><dl>{previewIpKind(hoveredPreviewIp) === "Device" && <><div><dt>Name</dt><dd>Example device</dd></div><div><dt>MAC</dt><dd>00:1A:2B:3C:4D:5E</dd></div><div><dt>Status</dt><dd className="is-good">Online</dd></div></>}{previewIpKind(hoveredPreviewIp) === "DHCP pool" && <><div><dt>Range</dt><dd>Dynamic assignment pool</dd></div><div><dt>Status</dt><dd className="is-good">Available</dd></div></>}{previewIpKind(hoveredPreviewIp) === "Reserved" && <><div><dt>Reservation</dt><dd>Printer allocation</dd></div><div><dt>Status</dt><dd>Unused</dd></div></>}{previewIpKind(hoveredPreviewIp) === "Gateway" && <><div><dt>Role</dt><dd>Default gateway</dd></div><div><dt>Status</dt><dd className="is-good">Online</dd></div></>}{previewIpKind(hoveredPreviewIp) === "Available" && <><div><dt>Status</dt><dd className="is-good">Available</dd></div><div><dt>Action</dt><dd>Click to reserve</dd></div></>}{previewIpKind(hoveredPreviewIp) === "Network" && <div><dt>Role</dt><dd>Network address</dd></div>}{previewIpKind(hoveredPreviewIp) === "Broadcast" && <div><dt>Role</dt><dd>Broadcast address</dd></div>}</dl></div>}
             </div>
           </div>
-          <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Map} title="Topology canvas controls" trailing={<span className="theme-lab-result-count">85 devices</span>} /><div className="theme-lab-topology-preview"><div className="theme-lab-topo-toolbar"><button type="button"><Search size={14} />Find</button><button type="button"><Network size={14} />Path</button><button type="button"><Layers3 size={14} />Layouts</button></div><svg viewBox="0 0 420 180" role="img" aria-label="Example topology canvas"><path d="M75 90 L205 46 L342 88 M205 46 L210 142 M75 90 L210 142" /><g transform="translate(49 66)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Gateway</text></g><g transform="translate(179 22)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Switch</text></g><g transform="translate(316 64)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Server</text></g><g transform="translate(184 118)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">NAS</text></g></svg><div className="theme-lab-topo-float"><MousePointer2 size={14} /><span><strong>Core switch</strong><small>10.30.20.5 · Online</small></span></div><div className="theme-lab-minimap"><i /><i /><i /><i /><span /></div></div></div>
+          <div className="theme-lab-panel theme-lab-panel--shadow"><PreviewHeader icon={Map} title="Topology Canvas Controls" trailing={<span className="theme-lab-result-count">85 devices</span>} /><div className="theme-lab-topology-preview"><div className="theme-lab-topo-toolbar"><button type="button"><Search size={14} />Find</button><button type="button"><Network size={14} />Path</button><button type="button"><Layers3 size={14} />Layouts</button></div><svg viewBox="0 0 420 180" role="img" aria-label="Example topology canvas"><path d="M75 90 L205 46 L342 88 M205 46 L210 142 M75 90 L210 142" /><g transform="translate(49 66)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Gateway</text></g><g transform="translate(179 22)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Switch</text></g><g transform="translate(316 64)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">Server</text></g><g transform="translate(184 118)"><rect width="52" height="48" rx="8" /><circle cx="26" cy="17" r="7" /><text x="26" y="36">NAS</text></g></svg><div className="theme-lab-topo-float"><MousePointer2 size={14} /><span><strong>Core switch</strong><small>10.30.20.5 · Online</small></span></div><div className="theme-lab-minimap"><i /><i /><i /><i /><span /></div></div></div>
         </div>
       </section>
 
@@ -647,13 +647,13 @@ export function ThemePreviewWorkspace() {
           <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value. Personal chart options expose direct relative-position buttons. Bars include their own labels, so they suppress duplicate legends. Ring and Number readouts follow the selected category and Values format. Ring breakdowns start with independently toggleable labelled bars, retaining the native centre readout; plain legends fill the available panel width with values aligned at the far edge; bar-only panels use a compact top inset while retaining standard track height and row spacing. All column charts show non-zero totals by default on subtle rectangular backgrounds with small rounded corners; dark readouts use a lighter fill. Light chart bars have restrained shadows, and Admin visual headers share the standard dark blue header band. Show values can hide the readouts.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
-          <PreviewHeader icon={Server} title="Chart components" />
+          <PreviewHeader icon={Server} title="Chart Components" />
           <div className="theme-lab-panel-body theme-lab-charts">
             <DonutChart label="Example storage" unit=" MB" centre="264" sub="MB" items={[{ label: "Firewall database", value: 212.6, color: "--dash-blue" }, { label: "Main database", value: 48.2, color: "--dash-amber" }, { label: "Write-ahead log", value: 3.1, color: "--dash-purple" }]} />
             <ColumnChart label="Example deliveries per day" height={140} series={[{ key: "sent", label: "Sent", color: "--dash-green" }, { key: "failed", label: "Failed", color: "--dash-red" }]} rows={[12, 9, 14, 11, 18, 7, 6].map((sent, i) => ({ label: `Day ${i + 1}`, sent, failed: i === 2 ? 1 : 0 }))} />
             <StackBar label="Example intake" items={[{ label: "Stored", value: 17960, color: "--dash-green" }, { label: "Dropped unparsed", value: 380, color: "--dash-amber" }, { label: "Denied senders", value: 80, color: "--dash-red" }]} />
             <SparkBars label="Example sends per day" values={[5, 4, 6, 5, 8, 3, 2, 6, 7, 10, 7, 4, 9, 6]} />
-            <InsightPanel title="Personal chart views" icon={<Server size={18} />}><DonutChart viewId="preview.personal-chart" label="Personal chart example" centre="42" sub="Services" items={[{ label: "Healthy", value: 34, color: "--dash-green" }, { label: "Degraded", value: 3, color: "--dash-amber" }, { label: "Unavailable", value: 1, color: "--dash-red" }, { label: "Maintenance", value: 2, color: "--dash-blue" }, { label: "No data", value: 2, color: "--nm-text-faint" }]} /></InsightPanel>
+            <InsightPanel hero title="Personal Chart Views" icon={<Server size={18} />}><DonutChart viewId="preview.personal-chart" label="Personal chart example" centre="42" sub="Services" items={[{ label: "Healthy", value: 34, color: "--dash-green" }, { label: "Degraded", value: 3, color: "--dash-amber" }, { label: "Unavailable", value: 1, color: "--dash-red" }, { label: "Maintenance", value: 2, color: "--dash-blue" }, { label: "No data", value: 2, color: "--nm-text-faint" }]} /></InsightPanel>
           </div>
         </div>
       </section>

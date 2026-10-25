@@ -65,6 +65,8 @@ for (const theme of ["light", "dark"] as const) {
   test(`Overview uses the approved solid panel hierarchy in ${theme} mode`, async ({ page }) => {
     await setupOverview(page, theme);
 
+    await expect(page.locator(".dash-panel-sub-title")).toHaveText("Top Vendors");
+    await expect(page.locator(".dash-panel-sub-title")).toHaveCSS("text-transform", "uppercase");
     const panels = page.locator(".overview-panel");
     await expect(panels).toHaveCount(2);
     await expect(panels.first()).toHaveCSS("background-image", "none");
@@ -89,14 +91,14 @@ for (const theme of ["light", "dark"] as const) {
     await expect(favouriteSearch).toBeVisible();
     await expect(favouriteSearch.locator("input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
-    const typeRows = page.getByRole("region", { name: "Device types", exact: true }).locator(".nm-bar-list li");
+    const typeRows = page.getByRole("region", { name: "Device Types", exact: true }).locator(".nm-bar-list li");
     await expect(typeRows).toHaveCount(3);
     await expect(typeRows.filter({ hasText: "Router" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(239, 68, 68)");
     await expect(typeRows.filter({ hasText: "Switch" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(34, 197, 94)");
     await expect(typeRows.filter({ hasText: "Server" }).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(59, 130, 246)");
     await expect(page.locator(".dash-device-row", { hasText: "gateway-01" }).first().locator(".dash-device-meta")).toContainText("RouterOS");
 
-    const groupRows = page.getByRole("region", { name: "Top groups", exact: true }).locator(".nm-bar-list li");
+    const groupRows = page.getByRole("region", { name: "Top Groups", exact: true }).locator(".nm-bar-list li");
     await expect(groupRows).toHaveCount(2);
     await expect(groupRows.nth(0).locator(".nm-bar-list-label")).toHaveText("Core");
     await expect(groupRows.nth(0).locator(".nm-bar-list-track > i")).toHaveCSS("background-color", "rgb(249, 115, 22)");
@@ -105,7 +107,7 @@ for (const theme of ["light", "dark"] as const) {
 
     // The stat card and panel speak expected-vs-observed health, not raw
     // reachability — a device that is expected to be offline is not listed.
-    const outages = page.getByRole("region", { name: "Current outages", exact: true });
+    const outages = page.getByRole("region", { name: "Current Outages", exact: true });
     await page.locator("button.dash-stat", { hasText: "Offline" }).click();
     await expect(outages).toBeInViewport();
     await expect(page.locator("#overview-outages")).toBeFocused();
@@ -264,7 +266,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".dash-alert--overview-bar")).toContainText("1 endpoint offline");
     await expect(page.locator(".dash-alert--overview-bar")).not.toContainText("Paused endpoint");
     await page.locator(".dash-alert--overview-bar").getByRole("button", { name: /View/ }).click();
-    const outage = page.getByRole("region", { name: "Current outages", exact: true });
+    const outage = page.getByRole("region", { name: "Current Outages", exact: true });
     await expect(outage.getByRole("link", { name: /Customer portal/ })).toHaveAttribute("href", "/monitoring#endpoints");
     await expect(outage).toHaveCSS("background-image", "none");
     await page.screenshot({ path: `/tmp/netmap-overview-${theme}.png`, fullPage: true });

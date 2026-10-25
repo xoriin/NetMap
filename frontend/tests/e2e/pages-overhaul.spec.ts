@@ -65,12 +65,12 @@ test("Admin alerts chart deliveries per day and list recently triggered rules", 
     { id: 2, rule_name: "Core switch down", device_id: null, target: "profile:1", status: "failed", detail: "timeout", sent_at: iso(1) },
   ] }));
   await page.goto("/admin#alerts");
-  await expect(page.getByRole("region", { name: "Alerts sent, last 14 days", exact: true }).locator(".nm-chart-body svg").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Alerts Sent, Last 14 Days", exact: true }).locator(".nm-chart-body svg").first()).toBeVisible();
   await expect(page.locator(".dash-stat", { hasText: "Active" })).toContainText("Printer offline paused");
   await expect(page.locator(".dash-stat", { hasText: "Sent, 14 days" })).toContainText("50.0% delivered");
-  expect(await barLabels(page, "Rules by trigger")).toEqual(["Goes offline 2"]);
-  await expect(page.getByRole("region", { name: "Recently triggered", exact: true })).toContainText("Core switch down");
-  await expectSideColumn(page, "Alert rules", "Rules by trigger");
+  expect(await barLabels(page, "Rules by Trigger")).toEqual(["Goes offline 2"]);
+  await expect(page.getByRole("region", { name: "Recently Triggered", exact: true })).toContainText("Core switch down");
+  await expectSideColumn(page, "Alert rules", "Rules by Trigger");
 });
 
 test("Admin SNMP profiles show version tags, separate columns and edit in the side form", async ({ page }) => {
@@ -113,7 +113,7 @@ test("Admin groups cap long permission lists with their own scroll and count cov
   expect(box.height).toBeLessThanOrEqual(330);
   expect(box.scroll).toBeGreaterThan(box.height);
   expect(box.overflow).toBe("auto");
-  expect(await barLabels(page, "Permission coverage")).toContain("Network Admin 22");
+  expect(await barLabels(page, "Permission Coverage")).toContain("Network Admin 22");
   await expect(page.locator(".dash-stat", { hasText: "Permissions" })).toContainText("Across 8 areas");
 });
 
@@ -124,18 +124,18 @@ test("Tools summarise recent checks from this browser by tool", async ({ page })
     window.localStorage.setItem("netmap.tools.recent_v1", JSON.stringify([run("ping", "10.30.20.10"), run("ping", "10.30.20.11"), run("dns", "example.com")]));
   }, iso(0.05));
   await page.goto("/tools");
-  expect(await barLabels(page, "Your recent checks")).toEqual(["Ping Test 2", "DNS Lookup 1"]);
+  expect(await barLabels(page, "Your Recent Checks")).toEqual(["Ping Test 2", "DNS Lookup 1"]);
   await expect(page.locator(".dash-stat", { hasText: "Last check" })).toContainText("Ping Test · 10.30.20.10");
 });
 
 test("Monitoring endpoints rank average response and list certificates below the table", async ({ page }) => {
   await boot(page);
   await page.goto("/monitoring#endpoints");
-  const bars = page.getByRole("region", { name: "Average response, last 24 h", exact: true }).locator(".nm-bar-list li");
+  const bars = page.getByRole("region", { name: "Average Response, Last 24 h", exact: true }).locator(".nm-bar-list li");
   await expect(bars).toHaveCount(2);
   await expect(bars.first()).toContainText("Auth (SSO)");
   await expect(page.locator(".dash-stat", { hasText: "Down" })).toContainText("Auth (SSO)");
-  const certs = page.getByRole("region", { name: "Certificates expiring", exact: true });
+  const certs = page.getByRole("region", { name: "Certificates Expiring", exact: true });
   await certs.scrollIntoViewIfNeeded();
   await expect(certs).toContainText("Public API");
   const tableBottom = await page.locator(".mon-view-window").evaluate((node) => node.getBoundingClientRect().bottom);
@@ -145,16 +145,72 @@ test("Monitoring endpoints rank average response and list certificates below the
 test("Monitoring devices show fleet health and the slowest devices", async ({ page }) => {
   await boot(page);
   await page.goto("/monitoring#devices");
-  await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".dash-donut-svg")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Fleet Health", exact: true }).locator(".dash-donut-svg")).toBeVisible();
   await expect(page.locator(".nm-bento .dash-stat")).toHaveCount(6);
-  await expect(page.getByRole("region", { name: "Highest latency, last 24 h", exact: true }).locator(".nm-chart-hit").first()).toHaveAttribute("aria-label", "NAS-01: Average RTT 9.4 ms");
-  await expect(page.getByRole("region", { name: "Least uptime, last 24 h", exact: true }).locator(".nm-chart-hit").first()).toHaveAttribute("aria-label", "NAS-01: Uptime 97.5%");
+  await expect(page.getByRole("region", { name: "Highest Latency", exact: true }).locator(".nm-bar-list li").first()).toHaveAttribute("aria-label", "NAS-01: 9.4 ms");
+  await expect(page.getByRole("region", { name: "Devices by VLAN", exact: true }).locator(".nm-bar-list li").first()).toHaveAttribute("aria-label", "No VLAN: 2");
 });
 
 async function legendRows(page: Page, region: string) {
   const rows = page.getByRole("region", { name: region, exact: true }).locator(".nm-bar-list li");
   await expect(rows.first()).toBeVisible();
   return rows.evaluateAll((items) => items.map((row) => row.textContent?.trim()));
+}
+
+for (const theme of ["light", "slate", "zinc"]) {
+  test(`main visual padding matches Overview while side visuals stay compact in ${theme}`, async ({ page }) => {
+    await boot(page);
+    await page.addInitScript(theme => {
+      localStorage.setItem("netmap.theme", theme === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", theme === "zinc" ? "zinc" : "slate");
+    }, theme);
+    await page.route("**/api/v1/ipam/summary", route => route.fulfill({ json: { total_hosts: 100, used: 25, free: 75, subnet_count: 1, reservation_count: 0, dhcp_lease_count: 0 } }));
+    const cases = [
+      ["/overview", "overview.device-types"], ["/inventory", "inventory.device-types"],
+      ["/monitoring", "monitoring.device-vlans"], ["/locations", "locations.devices"],
+      ["/vlans", "vlans.devices"], ["/ipam", "ipam.address-space"],
+    ];
+    for (const width of [1440, 820, 390]) {
+      await page.setViewportSize({ width, height: 1100 });
+      for (const [route, id] of cases) {
+        await page.goto(route);
+        const chart = page.locator(`[data-chart-id="${id}"]`);
+        await expect(chart).toBeVisible();
+        const inset = await chart.evaluate(el => {
+          const panel = el.closest('.nm-hero-visual')!;
+          const body = panel.querySelector('.nm-chart-body') ?? el;
+          const content = [...el.children].find(child => !child.classList.contains('nm-chart-local-action') && !child.classList.contains('nm-chart-settings'))!;
+          const p = panel.getBoundingClientRect(), c = content.getBoundingClientRect();
+          const border = getComputedStyle(panel);
+          return {
+            left: c.left - p.left - parseFloat(border.borderLeftWidth),
+            right: p.right - c.right - parseFloat(border.borderRightWidth),
+            top: parseFloat(getComputedStyle(body).paddingTop),
+          };
+        });
+        expect(inset.left).toBeCloseTo(32, 0);
+        expect(inset.right).toBeCloseTo(32, 0);
+        expect(inset.top).toBe(16);
+        const overflow = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(el => ({ name: el.className, right: el.getBoundingClientRect().right })) }));
+        expect(overflow.scroll, `${route} at ${width}: ${JSON.stringify(overflow.offenders)}`).toBe(width);
+      }
+    }
+    await page.goto('/overview');
+    const side = page.locator('[data-chart-id="overview.slowest"]');
+    await expect(side).toHaveCSS('padding-inline-start', '0px');
+    await expect(side).toHaveCSS('padding-inline-end', '0px');
+    await expect(page.getByRole('region', { name: 'Endpoints', exact: true }).locator('.tool-note:not(.nm-chart-empty)')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Device Types', exact: true }).locator('.nm-insight-title strong')).toHaveText('Device Types');
+    await page.goto('/monitoring');
+    for (const name of ['Highest Latency', 'Devices by VLAN']) {
+      await expect(page.getByRole('region', { name, exact: true }).locator('.tool-note:not(.nm-chart-empty)')).toHaveCount(0);
+    }
+    await expect(page.getByRole('region', { name: 'Fleet Health', exact: true }).locator('.nm-insight-title strong')).toHaveText('Fleet Health');
+    await page.goto('/inventory');
+    const bars = page.locator('[data-chart-id="inventory.device-types"] [data-chart-element="bars"]');
+    await expect(bars).toHaveCSS('padding-inline-end', '12px');
+    await expect(bars).toHaveCSS('scrollbar-gutter', 'stable');
+  });
 }
 
 async function expectHeroMatchesCards(page: Page, hero: string) {
@@ -166,11 +222,11 @@ async function expectHeroMatchesCards(page: Page, hero: string) {
 test("Locations ring the occupied sites, level with the summary cards", async ({ page }) => {
   await boot(page);
   await page.goto("/locations");
-  const hero = page.getByRole("region", { name: "Devices by location", exact: true });
+  const hero = page.getByRole("region", { name: "Devices by Location", exact: true });
   await expect(hero.locator(".dash-donut-svg")).toBeVisible();
-  expect(await legendRows(page, "Devices by location"), "sites with no devices are left out").toEqual(["Brisbane HQ2", "Sydney Edge1"]);
-  await expectHeroMatchesCards(page, "Devices by location");
-  const needs = page.getByRole("region", { name: "Needs details", exact: true });
+  expect(await legendRows(page, "Devices by Location"), "sites with no devices are left out").toEqual(["Brisbane HQ2", "Sydney Edge1"]);
+  await expectHeroMatchesCards(page, "Devices by Location");
+  const needs = page.getByRole("region", { name: "Needs Details", exact: true });
   await expect(needs).toContainText("Sydney Edge");
   await expect(needs).toContainText("No address · no colour set");
   await expect(needs).not.toContainText("Brisbane HQ");
@@ -197,7 +253,7 @@ test("VLANs count devices per group and summarise address space", async ({ page 
 test("ring bars are optional and use the canonical bar grid", async ({ page }) => {
   await boot(page);
   await page.goto("/monitoring");
-  const panel = page.getByRole("region", { name: "Fleet health", exact: true });
+  const panel = page.getByRole("region", { name: "Fleet Health", exact: true });
   await expect(panel.locator('.nm-bar-list li').first()).toBeVisible();
   await expect(panel.locator('.nm-chart-legend-track')).toHaveCount(0);
   await panel.getByRole('button', { name: /^Visual options:/ }).click();
@@ -223,7 +279,7 @@ test("Overview panels share one surface palette in Slate", async ({ page }) => {
   await boot(page);
   await page.addInitScript(() => { localStorage.setItem("netmap.theme", "dark"); localStorage.setItem("netmap.dark_style", "slate"); });
   await page.goto("/overview");
-  await expect(page.getByRole("region", { name: "Current outages", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Current Outages", exact: true })).toBeVisible();
   const palette = await page.evaluate(() => [...document.querySelectorAll(".overview-workspace .dash-panel, .overview-workspace .nm-insight")].map((panel) => {
     const head = panel.querySelector(":scope > .nm-app-panel-header")!;
     const body = panel.querySelector(":scope > .dash-panel-body, :scope > .nm-chart-body")!;
@@ -249,7 +305,7 @@ test("Current outages scroll inside a capped panel when many devices are down", 
 test("clicking an Overview status column opens Monitoring filtered to that status", async ({ page }) => {
   await boot(page);
   await page.goto("/overview");
-  const offline = page.getByRole("region", { name: "Network health", exact: true }).locator(".nm-chart-col").filter({ has: page.locator('[aria-label^="Offline"]') });
+  const offline = page.getByRole("region", { name: "Network Health", exact: true }).locator(".nm-chart-col").filter({ has: page.locator('[aria-label^="Offline"]') });
   await offline.locator(".nm-chart-hit").click();
   await expect(page).toHaveURL(/\/monitoring/);
   await expect(page.locator(".mon-row", { hasText: "NAS-01" })).toBeVisible();
@@ -305,12 +361,12 @@ test("Inventory devices open with a type ring level with the summary cards", asy
   await boot(page);
   await setupInventoryMocks(page, devices);
   await page.goto("/inventory#devices");
-  const hero = page.getByRole("region", { name: "Devices by type", exact: true });
+  const hero = page.getByRole("region", { name: "Devices by Type", exact: true });
   await expect(hero.locator(".dash-donut-svg")).toBeVisible();
-  const rows = await legendRows(page, "Devices by type");
+  const rows = await legendRows(page, "Devices by Type");
   expect(rows).toHaveLength(3);
   expect(rows.every((row) => /1$/.test(row ?? ""))).toBe(true);
-  await expectHeroMatchesCards(page, "Devices by type");
+  await expectHeroMatchesCards(page, "Devices by Type");
   const heroBox = (await hero.boundingBox())!;
   const cards = (await page.locator(".nm-bento-stats").first().boundingBox())!;
   expect(Math.abs(heroBox.y - cards.y), "chart and cards start level").toBeLessThanOrEqual(1);
@@ -396,7 +452,7 @@ test("Overview plays the shared entrance motion and drops it under reduced motio
 test("Overview puts health beside the tiles, outages in the side column and breakdowns below", async ({ page }) => {
   await boot(page);
   await page.goto("/overview");
-  const health = page.getByRole("region", { name: "Network health", exact: true });
+  const health = page.getByRole("region", { name: "Network Health", exact: true });
   await expect(health.locator(".dash-donut-svg")).toBeVisible();
   await expect(health.locator(".nm-chart-legend")).toHaveCount(0);
   const statusColumns = health.locator(".nm-column-chart .nm-chart-col");
@@ -421,14 +477,14 @@ test("Overview puts health beside the tiles, outages in the side column and brea
   await expect(tiles).toHaveCount(6);
   expect((await tiles.first().boundingBox())!.x).toBeGreaterThan((await health.boundingBox())!.x + (await health.boundingBox())!.width);
   await expect(tiles.filter({ hasText: "Offline" }).locator(".dash-stat-sub")).toHaveText("NAS-01");
-  const outages = page.getByRole("region", { name: "Current outages", exact: true });
+  const outages = page.getByRole("region", { name: "Current Outages", exact: true });
   await expect(outages).toContainText("NAS-01");
   const recent = (await page.locator(".overview-panel", { hasText: "Recently updated" }).boundingBox())!;
   expect((await outages.boundingBox())!.x).toBeGreaterThan(recent.x + recent.width);
-  expect((await barLabels(page, "Slowest devices, 24 h"))[0]).toBe("NAS-01 9.4 ms");
+  expect((await barLabels(page, "Slowest Devices, 24 h"))[0]).toBe("NAS-01 9.4 ms");
   expect(await barLabels(page, "Endpoints")).toEqual(["Up 1", "Down 1", "Paused 0"]);
-  expect(await barLabels(page, "Top groups")).toEqual(["Servers 2", "Wi-Fi 1"]);
-  const pair = (await page.getByRole("region", { name: "Device types", exact: true }).boundingBox())!;
+  expect(await barLabels(page, "Top Groups")).toEqual(["Servers 2", "Wi-Fi 1"]);
+  const pair = (await page.getByRole("region", { name: "Device Types", exact: true }).boundingBox())!;
   expect(pair.y + pair.height, "Device types and Top groups sit above Favourites and Current outages").toBeLessThan((await outages.boundingBox())!.y);
   expect(pair.y + pair.height).toBeLessThan((await page.locator(".overview-panel", { hasText: "Favourites" }).boundingBox())!.y);
 });

@@ -67,7 +67,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
         <div className={`exports-console-grid${hasStack && canExportFirewall ? "" : " exports-console-grid--single"}`}>
           {hasStack && <div className="exports-stack">
             {canExportInventory && <section className="exports-panel nm-app-panel">
-              <ExportPanelHeader icon={<Database size={18} />} title="Device inventory" />
+              <ExportPanelHeader icon={<Database size={18} />} title="Device Inventory" />
               <div className="exports-panel-body">
                 <p className="exports-panel-copy">Download the current inventory with device identity, addressing, status and assignment fields.</p>
                 <div className="exports-format-callout">
@@ -89,7 +89,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
             </section>}
 
             {canExportReport && <section className="exports-panel nm-app-panel">
-              <ExportPanelHeader icon={<FileText size={18} />} title="Network report" />
+              <ExportPanelHeader icon={<FileText size={18} />} title="Network Report" />
               <div className="exports-panel-body">
                 <p className="exports-panel-copy">Generate a presentation-ready report combining topology, inventory, subnet utilisation and blocked-traffic leaders.</p>
                 <div className="exports-report-contents" aria-label="Report contents">
@@ -105,7 +105,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
           </div>}
 
           {canExportFirewall && <section className="exports-panel exports-panel--firewall nm-app-panel">
-            <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall events" />
+            <ExportPanelHeader icon={<ShieldCheck size={18} />} title="Firewall Events" />
             <div className="exports-panel-body">
               <p className="exports-panel-copy">Export retained firewall events with optional query filters. Empty filters include all available events up to the selected limit.</p>
               <div className="exports-firewall-form">
@@ -149,7 +149,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
         </div>
         <aside className="exports-context" aria-label="Export information">
           <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<History size={18} />} title="Export activity" />
+            <ExportPanelHeader icon={<History size={18} />} title="Export Activity" />
             <div className="exports-panel-body exports-activity">
               {!summary && !summaryFailed ? <PanelSkeleton lines={3} /> : summaryFailed && !summary ? (
                 <div className="nm-alert nm-alert--error" role="alert">Export activity is unavailable. <button type="button" className="nm-btn nm-btn--sm" onClick={refreshSummary}>Retry</button></div>
@@ -172,7 +172,7 @@ export function ExportsWorkspace({ accessToken, user }: { accessToken: string; u
             </div>
           </section>
           <section className="exports-panel nm-app-panel">
-            <ExportPanelHeader icon={<FileText size={18} />} title="Choose a format" />
+            <ExportPanelHeader icon={<FileText size={18} />} title="Choose a Format" />
             <div className="exports-panel-body exports-format-guide">
               {(canExportInventory || canExportFirewall) && <>
                 <div><span className="nm-chip">CSV</span><p className="nm-panel-meta">Open in a spreadsheet to sort, filter and review rows.</p></div>

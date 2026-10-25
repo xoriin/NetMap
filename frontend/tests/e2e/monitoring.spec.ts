@@ -423,7 +423,7 @@ test.describe("Monitoring workspace", () => {
 
     await monitoringNav.getByRole("link", { name: "Endpoints", exact: true }).click();
     await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("#endpoints");
-    await expect(page.getByText("HTTP/HTTPS endpoints", { exact: true })).toBeVisible();
+    await expect(page.getByText("HTTP/HTTPS Endpoints", { exact: true })).toBeVisible();
     await expect(page.getByText("No HTTP/HTTPS endpoints yet.", { exact: false })).toBeVisible();
 
     await page.goBack();
@@ -496,7 +496,7 @@ test.describe("Monitoring layout and column sizing", () => {
     expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
     const workspace = page.locator(".workspace");
     expect(await workspace.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
-    const latency = page.getByRole("region", { name: "Highest latency, last 24 h", exact: true });
+    const latency = page.getByRole("region", { name: "Highest Latency", exact: true });
     await latency.scrollIntoViewIfNeeded();
     await expect(latency).toBeInViewport();
     const tableTop = await page.locator(".mon-view-window").evaluate((el) => el.getBoundingClientRect().top);

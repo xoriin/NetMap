@@ -51,7 +51,7 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
     <section className="auth-surface">
       <form className="auth-card" onSubmit={(e) => void submit(e)}>
         <Brand appName={appName} />
-        <h2 className="auth-form-heading">Two-factor authentication</h2>
+        <h2 className="auth-form-heading">Two-Factor Authentication</h2>
         <p className="auth-reset-info">
           {useRecovery ? "Enter one of the recovery codes you saved when you set this up." : "Enter the 6-digit code from your authenticator app."}
         </p>
@@ -100,7 +100,7 @@ export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, 
     <section className="auth-surface">
       <div className="auth-card">
         <Brand appName={appName} />
-        <h2 className="auth-form-heading">Set up two-factor authentication</h2>
+        <h2 className="auth-form-heading">Set Up Two-Factor Authentication</h2>
         <p className="auth-reset-info">Your administrator requires two-factor authentication for this account.</p>
         <TotpEnrolment start={start} confirm={confirm} onDone={() => tokens && onAuthenticated(tokens)} linkClassName="auth-forgot-link" />
         {!tokens && <button type="button" className="auth-forgot-link" onClick={onBack}>Back to sign in</button>}

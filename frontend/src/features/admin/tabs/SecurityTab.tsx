@@ -193,7 +193,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
       {form && settings && (
         <form className="tool-form" onSubmit={(e) => void save(e)}>
           <div className="admin-task-grid">
-            <AdminTaskPanel title="Provider connection" icon={<KeyRound size={18} />} className="admin-task-panel--connection">
+            <AdminTaskPanel title="Provider Connection" icon={<KeyRound size={18} />} className="admin-task-panel--connection">
 
           <label className="tool-form-inline-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} />
@@ -237,7 +237,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
             Register this redirect URL with the provider: {settings.effective_redirect_url || "(configure APP_URL or a redirect URL above)"}
           </span>
             </AdminTaskPanel>
-            <AdminTaskPanel title="User provisioning" icon={<ShieldCheck size={18} />}>
+            <AdminTaskPanel title="User Provisioning" icon={<ShieldCheck size={18} />}>
           <div className="tool-form-grid">
             <label>Allowed email domains (comma-separated, empty = any)
               <input maxLength={1024} placeholder="example.com, corp.example" value={form.allowed_email_domains} onChange={(e) => update("allowed_email_domains", e.target.value)} />
@@ -279,7 +279,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
             </span>
           </label>
             </AdminTaskPanel>
-            <AdminTaskPanel title="Role mapping" icon={<KeySquare size={18} />}>
+            <AdminTaskPanel title="Role Mapping" icon={<KeySquare size={18} />}>
           <div className="tool-form-grid">
             <label>Group claim name
               <input maxLength={120} placeholder="groups" value={form.group_claim} onChange={(e) => update("group_claim", e.target.value)} />
@@ -311,7 +311,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
         </form>
       )}
       {settings && (
-        <AdminTaskPanel title="Sign-in policy" icon={<ShieldCheck size={18} />}>
+        <AdminTaskPanel title="Sign-In Policy" icon={<ShieldCheck size={18} />}>
           <label className="tool-form-inline-check">
             <input
               type="checkbox"
@@ -363,7 +363,7 @@ function TwoFactorPanel({ accessToken }: { accessToken: string }) {
   return (
     <section className="panel admin-panel nm-app-panel nm-motion-item">
       <div className="admin-panel-header nm-app-panel-header">
-        <h2 className="admin-section-title"><ShieldCheck size={16} />Two-factor authentication</h2>
+        <h2 className="admin-section-title"><ShieldCheck size={16} />Two-Factor Authentication</h2>
       </div>
       {query.error && <div className="form-error">{query.error}</div>}
       <form className="tool-form" onSubmit={(e) => void save(e)}>
@@ -645,7 +645,7 @@ export function SecurityTab({
       {showSensitivePanels && (
         <>
           <div className="nm-bento nm-bento--four nm-bento--chart">
-            <AdminCard title="Sign-ins, last 14 days" icon={<Shield size={16} />} style={motion(0)} actions={(
+            <AdminCard hero title="Sign-Ins, Last 14 Days" icon={<Shield size={16} />} style={motion(0)} actions={(
               <ul className="nm-header-legend" aria-hidden="true">
                 <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Signed in</li>
                 <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
@@ -673,7 +673,7 @@ export function SecurityTab({
             </div>
             <aside className="nm-console-side">
               <TwoFactorPanel accessToken={accessToken} />
-              <AdminCard title="Recent failed sign-ins" icon={<AlertCircle size={16} />} className="nm-fill" style={motion(3)}>
+              <AdminCard title="Recent Failed Sign-Ins" icon={<AlertCircle size={16} />} className="nm-fill" style={motion(3)}>
                 <EventList empty="No failed sign-ins recently." rows={recentFailures.map((r) => ({
                   key: r.id, tone: auditEventTone(r.action), title: auditLogUsername(r),
                   detail: `${auditEventLabel(r.action)} · ${ipFromDetail(r.detail)}`, time: shortDate(r.created_at), dateTime: r.created_at,
@@ -688,11 +688,11 @@ export function SecurityTab({
           {auditPanel}
         </div>
         <aside className="nm-console-side">
-          <AdminCard title="Activity, last 14 days" icon={<Layers size={16} />} style={motion(5)}>
+          <AdminCard title="Activity, Last 14 Days" icon={<Layers size={16} />} style={motion(5)}>
             {summary ? <BarList viewId="admin.security.actions" label="Events by type" items={summary.by_action.map((a) => ({ label: auditEventLabel(a.action), value: a.count, color: FAILED_ACTIONS.has(a.action) ? "--dash-red" : a.action === "auth.login_success" ? "--dash-green" : "--dash-blue" }))} empty="No activity in the last 14 days." />
               : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
           </AdminCard>
-          <AdminCard title="Most active users" icon={<UsersIcon size={16} />} className="nm-fill" style={motion(6)}>
+          <AdminCard title="Most Active Users" icon={<UsersIcon size={16} />} className="nm-fill" style={motion(6)}>
             {summary ? <BarList viewId="admin.security.actors" label="Events per user" items={summary.by_actor.map((a) => ({ label: a.username, value: a.count }))} empty="No user activity in the last 14 days." />
               : summaryQuery.isLoading ? <PanelSkeleton lines={4} /> : <p className="tool-note nm-chart-empty">Activity summary is unavailable.</p>}
           </AdminCard>

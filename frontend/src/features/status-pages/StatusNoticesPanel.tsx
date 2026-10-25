@@ -112,7 +112,7 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
   return (
     <div className="status-editor-panels">
       <section className="nm-app-panel status-editor-panel status-notices-panel">
-        <StatusEditorPanelHeader icon={Megaphone} title="Notices on this page" meta={notices ? `${notices.length} notice${notices.length === 1 ? "" : "s"}` : undefined} />
+        <StatusEditorPanelHeader icon={Megaphone} title="Notices on This Page" meta={notices ? `${notices.length} notice${notices.length === 1 ? "" : "s"}` : undefined} />
         <div className="status-layout-intro">
           {error && <div className="nm-alert nm-alert--error" role="alert">{error} <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => void load(notices === null)}>Try again</button></div>}
           <small className="status-editor-hint">Each person and each integration token has one notice slot per page. You can clear anyone's notice.</small>
@@ -158,7 +158,7 @@ export function StatusNoticesPanel({ accessToken, page }: { accessToken: string;
       </section>
 
       <section className="nm-app-panel status-editor-panel">
-        <StatusEditorPanelHeader icon={Megaphone} title="Your notice" meta={mine ? "Live on this page" : "Not set"} />
+        <StatusEditorPanelHeader icon={Megaphone} title="Your Notice" meta={mine ? "Live on this page" : "Not set"} />
         <form className="status-editor-settings status-notice-form" onSubmit={(event) => void save(event)} noValidate>
           {formError && <div className="nm-alert nm-alert--error" role="alert">{formError}</div>}
           <label className="nm-field">

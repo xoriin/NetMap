@@ -202,7 +202,7 @@ export function StatusTokensPanel({ accessToken, page }: { accessToken: string; 
   return (
     <div className="status-editor-panels">
       <section className="nm-app-panel status-editor-panel status-tokens-panel">
-        <StatusEditorPanelHeader icon={KeyRound} title="Integration tokens" meta={tokens ? `${tokens.length} token${tokens.length === 1 ? "" : "s"}` : undefined}>
+        <StatusEditorPanelHeader icon={KeyRound} title="Integration Tokens" meta={tokens ? `${tokens.length} token${tokens.length === 1 ? "" : "s"}` : undefined}>
           <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" disabled={!pages} onClick={() => setCreating(true)}>
             <Plus size={14} /> Create token
           </button>

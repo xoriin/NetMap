@@ -2089,10 +2089,10 @@ body.theme-dark .nm-pick-filter input {
 .nm-insight-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .nm-insight-title strong { overflow: hidden; color: inherit; font-size: var(--nm-text-lg, 15px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nm-insight > .nm-chart-body { padding: var(--nm-space-4) 18px; }
-/* Bar-only views start near the attached header; row/track geometry stays canonical. */
-.nm-chart-body:has(> .nm-bar-list),
-.nm-chart-body:has(> .nm-personal-chart > .nm-bar-list),
-.nm-chart-body:has(> .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]) {
+/* Compact side visuals retain their inset; hero spacing is owned separately. */
+:not(:where(.nm-hero-visual)) > .nm-chart-body:has(> .nm-bar-list),
+:not(:where(.nm-hero-visual)) > .nm-chart-body:has(> .nm-personal-chart > .nm-bar-list),
+:not(:where(.nm-hero-visual)) > .nm-chart-body:has(> .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]) {
   padding-top: var(--nm-space-2);
 }
 
@@ -2101,6 +2101,12 @@ body.theme-dark .nm-pick-filter input {
 .nm-chart-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
 .nm-chart-actions:empty { display: none; }
 .nm-personal-chart, .nm-personal-renderer { width: 100%; min-width: 0; }
+.nm-hero-visual > .nm-chart-body { padding: var(--nm-space-4) var(--nm-chart-gutter); }
+.nm-hero-visual .nm-personal-chart { box-sizing: border-box; padding-inline: var(--nm-chart-gutter); }
+/* Direct hero charts have no padded body; supply both gutters here once. */
+.nm-hero-visual > .nm-personal-chart {
+  padding: var(--nm-space-4) calc(2 * var(--nm-chart-gutter));
+}
 .nm-chart-local-action { display: flex; justify-content: flex-end; margin-bottom: var(--nm-space-2); }
 .nm-chart-settings { margin-top: var(--nm-space-4); border-top: 1px solid var(--nm-border); }
 .nm-chart-settings-heading { display: flex; align-items: center; gap: var(--nm-space-2); padding: var(--nm-space-3) 0; }

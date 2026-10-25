@@ -69,7 +69,7 @@ export function PersonalChart({ id, legacyIds = [], label, base, data, children 
     {target ? createPortal(action, target) : <div className="nm-chart-local-action">{action}</div>}
     {selected === base && Object.keys(defaults).every(key => key === 'type' || options[key as keyof ChartViewOptions] === defaults[key as keyof ChartViewOptions]) ? children : <PersonalChartRenderer data={data} options={{ ...options, type: selected }} label={label} />}
     {open && <section id={settingsId} className="nm-chart-settings" aria-label={`Visual options: ${label}`} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); if (!busy) close(); } }}>
-      <div className="nm-chart-settings-heading"><strong>Visual options</strong><span className="dash-panel-meta">My view</span><button type="button" className="nm-btn nm-btn--icon" aria-label="Close visual options" disabled={busy} onClick={close}><X size={16} /></button></div>
+      <div className="nm-chart-settings-heading"><strong>Visual Options</strong><span className="dash-panel-meta">My view</span><button type="button" className="nm-btn nm-btn--icon" aria-label="Close visual options" disabled={busy} onClick={close}><X size={16} /></button></div>
       {prefs.error && <div className="nm-chart-save-error" role="alert">{prefs.error} <button type="button" className="nm-btn nm-btn--sm" onClick={prefs.reload}>Retry</button></div>}
       <div className="nm-chart-settings-body">
         <span className="nm-field-label">Visual type</span>

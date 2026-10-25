@@ -515,7 +515,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
       <DashStat label="Used" value={summary?.used ?? 0} icon={<IconWifi size={20} />} accent="green" />
       <DashStat label="Free" value={summary?.free ?? 0} icon={<IconWifiOff size={20} />} accent="indigo" />
       <DashStat label="Reserved" value={summary?.reservation_count ?? 0} icon={<IconMapPin size={20} />} accent="purple" />
-      <DashStat label="DHCP leases" value={summary?.dhcp_lease_count ?? 0} icon={<Activity size={20} />} accent="blue" />
+      <DashStat label="DHCP Leases" value={summary?.dhcp_lease_count ?? 0} icon={<Activity size={20} />} accent="blue" />
     </div>
   );
 
@@ -539,13 +539,13 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
   return (
     <section className="dash-layout ipam-workspace">
       <div className="ipam-bento">
-        <ChartPanel><div className="dash-panel nm-app-panel ipam-panel ipam-space-panel">
+        <ChartPanel><div className="dash-panel nm-app-panel ipam-panel ipam-space-panel nm-hero-visual">
           <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-            <IpamPanelIdentity icon={<Network size={18} />} title="Address space" meta={`${totalHosts} hosts`} />
+            <IpamPanelIdentity icon={<Network size={18} />} title="Address Space" meta={`${totalHosts} hosts`} />
             <ChartOptionsSlot />
           </div>
-          <PersonalChart id="ipam.address-space" label="Address space" base="gauge" data={addressSpaceChart}>
-            <PersonalChartRenderer label="Address space" data={addressSpaceChart}
+          <PersonalChart id="ipam.address-space" label="Address Space" base="gauge" data={addressSpaceChart}>
+            <PersonalChartRenderer label="Address Space" data={addressSpaceChart}
               options={{ ...chartDefaults("gauge", false, addressSpaceChart.defaultView), type: "gauge" }} />
           </PersonalChart>
         </div></ChartPanel>
@@ -589,7 +589,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
       {showVlanImport && (
         <div className="dash-panel nm-app-panel ipam-panel ipam-vlan-import-panel">
           <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-            <IpamPanelIdentity icon={<IconTag size={18} />} title="Import subnets from VLANs" meta="Review available ranges" />
+            <IpamPanelIdentity icon={<IconTag size={18} />} title="Import Subnets from VLANs" meta="Review available ranges" />
             <button type="button" className="dash-panel-link" onClick={() => { setShowVlanImport(false); setVlanMsg(null); }}>
               <X size={14} />
             </button>
@@ -791,7 +791,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
             <div className="dash-panel-header nm-app-panel-header ipam-panel-header ipam-reservations-header">
               <IpamPanelIdentity
                 icon={<IconMapPin size={18} />}
-                title="IP reservations"
+                title="IP Reservations"
                 meta={resSubnetFilter === "all" ? `${reservations.length} reserved` : `${filteredReservations.length} of ${reservations.length} shown`}
               />
               <div className="ipam-reservations-actions">
@@ -896,7 +896,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
           {/* DHCP leases panel */}
           <div className="dash-panel nm-app-panel ipam-panel ipam-dhcp-panel">
             <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-              <IpamPanelIdentity icon={<Activity size={18} />} title="DHCP leases" meta={`${dhcpLeases.length} imported`} />
+              <IpamPanelIdentity icon={<Activity size={18} />} title="DHCP Leases" meta={`${dhcpLeases.length} imported`} />
               <button type="button" className="dash-panel-link" onClick={() => setShowDhcp((v) => !v)} style={{ marginLeft: 12 }}>
                 {showDhcp ? "Hide importer" : "Import leases"}
               </button>
@@ -960,7 +960,7 @@ export function IpamWorkspace({ canManageProviders = false, accessToken, canWrit
         <aside className="ipam-context" aria-label="Address overview">
           <div className="dash-panel nm-app-panel ipam-panel ipam-busiest-panel">
             <div className="dash-panel-header nm-app-panel-header ipam-panel-header">
-              <IpamPanelIdentity icon={<Activity size={18} />} title="Busiest subnets" meta={busiestSubnets.length ? `Top ${busiestSubnets.length}` : undefined} />
+              <IpamPanelIdentity icon={<Activity size={18} />} title="Busiest Subnets" meta={busiestSubnets.length ? `Top ${busiestSubnets.length}` : undefined} />
             </div>
             <div className="dash-panel-body ipam-busiest-body">
               {busiestSubnets.length === 0 ? (

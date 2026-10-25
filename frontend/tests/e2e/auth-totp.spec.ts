@@ -136,7 +136,7 @@ test("expired challenge returns to the password step", async ({ page }) => {
   await signInWithPassword(page);
   await page.getByLabel("Authentication code").fill("123456");
   await page.getByRole("button", { name: "Verify", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
   await expect(page.getByText("Your sign-in timed out. Enter your password again.")).toBeVisible();
 });
 

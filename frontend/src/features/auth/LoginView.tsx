@@ -95,7 +95,7 @@ function LoginForm({
           </div>
           <p className="auth-slogan"><AuthTextReveal text={loginMessage || "The Blueprint for Your Infrastructure"} /></p>
         </div>
-        <h2 className="auth-form-heading">Sign in</h2>
+        <h2 className="auth-form-heading">Sign In</h2>
         {ssoError && <div className="form-error">{ssoError}</div>}
         {notice && <div className="form-error">{notice}</div>}
         {ssoRequired && <SsoButton providerName={oidc?.provider_name || "SSO"} />}
@@ -181,7 +181,7 @@ function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?:
         </div>
         {submitted ? (
           <>
-            <h2 className="auth-form-heading">Check your email</h2>
+            <h2 className="auth-form-heading">Check Your Email</h2>
             <p className="auth-reset-info">
               If an account matching <strong>{identifier}</strong> exists, a password reset link has been sent. Check your inbox and follow the link to set a new password.
             </p>
@@ -189,7 +189,7 @@ function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?:
           </>
         ) : (
           <form onSubmit={(e) => void submit(e)}>
-            <h2 className="auth-form-heading">Reset password</h2>
+            <h2 className="auth-form-heading">Reset Password</h2>
             <p className="auth-reset-info">
               Enter your username or email address. If an account exists, we'll send a reset link.
             </p>

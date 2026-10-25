@@ -69,12 +69,12 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".security-summary-grid")).toContainText("Denied senders");
     await expect(page.locator(".security-filters")).toHaveCSS("background-image", "none");
     await expect(page.locator(".security-results")).toHaveCSS("background-image", "none");
-    await expect(page.locator(".security-filters .security-panel-header")).toContainText("Event filters");
+    await expect(page.locator(".security-filters .security-panel-header")).toContainText("Event Filters");
     await expect(page.locator(".security-results-meta")).toContainText("Firewall events");
     await expect(page.locator(".security-results-meta")).toContainText("1 results");
     await expect(page.locator(".security-row")).toContainText("10.0.0.1");
     await expect(page.locator(".security-search input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    for (const [id, label] of [['security.traffic-mix', 'Traffic mix'], ['security.top-sources', 'Top sources']]) {
+    for (const [id, label] of [['security.traffic-mix', 'Traffic Mix'], ['security.top-sources', 'Top Sources']]) {
       const personal = page.locator(`[data-chart-id="${id}"]`);
       await page.getByRole('button', { name: `Visual options: ${label}`, exact: true }).click();
       await personal.getByRole('button', { name: 'Columns', exact: true }).click();
@@ -278,7 +278,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await setupSecurity(page, theme, events);
     const mix = page.locator(".security-mix-panel");
-    await expect(mix).toContainText("Traffic mix");
+    await expect(mix).toContainText("Traffic Mix");
     await expect(mix).toContainText("6 loaded events");
     await expect(mix.locator(".dash-donut-pct")).toHaveText("33%");
     await expect(mix.locator(".security-mix-legend li").nth(0)).toContainText("Blocked2");

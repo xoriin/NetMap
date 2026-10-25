@@ -437,7 +437,7 @@ export function CloudAssetDetails({
 
   return (
     <>
-      <InventoryDetailsPanel title={showDevice ? "Device overview" : "Asset overview"} icon={<Cloud size={17} />} onClose={onClose}>
+      <InventoryDetailsPanel title={showDevice ? "Device Overview" : "Asset Overview"} icon={<Cloud size={17} />} onClose={onClose}>
         {showDevice ? (
           <>
             <div className="detail-actions detail-actions--device">

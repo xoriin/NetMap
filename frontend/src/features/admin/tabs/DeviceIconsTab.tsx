@@ -202,12 +202,12 @@ export function DeviceIconsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four">
-        <AdminCard title="Devices by type" icon={<BarChart3 size={16} />}>
+        <AdminCard hero title="Devices by Type" icon={<BarChart3 size={16} />}>
           {devicesQuery.error ? <p className="tool-note nm-chart-empty">Device counts are unavailable.</p>
             : <BarList viewId="admin.icons.device-types" label="Devices per device type" items={typeBars} empty="No devices have a type yet." />}
         </AdminCard>
         <div className="dash-stats nm-bento-stats nm-summary-band">
-          <DashStat accent="teal" className="nm-motion-item" icon={<Boxes size={20} />} label="Device types" value={<CountUp value={types.length} />} sub={`${assigned} devices assigned`} />
+          <DashStat accent="teal" className="nm-motion-item" icon={<Boxes size={20} />} label="Device Types" value={<CountUp value={types.length} />} sub={`${assigned} devices assigned`} />
           <DashStat accent="blue" className="nm-motion-item" icon={<Package size={20} />} label="Built in" value={<CountUp value={builtIn.length} />} sub={listNames(builtIn) || "None"} />
           <DashStat accent="purple" className="nm-motion-item" icon={<Sparkles size={20} />} label="Custom" value={<CountUp value={custom.length} />} sub={listNames(custom) || "Add one alongside"} />
           <DashStat accent="indigo" className="nm-motion-item" icon={<Palette size={20} />} label="Icon pack" value={activePack.name.replace(/^Built-in \((.*)\)$/, "$1")} sub={activePack.id === builtInIconPack.id ? "Built-in set" : "Custom set"} />
@@ -215,14 +215,14 @@ export function DeviceIconsTab({
       </div>
       <div className="nm-console">
         <div className="nm-console-main">
-      <section className="panel admin-panel nm-app-panel device-types-panel nm-fill nm-motion-item" aria-label="Device types">
+      <section className="panel admin-panel nm-app-panel device-types-panel nm-fill nm-motion-item" aria-label="Device Types">
         {/* Icon pack is a one-control concern, so it rides in this panel's header rather
             than occupying a panel of its own whose entire body was a single button. */}
         <div className="nm-app-panel-header admin-panel-header">
           <span className="admin-panel-identity">
             <span className="admin-panel-icon" aria-hidden="true"><IconDeviceDesktop size={17} /></span>
             <span className="admin-panel-title-wrap">
-              <span className="admin-panel-title">Device types</span>
+              <span className="admin-panel-title">Device Types</span>
               <span className="admin-panel-meta">
                 {deviceTypesQuery.options.length} type{deviceTypesQuery.options.length === 1 ? "" : "s"}
                 {" · "}icon pack: <strong>{activePack.name}</strong>
@@ -234,7 +234,7 @@ export function DeviceIconsTab({
           </button>
         </div>
 
-          <AdminTaskPanel title="Type library" icon={<IconDeviceDesktop size={18} />}>
+          <AdminTaskPanel title="Type Library" icon={<IconDeviceDesktop size={18} />}>
 
 
         <div className="nm-table-wrap device-types-table-wrap">
@@ -369,7 +369,7 @@ export function DeviceIconsTab({
       </section>
         </div>
         <aside className="nm-console-side">
-          <AdminTaskPanel title="New device type" icon={<IconDeviceDesktop size={18} />} className="nm-fill">
+          <AdminTaskPanel title="New Device Type" icon={<IconDeviceDesktop size={18} />} className="nm-fill">
         <form className="device-icons-create-form" onSubmit={createDeviceType}>
           <label className="nm-field">
             <span>Device type</span>

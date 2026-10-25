@@ -499,7 +499,7 @@ export function ToolsWorkspace({
         </div>
       )}
       <div className="nm-bento nm-bento--four nm-motion">
-        <InsightPanel title="Your recent checks" icon={<Activity size={16} />} className="nm-motion-item">
+        <InsightPanel hero title="Your Recent Checks" icon={<Activity size={16} />} className="nm-motion-item">
           <p className="tool-note">Checks run from this browser, by tool.</p>
           <BarList viewId="tools.recent-checks" label="Recent checks per tool" empty="No checks run from this browser yet."
             items={availableTools.map(({ id, label }) => ({ label, value: recentRuns.filter((run) => run.tool === id).length }))
@@ -509,7 +509,7 @@ export function ToolsWorkspace({
           <DashStat className="tools-summary-card nm-motion-item" label="Available tools" value={<CountUp value={availableTools.length} />} icon={<IconLayoutDashboard size={20} />} accent="teal"
             sub={availableTools.slice(0, 3).map((tool) => tool.label.split(" ")[0]).join(", ") + (availableTools.length > 3 ? "…" : "")} />
           <DashStat className="tools-summary-card nm-motion-item" label="Recent checks" value={<CountUp value={recentRuns.length} />} icon={<Clock3 size={20} />} accent="green" sub="Kept in this browser" />
-          <DashStat className="tools-summary-card nm-motion-item" label="Saved results" value={<CountUp value={savedResults.length} />} icon={<Bookmark size={20} />} accent="blue" sub="Kept in this browser" />
+          <DashStat className="tools-summary-card nm-motion-item" label="Saved Results" value={<CountUp value={savedResults.length} />} icon={<Bookmark size={20} />} accent="blue" sub="Kept in this browser" />
           <DashStat className="tools-summary-card nm-motion-item" label="Last check" value={recentRuns[0] ? timeAgo(recentRuns[0].ranAt) : "—"} icon={<History size={20} />} accent="purple"
             sub={recentRuns[0] ? `${toolDefinition(recentRuns[0].tool).label} · ${recentRuns[0].target}` : "Nothing run yet"} />
         </div>
@@ -538,7 +538,7 @@ export function ToolsWorkspace({
         <div className="tools-main">
           <div className="tools-main-inner">
           {activeTool === "dns" && <section className="tool-card nm-app-panel">
-            <ToolPanelHeader icon={<Search size={18} />} title="DNS lookup" />
+            <ToolPanelHeader icon={<Search size={18} />} title="DNS Lookup" />
             <div className="dns-tool-layout">
               <div className="dns-query-column">
                 <form className="tool-form dns-query-form" onSubmit={runDnsLookup}>
@@ -680,7 +680,7 @@ export function ToolsWorkspace({
           {activeTool === "ping" && <section className="tool-card nm-app-panel">
             <ToolPanelHeader
               icon={<IconWifi size={18} />}
-              title="Ping test"
+              title="Ping Test"
             />
             <form className="tool-form" onSubmit={runPing}>
               <label>
@@ -808,7 +808,7 @@ export function ToolsWorkspace({
           {activeTool === "tcp" && <section className="tool-card nm-app-panel">
             <ToolPanelHeader
               icon={<IconServer size={18} />}
-              title="Port check"
+              title="Port Check"
             />
             <form className="tool-form" onSubmit={runTcpCheck}>
               <label>
@@ -870,7 +870,7 @@ export function ToolsWorkspace({
           </section>}
 
           {activeTool === "subnet" && <section className="tool-card nm-app-panel">
-            <ToolPanelHeader icon={<IconLayoutDashboard size={18} />} title="Subnet calculator" />
+            <ToolPanelHeader icon={<IconLayoutDashboard size={18} />} title="Subnet Calculator" />
             <form className="tool-form" onSubmit={runSubnetCalculation}>
               <div className="subnet-input-row">
                 <label className="subnet-ip-label">
@@ -971,7 +971,7 @@ export function ToolsWorkspace({
           {activeTool === "snmp" && <section className="tool-card nm-app-panel">
             <ToolPanelHeader
               icon={<IconRouter size={18} />}
-              title="SNMP probe"
+              title="SNMP Probe"
             />
             <form className="tool-form" onSubmit={runSnmpProbe}>
               <label>
@@ -1185,9 +1185,9 @@ export function ToolsWorkspace({
       </div>
       </div>
         <aside className="tools-support-rail" aria-label="Tool activity and guidance">
-          <section className="tools-activity nm-app-panel" aria-label="Recent activity">
+          <section className="tools-activity nm-app-panel" aria-label="Recent Activity">
             <div className="tools-side-header">
-              <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><History size={18} /></span><span>Recent activity</span></span>
+              <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><History size={18} /></span><span>Recent Activity</span></span>
               {recentRuns.length > 0 && (
                 <button type="button" className="tools-header-action" onClick={() => setRecentRuns([])}>Clear</button>
               )}
@@ -1221,8 +1221,8 @@ export function ToolsWorkspace({
             </div>
           </section>
 
-          <section className="tools-saved nm-app-panel" aria-label="Saved results">
-            <div className="tools-side-header"><span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><Bookmark size={18} /></span><span>Saved results</span></span><small>{savedResults.length}</small></div>
+          <section className="tools-saved nm-app-panel" aria-label="Saved Results">
+            <div className="tools-side-header"><span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><Bookmark size={18} /></span><span>Saved Results</span></span><small>{savedResults.length}</small></div>
             <div className="tools-run-list">
               {savedResults.length === 0 && <p className="tools-rail-empty">Save a completed check to keep its result and inputs.</p>}
               {savedResults.slice(0, 5).map((run) => {
@@ -1247,7 +1247,7 @@ export function ToolsWorkspace({
 
           <section className="tools-guide nm-app-panel" aria-label={`${activeToolDefinition.label} guide`}>
           <div className="tools-side-header">
-            <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><BookOpen size={18} /></span><span>How {activeToolDefinition.label} works</span></span>
+            <span className="tools-side-title"><span className="nm-app-panel-icon" aria-hidden="true"><BookOpen size={18} /></span><span>How {activeToolDefinition.label} Works</span></span>
           </div>
           <div className="tools-guide-body">
             <p>{activeToolDefinition.guide}</p>

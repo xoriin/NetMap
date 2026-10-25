@@ -160,7 +160,7 @@ function OpenIncidentModal({
             ))}
         </fieldset>
         <section className="mon-hero-section status-incident-audience">
-          <div className="mon-hero-section-title">Audience before you save<span className="dash-panel-meta">{selectedPages.length} page{selectedPages.length === 1 ? "" : "s"}</span></div>
+          <div className="mon-hero-section-title">Audience Before You Save<span className="dash-panel-meta">{selectedPages.length} page{selectedPages.length === 1 ? "" : "s"}</span></div>
           <div className="mon-analysis-body">
             {selectedPages.length === 0 ? (
               <div className="mon-analysis-row"><span className="status-editor-error">Choose at least one page.</span></div>
@@ -255,7 +255,7 @@ function IncidentDetailModal({
         )}
 
         <section className="mon-hero-section">
-          <div className="mon-hero-section-title">Shown on<span className="dash-panel-meta">{incident.page_ids.length} page{incident.page_ids.length === 1 ? "" : "s"}</span></div>
+          <div className="mon-hero-section-title">Shown On<span className="dash-panel-meta">{incident.page_ids.length} page{incident.page_ids.length === 1 ? "" : "s"}</span></div>
           <div className="mon-analysis-body">
             {incident.page_ids.map((id) => {
               const names = incident.items.filter((item) => item.page_id === id).map((item) => item.display_name);
@@ -294,7 +294,7 @@ function IncidentDetailModal({
 
         {!resolved && (
           <section className="mon-hero-section">
-            <div className="mon-hero-section-title">Post an update</div>
+            <div className="mon-hero-section-title">Post an Update</div>
             <form className="status-incident-section-body" onSubmit={(event) => void postUpdate(event)}>
               <label>Update message
                 <textarea rows={3} value={message} maxLength={TEXT_LIMITS.incidentMessage} onChange={(event) => setMessage(event.target.value)} />
@@ -360,7 +360,7 @@ function IncidentDetailModal({
 
         {!resolved && otherPages.length > 0 && (
           <section className="mon-hero-section">
-            <div className="mon-hero-section-title">Publish to another page</div>
+            <div className="mon-hero-section-title">Publish to Another Page</div>
             <div className="status-incident-section-body">
               <label>Page
                 <select value={publishTo} onChange={(event) => setPublishTo(event.target.value)}>

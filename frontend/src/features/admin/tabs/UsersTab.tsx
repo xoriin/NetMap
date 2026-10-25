@@ -176,9 +176,9 @@ export function UsersTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four">
-        <AdminCard title="Sign-in security" icon={<ShieldCheck size={16} />}>
+        <AdminCard hero title="Sign-In Security" icon={<ShieldCheck size={16} />}>
           {users.length > 0
-            ? <DonutChart viewId="admin.users.security" viewNoun="users" label="Sign-in security" centre={<CountUp value={Math.round((twoFactor / users.length) * 100)} suffix="%" />} sub="2FA" items={[
+            ? <DonutChart viewId="admin.users.security" viewNoun="users" label="Sign-In Security" centre={<CountUp value={Math.round((twoFactor / users.length) * 100)} suffix="%" />} sub="2FA" items={[
                 { label: "Two-factor", value: twoFactor, color: "--dash-green" },
                 { label: "SSO only", value: ssoOnly, color: "--dash-blue" },
                 { label: "Password only", value: passwordOnly, color: "--dash-amber" },
@@ -194,7 +194,7 @@ export function UsersTab({
       </div>
       <div className="nm-console nm-console--even">
         <div className="nm-console-main">
-      <AdminTaskPanel title="Add user" icon={<IconUsers size={18} />} className="nm-fill">
+      <AdminTaskPanel title="Add User" icon={<IconUsers size={18} />} className="nm-fill">
             <form className="tool-form admin-create-form" onSubmit={createUser}>
               <div className="tool-form-grid">
                 <label>Username <input required minLength={3} maxLength={80} value={createForm.username} onChange={(e) => setCreateForm((c) => ({ ...c, username: e.target.value }))} /></label>
@@ -220,7 +220,7 @@ export function UsersTab({
           </AdminTaskPanel>
         </div>
         <aside className="nm-console-side">
-          <AdminCard title="Users by role" icon={<UsersIcon size={16} />} className="nm-fill">
+          <AdminCard title="Users by Role" icon={<UsersIcon size={16} />} className="nm-fill">
             <BarList viewId="admin.users.roles" label="Users per role" items={roleItems} empty="No users yet." />
           </AdminCard>
         </aside>

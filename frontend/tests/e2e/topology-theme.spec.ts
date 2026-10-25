@@ -147,7 +147,7 @@ test("Link details use the finished route hierarchy without moving canvas select
 
   const linkDetails = page.locator(".relationship-detail");
   await expect(linkDetails).toBeVisible();
-  await expect(linkDetails.locator(".relationship-detail__heading")).toContainText("Link details");
+  await expect(linkDetails.locator(".relationship-detail__heading")).toContainText("Link Details");
   await expect(linkDetails.locator(".relationship-endpoint")).toHaveCount(2);
   await expect(linkDetails.locator(".relationship-summary-card")).toContainText(["Link typeuplink", "Capacity2.5 Gbps"]);
   await expect(linkDetails.locator(".relationship-direction-row")).toHaveCount(2);

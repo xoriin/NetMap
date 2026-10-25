@@ -24,11 +24,11 @@ for (const theme of ["light", "dark"] as const) {
     const window = page.locator(".tools-content");
     await expect(window).toHaveCSS("background-image", "none");
     await expect(page.locator(".tools-summary-card")).toHaveCount(4);
-    await expect(page.getByRole("region", { name: "Your recent checks", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Your Recent Checks", exact: true })).toBeVisible();
     await expect(page.locator(".tools-library-item")).toHaveCount(0);
     await expect(page.locator(".tools-activity")).toBeVisible();
     await expect(page.locator(".tools-saved")).toBeVisible();
-    await expect(page.locator(".tools-guide")).toContainText("How DNS Lookup works");
+    await expect(page.locator(".tools-guide")).toContainText("How DNS Lookup Works");
     await expect(page.locator("html")).toHaveCSS("background-color", theme === "dark" ? "rgb(2, 6, 23)" : "rgb(254, 254, 254)");
     if (theme === "dark") await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
 
@@ -52,15 +52,15 @@ for (const theme of ["light", "dark"] as const) {
     expect(Math.abs(stageBox!.width - panelBox!.width)).toBeLessThanOrEqual(2);
     expect(Math.abs(panelBox!.width - headerBox!.width)).toBeLessThanOrEqual(1);
     await expect(dnsPanel.locator(".tool-card-header")).toHaveCSS("min-height", "44px");
-    await expect(dnsPanel.locator(".tool-panel-identity")).toContainText("DNS lookup");
+    await expect(dnsPanel.locator(".tool-panel-identity")).toContainText("DNS Lookup");
     await expect(dnsPanel.locator("input")).toHaveCSS("background-color", theme === "dark" ? "rgb(18, 22, 36)" : "rgb(254, 254, 254)");
 
     await page.getByRole("tab", { name: "Ping Test" }).click();
     await expect(page.getByRole("tab", { name: "Ping Test" })).toHaveClass(/tools-nav-item--active/);
-    await expect(page.locator(".tool-panel-title")).toHaveText("Ping test");
+    await expect(page.locator(".tool-panel-title")).toHaveText("Ping Test");
     await expect(page.getByRole("button", { name: "Ping", exact: true })).toHaveClass(/nm-btn--primary/);
     await expect(page.getByRole("button", { name: "Ping", exact: true })).toBeInViewport();
-    await expect(page.locator(".tools-guide")).toContainText("How Ping Test works");
+    await expect(page.locator(".tools-guide")).toContainText("How Ping Test Works");
   });
 }
 

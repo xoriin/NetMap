@@ -139,7 +139,7 @@ export function EntityColorsPanel({
         <span className="admin-panel-identity">
           <span className="admin-panel-icon" aria-hidden="true"><IconPalette size={17} /></span>
           <span className="admin-panel-title-wrap">
-            <span className="admin-panel-title">Group &amp; location colours</span>
+            <span className="admin-panel-title">Group &amp; Location Colours</span>
             <span className="admin-panel-meta">Chips in the inventory table</span>
           </span>
         </span>
@@ -150,7 +150,7 @@ export function EntityColorsPanel({
         <TableSkeleton rows={6} columns={3} />
       ) : (
         <div className="admin-task-grid">
-          <AdminTaskPanel title="VLANs / groups" icon={<IconPalette size={18} />}>
+          <AdminTaskPanel title="VLANs / Groups" icon={<IconPalette size={18} />}>
             {renderRows(groupRows, "No groups defined yet.")}
           </AdminTaskPanel>
           <AdminTaskPanel title="Locations" icon={<IconPalette size={18} />}>

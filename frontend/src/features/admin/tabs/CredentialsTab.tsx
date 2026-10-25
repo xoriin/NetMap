@@ -84,7 +84,7 @@ export function CredentialsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four">
-        <AdminCard title="Profiles by version" icon={<PieChart size={16} />}>
+        <AdminCard hero title="Profiles by Version" icon={<PieChart size={16} />}>
           {snmpProfiles.length
             ? <DonutChart viewId="admin.snmp.versions" label="SNMP profiles by version" centre={<CountUp value={snmpProfiles.length} />} sub="Profiles" items={[
                 { label: "SNMPv3", value: v3, color: "--dash-green" },
@@ -103,9 +103,9 @@ export function CredentialsTab({
       </div>
       <div className="nm-console">
         <div className="nm-console-main">
-          <section className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="SNMP profiles">
+          <section className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="SNMP Profiles">
             <div className="admin-panel-header nm-app-panel-header">
-              <h2 className="admin-section-title"><IconServer size={16} />SNMP profiles</h2>
+              <h2 className="admin-section-title"><IconServer size={16} />SNMP Profiles</h2>
               <button type="button" className="nm-btn" disabled={snmpProfilesBusy} onClick={() => void snmpQuery.reload()}>
                 Refresh
               </button>
@@ -113,7 +113,7 @@ export function CredentialsTab({
             <p className="tool-note">
               Reusable credentials for probes, discovery ARP enrichment and router or L3-switch devices.
             </p>
-            <AdminTaskPanel title="Profile library" icon={<IconServer size={18} />}>
+            <AdminTaskPanel title="Profile Library" icon={<IconServer size={18} />}>
               <div className="admin-users-table admin-snmp-table">
                 <div className="admin-users-header">
                   <span>Profile</span>
@@ -146,7 +146,7 @@ export function CredentialsTab({
           </section>
         </div>
         <aside className="nm-console-side">
-          <AdminTaskPanel title={editing ? `Edit ${editing.name}` : "Add SNMP profile"} icon={<IconServer size={18} />} className="nm-fill">
+          <AdminTaskPanel title={editing ? `Edit ${editing.name}` : "Add SNMP Profile"} icon={<IconServer size={18} />} className="nm-fill">
             <form className="tool-form admin-create-form" onSubmit={saveSnmpProfile}>
               <label>
                 Name

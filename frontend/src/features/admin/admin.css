@@ -1229,7 +1229,7 @@ body:not(.theme-dark) .admin-layout .admin-schedule-library-header {
   margin: 0;
   font: inherit;
   letter-spacing: inherit;
-  text-transform: inherit;
+  text-transform: none;
   color: inherit;
 }
 .admin-task-heading svg { width: 14px; height: 14px; flex: 0 0 auto; }

@@ -196,7 +196,7 @@ test("status pages view appears only with permission", async ({ page }) => {
   await openApp(page);
   await api.install(page);
   await openStatusPages(page);
-  await expect(page.locator(".status-pages-window .nm-app-panel-header")).toContainText("Status pages");
+  await expect(page.locator(".status-pages-window .nm-app-panel-header")).toContainText("Status Pages");
 
   const viewer = await page.context().newPage();
   await setupCoreMocks(viewer);

@@ -100,7 +100,7 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
 
   return <div className="admin-tab-content nm-motion">
     <div className="nm-bento nm-bento--four">
-      <AdminCard title="External IPs by provider" icon={<PieChart size={16} />}>
+      <AdminCard hero title="External IPs by Provider" icon={<PieChart size={16} />}>
         {usageQuery.error ? <p className="tool-note nm-chart-empty">External IP usage is unavailable.</p>
           : totalIps ? <DonutChart viewId="admin.cloud.addresses" label="External IP addresses by provider" centre={<CountUp value={totalIps} />} sub="IPs" items={usageItems} />
           : <p className="tool-note nm-chart-empty">No external IPs recorded yet.</p>}
@@ -119,19 +119,19 @@ export function CloudProvidersPanel({ accessToken, onError, onSuccess }: { acces
       <span className="admin-panel-identity">
         <span className="admin-panel-icon" aria-hidden="true"><Globe size={17} /></span>
         <span className="admin-panel-title-wrap">
-          <span className="admin-panel-title">Cloud providers</span>
+          <span className="admin-panel-title">Cloud Providers</span>
           <span className="admin-panel-meta">Shared by External IPs and Cloud assets</span>
         </span>
       </span>
     </div>
-      <AdminTaskPanel title="Provider catalogue" icon={<Cloud size={18} />}>
+      <AdminTaskPanel title="Provider Catalogue" icon={<Cloud size={18} />}>
 
     <div className="cloud-provider-list">{query.isLoading ? <PanelSkeleton lines={4} /> : providers.length === 0 ? <p className="tool-note">No providers yet.</p> : providers.map((provider) => <div className="cloud-provider-row" key={provider.key}><span className="cloud-provider-logo"><CloudProviderIcon icon={provider.icon} iconData={provider.icon_data} size={20} /></span><span className="cloud-provider-copy"><strong>{provider.name}</strong><small>{provider.aliases.length ? `Aliases: ${provider.aliases.join(", ")}` : "No aliases"}{provider.builtin ? " · built in" : ""}</small></span><span className="cloud-provider-actions"><label className="nm-btn nm-btn--sm"><Upload size={13} />Replace icon<input type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp" onChange={(event) => { void replaceIcon(provider, event.target.files?.[0]); event.target.value = ""; }} disabled={busy === provider.key} /></label><button className="nm-btn nm-btn--sm nm-btn--danger" type="button" onClick={() => void removeProvider(provider)} disabled={busy === provider.key}><Trash2 size={13} />Remove</button></span></div>)}</div>
       </AdminTaskPanel>
   </section>
       </div>
       <aside className="nm-console-side">
-      <AdminTaskPanel title="New provider" icon={<Cloud size={18} />} className="nm-fill">
+      <AdminTaskPanel title="New Provider" icon={<Cloud size={18} />} className="nm-fill">
     <form className="cloud-provider-create" onSubmit={createProvider}>
       <label className="nm-field"><span>Provider name</span><input className="nm-input" value={name} maxLength={80} placeholder="e.g. Oracle Cloud" onChange={(event) => setName(event.target.value)} /></label>
       <label className="nm-field"><span>Matching aliases</span><input className="nm-input" value={aliases} placeholder="OCI, Oracle, Oracle Cloud Infrastructure" onChange={(event) => setAliases(event.target.value)} /></label>

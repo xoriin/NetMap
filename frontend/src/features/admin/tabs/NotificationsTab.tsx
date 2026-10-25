@@ -281,9 +281,9 @@ export function NotificationsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four nm-bento--chart">
-        <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
+        <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item nm-hero-visual" aria-label={`Deliveries, last ${HISTORY_DAYS} days`} style={motion(0)}>
           <div className="admin-panel-header nm-app-panel-header">
-            <h2 className="admin-section-title"><Send size={16} />Deliveries, last {HISTORY_DAYS} days</h2>
+            <h2 className="admin-section-title"><Send size={16} />Deliveries, Last {HISTORY_DAYS} Days</h2>
             <ul className="nm-header-legend" aria-hidden="true">
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
               <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
@@ -316,9 +316,9 @@ export function NotificationsTab({
 
       <div className="nm-console nm-console--even">
         <div className="nm-console-main">
-          <section id="admin-notification-methods" className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="Notification methods" style={motion(1)}>
+          <section id="admin-notification-methods" className="panel admin-panel nm-app-panel nm-fill nm-motion-item" aria-label="Notification Methods" style={motion(1)}>
             <div className="admin-panel-header nm-app-panel-header">
-              <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification methods</h2>
+              <h2 className="admin-section-title notif-provider-heading"><IconCloud size={16} />Notification Methods</h2>
               <div className="admin-panel-actions">
                 <button
                   type="button"
@@ -386,16 +386,16 @@ export function NotificationsTab({
           </section>
         </div>
         <aside className="nm-console-side">
-          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by type" style={motion(2)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by type</h2><ChartOptionsSlot /></div>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Methods by Type" style={motion(2)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Bell size={16} />Methods by Type</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {typeItems.length
-                ? <DonutChart viewId="admin.notifications.methods" label="Methods by type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
+                ? <DonutChart viewId="admin.notifications.methods" label="Methods by Type" items={typeItems} centre={<CountUp value={notificationProfiles.length} />} sub={notificationProfiles.length === 1 ? "method" : "methods"} />
                 : <p className="tool-note nm-chart-empty">No notification methods yet.</p>}
             </div>
           </section></ChartPanel>
-          <section className="panel admin-panel nm-app-panel admin-system-card nm-fill nm-motion-item" aria-label="Recent failures" style={motion(3)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><CirclePause size={16} />Recent failures</h2></div>
+          <section className="panel admin-panel nm-app-panel admin-system-card nm-fill nm-motion-item" aria-label="Recent Failures" style={motion(3)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><CirclePause size={16} />Recent Failures</h2></div>
             {failures.length ? (
               <ul className="nm-event-list">
                 {failures.slice(0, 5).map((failure) => (
@@ -412,13 +412,13 @@ export function NotificationsTab({
       </div>
 
       {canManageBranding && (
-        <section className="panel admin-panel nm-app-panel email-branding-panel nm-motion-item" aria-label="Email branding" style={motion(4)}>
+        <section className="panel admin-panel nm-app-panel email-branding-panel nm-motion-item" aria-label="Email Branding" style={motion(4)}>
           <div className="admin-panel-header nm-app-panel-header">
-            <h2 className="admin-section-title"><IconPalette size={16} />Email branding</h2>
+            <h2 className="admin-section-title"><IconPalette size={16} />Email Branding</h2>
           </div>
           {brandingQuery.isLoading ? <PanelSkeleton lines={7} /> : brandingQuery.error ? <div className="form-error">{brandingQuery.error}</div> : (
             <form className="tool-form email-branding-form" onSubmit={saveEmailBranding}>
-              <AdminTaskPanel title="Message appearance" icon={<IconPalette size={18} />}>
+              <AdminTaskPanel title="Message Appearance" icon={<IconPalette size={18} />}>
               <div className="email-branding-fields">
                 <div className="nm-form-row">
                   <label className="nm-field"><span>Template</span><select className="nm-select" value={brandingForm.email_brand_theme} onChange={(event) => setBrandingForm((current) => ({ ...current, email_brand_theme: event.target.value as EmailBrandingSettings["email_brand_theme"] }))}><option value="login_banner">Login banner</option><option value="clean_stripe">Clean stripe</option></select></label>
@@ -444,7 +444,7 @@ export function NotificationsTab({
                 <button className="nm-btn nm-btn--primary email-branding-save" type="submit" disabled={brandingBusy}>{brandingBusy ? "Saving…" : "Save email branding"}</button>
               </div>
               </AdminTaskPanel>
-              <AdminTaskPanel title="Message preview" icon={<IconPalette size={18} />} className="admin-email-preview-task">
+              <AdminTaskPanel title="Message Preview" icon={<IconPalette size={18} />} className="admin-email-preview-task">
               <div className="email-branding-preview" ref={previewBoxRef}>
                 {brandingPreviewHtml ? (
                   <iframe

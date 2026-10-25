@@ -299,7 +299,7 @@ export function StatusPageLayoutEditor({
       <section className="nm-app-panel status-editor-panel">
         <StatusEditorPanelHeader
           icon={LayoutList}
-          title="Groups and items"
+          title="Groups and Items"
           meta={`${groups.length} group${groups.length === 1 ? "" : "s"} · ${itemCount} item${itemCount === 1 ? "" : "s"}${dirty ? " · Unsaved changes" : ""}`}
         >
           <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={addGroup}>

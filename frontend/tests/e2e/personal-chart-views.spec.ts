@@ -534,7 +534,7 @@ test('IPAM resets to a Used gauge left of Used and Free bars with an inset right
   state.views()['ipam.address-space'] = { version: 2, type: 'number', bars: false, legend: false };
   await page.reload();
   await expect(chart.locator('.nm-personal-number')).toBeVisible();
-  await page.getByRole('button', { name: 'Visual options: Address space', exact: true }).click();
+  await page.getByRole('button', { name: 'Visual options: Address Space', exact: true }).click();
   await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
   await expect(chart.locator('.nm-personal-gauge text')).toHaveText('25%');
   await expect(chart.locator('.nm-bar-list-label')).toHaveText(['Used', 'Free']);

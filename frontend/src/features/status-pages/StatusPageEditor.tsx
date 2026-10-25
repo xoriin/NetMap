@@ -150,7 +150,7 @@ function SettingsForm({
 
   return (
     <section className="nm-app-panel status-editor-panel">
-      <StatusEditorPanelHeader icon={SlidersHorizontal} title="Page settings" meta={dirty ? "Unsaved changes" : undefined} />
+      <StatusEditorPanelHeader icon={SlidersHorizontal} title="Page Settings" meta={dirty ? "Unsaved changes" : undefined} />
       <form className="status-editor-settings" onSubmit={submit} noValidate>
         <label className="nm-field">
           <span className="nm-field-label">Name</span>

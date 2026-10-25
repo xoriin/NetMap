@@ -541,6 +541,11 @@ body.route-ipam .workspace > :last-child {
   white-space: nowrap;
 }
 
+.app-topbar-greeting > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .app-topbar-version {
   display: flex;
   align-items: center;

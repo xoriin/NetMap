@@ -30,9 +30,9 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".exports-console-grid .exports-panel")).toHaveCount(3);
     await expect(page.locator(".exports-panel").first()).toHaveCSS("background-image", "none");
     await expect(page.locator(".exports-console-grid .exports-panel-header")).toHaveCount(3);
-    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(0)).toContainText("Device inventory");
-    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(1)).toContainText("Network report");
-    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(2)).toContainText("Firewall events");
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(0)).toContainText("Device Inventory");
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(1)).toContainText("Network Report");
+    await expect(page.locator(".exports-console-grid .exports-panel-header").nth(2)).toContainText("Firewall Events");
     await expect(page.locator(".exports-panel-header").first()).toHaveCSS("min-height", "44px");
     await expect(page.locator(".exports-panel .nm-input").first()).toHaveCSS("background-color", theme === "dark" ? "rgb(18, 22, 36)" : "rgb(254, 254, 254)");
   });
@@ -68,7 +68,7 @@ for (const theme of ["light", "slate", "zinc"] as const) {
     const layout = page.locator(".exports-layout");
     expect((await layout.boundingBox())!.width).toBeLessThanOrEqual(1440);
     await expect(page.getByRole("complementary", { name: "Export information" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Choose a format" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose a Format" })).toBeVisible();
     await expect(page.locator(".exports-format-guide")).toContainText("CSV");
     await expect(page.locator(".exports-format-guide")).toContainText("JSON");
     await expect(page.locator(".exports-format-guide")).toContainText("PDF");
@@ -112,7 +112,7 @@ test("only the exports a role may run are shown, with no access chips", async ({
   await page.goto("/exports");
   await page.locator(".exports-layout").waitFor({ state: "visible" });
   await expect(page.locator(".exports-console-grid .exports-panel")).toHaveCount(1);
-  await expect(page.locator(".exports-console-grid .exports-panel")).toContainText("Firewall events");
+  await expect(page.locator(".exports-console-grid .exports-panel")).toContainText("Firewall Events");
   await expect(page.locator(".exports-format-guide")).not.toContainText("PDF");
   await expect(page.locator(".exports-console-grid")).toHaveClass(/exports-console-grid--single/);
   await expect(page.getByText(/Allowed|Restricted|Your role cannot/)).toHaveCount(0);
@@ -171,7 +171,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width: 1600, height: 1000 });
     await setupExports(page, theme);
     const headers = page.locator(".exports-workspace-grid .nm-app-panel-header");
-    await expect(page.getByRole("heading", { name: "Export activity" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Export Activity" })).toBeVisible();
     const styles = await headers.evaluateAll((nodes) => nodes.map((node) => {
       const s = getComputedStyle(node);
       const icon = node.querySelector(".exports-panel-icon");

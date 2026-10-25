@@ -58,7 +58,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     page.on('pageerror', error => errors.push(error.message));
     await boot(page, theme);
     await page.goto('/monitoring#devices');
-    const health = page.getByRole('region', { name: 'Fleet health', exact: true });
+    const health = page.getByRole('region', { name: 'Fleet Health', exact: true });
     const latency = page.getByRole('region', { name: 'Highest Latency', exact: true });
     const vlans = page.getByRole('region', { name: 'Devices by VLAN', exact: true });
     await expect(page.locator('.mon-row')).toHaveCount(10);
@@ -102,7 +102,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
   test(`Inventory type visual and alternate view follow table filters in ${theme}`, async ({ page }) => {
     await boot(page, theme);
     await page.goto('/inventory');
-    const panel = page.getByRole('region', { name: 'Devices by type', exact: true });
+    const panel = page.getByRole('region', { name: 'Devices by Type', exact: true });
     await expect(panel.locator('.dash-donut-pct')).toHaveText('14');
     await page.getByRole('button', { name: 'Next ›', exact: true }).click();
     await expect(panel.locator('.dash-donut-pct')).toHaveText('14');

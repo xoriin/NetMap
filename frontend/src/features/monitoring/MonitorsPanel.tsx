@@ -340,7 +340,7 @@ export function MonitorsPanel({
       <div className="dash-panel-header nm-app-panel-header monitors-table-toolbar">
         <div className="monitors-table-toolbar-meta">
           <span className="nm-app-panel-icon" aria-hidden="true"><Globe size={18} /></span>
-          <strong>HTTP/HTTPS endpoints</strong>
+          <strong>HTTP/HTTPS Endpoints</strong>
           <span className="dash-panel-meta">
             {filteredMonitors.length === monitors.length
               ? `${monitors.length} endpoint${monitors.length === 1 ? "" : "s"}`

@@ -102,7 +102,7 @@ export function GroupsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four">
-        <AdminCard title="Permission coverage" icon={<ShieldCheck size={16} />}>
+        <AdminCard hero title="Permission Coverage" icon={<ShieldCheck size={16} />}>
           {rolePermissions ? <>
             <BarList viewId="admin.groups.permissions" viewKind="rank" label="Permissions granted per role" max={permissionCount}
               items={roleNames.map((role) => ({ label: roleLabel(role), value: grantedCount(role), hint: `${grantedCount(role)} of ${permissionCount}` }))} />

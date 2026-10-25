@@ -1000,7 +1000,7 @@ export function MonitoringWorkspace({
     <section className="dash-layout mon-layout--overview nm-motion">
       {viewTab === "endpoints" ? (
         <div className="nm-bento nm-bento--four">
-          <InsightPanel title="Average response, last 24 h" icon={<Gauge size={16} />} className="nm-motion-item">
+          <InsightPanel hero title="Average Response, Last 24 h" icon={<Gauge size={16} />} className="nm-motion-item">
             <BarList viewId="monitoring.endpoint-response" viewKind="rank" label="Average response time per endpoint, last 24 hours" unit=" ms" items={responseBars} empty="No response times recorded yet." />
           </InsightPanel>
           <div className="dash-stats nm-bento-stats dash-stats--monitoring nm-summary-band">
@@ -1016,7 +1016,7 @@ export function MonitoringWorkspace({
         </div>
       ) : (
       <div className="nm-bento">
-        <InsightPanel title="Fleet health" icon={<HeartPulse size={16} />} className="nm-motion-item">
+        <InsightPanel hero title="Fleet Health" icon={<HeartPulse size={16} />} className="nm-motion-item">
           {filteredDevices.length > 0
             ? <DonutChart viewId="monitoring.fleet-health" label="Monitored devices by health" centre={<CountUp value={filteredDevices.length} />} sub="Devices" items={fleetItems} />
             : <p className="tool-note nm-chart-empty">{devices.length === 0 ? "No monitored devices yet." : "No devices match the current filters."}</p>}
@@ -1095,7 +1095,7 @@ export function MonitoringWorkspace({
 
       {viewTab === "devices" && (
         <div className="nm-pair mon-device-insights">
-          <InsightPanel title="Highest Latency" icon={<Timer size={16} />} className="nm-motion-item">
+          <InsightPanel hero title="Highest Latency" icon={<Timer size={16} />} className="nm-motion-item">
             <BarList viewId="monitoring.device-latency" viewKind="rank"
               label="Devices ranked by average round-trip time, last 24 hours"
               items={latencyRows.map(row => ({ ...row, color: "--dash-indigo" }))}
@@ -1103,7 +1103,7 @@ export function MonitoringWorkspace({
               empty="No latency recorded yet."
             />
           </InsightPanel>
-          <InsightPanel title="Devices by VLAN" icon={<Network size={16} />} className="nm-motion-item">
+          <InsightPanel hero title="Devices by VLAN" icon={<Network size={16} />} className="nm-motion-item">
             <BarList viewId="monitoring.device-vlans" viewKind="parts"
               label="Devices per VLAN"
               items={vlanRows}
@@ -1453,14 +1453,14 @@ export function MonitoringWorkspace({
 
       {viewTab === "endpoints" && (
         <div className="nm-pair">
-          <InsightPanel title="Recent outages" icon={<TrendingDown size={16} />} className="nm-motion-item">
+          <InsightPanel title="Recent Outages" icon={<TrendingDown size={16} />} className="nm-motion-item">
             <EventList empty="No outages in the last 24 hours." rows={outages.map((m) => ({
               key: m.id, tone: m.last_status === "offline" ? "offline" : "warning", title: m.name,
               detail: `${m.uptime_24h !== null ? `${m.uptime_24h.toFixed(1)}% uptime` : "No uptime yet"}${m.last_status === "offline" ? " · down now" : ""}`,
               time: m.last_checked_at ? shortDateTime(m.last_checked_at) : "—", dateTime: m.last_checked_at ?? undefined,
             }))} />
           </InsightPanel>
-          <InsightPanel title="Certificates expiring" icon={<ShieldAlert size={16} />} className="nm-motion-item">
+          <InsightPanel title="Certificates Expiring" icon={<ShieldAlert size={16} />} className="nm-motion-item">
             <EventList empty="No TLS certificates seen yet." rows={certs.map((m) => {
               const days = daysUntil(m.last_cert_expires_at ?? "");
               return {
@@ -1950,7 +1950,7 @@ export function MonitoringWorkspace({
                   {selectedDevice.latest_port_results.length > 0 && (
                     <div className="mon-hero-section">
                       <div className="mon-hero-section-title">
-                        Service status
+                        Service Status
                         <span className="dash-panel-meta">latest check</span>
                       </div>
                       <div className="mon-port-rows">
@@ -1986,7 +1986,7 @@ export function MonitoringWorkspace({
                     return (
                       <div className="mon-hero-section">
                         <div className="mon-hero-section-title">
-                          Alert rules
+                          Alert Rules
                           <span className="dash-panel-meta">
                             {relevantRules.length === 0 ? "none configured" : `${relevantRules.length} active`}
                           </span>
@@ -2064,7 +2064,7 @@ export function MonitoringWorkspace({
                     return (
                       <div className="mon-hero-section">
                         <div className="mon-hero-section-title">
-                          Incident log
+                          Incident Log
                           <span className="dash-panel-meta">{incidents.length} incident{incidents.length !== 1 ? "s" : ""}</span>
                         </div>
                         <div className="incident-log">
@@ -2103,7 +2103,7 @@ export function MonitoringWorkspace({
 
                   <div className="mon-hero-section">
                     <div className="mon-hero-section-title">
-                      Response time
+                      Response Time
                     </div>
                     <div className="mon-chart-body">
                       {historyLoading && history.length === 0 ? (

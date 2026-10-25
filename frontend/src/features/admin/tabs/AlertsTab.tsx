@@ -163,7 +163,7 @@ export function AlertsTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four nm-bento--chart">
-        <AdminCard title="Alerts sent, last 14 days" icon={<Send size={16} />} actions={(
+        <AdminCard hero title="Alerts Sent, Last 14 Days" icon={<Send size={16} />} actions={(
           <ul className="nm-header-legend" aria-hidden="true">
             <li><span className="nm-chart-swatch" style={{ background: "var(--dash-green)" }} />Sent</li>
             <li><span className="nm-chart-swatch" style={{ background: "var(--dash-red)" }} />Failed</li>
@@ -200,7 +200,7 @@ export function AlertsTab({
         {alertRulesError && <div className="form-error">{alertRulesError}</div>}
 
         {showAlertForm && (
-          <AdminTaskPanel title={editingAlertRule ? "Edit rule" : "New rule"} icon={<IconAlertCircle size={18} />}>
+          <AdminTaskPanel title={editingAlertRule ? "Edit Rule" : "New Rule"} icon={<IconAlertCircle size={18} />}>
           <div className="tool-form admin-inline-form">
             <label>Rule name
               <input value={alertForm.name} maxLength={120} onChange={(e) => setAlertForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Core router offline" />
@@ -437,10 +437,10 @@ export function AlertsTab({
       </section>
         </div>
         <aside className="nm-console-side">
-          <AdminCard title="Rules by trigger" icon={<Layers size={16} />}>
+          <AdminCard title="Rules by Trigger" icon={<Layers size={16} />}>
             <BarList viewId="admin.alerts.triggers" label="Rules per trigger" items={[...triggerCounts.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }))} empty="No alert rules yet." />
           </AdminCard>
-          <AdminCard title="Recently triggered" icon={<Clock size={16} />} className="nm-fill">
+          <AdminCard title="Recently Triggered" icon={<Clock size={16} />} className="nm-fill">
             <EventList empty="No rule has fired yet." rows={triggered.map((r) => ({
               key: r.id, tone: triggerTone(r.event_type), title: r.name, detail: TRIGGER_NAMES[r.event_type] ?? r.event_type,
               time: shortDateTime(r.last_triggered_at ?? ""), dateTime: r.last_triggered_at ?? undefined,
@@ -449,9 +449,9 @@ export function AlertsTab({
         </aside>
       </div>
 
-      <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel nm-motion-item" aria-label="Delivery history">
+      <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel nm-motion-item" aria-label="Delivery History">
         <div className="admin-panel-header nm-app-panel-header">
-          <h2 className="admin-section-title"><IconAlertCircle size={16} />Delivery history</h2>
+          <h2 className="admin-section-title"><IconAlertCircle size={16} />Delivery History</h2>
         </div>
         <p className="tool-note">The most recent alert notification attempts and whether each provider accepted them. Kept for 30 days.</p>
         {deliveries.length === 0 ? (

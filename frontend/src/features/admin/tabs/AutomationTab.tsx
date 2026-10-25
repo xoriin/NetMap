@@ -171,7 +171,7 @@ export function AutomationTab({
   const interval = (minutes: number) => minutes < 60 ? `Every ${minutes} min` : minutes === 60 ? "Every hour" : `Every ${minutes / 60} h`;
 
   const scheduleForm = (
-    <AdminTaskPanel title="New schedule" icon={<IconCalendarClock size={18} />} className="nm-fill">
+    <AdminTaskPanel title="New Schedule" icon={<IconCalendarClock size={18} />} className="nm-fill">
       <form className="tool-form admin-create-form" onSubmit={(e) => void createSchedule(e)}>
         <label>
           Target <span className="tool-note" style={{ fontWeight: "normal" }}>(IP, CIDR, or range)</span>
@@ -229,7 +229,7 @@ export function AutomationTab({
   return (
     <div className="admin-tab-content nm-motion">
       <div className="nm-bento nm-bento--four nm-bento--chart">
-        <AdminCard title="Changes found, last 14 days" icon={<Activity size={16} />} actions={(
+        <AdminCard hero title="Changes Found, Last 14 Days" icon={<Activity size={16} />} actions={(
           <ul className="nm-header-legend" aria-hidden="true">
             <li><span className="nm-chart-swatch" style={{ background: "var(--dash-blue)" }} />New devices</li>
             <li><span className="nm-chart-swatch" style={{ background: "var(--dash-amber)" }} />Address changes</li>
@@ -260,9 +260,9 @@ export function AutomationTab({
 
       <div className="nm-console">
         <div className="nm-console-main">
-          {canManageAutomation && <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Scheduled scans">
+          {canManageAutomation && <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Scheduled Scans">
             <div className="admin-panel-header nm-app-panel-header">
-              <h2 className="admin-section-title"><IconCalendarClock size={16} />Scheduled scans</h2>
+              <h2 className="admin-section-title"><IconCalendarClock size={16} />Scheduled Scans</h2>
               <div className="admin-panel-actions">
                 <span className="admin-task-count">{schedules.length} configured</span>
                 <button type="button" className="nm-btn" disabled={automationBusy} onClick={() => void automationQuery.reload()}>Refresh</button>
@@ -306,9 +306,9 @@ export function AutomationTab({
                 </div>
               )}
           </section>}
-          {canManageDiscovery && <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Change observations">
+          {canManageDiscovery && <section className="panel admin-panel nm-app-panel nm-motion-item" aria-label="Change Observations">
             <div className="admin-panel-header nm-app-panel-header">
-              <h2 className="admin-section-title"><IconCalendarClock size={16} />Change observations</h2>
+              <h2 className="admin-section-title"><IconCalendarClock size={16} />Change Observations</h2>
               <span className="tool-note">{openObs.length} open · {resolvedObs.length} resolved</span>
             </div>
             <p className="tool-note">

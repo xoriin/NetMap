@@ -133,7 +133,7 @@ function ApiKeysPanel({ accessToken, onActiveCountChange }: { accessToken: strin
     <section className="profile-api-panel profile-panel nm-app-panel">
       <ProfilePanelHeader
         icon={KeyRound}
-        title="API access"
+        title="API Access"
         action={(
           <button type="button" className="nm-btn nm-btn--primary" onClick={() => setShowCreateModal(true)}>
             Create API key
@@ -556,7 +556,7 @@ export function ProfileWorkspace({
       <div className="profile-settings-grid">
         <div className="profile-settings-column">
           <section className="profile-account-panel profile-panel nm-app-panel">
-            <ProfilePanelHeader icon={UserRound} title="Account details" />
+            <ProfilePanelHeader icon={UserRound} title="Account Details" />
             <div className="profile-panel-body">
               <form className="profile-form" onSubmit={saveProfile}>
                 <div className="profile-account-fields">
@@ -699,7 +699,7 @@ export function ProfileWorkspace({
           </section>
 
           <section className="profile-security-panel profile-panel nm-app-panel">
-            <ProfilePanelHeader icon={ShieldCheck} title="Account security" />
+            <ProfilePanelHeader icon={ShieldCheck} title="Account Security" />
             <div className="profile-security-list">
               <div className="profile-security-row">
                 <span><strong>Sign-in method</strong><small>How this account authenticates</small></span>

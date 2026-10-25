@@ -38,13 +38,13 @@ export function ResetPasswordView({ resetToken, onSuccess }: { resetToken: strin
         </div>
         {done ? (
           <>
-            <h2 className="auth-form-heading">Password updated</h2>
+            <h2 className="auth-form-heading">Password Updated</h2>
             <p className="auth-reset-info">Your password has been reset. You can now sign in with your new password.</p>
             <button type="button" onClick={onSuccess}>Go to sign in</button>
           </>
         ) : (
           <form onSubmit={(e) => void submit(e)}>
-            <h2 className="auth-form-heading">Set new password</h2>
+            <h2 className="auth-form-heading">Set New Password</h2>
             <p className="auth-reset-info">Choose a strong password of at least 12 characters.</p>
             <label>
               New password

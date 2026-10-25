@@ -1,5 +1,7 @@
 /* Design tokens — light values; dark flip lives in theme-dark.css */
 :root {
+  /* Main hero charts combine two gutters for a 32px panel-to-visual inset. */
+  --nm-chart-gutter: var(--nm-space-4);
   color-scheme: light;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

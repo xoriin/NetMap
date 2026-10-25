@@ -88,9 +88,9 @@ function StatusPageDefaultCssCard({ accessToken, onError, onSuccess }: {
   }
 
   return (
-    <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Status page default CSS" style={motion(11)}>
+    <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Status Page Default CSS" style={motion(11)}>
       <div className="admin-system-card-header nm-app-panel-header">
-        <h2 className="admin-section-title"><Palette size={16} />Status page default CSS</h2>
+        <h2 className="admin-section-title"><Palette size={16} />Status Page Default CSS</h2>
       </div>
       {css === null ? <div className="admin-system-card-body"><PanelSkeleton lines={4} /></div> : (
         <form className="tool-form admin-system-card-body" onSubmit={(event) => void save(event)}>
@@ -398,7 +398,7 @@ export function SystemTab({
           <DashStat accent="amber" className="nm-motion-item" icon={<CalendarClock size={20} />} label="Reservation expiry"
             value={saved.ip_reservation_default_expiry_enabled ? "+90 days" : "None"}
             sub={saved.ip_reservation_reminder_enabled ? `Reminders ${saved.ip_reservation_reminder_days} d before` : "Reminders off"} onClick={() => scrollTo("admin-app-settings")} />
-          <DashStat accent="purple" className="nm-motion-item" icon={<IconDatabase size={20} />} label="Scheduled backups"
+          <DashStat accent="purple" className="nm-motion-item" icon={<IconDatabase size={20} />} label="Scheduled Backups"
             value={saved.backup_schedule_enabled ? intervalLabel : "Off"}
             sub={newestBackup ? `Keeps ${saved.backup_retention_count} · newest ${new Date(newestBackup.created_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "No backups yet"}
             onClick={() => scrollTo("admin-scheduled-backups")} />
@@ -413,14 +413,14 @@ export function SystemTab({
 
       <div className="nm-console">
         <div className="nm-console-main">
-          <section id="admin-app-settings" className="panel admin-panel nm-app-panel admin-system-card admin-settings-card nm-motion-item" aria-label="App settings" style={motion(1)}>
+          <section id="admin-app-settings" className="panel admin-panel nm-app-panel admin-system-card admin-settings-card nm-motion-item" aria-label="App Settings" style={motion(1)}>
             <div className="admin-system-card-header nm-app-panel-header">
-              <h2 className="admin-section-title"><Settings size={16} />App settings</h2>
+              <h2 className="admin-section-title"><Settings size={16} />App Settings</h2>
             </div>
             <form className="tool-form admin-system-card-body" onSubmit={saveSettings}>
               <div className="admin-task-grid">
                 <div className="admin-task-col">
-                <AdminTaskPanel title="Identity and support" icon={<Settings size={18} />}>
+                <AdminTaskPanel title="Identity and Support" icon={<Settings size={18} />}>
 
               <label>App name <input maxLength={80} value={settingsForm.app_name} onChange={(e) => setSettingsForm((c) => ({ ...c, app_name: e.target.value }))} /></label>
               <label>Login page message <textarea maxLength={300} rows={2} value={settingsForm.login_message} onChange={(e) => setSettingsForm((c) => ({ ...c, login_message: e.target.value }))} /></label>
@@ -438,7 +438,7 @@ export function SystemTab({
                 <input type="text" maxLength={500} placeholder="https://example.com/support" value={settingsForm.support_url} onChange={(e) => setSettingsForm((c) => ({ ...c, support_url: e.target.value }))} />
               </label>
                 </AdminTaskPanel>
-                <AdminTaskPanel title="Session policy" icon={<Timer size={18} />}>
+                <AdminTaskPanel title="Session Policy" icon={<Timer size={18} />}>
               <label className="tool-form-inline-check">
                 <input
                   type="checkbox"
@@ -494,7 +494,7 @@ export function SystemTab({
                 </AdminTaskPanel>
                 </div>
                 <div className="admin-task-col">
-                <AdminTaskPanel title="Monitoring and network checks" icon={<Activity size={18} />}>
+                <AdminTaskPanel title="Monitoring and Network Checks" icon={<Activity size={18} />}>
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.live_ping_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, live_ping_enabled: e.target.checked }))} />
                 <span className="tool-form-check-copy">
@@ -540,7 +540,7 @@ export function SystemTab({
                 </span>
               </label>
                 </AdminTaskPanel>
-                <AdminTaskPanel title="IP reservation policy" icon={<CalendarClock size={18} />}>
+                <AdminTaskPanel title="IP Reservation Policy" icon={<CalendarClock size={18} />}>
               <label className="tool-form-inline-check">
                 <input type="checkbox" checked={settingsForm.ip_reservation_default_expiry_enabled} onChange={(e) => setSettingsForm((c) => ({ ...c, ip_reservation_default_expiry_enabled: e.target.checked }))} />
                 <span className="tool-form-check-copy">
@@ -610,7 +610,7 @@ export function SystemTab({
           <div className="nm-pair">
             <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Database backup and restore" style={motion(9)}>
               <div className="admin-system-card-header nm-app-panel-header">
-                <h2 className="admin-section-title"><IconDatabase size={16} />Database backup &amp; restore</h2>
+                <h2 className="admin-section-title"><IconDatabase size={16} />Database Backup &amp; Restore</h2>
               </div>
               <div className="admin-system-card-body">
                 <div className="tool-form">
@@ -685,9 +685,9 @@ export function SystemTab({
                 </div>
               </div>
             </section>
-            <section id="admin-scheduled-backups" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Scheduled backups" style={motion(10)}>
+            <section id="admin-scheduled-backups" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Scheduled Backups" style={motion(10)}>
               <div className="admin-system-card-header nm-app-panel-header">
-                <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled backups</h2>
+                <h2 className="admin-section-title"><IconDatabase size={16} />Scheduled Backups</h2>
               </div>
               <div className="admin-system-card-body">
                 <p className="admin-backup-step-title">Saves an unencrypted backup on a schedule and removes older copies.</p>
@@ -760,8 +760,8 @@ export function SystemTab({
                 : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
           </section></ChartPanel>
-          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Device status at last check" style={motion(3)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Activity size={16} />Device status at last check</h2><ChartOptionsSlot /></div>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Device Status at Last Check" style={motion(3)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><Activity size={16} />Device Status at Last Check</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {diagnostics ? (deviceTotal > 0
                 ? <DonutChart viewId="admin.system.device-status" viewNoun="devices" label="Device status" items={deviceItems} centre={<CountUp value={onlinePct} suffix="%" />} sub="online" />
@@ -769,22 +769,22 @@ export function SystemTab({
                 : diagBusy ? <PanelSkeleton lines={3} /> : <p className="tool-note nm-chart-empty">Diagnostics unavailable.</p>}
             </div>
           </section></ChartPanel>
-          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Backup size, last 10" style={motion(4)}>
-            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Backup size, last 10</h2><ChartOptionsSlot /></div>
+          <ChartPanel><section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Backup Size, Last 10" style={motion(4)}>
+            <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Backup Size, Last 10</h2><ChartOptionsSlot /></div>
             <div className="nm-chart-body">
               {backupRows.length > 0
                 ? <ColumnChart viewId="admin.system.backups" label="Scheduled backup sizes in MB, oldest to newest" rows={backupRows} series={[{ key: "size", label: "Backup size", color: "--dash-blue" }]} unit=" MB" height={132} />
                 : <p className="tool-note nm-chart-empty">Sizes appear after the first scheduled backup.</p>}
             </div>
           </section></ChartPanel>
-          <ChartPanel><section id="admin-syslog" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Syslog configuration" style={motion(5)}>
+          <ChartPanel><section id="admin-syslog" className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Syslog Configuration" style={motion(5)}>
             <div className="admin-system-card-header nm-app-panel-header">
-              <h2 className="admin-section-title"><IconDatabase size={16} />Syslog configuration</h2>
+              <h2 className="admin-section-title"><IconDatabase size={16} />Syslog Configuration</h2>
             <ChartOptionsSlot /></div>
             <div className="admin-system-card-body admin-task-stack">
               {syslogStatus ? (
                 <>
-                  <AdminTaskPanel title={`Intake · ${syslogStatus.received_packets.toLocaleString()} received`} icon={<Layers size={14} />}>
+                  <AdminTaskPanel title={`Intake · ${syslogStatus.received_packets.toLocaleString()} Received`} icon={<Layers size={14} />}>
                     {syslogStatus.received_packets > 0
                       ? <StackBar viewId="admin.system.syslog-intake" label="Syslog intake" of="of received" items={[
                           { label: "Stored", value: syslogStatus.stored_events, color: "--dash-green" },
@@ -826,8 +826,8 @@ export function SystemTab({
             </div>
           </section></ChartPanel>
           {diagnostics && (
-            <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Runtime diagnostics" style={motion(6)}>
-              <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />Runtime diagnostics</h2></div>
+            <section className="panel admin-panel nm-app-panel admin-system-card nm-motion-item" aria-label="Runtime Diagnostics" style={motion(6)}>
+              <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />Runtime Diagnostics</h2></div>
               <div className="admin-system-card-body">
                 <dl className="admin-config-grid">
                   <dt>Last monitor check</dt>

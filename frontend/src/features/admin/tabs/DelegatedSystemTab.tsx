@@ -36,7 +36,7 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
   return <div className="admin-tab-content admin-system-page">
     {error && <div className="form-error">{error}</div>}
     {canManageBackups && <section className="panel admin-panel nm-app-panel admin-system-card">
-      <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Database backups</h2></div>
+      <div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconDatabase size={16} />Database Backups</h2></div>
       <div className="admin-system-card-body"><p className="tool-note">Only a SuperAdmin can restore.</p>
         <div className="admin-backup-step" role="group" aria-labelledby="admin-backup-download-title">
           <span className="admin-backup-step-title" id="admin-backup-download-title">Download a backup</span>
@@ -52,7 +52,7 @@ export function DelegatedSystemTab({ accessToken, canViewDiagnostics, canManageB
           </div></article>)}{backups.length === 0 && <p className="tool-note">No scheduled backup files are available.</p>}</div>
       </div>
     </section>}
-    {canViewDiagnostics && <section className="panel admin-panel nm-app-panel admin-system-card"><div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />System diagnostics</h2></div><div className="admin-system-card-body">{diagnostics ? <pre className="nm-code-block">{JSON.stringify(diagnostics, null, 2)}</pre> : <PanelSkeleton lines={6} />}</div></section>}
+    {canViewDiagnostics && <section className="panel admin-panel nm-app-panel admin-system-card"><div className="admin-system-card-header nm-app-panel-header"><h2 className="admin-section-title"><IconServer size={16} />System Diagnostics</h2></div><div className="admin-system-card-body">{diagnostics ? <pre className="nm-code-block">{JSON.stringify(diagnostics, null, 2)}</pre> : <PanelSkeleton lines={6} />}</div></section>}
     {showEncryptedBackupModal && <EncryptedBackupModal busy={backupBusy} onCancel={() => { if (!backupBusy) setShowEncryptedBackupModal(false); }} onDownload={downloadEncryptedBackup} />}
   </div>;
 }

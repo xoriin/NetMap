@@ -415,12 +415,12 @@ export function SecurityWorkspace({
     <section className="security-layout" id="security">
       {error && <div className="form-error">{error}</div>}
       <div className="security-bento">
-        <ChartPanel><section className="security-insight security-mix-panel nm-app-panel" aria-label="Traffic mix">
+        <ChartPanel><section className="security-insight security-mix-panel nm-app-panel nm-hero-visual" aria-label="Traffic Mix">
           <div className="security-panel-header nm-app-panel-header">
-            <span className="security-panel-identity"><span className="security-panel-icon"><PieChart size={18} /></span><strong>Traffic mix</strong><small>{events.length} loaded events</small></span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><PieChart size={18} /></span><strong>Traffic Mix</strong><small>{events.length} loaded events</small></span>
             <ChartOptionsSlot />
           </div>
-          <PersonalChart id="security.traffic-mix" label="Traffic mix" base="ring" data={{ kind: "parts", noun: "events", rows: [{ label: "Blocked", value: actionMix.blocked, color: "--dash-red" }, { label: "Passed", value: actionMix.passed, color: "--dash-green" }, { label: "Other", value: actionMix.other, color: "--nm-text-faint" }], series: [{ key: "value", label: "Events", color: "--dash-blue" }] }}>
+          <PersonalChart id="security.traffic-mix" label="Traffic Mix" base="ring" data={{ kind: "parts", noun: "events", rows: [{ label: "Blocked", value: actionMix.blocked, color: "--dash-red" }, { label: "Passed", value: actionMix.passed, color: "--dash-green" }, { label: "Other", value: actionMix.other, color: "--nm-text-faint" }], series: [{ key: "value", label: "Events", color: "--dash-blue" }] }}>
           <div className="security-mix-body">
             <UsageRing pct={actionMix.pct} label="blocked" tone="danger" />
             <ul className="security-mix-legend">
@@ -431,12 +431,12 @@ export function SecurityWorkspace({
           </div>
           </PersonalChart>
         </section></ChartPanel>
-        <ChartPanel><section className="security-insight security-sources-panel nm-app-panel" aria-label="Top sources">
+        <ChartPanel><section className="security-insight security-sources-panel nm-app-panel nm-hero-visual" aria-label="Top Sources">
           <div className="security-panel-header nm-app-panel-header">
-            <span className="security-panel-identity"><span className="security-panel-icon"><Users size={18} /></span><strong>Top sources</strong><small>{topSources.length ? `Top ${topSources.length}` : "No events"}</small></span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><Users size={18} /></span><strong>Top Sources</strong><small>{topSources.length ? `Top ${topSources.length}` : "No events"}</small></span>
             <ChartOptionsSlot />
           </div>
-          <PersonalChart id="security.top-sources" label="Top sources" base="bars" data={{ kind: "rank", rows: topSources.map(source => ({ label: source.ip, blocked: source.blocked, other: source.total - source.blocked })), series: [{ key: "blocked", label: "Blocked", color: "--dash-red" }, { key: "other", label: "Other events", color: "--dash-blue" }] }}>
+          <PersonalChart id="security.top-sources" label="Top Sources" base="bars" data={{ kind: "rank", rows: topSources.map(source => ({ label: source.ip, blocked: source.blocked, other: source.total - source.blocked })), series: [{ key: "blocked", label: "Blocked", color: "--dash-red" }, { key: "other", label: "Other events", color: "--dash-blue" }] }}>
           <div className="security-sources-body">
             {topSources.length === 0 ? <div className="dash-empty">No events loaded</div> : topSources.map((source) => (
               <div key={source.ip} className="security-source-row">
@@ -465,7 +465,7 @@ export function SecurityWorkspace({
           }}
         >
           <div className="security-panel-header nm-app-panel-header">
-            <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><strong>Event filters</strong></span>
+            <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><strong>Event Filters</strong></span>
             <small>{savedSearches.length} saved</small>
           </div>
           <label className="security-search">

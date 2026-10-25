@@ -79,7 +79,7 @@ test("Devices & icons caps the type chart to the summary cards and scrolls insid
   await page.route("**/api/v1/admin/device-types", (route) => route.fulfill({ json: types.map((value) => ({ id: null, value, label: value, icon: "server", is_builtin: false, color: null })) }));
   await page.route("**/api/v1/topology/graph*", (route) => route.fulfill({ json: { devices: types.flatMap((type, i) => Array.from({ length: i + 1 }, (_, n) => ({ id: i * 100 + n, device_type: type, status: "active" }))), links: [], groups: [], sites: [] } }));
   await page.goto("/admin#devices-icons");
-  const hero = page.getByRole("region", { name: "Devices by type", exact: true });
+  const hero = page.getByRole("region", { name: "Devices by Type", exact: true });
   await expect(hero.locator(".nm-bar-list li")).toHaveCount(14);
   const heroBox = (await hero.boundingBox())!;
   const cards = (await page.locator(".nm-bento-stats").first().boundingBox())!;
@@ -101,7 +101,7 @@ test("light mode panels carry the stronger element shadow", async ({ page }) => 
 test("light nested Admin section headers use the dark panel-header colour with white text and icon", async ({ page }) => {
   await setupMocks(page, "light");
   await page.goto("/admin#system");
-  const title = page.getByRole("region", { name: "Identity and support", exact: true }).locator(":scope > .admin-task-title");
+  const title = page.getByRole("region", { name: "Identity and Support", exact: true }).locator(":scope > .admin-task-title");
   await expect(title).toHaveCSS("background-color", "rgb(47, 68, 91)");
   await expect(title).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(title.locator("svg")).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -111,7 +111,7 @@ for (const [theme, header] of [["slate", "rgb(29, 37, 54)"], ["zinc", "rgb(31, 3
   test(`dark nested Admin section headers keep the module header colour in ${theme}`, async ({ page }) => {
     await setupMocks(page, theme);
     await page.goto("/admin#system");
-    const title = page.getByRole("region", { name: "Identity and support", exact: true }).locator(":scope > .admin-task-title");
+    const title = page.getByRole("region", { name: "Identity and Support", exact: true }).locator(":scope > .admin-task-title");
     await expect(title).toHaveCSS("background-color", header);
   });
 }
@@ -124,9 +124,9 @@ test("System puts App settings under the version row with the charts stacked on 
   const version = await box(page, ".nm-bento");
   const appSettings = await box(page, ".admin-settings-card");
   const storage = await box(page, '[aria-label="Storage"]');
-  const devices = await box(page, '[aria-label="Device status at last check"]');
-  const backupsPanel = await box(page, '[aria-label="Backup size, last 10"]');
-  const syslog = await box(page, '[aria-label="Syslog configuration"]');
+  const devices = await box(page, '[aria-label="Device Status at Last Check"]');
+  const backupsPanel = await box(page, '[aria-label="Backup Size, Last 10"]');
+  const syslog = await box(page, '[aria-label="Syslog Configuration"]');
   expect(appSettings.y).toBeGreaterThan(version.y + version.height);
   expect(storage.x).toBeGreaterThan(appSettings.x + appSettings.width);
   expect(Math.abs(storage.y - appSettings.y)).toBeLessThanOrEqual(1);
@@ -135,16 +135,16 @@ test("System puts App settings under the version row with the charts stacked on 
   expect(syslog.y).toBeGreaterThan(backupsPanel.y + backupsPanel.height);
   await expect(page.locator(".nm-bento-stats .dash-stat")).toHaveCount(6);
   await expect(page.locator('[aria-label="Storage"] .nm-chart-seg')).toHaveCount(3);
-  await expect(page.locator('[aria-label="Device status at last check"] .nm-chart-seg')).toHaveCount(3);
-  await expect(page.locator('[aria-label="Backup size, last 10"] .nm-chart-col')).toHaveCount(10);
-  await expect(page.locator('[aria-label="Syslog configuration"] .nm-stackbar > span')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Device Status at Last Check"] .nm-chart-seg')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Backup Size, Last 10"] .nm-chart-col')).toHaveCount(10);
+  await expect(page.locator('[aria-label="Syslog Configuration"] .nm-stackbar > span')).toHaveCount(3);
 });
 
 test("Syslog sections sit 12px apart", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupMocks(page, "light");
   await page.goto("/admin#system");
-  const gaps = await page.locator('[aria-label="Syslog configuration"] .admin-task-stack').evaluate((node) => {
+  const gaps = await page.locator('[aria-label="Syslog Configuration"] .admin-task-stack').evaluate((node) => {
     const rects = [...node.children].map((child) => child.getBoundingClientRect());
     return rects.slice(1).map((rect, i) => Math.round(rect.top - rects[i].bottom));
   });
@@ -155,7 +155,7 @@ test("chart tooltips show the hovered value", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupMocks(page, "slate");
   await page.goto("/admin#system");
-  await page.locator('[aria-label="Device status at last check"] .nm-chart-seg').first().focus();
+  await page.locator('[aria-label="Device Status at Last Check"] .nm-chart-seg').first().focus();
   await expect(page.locator(".hb-tooltip-card")).toContainText("Online");
   await expect(page.locator(".hb-tooltip-card")).toContainText("72");
 });
@@ -193,15 +193,15 @@ test("Notifications keeps services inside the methods panel beside type and fail
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupMocks(page, "slate");
   await page.goto("/admin#notifications");
-  const methods = page.locator('[aria-label="Notification methods"]');
+  const methods = page.locator('[aria-label="Notification Methods"]');
   await expect(methods.locator(".admin-services")).toBeVisible();
   await expect(page.locator('[aria-label="Deliveries, last 14 days"] .nm-chart-col')).toHaveCount(14);
-  await expect(page.locator('[aria-label="Methods by type"] .nm-chart-seg')).toHaveCount(3);
-  await expect(page.locator('[aria-label="Recent failures"] li')).toHaveCount(1);
+  await expect(page.locator('[aria-label="Methods by Type"] .nm-chart-seg')).toHaveCount(3);
+  await expect(page.locator('[aria-label="Recent Failures"] li')).toHaveCount(1);
   await expect(page.locator(".notif-method-row .nm-sparkbars")).toHaveCount(3);
-  const methodsBox = await box(page, '[aria-label="Notification methods"]');
-  const types = await box(page, '[aria-label="Methods by type"]');
-  const failures = await box(page, '[aria-label="Recent failures"]');
+  const methodsBox = await box(page, '[aria-label="Notification Methods"]');
+  const types = await box(page, '[aria-label="Methods by Type"]');
+  const failures = await box(page, '[aria-label="Recent Failures"]');
   expect(types.x).toBeGreaterThan(methodsBox.x + methodsBox.width);
   expect(Math.abs(types.y - methodsBox.y)).toBeLessThanOrEqual(1);
   expect(Math.abs((failures.y + failures.height) - (methodsBox.y + methodsBox.height))).toBeLessThanOrEqual(1);

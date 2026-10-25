@@ -24,7 +24,7 @@ async function openDashboard(page: Page, idleMinutes: number) {
 test("idle users are signed out when a timeout is set", async ({ page }) => {
   const logouts = await openDashboard(page, 1);
   await page.clock.fastForward(61_000);
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
   expect(logouts).toHaveLength(1);
 });
 
@@ -35,5 +35,5 @@ test("idle users stay signed in when the timeout is disabled", async ({ page }) 
   await page.waitForTimeout(1_500);
   expect(logouts).toHaveLength(0);
   await expect(page.locator(".sidebar")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Sign in" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Sign In" })).toHaveCount(0);
 });

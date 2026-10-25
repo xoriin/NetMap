@@ -236,7 +236,7 @@ export function LocationsWorkspace({
     <section className="dash-layout locations-workspace nm-motion">
       {!sitesLoading && (
         <div className="nm-bento nm-bento--four">
-          <InsightPanel title="Devices by location" icon={<BarChart3 size={16} />} className="nm-motion-item">
+          <InsightPanel hero title="Devices by Location" icon={<BarChart3 size={16} />} className="nm-motion-item">
             {occupiedSites.length === 0 ? <p className="tool-note nm-chart-empty">{sites.length ? "No devices are placed at a location yet." : "No locations yet."}</p>
               : <DonutChart viewId="locations.devices" label="Devices per location" items={occupiedSites} centre={<CountUp value={occupiedSites.reduce((sum, site) => sum + site.value, 0)} />} sub="devices" />}
           </InsightPanel>
@@ -354,7 +354,7 @@ export function LocationsWorkspace({
       </div>
       </div>
       <aside className="nm-console-side">
-        <InsightPanel title="Needs details" icon={<ClipboardList size={16} />} className="nm-fill nm-motion-item">
+        <InsightPanel title="Needs Details" icon={<ClipboardList size={16} />} className="nm-fill nm-motion-item">
           <EventList empty="Every location has an address, devices and a colour." rows={needsDetails.map(({ site, gaps }) => ({
             key: site.id, tone: gaps.length > 1 ? "warning" : "unknown", title: siteLabel(site), detail: gaps.join(" · ").replace(/^./, (c) => c.toUpperCase()), time: site.description ?? undefined,
           }))} />

@@ -28,7 +28,7 @@ for (const theme of ["light", "slate", "zinc"]) {
       return route.fulfill({ json: saved[id] });
     });
     await page.goto("/monitoring#status-pages");
-    const chart = page.getByRole("region", { name: "Service health across pages", exact: true });
+    const chart = page.getByRole("region", { name: "Service Health Across Pages", exact: true });
     await expect(chart.locator(".dash-donut-label")).toHaveText("Services");
     await expect(chart.locator(".nm-bar-list-label")).toHaveText(["Healthy", "Degraded", "Unavailable", "Maintenance", "No data"]);
     await expect(chart.locator(".nm-bar-list strong")).toHaveText(["34", "3", "1", "2", "2"]);
@@ -50,7 +50,8 @@ for (const theme of ["light", "slate", "zinc"]) {
       if (width > 390) expect(legend.x).toBeGreaterThanOrEqual(ring.x + ring.width);
       else expect(legend.y).toBeGreaterThanOrEqual(ring.y + ring.height);
       expect(legend.x + legend.width).toBeLessThanOrEqual(body.x + body.width);
-      expect(body.x + body.width - legend.x - legend.width).toBeLessThanOrEqual(50);
+      expect(body.x + body.width - legend.x - legend.width).toBeGreaterThanOrEqual(32);
+      expect(body.x + body.width - legend.x - legend.width).toBeLessThanOrEqual(64);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: test.info().outputPath(`status-${width}.png`) });
     }
@@ -66,12 +67,13 @@ for (const theme of ["light", "slate", "zinc"]) {
       rightGap: track.closest(".nm-chart-body")!.getBoundingClientRect().right - track.closest("li")!.getBoundingClientRect().right,
     }));
     expect(Math.abs(single.track - single.fill)).toBeLessThanOrEqual(1);
-    expect(single.rightGap).toBeLessThanOrEqual(50);
+    expect(single.rightGap).toBeGreaterThanOrEqual(32);
+    expect(single.rightGap).toBeLessThanOrEqual(64);
     await page.screenshot({ path: test.info().outputPath("status-single-service.png") });
     // Optional bars stay local to this chart.
     await page.goto("/monitoring#devices");
-    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend")).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-bar-list")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Fleet Health", exact: true }).locator(".nm-chart-legend")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Fleet Health", exact: true }).locator(".nm-bar-list")).toBeVisible();
     await page.route("**/api/v1/status-pages", route => route.fulfill({ json: [] }));
     await page.goto("/monitoring#status-pages");
     await expect(chart).toContainText("No monitored services on any status page yet.");

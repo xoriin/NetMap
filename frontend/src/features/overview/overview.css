@@ -225,12 +225,14 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
   .overview-health-combo[data-first-position="right"] > [data-pair-slot] { grid-column: 1; grid-row: auto; }
 }
 
-/* Match the existing inset of Top vendors without changing canonical bar proportions. */
-.overview-workspace [data-chart-id="overview.device-types"] {
-  box-sizing: border-box;
-  padding-inline: 18px;
+.overview-workspace [data-chart-id="overview.device-types"] + .dash-panel-divider {
+  margin-inline: var(--nm-chart-gutter);
 }
 
-.overview-workspace [data-chart-id="overview.device-types"] + .dash-panel-divider {
-  margin-inline: 18px;
+.overview-workspace .nm-hero-visual :is(.dash-panel-sub-title, .dash-tag-cloud) {
+  padding-inline: var(--nm-chart-gutter);
+}
+
+.overview-workspace .dash-panel-sub-title {
+  text-transform: uppercase;
 }
