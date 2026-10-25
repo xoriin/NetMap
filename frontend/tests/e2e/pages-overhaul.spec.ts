@@ -481,7 +481,7 @@ test("Overview puts health beside the tiles, outages in the side column and brea
   await expect(outages).toContainText("NAS-01");
   const recent = (await page.locator(".overview-panel", { hasText: "Recently updated" }).boundingBox())!;
   expect((await outages.boundingBox())!.x).toBeGreaterThan(recent.x + recent.width);
-  expect((await barLabels(page, "Slowest Devices, 24 h"))[0]).toBe("NAS-01 9.4 ms");
+  expect((await barLabels(page, "Slowest Devices"))[0]).toBe("NAS-01 9.4 ms");
   expect(await barLabels(page, "Endpoints")).toEqual(["Up 1", "Down 1", "Paused 0"]);
   expect(await barLabels(page, "Top Groups")).toEqual(["Servers 2", "Wi-Fi 1"]);
   const pair = (await page.getByRole("region", { name: "Device Types", exact: true }).boundingBox())!;

@@ -501,7 +501,7 @@ export function OverviewWorkspace({
       />
 
       <div className="nm-pair">
-        <InsightPanel hero title="Device Types" icon={<IconChartBar size={16} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
+        <InsightPanel hero title="Device Types" icon={<IconChartBar size={20} />} className="nm-motion-item" actions={<span className="dash-panel-meta">{typeBreakdown.length} types</span>}>
           <BarList viewId="overview.device-types" label="Devices per device type" empty="Assign device types in inventory to see a breakdown here."
             items={typeBreakdown.map(([type, count]) => ({ label: deviceTypeOptions.find((option) => option.value === type)?.label || formatDeviceTypeLabel(type), value: count, color: deviceTypeColors.get(type) ?? resolveEntityColor(null, type) }))} />
           {vendorBreakdown.length > 0 && (
@@ -516,7 +516,7 @@ export function OverviewWorkspace({
             </>
           )}
         </InsightPanel>
-        <InsightPanel hero title="Top Groups" icon={<IconMap size={16} />} className="nm-motion-item"
+        <InsightPanel hero title="Top Groups" icon={<IconMap size={20} />} className="nm-motion-item"
           actions={<SpaLink href="/vlans" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/vlans")}>Manage <IconArrowRight size={12} /></SpaLink>}>
           <BarList viewId="overview.groups" label="Devices per group" empty="Assign topology groups to devices to segment your network."
             items={groupBreakdown.map(([group, count]) => ({ label: group, value: count, color: groupColors.get(group) ?? resolveEntityColor(null, group) }))} />
@@ -527,7 +527,7 @@ export function OverviewWorkspace({
         {/* Monitoring snapshot */}
         <div className="dash-panel nm-app-panel overview-panel nm-motion-item" style={{ ["--nm-motion-i" as string]: 8 }}>
           <div className="dash-panel-header nm-app-panel-header overview-panel-header dash-panel-header--favourites">
-            <OverviewPanelIdentity icon={<Star size={18} />} title="Favourites" />
+            <OverviewPanelIdentity icon={<Star size={20} />} title="Favourites" />
             <div className="dash-panel-actions">
               <div className="overview-fav-search nm-search nm-search--toolbar">
                 <Search size={13} aria-hidden="true" />
@@ -658,7 +658,7 @@ export function OverviewWorkspace({
         {/* Recently updated */}
         <div className="dash-panel nm-app-panel overview-panel nm-motion-item nm-fill" style={{ ["--nm-motion-i" as string]: 9 }}>
           <div className="dash-panel-header nm-app-panel-header overview-panel-header">
-            <OverviewPanelIdentity icon={<IconDeviceDesktop size={18} />} title="Recently Updated" />
+            <OverviewPanelIdentity icon={<IconDeviceDesktop size={20} />} title="Recently Updated" />
             <div className="dash-panel-actions">
               {(canWrite || canManageDiscovery) && (
                 <>
@@ -717,7 +717,7 @@ export function OverviewWorkspace({
         </div>
         </div>
         <aside className="nm-console-side">
-          <InsightPanel title="Current Outages" icon={<IconWifiOff size={16} />} className="nm-motion-item overview-outages-panel" label="Current Outages"
+          <InsightPanel title="Current Outages" icon={<IconWifiOff size={20} />} className="nm-motion-item overview-outages-panel" label="Current Outages"
             actions={<SpaLink href="/monitoring" aria-label="Open Monitoring" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={() => onNavigate("/monitoring")}>Monitoring <IconArrowRight size={13} /></SpaLink>}>
             <div id="overview-outages" className="overview-outages-scroll" tabIndex={-1}>
               {outageCount === 0 ? <p className="tool-note nm-chart-empty">Nothing is offline right now.</p> : (
@@ -741,11 +741,11 @@ export function OverviewWorkspace({
               )}
             </div>
           </InsightPanel>
-          <InsightPanel title="Slowest Devices, 24 h" icon={<Timer size={16} />} className="nm-motion-item">
+          <InsightPanel title="Slowest Devices" icon={<Timer size={20} />} className="nm-motion-item">
             <BarList viewId="overview.slowest" viewKind="rank" label="Monitored devices with the highest average round-trip time, last 24 hours" unit=" ms" empty={monLoading ? "Loading…" : "No latency recorded yet."}
               items={slowestDevices.map((d) => ({ label: deviceName(d), value: Number((d.avg_rtt_24h ?? 0).toFixed(1)), color: "--dash-indigo" }))} />
           </InsightPanel>
-          <InsightPanel title="Endpoints" icon={<Plug size={16} />} className="nm-motion-item nm-fill"
+          <InsightPanel title="Endpoints" icon={<Plug size={20} />} className="nm-motion-item nm-fill"
             actions={<SpaLink href="/monitoring#endpoints" aria-label="All endpoints" className="nm-btn nm-btn--sm nm-btn--ghost overview-panel-link" onNavigate={openEndpointMonitoring}>All <IconArrowRight size={13} /></SpaLink>}>
             {endpointMonitors.length === 0 ? <p className="tool-note nm-chart-empty">No endpoints monitored yet.</p> : <>
               <BarList viewId="overview.endpoints" label="Endpoints by state" max={endpointMonitors.length} items={[
