@@ -653,7 +653,7 @@ export function SecurityTab({
             )}>
               {summaryQuery.isLoading ? <PanelSkeleton lines={5} />
                 : summaryQuery.error ? <p className="tool-note nm-chart-empty">Sign-in history is unavailable.</p>
-                : <ColumnChart viewId="admin.security.signins" label="Sign-ins per day, last 14 days, successful and failed" rows={signinRows}
+                : <ColumnChart viewId="admin.security.signins" label="Sign-ins per day, last 14 days, successful and failed" rows={signinRows} valueLabels
                     series={[{ key: "ok", label: "Signed in", color: "--dash-green" }, { key: "bad", label: "Failed", color: "--dash-red" }]} height={168} />}
             </AdminCard>
             <div className="dash-stats nm-bento-stats nm-summary-band">

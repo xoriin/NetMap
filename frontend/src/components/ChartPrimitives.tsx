@@ -134,13 +134,22 @@ function roundTop(x: number, y: number, w: number, h: number, r: number) {
   return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
 }
 
+/** Shared column readout: a neutral background with small corners, not a pill. */
+export function ChartValueLabel({ x, y, text }: { x: number; y: number; text: string }) {
+  const width = text.length * 7 + 14;
+  return <>
+    <rect className="nm-chart-value-bg" x={x - width / 2} y={y - 13} width={width} height={18} rx={4} aria-hidden="true" />
+    <text className="nm-chart-value" x={x} y={y} textAnchor="middle">{text}</text>
+  </>;
+}
+
 export type ColumnSeries = { key: string; label: string; color: ChartColor };
 
 /** Stacked column chart: one axis, recessive grid, rounded data ends, per-column tooltip.
  * A row's `color` overrides the series colour (one category per column); `valueLabels` prints each total above its column.
  * `scale="sqrt"` keeps small columns readable beside a dominant one and drops the y-axis numbers, so pair it with `valueLabels`.
  * `onSelect` makes each column a button (click, Enter or Space). */
-export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = false, barMax = 28, scale = "linear", onSelect }: {
+export function ColumnChart({ rows, series, label, height = 150, unit = "", valueLabels = true, barMax = 28, scale = "linear", onSelect }: {
   rows: ({ label: string; color?: ChartPaint } & Record<string, number | string>)[];
   series: ColumnSeries[];
   label: string;
@@ -210,12 +219,7 @@ export function ColumnChart({ rows, series, label, height = 150, unit = "", valu
                   base = y;
                   return <path key={s.key} d={roundTop(x, y, bw, h - (si > 0 ? 2 : 0), si === present.length - 1 ? Math.min(4, bw / 2) : 0)} style={{ fill: paint(row.color ?? s.color) }} />;
                 })}
-                {valueLabels && (
-                  <>
-                    <rect className="nm-chart-value-bg" x={x + bw / 2 - (totalText.length * 7 + 14) / 2} y={base - 23} width={totalText.length * 7 + 14} height={18} rx={9} aria-hidden="true" />
-                    <text className="nm-chart-value" x={x + bw / 2} y={base - 10} textAnchor="middle">{totalText}</text>
-                  </>
-                )}
+                {valueLabels && total !== 0 && <ChartValueLabel x={x + bw / 2} y={base - 10} text={totalText} />}
                 {(rows.length - 1 - i) % every === 0 && (
                   <g><title>{row.label}</title><text className="nm-chart-axis" x={x + bw / 2} y={height - 6} textAnchor="middle" aria-label={row.label}>{row.label.length > labelLimit ? `${row.label.slice(0, labelLimit - 1)}…` : row.label}</text></g>
                 )}

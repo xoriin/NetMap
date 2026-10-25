@@ -49,6 +49,9 @@ html:has(body.theme-dark) {
   --nm-module-body-bg: #161d2e;
   --nm-panel-body-bg: transparent;
   --nm-track-bg: #34435b;
+  --nm-chart-value-bg: color-mix(in srgb, var(--nm-track-bg) 80%, var(--nm-text) 20%);
+  --nm-chart-bar-shadow: drop-shadow(0 0 0 transparent);
+  --nm-chart-bar-shadow-box: none;
   --nm-health-track-bg: #30415a;
   --nm-chart-label: #fefefe;
   --nm-input-surface: #121624;

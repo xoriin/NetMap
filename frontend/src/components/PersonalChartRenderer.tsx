@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { AreaChart, BarList, ChartLegend, ChartTooltip, useTip, paint, smoothPath } from './ChartPrimitives';
+import { AreaChart, BarList, ChartLegend, ChartValueLabel, ChartTooltip, useTip, paint, smoothPath } from './ChartPrimitives';
 import type { ChartData } from './PersonalChart';
 import { chartLegendPosition, composeChartView, type ChartViewOptions } from '../utils/chartViews';
 
@@ -134,8 +134,10 @@ export function PersonalChartRenderer({ data, options: requested, label }: { dat
       {rows.map((row, i) => {
         let base = baseline;
         return <g key={`${row.label}-${i}`}>
-          {data.series.map((s, si) => { const value = number(row[s.key]), yy = y(value), h = baseline - yy; base -= h; return options.type === 'columns' ? <rect key={s.key} x={x(i) - barWidth / 2} y={base} width={barWidth} height={Math.max(0, h)} rx={Math.min(3, h / 2)} fill={paint(colour(row, si))} /> : <circle key={s.key} cx={x(i)} cy={yy} r={options.type === 'dots' ? 4.5 : 2.5} fill={paint(colour(row, si))} />; })}
-          {options.labels && i % every === 0 && <text className="nm-chart-axis nm-personal-value" x={x(i)} y={Math.max(12, y(options.type === 'columns' ? totalOf(row) : number(row[data.series[0].key])) - 8)} textAnchor="middle">{display(options.type === 'columns' ? totalOf(row) : number(row[data.series[0].key]))}</text>}
+          {data.series.map((s, si) => { const value = number(row[s.key]), yy = y(value), h = baseline - yy; base -= h; return options.type === 'columns' ? <rect key={s.key} className="nm-chart-column-bar" x={x(i) - barWidth / 2} y={base} width={barWidth} height={Math.max(0, h)} rx={Math.min(3, h / 2)} fill={paint(colour(row, si))} /> : <circle key={s.key} cx={x(i)} cy={yy} r={options.type === 'dots' ? 4.5 : 2.5} fill={paint(colour(row, si))} />; })}
+          {options.labels && (options.type === 'columns'
+            ? totalOf(row) !== 0 && <ChartValueLabel x={x(i)} y={Math.max(14, y(totalOf(row)) - 8)} text={display(totalOf(row))} />
+            : i % every === 0 && <text className="nm-chart-axis nm-personal-value" x={x(i)} y={Math.max(12, y(number(row[data.series[0].key])) - 8)} textAnchor="middle">{display(number(row[data.series[0].key]))}</text>)}
           {(i % every === 0 || i === n - 1) && <text className="nm-chart-axis" x={x(i)} y={height - 12} textAnchor="middle"><title>{row.label}</title>{row.label.length > limit ? `${row.label.slice(0, limit - 1)}…` : row.label}</text>}
           <rect className="nm-chart-hit" x={left + i * slot} y={top} width={slot} height={baseline - top} {...markEvents(row)} />
         </g>;

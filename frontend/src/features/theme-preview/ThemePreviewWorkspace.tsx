@@ -644,7 +644,7 @@ export function ThemePreviewWorkspace() {
       <section className="theme-lab-review-section">
         <div className="theme-lab-section-heading">
           <div><span className="theme-lab-step">20</span><h3>Charts</h3></div>
-          <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value. Personal chart options independently enable the chart, standard bars and text legend, with separate placement controls. Pie slices carry readable category/value labels.</p>
+          <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value. Personal chart options expose direct relative-position buttons. Bars include their own labels, so they suppress duplicate legends. Ring and Number readouts follow the selected category and Values format. Ring breakdowns start with independently toggleable labelled bars, retaining the native centre readout; plain legends fill the available panel width with values aligned at the far edge; bar-only panels use a compact top inset while retaining standard track height and row spacing. All column charts show non-zero totals by default on subtle rectangular backgrounds with small rounded corners; dark readouts use a lighter fill. Light chart bars have restrained shadows, and Admin visual headers share the standard dark blue header band. Show values can hide the readouts.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
           <PreviewHeader icon={Server} title="Chart components" />
