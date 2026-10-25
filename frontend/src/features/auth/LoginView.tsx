@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LogIn } from "lucide-react";
 import { api, type MfaChallenge, type OidcStatus, type TokenPair } from "../../api/client";
 import { TotpCodeStep, TotpSetupStep } from "./TotpSignIn";
+import { AuthTextReveal } from "./AuthTextReveal";
 
 const SSO_ERROR_MESSAGES: Record<string, string> = {
   provider_unreachable: "Could not reach the identity provider. Try again or contact your administrator.",
@@ -84,15 +85,15 @@ function LoginForm({
 
   return (
     <section className="auth-surface">
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card auth-login-card" onSubmit={submit}>
         <div className="auth-brand">
           <div className="auth-brand-row">
             <div className="auth-brand-icon">
               <img src="/favicon.svg" width="32" height="32" alt="" />
             </div>
-            <span className="auth-brand-name">{appName || "NetMap"}</span>
+            <span className="auth-brand-name"><AuthTextReveal text={appName || "NetMap"} /></span>
           </div>
-          <p className="auth-slogan">{loginMessage || "The Blueprint for Your Infrastructure"}</p>
+          <p className="auth-slogan"><AuthTextReveal text={loginMessage || "The Blueprint for Your Infrastructure"} /></p>
         </div>
         <h2 className="auth-form-heading">Sign in</h2>
         {ssoError && <div className="form-error">{ssoError}</div>}

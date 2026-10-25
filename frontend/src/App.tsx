@@ -18,6 +18,7 @@ import { TopbarNoteCtx } from "./context";
 import { LoadingView } from "./views/LoadingView";
 import { SetupView } from "./features/auth/SetupView";
 import { LoginView } from "./features/auth/LoginView";
+import { AuthTextReveal } from "./features/auth/AuthTextReveal";
 import { ResetPasswordView } from "./features/auth/ResetPasswordView";
 import { Sidebar, AppTopbar, clearStickySidebarMenus } from "./Sidebar";
 import { MobileMoreSheet, MobileSectionTabs, MobileTabBar } from "./MobileNav";
@@ -386,8 +387,8 @@ function WorkspaceApp() {
             <div className="auth-brand-mark">
               <img src="/favicon.svg" width="80" height="80" alt="" />
             </div>
-            <div className="auth-brand-wordmark">NetMap</div>
-            <div className="auth-brand-tagline">Network topology &amp; monitoring for your infrastructure</div>
+            <div className="auth-brand-wordmark"><AuthTextReveal text="NetMap" active={screen === "login"} /></div>
+            <div className="auth-brand-tagline"><AuthTextReveal text="Network topology & monitoring for your infrastructure" active={screen === "login"} /></div>
             <div className="auth-brand-stats">
               <div className="auth-brand-stat"><span className="auth-brand-stat-dot" />Discover &amp; map your network</div>
               <div className="auth-brand-stat"><span className="auth-brand-stat-dot" />Monitor device health in real-time</div>

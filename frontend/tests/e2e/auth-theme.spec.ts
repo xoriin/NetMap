@@ -46,3 +46,50 @@ for (const theme of ["light", "dark"] as const) {
     expect(geometry[1].backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   });
 }
+
+for (const theme of ["light", "slate", "zinc"]) {
+  test(`login text reveals once and respects reduced motion in ${theme}`, async ({ page }) => {
+    await setupLoginMocks(page);
+    const message = "The Blueprint for Your Infrastructure";
+    await page.addInitScript(theme => {
+      localStorage.setItem("netmap.theme", theme === "light" ? "light" : "dark");
+      localStorage.setItem("netmap.dark_style", theme === "zinc" ? "zinc" : "slate");
+    }, theme);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/");
+    const card = page.locator(".auth-login-card");
+    const slogan = card.locator(".auth-slogan");
+    const words = slogan.locator(".auth-text-reveal__word");
+    await expect(slogan.locator(".auth-text-reveal__accessible")).toHaveText(message);
+    await expect(slogan.locator('[aria-hidden="true"]')).toHaveText(message);
+    await expect(words).toHaveCount(5);
+    await expect(words.first()).toHaveCSS("animation-name", "auth-reveal-word");
+    await expect(words.first()).toHaveCSS("animation-delay", "0.08s");
+    await expect(words.nth(1)).toHaveCSS("animation-delay", "0.125s");
+    await expect(card).toHaveCSS("animation-name", "auth-login-enter");
+    // Autofocus and input remain available while the decorative text is entering.
+    await page.getByLabel("Username", { exact: true }).fill("network-admin");
+    await page.getByLabel("Password", { exact: true }).fill("example-password");
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+    await card.evaluate(el => {
+      for (const animation of el.getAnimations({ subtree: true })) animation.finish();
+    });
+    await words.first().evaluate(el => { el.getAnimations()[0].id = "completed-login-word"; });
+    await page.getByLabel("Username", { exact: true }).fill("updated-admin");
+    expect(await words.first().evaluate(el => el.getAnimations()[0].id)).toBe("completed-login-word");
+    await expect(words.first()).toHaveCSS("opacity", "1");
+    for (const width of [1440, 820, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await expect(page.getByLabel("Username", { exact: true })).toBeInViewport();
+    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(words.first()).toHaveCSS("animation-name", "none");
+    await expect(words.first()).toHaveCSS("opacity", "1");
+    await expect(words.first()).toHaveCSS("filter", "none");
+    await expect(words.first()).toHaveCSS("transform", "none");
+    await expect(card).toHaveCSS("animation-name", "none");
+    await page.screenshot({ path: test.info().outputPath(`login-reveal-${theme}.png`) });
+  });
+}
