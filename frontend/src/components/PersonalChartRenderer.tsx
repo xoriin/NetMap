@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { AreaChart, BarList, ChartLegend, ChartTooltip, useTip, paint, smoothPath } from './ChartPrimitives';
 import type { ChartData } from './PersonalChart';
-import { chartLegendPosition, type ChartViewOptions } from '../utils/chartViews';
+import { chartLegendPosition, composeChartView, type ChartViewOptions } from '../utils/chartViews';
 
 const number = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const fmt = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-export function PersonalChartRenderer({ data, options, label }: { data: ChartData; options: ChartViewOptions; label: string }) {
+export function PersonalChartRenderer({ data, options: requested, label }: { data: ChartData; options: ChartViewOptions; label: string }) {
+  const options = composeChartView(requested, requested.type === 'default' ? 'ring' : requested.type);
   const host = useRef<HTMLDivElement>(null);
   const visualHost = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -32,13 +33,17 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
   const display = (v: number) => parts && options.values === 'percent' ? `${fmt(pct(v))}%` : `${fmt(v)}${unit}${parts && options.values === 'both' ? ` · ${fmt(pct(v))}%` : ''}`;
   const colour = (row: typeof rows[number], si = 0) => data.series.length === 1 ? row.color ?? data.series[si].color : data.series[si].color;
   const items = rows.map(d => ({ label: d.label, value: totalOf(d), color: colour(d) }));
+  const category = rows.find(row => row.label === options.category);
+  const categoryValue = category ? totalOf(category) : total;
+  const categoryLabel = category?.label ?? (data.noun ? `Total ${data.noun}` : 'Total');
+  const readout = (value: number, caption: string) => <><strong>{parts && options.values === 'percent' ? `${fmt(pct(value))}%` : `${fmt(value)}${unit}`}</strong>{parts && options.values === 'both' && <small>{fmt(pct(value))}%</small>}<span title={caption}>{caption}</span></>;
   const partLegend = options.legend && <ChartLegend items={items} unit={unit} show={parts ? options.values : 'value'} hideValues={!options.labels} />;
   const seriesLegend = options.legend && <ChartLegend items={data.series.map(s => ({ label: s.label, value: 0, color: s.color }))} hideValues />;
   const paired = (visual: ReactNode, companion: ReactNode, position: string, kind: 'bars' | 'legend', round = false) => {
     if (!visual) return companion;
     if (!companion) return visual;
     const before = ['top', 'left'].includes(position);
-    return <div className={`nm-chart-pair${round ? ' nm-personal-ring-layout' : ''}${round && options.type === 'pie' ? ' nm-personal-ring-layout--pie' : ''}${round && position === 'bottom' ? ' nm-personal-ring-layout--below' : ''}`} data-legend-position={position} data-chart-pair={kind}>
+    return <div className={`nm-chart-pair${round ? ' nm-personal-ring-layout' : ''}${['number', 'gauge'].includes(options.type) ? ' nm-chart-pair--metric' : ''}${round && options.type === 'pie' ? ' nm-personal-ring-layout--pie' : ''}${round && position === 'bottom' ? ' nm-personal-ring-layout--below' : ''}`} data-legend-position={position} data-chart-pair={kind}>
       {before ? companion : null}<div className="nm-chart-pair-visual">{visual}</div>{!before ? companion : null}
     </div>;
   };
@@ -77,7 +82,7 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
         return <circle key={row.label} cx={50} cy={50} r={radius} fill="none" stroke={paint(colour(row))} strokeWidth={10} strokeDasharray={`${Math.max(.5, length - (segments.length > 1 ? 1.5 : 0))} ${circumference}`} strokeDashoffset={-start} transform="rotate(-90 50 50)" {...markEvents(row)} />;
       })}
       {pieLabels.map(item => <g key={item.label} className="nm-personal-pie-label" transform={`translate(${item.x} ${item.y})`} aria-hidden="true"><rect x={-19} y={-10} width={38} height={20} rx={3} /><text textAnchor="middle"><tspan x={0} y={-1}>{item.label.length > 9 ? `${item.label.slice(0, 8)}…` : item.label}</tspan><tspan x={0} y={7}>{display(item.value).length > 11 ? `${new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(item.value)}${unit}${options.values === 'both' ? ` · ${Math.round(pct(item.value))}%` : ''}` : display(item.value)}</tspan></text></g>)}
-    </svg>{options.type === 'ring' && options.labels && <div className="nm-personal-ring-centre"><strong>{fmt(total)}</strong><span>{data.noun ?? 'Total'}</span></div>}</div>;
+    </svg>{options.type === 'ring' && options.labels && <div className="nm-personal-ring-centre">{readout(categoryValue, categoryLabel)}</div>}</div>;
     content = visual;
   } else if (options.type === 'bars') {
     content = bars;
@@ -99,11 +104,11 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
     content = <div className="nm-personal-treemap" role="img" aria-label={label}>{tiles.map(({ row, x, y, w, h }) => <div key={row.label} style={{ left: x, top: y, width: Math.max(0, w - 2), height: Math.max(0, h - 2), '--nm-chart-paint': paint(colour(row)) } as CSSProperties} {...markEvents(row)}>{w > 55 && h > 35 && <><span>{row.label}</span>{options.labels && <strong>{display(totalOf(row))}</strong>}</>}</div>)}</div>;
   } else if (options.type === 'gauge') {
     // A named share of the original dataset; never infer a target or uptime from counts.
-    const first = data.rows[0], share = pct(totalOf(first));
+    const first = category ?? data.rows[0], share = pct(totalOf(first));
     content = <div className="nm-personal-gauge"><svg viewBox="0 0 240 140" role="img" aria-label={`${first.label}: ${fmt(share)}%`}><path d="M20,115 A100,100 0 0,1 220,115" pathLength={100} fill="none" stroke="var(--nm-track-bg)" strokeWidth={14} /><path d="M20,115 A100,100 0 0,1 220,115" pathLength={100} fill="none" stroke={paint(colour(first))} strokeWidth={14} strokeDasharray={`${share} 100`} /><text x={120} y={105} textAnchor="middle">{fmt(share)}%</text></svg><span>{first.label} · {fmt(totalOf(first))} of {fmt(total)}{unit}</span></div>;
   } else if (options.type === 'number') {
-    const value = parts ? total : data.kind === 'time' ? totalOf(data.rows[data.rows.length - 1]) : Math.max(...rows.map(totalOf));
-    content = <div className="nm-personal-number"><strong>{fmt(value)}{unit}</strong><span>{parts ? data.noun ?? 'Total' : data.kind === 'time' ? 'Latest reading' : 'Highest value'}</span></div>;
+    const value = parts ? categoryValue : data.kind === 'time' ? totalOf(data.rows[data.rows.length - 1]) : Math.max(...rows.map(totalOf));
+    content = <div className="nm-personal-number">{readout(value, parts ? categoryLabel : data.kind === 'time' ? 'Latest reading' : 'Highest value')}</div>;
   } else if (options.type === 'table') {
     content = <div className="nm-table-wrap nm-personal-table"><table className="nm-table"><thead><tr><th>{data.kind === 'time' ? 'Time' : 'Category'}</th>{data.series.map(s => <th key={s.key} className="nm-table-num">{s.label}{unit && ` (${unit.trim()})`}</th>)}{parts && <th className="nm-table-num">Share</th>}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.label}-${index}`}><td>{data.onSelect ? <button className="nm-btn nm-btn--ghost nm-btn--sm" onClick={() => data.onSelect?.(row.label)}>{row.label}</button> : row.label}</td>{data.series.map(s => <td key={s.key} className="nm-table-num">{fmt(number(row[s.key]))}</td>)}{parts && <td className="nm-table-num">{fmt(pct(totalOf(row)))}%</td>}</tr>)}</tbody></table></div>;
   } else {

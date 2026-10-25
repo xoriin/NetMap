@@ -210,6 +210,27 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
 
 .overview-outages-scroll { max-height: 360px; overflow-y: auto; }
 
-/* A personal view/editor uses the health panel width instead of the compact ring slot. */
-.overview-health-combo:has(.nm-personal-chart--editing),
-.overview-health-combo:has([data-chart-custom="true"]) { grid-template-columns: minmax(0, 1fr); }
+/* Moving the pair preserves each chart's native dimensions and independent settings. */
+.overview-health-combo[data-first-position="right"] { grid-template-columns: minmax(0, 1fr) 132px; }
+.overview-health-combo[data-first-position="right"] > [data-pair-slot="0"] { grid-column: 2; grid-row: 1; }
+.overview-health-combo[data-first-position="right"] > [data-pair-slot="1"] { grid-column: 1; grid-row: 1; }
+.overview-health-combo[data-first-position="top"],
+.overview-health-combo[data-first-position="bottom"] { grid-template-columns: minmax(0, 1fr); }
+.overview-health-combo[data-first-position="bottom"] > [data-pair-slot="0"] { grid-row: 2; }
+.overview-health-combo[data-first-position="bottom"] > [data-pair-slot="1"] { grid-row: 1; }
+.overview-health-combo:has(.nm-personal-chart--editing) { grid-template-columns: minmax(0, 1fr); }
+.overview-health-combo:has(.nm-personal-chart--editing) > [data-pair-slot] { grid-column: 1; grid-row: auto; }
+@media (max-width: 520px) {
+  .overview-health-combo[data-first-position="right"] { grid-template-columns: minmax(0, 1fr); }
+  .overview-health-combo[data-first-position="right"] > [data-pair-slot] { grid-column: 1; grid-row: auto; }
+}
+
+/* Match the existing inset of Top vendors without changing canonical bar proportions. */
+.overview-workspace [data-chart-id="overview.device-types"] {
+  box-sizing: border-box;
+  padding-inline: 18px;
+}
+
+.overview-workspace [data-chart-id="overview.device-types"] + .dash-panel-divider {
+  margin-inline: 18px;
+}

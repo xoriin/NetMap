@@ -1927,8 +1927,8 @@ body.theme-dark .nm-pick-filter input {
 .nm-chart-seg { cursor: pointer; outline: none; transition: stroke-width .12s ease; }
 .nm-chart-seg:hover, .nm-chart-seg:focus-visible { stroke-width: 12; }
 
-.nm-chart-legend { display: grid; flex: 0 1 auto; width: max-content; max-width: 100%; min-width: 0; margin: 0; padding: 0; gap: var(--nm-space-2); grid-template-columns: 10px minmax(0, max-content) max-content; list-style: none; }
-.nm-chart-legend--both { grid-template-columns: 10px minmax(0, max-content) max-content max-content; }
+.nm-chart-legend { display: grid; flex: 1 1 0; width: 100%; max-width: 100%; min-width: 0; margin: 0; padding: 0; gap: var(--nm-space-2); grid-template-columns: 10px minmax(0, 1fr) max-content; list-style: none; }
+.nm-chart-legend--both { grid-template-columns: 10px minmax(0, 1fr) max-content max-content; }
 .nm-chart-legend--bars { flex: 1 1 auto; width: auto; grid-template-columns: 10px minmax(0, max-content) minmax(48px, 1fr) max-content; }
 .nm-chart-legend--bars.nm-chart-legend--both { grid-template-columns: 10px minmax(0, max-content) minmax(48px, 1fr) max-content max-content; }
 .nm-chart-legend-track { height: 8px; margin-left: var(--nm-space-2); overflow: hidden; border-radius: 99px; background: var(--nm-track-bg); }
@@ -2011,7 +2011,7 @@ body.theme-dark .nm-pick-filter input {
 .nm-bento .nm-bento-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .nm-bento--four .nm-bento-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 1280px) {
-  .nm-bento--four:not(.nm-bento--chart) > :first-child:has(> .nm-chart-body > .nm-bar-list) { display: flex; flex-direction: column; contain: size; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child:has(> .nm-chart-body > .nm-bar-list) { display: flex; flex-direction: column; row-gap: 0; contain: size; }
   .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-bar-list) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 }
 .nm-bento .nm-donut-chart:not(.nm-donut-chart--below) .nm-chart-legend { max-height: 116px; overflow-y: auto; }
@@ -2051,7 +2051,7 @@ body.theme-dark .nm-pick-filter input {
   .nm-bento .nm-bento-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .nm-bento .dash-stat-sub { display: none; }
 }
-.nm-chart-body { padding: var(--nm-space-4) 18px; }
+.nm-chart-body { padding: var(--nm-space-4) 18px; align-content: start; }
 .nm-chart-body > .tool-note:not(.nm-chart-empty) { margin: 0 0 var(--nm-space-3); font-size: var(--nm-text-sm); }
 .nm-chart-empty { margin: 0; }
 .nm-event-list { display: grid; align-content: start; margin: 0; padding: var(--nm-space-2) 18px var(--nm-space-4); list-style: none; }
@@ -2088,6 +2088,13 @@ body.theme-dark .nm-pick-filter input {
 .nm-insight-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .nm-insight-title strong { overflow: hidden; color: inherit; font-size: var(--nm-text-lg, 15px); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .nm-insight > .nm-chart-body { padding: var(--nm-space-4) 18px; }
+/* Bar-only views start near the attached header; row/track geometry stays canonical. */
+.nm-chart-body:has(> .nm-bar-list),
+.nm-chart-body:has(> .nm-personal-chart > .nm-bar-list),
+.nm-chart-body:has(> .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]) {
+  padding-top: var(--nm-space-2);
+}
+
 
 /* Personal chart views: shared across every chart panel; canonical controls own their states. */
 .nm-chart-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
@@ -2145,7 +2152,7 @@ body.theme-dark .nm-pick-filter input {
 .nm-personal-value { fill: var(--nm-text); }
 .nm-personal-plot .nm-chart-hit:focus-visible { outline: 2px solid var(--nm-focus-border); }
 @media (min-width: 1280px) {
-  .nm-bento--four:not(.nm-bento--chart) > :first-child:not(:has(.nm-personal-chart--editing)):has(> .nm-chart-body > .nm-personal-chart > .nm-bar-list, .nm-chart-body > .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]) { display: flex; flex-direction: column; contain: size; }
+  .nm-bento--four:not(.nm-bento--chart) > :first-child:not(:has(.nm-personal-chart--editing)):has(> .nm-chart-body > .nm-personal-chart > .nm-bar-list, .nm-chart-body > .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]) { display: flex; flex-direction: column; row-gap: 0; contain: size; }
   .nm-bento--four:not(.nm-bento--chart) > :first-child > .nm-chart-body:has(> .nm-personal-chart > .nm-bar-list, > .nm-personal-chart > .nm-personal-renderer[data-chart-layout="bars"]):not(:has(.nm-personal-chart--editing)) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 }
 @media (max-width: 760px) {
@@ -2165,4 +2172,32 @@ body.theme-dark .nm-pick-filter input {
 
 @container (max-width: 360px) {
   .nm-chart-pair[data-chart-pair="bars"][data-legend-position] { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Each visible element has direct, complementary arrangement controls. */
+.nm-chart-arrangement { display: grid; gap: var(--nm-space-2); }
+.nm-chart-arrangement-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--nm-space-3); font-size: var(--nm-text-sm); }
+.nm-chart-direction-buttons { display: flex; gap: var(--nm-space-2); }
+.nm-chart-pair.nm-chart-pair--metric[data-legend-position="right"] { grid-template-columns: 144px minmax(0, 1fr); }
+.nm-chart-pair.nm-chart-pair--metric[data-legend-position="left"] { grid-template-columns: minmax(0, 1fr) 144px; }
+.nm-personal-ring-centre small, .nm-personal-number small { font-size: var(--nm-text-sm); color: var(--nm-text-muted); }
+.nm-personal-number span { text-align: center; overflow-wrap: anywhere; }
+.nm-chart-pair--metric .nm-personal-number { min-height: 116px; }
+.nm-chart-pair--metric .nm-personal-number strong { font-size: 32px; }
+@container (max-width: 360px) {
+  .nm-chart-pair.nm-chart-pair--metric[data-legend-position] { grid-template-columns: minmax(0, 1fr); }
+}
+
+.nm-chart-pair-slot { min-width: 0; width: 100%; }
+
+/* Ring breakdowns keep long default/selected bar lists within the round visual's height. */
+.nm-personal-ring-layout[data-chart-pair="bars"]:is([data-legend-position="left"], [data-legend-position="right"]) > [data-chart-element="bars"] {
+  max-height: var(--nm-round-size, 116px);
+  box-sizing: border-box;
+  padding-inline-end: var(--nm-space-3);
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+}
+@container (max-width: 360px) {
+  .nm-personal-ring-layout[data-chart-pair="bars"][data-legend-position] > [data-chart-element="bars"] { max-height: none; }
 }
