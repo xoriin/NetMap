@@ -21,11 +21,11 @@ import type { StatusItemState } from "./statusPagesApi";
 type Overview = { counts: Record<StatusItemState, number>; incidents: ManagedIncident[]; maintenance: ManagedMaintenance[] };
 
 const STATE_ITEMS: { state: StatusItemState; label: string; color: `--${string}` }[] = [
-  { state: "operational", label: "Operational", color: "--dash-green" },
+  { state: "operational", label: "Healthy", color: "--dash-green" },
   { state: "degraded", label: "Degraded", color: "--dash-amber" },
-  { state: "down", label: "Down", color: "--dash-red" },
+  { state: "down", label: "Unavailable", color: "--dash-red" },
   { state: "maintenance", label: "Maintenance", color: "--dash-blue" },
-  { state: "unknown", label: "Unknown", color: "--dash-muted" },
+  { state: "unknown", label: "No data", color: "--dash-muted" },
 ];
 
 const INCIDENT_TONE: Record<string, EventTone> = { major: "offline", partial: "warning", performance: "warning" };
@@ -202,17 +202,17 @@ export function StatusPagesPanel({ accessToken, canManageAlerts = false }: { acc
   return (
     <div className="status-pages-overview nm-motion">
       <div className="nm-bento nm-bento--four">
-        <InsightPanel title="Components across pages" icon={<PieChart size={16} />} className="nm-motion-item">
+        <InsightPanel title="Service health across pages" icon={<PieChart size={16} />} className="nm-motion-item">
           {!overview ? <TableSkeleton rows={3} columns={2} />
-            : componentTotal ? <DonutChart label="Status page components by state" centre={<CountUp value={componentTotal} />} sub="Components"
+            : componentTotal ? <DonutChart label="Status page services by state" centre={<CountUp value={componentTotal} />} sub="Services" legendBars={false}
                 items={STATE_ITEMS.map((item) => ({ label: item.label, value: overview.counts[item.state], color: item.color })).filter((item) => item.value > 0)} />
-            : <p className="tool-note nm-chart-empty">No components on any status page yet.</p>}
+            : <p className="tool-note nm-chart-empty">No monitored services on any status page yet.</p>}
         </InsightPanel>
         <div className="dash-stats nm-bento-stats nm-summary-band">
           <DashStat accent="teal" className="nm-motion-item" icon={<IconBroadcast size={20} />} label="Status pages" value={<CountUp value={pages.length} />}
             sub={`${publicCount} public · ${pages.length - publicCount} private`} />
-          <DashStat accent="green" className="nm-motion-item" icon={<Layers size={20} />} label="Components" value={<CountUp value={componentTotal} />}
-            sub={`${overview?.counts.operational ?? 0} operational`} />
+          <DashStat accent="green" className="nm-motion-item" icon={<Layers size={20} />} label="Monitored services" value={<CountUp value={componentTotal} />}
+            sub={`${overview?.counts.operational ?? 0} healthy`} />
           <DashStat accent={openIncidents.length ? "red" : "green"} className="nm-motion-item" icon={<Siren size={20} />} label="Open incidents" value={<CountUp value={openIncidents.length} />}
             sub={openIncidents[0] ? openIncidents[0].title : "All clear"} />
           <DashStat accent="blue" className="nm-motion-item" icon={<CalendarClock size={20} />} label="Maintenance" value={<CountUp value={upcoming.length} />}
