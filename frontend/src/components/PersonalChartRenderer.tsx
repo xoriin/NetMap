@@ -17,7 +17,7 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
     const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
     observer.observe(measured);
     return () => observer.disconnect();
-  }, [options.type, options.position, options.legend, data.rows.length, data.series.length]);
+  }, [options.type, options.position, options.legend, options.chart, options.bars, options.bar_position, data.rows.length, data.series.length]);
   const rows = [...data.rows];
   const totalOf = (row: typeof rows[number]) => data.series.reduce((n, s) => n + number(row[s.key]), 0);
   if (data.kind !== 'time') {
@@ -32,15 +32,16 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
   const display = (v: number) => parts && options.values === 'percent' ? `${fmt(pct(v))}%` : `${fmt(v)}${unit}${parts && options.values === 'both' ? ` · ${fmt(pct(v))}%` : ''}`;
   const colour = (row: typeof rows[number], si = 0) => data.series.length === 1 ? row.color ?? data.series[si].color : data.series[si].color;
   const items = rows.map(d => ({ label: d.label, value: totalOf(d), color: colour(d) }));
-  const legend = options.legend && <ChartLegend items={items} unit={unit} show={options.values} bars={options.tracks} />;
-  const position = chartLegendPosition(options.position);
-  const paired = (visual: ReactNode, chartLegend: ReactNode, ring = false) => <div className={`nm-chart-pair${ring ? ' nm-personal-ring-layout' : ''}${ring && position === 'bottom' ? ' nm-personal-ring-layout--below' : ''}`} data-legend-position={chartLegend ? position : undefined}>
-    {chartLegend && ['top', 'left'].includes(position) ? chartLegend : null}
-    <div ref={visualHost} className="nm-chart-pair-visual">{visual}</div>
-    {chartLegend && !['top', 'left'].includes(position) ? chartLegend : null}
-  </div>;
-  const partLegend = options.labels ? legend : options.legend && <ChartLegend items={items} bars={options.tracks} show={options.values} unit={unit} hideValues />;
-  const seriesLegend = options.legend && data.series.length > 1 && <ChartLegend items={data.series.map(s => ({ label: s.label, value: 0, color: s.color }))} hideValues />;
+  const partLegend = options.legend && <ChartLegend items={items} unit={unit} show={parts ? options.values : 'value'} hideValues={!options.labels} />;
+  const seriesLegend = options.legend && <ChartLegend items={data.series.map(s => ({ label: s.label, value: 0, color: s.color }))} hideValues />;
+  const paired = (visual: ReactNode, companion: ReactNode, position: string, kind: 'bars' | 'legend', round = false) => {
+    if (!visual) return companion;
+    if (!companion) return visual;
+    const before = ['top', 'left'].includes(position);
+    return <div className={`nm-chart-pair${round ? ' nm-personal-ring-layout' : ''}${round && options.type === 'pie' ? ' nm-personal-ring-layout--pie' : ''}${round && position === 'bottom' ? ' nm-personal-ring-layout--below' : ''}`} data-legend-position={position} data-chart-pair={kind}>
+      {before ? companion : null}<div className="nm-chart-pair-visual">{visual}</div>{!before ? companion : null}
+    </div>;
+  };
   const onEnter = (el: Element, row: typeof rows[number]) => show(el, row.label, data.series.map((s, si) => ({ color: colour(row, si), label: s.label, value: display(number(row[s.key])) })));
   const markEvents = (row: typeof rows[number]) => ({
     tabIndex: 0, role: data.onSelect ? 'button' as const : undefined,
@@ -50,31 +51,38 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
     onClick: (e: { currentTarget: Element }) => { if (data.onSelect) { hide(); data.onSelect(row.label); } else onEnter(e.currentTarget, row); },
     onKeyDown: (e: { key: string; preventDefault: () => void }) => { if (data.onSelect && ['Enter', ' '].includes(e.key)) { e.preventDefault(); hide(); data.onSelect(row.label); } },
   });
+  const bars = <BarList label={label} max={data.maximum} showValues={options.labels} unit={unit} formatValue={parts && options.values !== 'value' ? display : undefined} onSelect={data.onSelect ? value => data.onSelect?.(rows.find(row => data.series.some(s => `${row.label} · ${s.label}` === value))?.label ?? value) : undefined} items={rows.flatMap(row => data.series.map((s, si) => ({ label: data.series.length > 1 ? `${row.label} · ${s.label}` : row.label, value: number(row[s.key]), color: colour(row, si), hint: s.label })))} />;
   let content: ReactNode;
   if (!rows.length || !data.series.length) content = <p className="tool-note nm-chart-empty">No data to display.</p>;
   else if (parts && total <= 0 && ['ring', 'pie', 'stacked', 'treemap', 'gauge'].includes(options.type)) content = <p className="tool-note nm-chart-empty">No data to display.</p>;
-  else if (data.zoomable && ['area', 'line'].includes(options.type)) content = paired(<AreaChart label={label} rows={rows.map(row => Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined)) as { label: string } & Record<string, number | string>)} series={data.series} unit={unit} zoomable reference={data.reference} filled={options.type === 'area'} height={220} />, seriesLegend);
+  else if (data.zoomable && ['area', 'line'].includes(options.type)) content = <AreaChart label={label} rows={rows.map(row => Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined)) as { label: string } & Record<string, number | string>)} series={data.series} unit={unit} zoomable reference={data.reference} filled={options.type === 'area'} height={220} />;
   else if ((options.type === 'ring' || options.type === 'pie') && total > 0) {
     const radius = 40, circumference = 2 * Math.PI * radius;
     let offset = 0;
     const segments = rows.filter(d => totalOf(d) > 0);
     let angle = -Math.PI / 2;
-    const visual = <div className="nm-personal-ring"><svg viewBox="0 0 100 100" role="img" aria-label={label}>
+    const pieLabels: { label: string; value: number; x: number; y: number }[] = [];
+    const visual = <div className={`nm-personal-ring${options.type === 'pie' ? ' nm-personal-pie' : ''}`}><svg viewBox="0 0 100 100" role="img" aria-label={label}>
       {segments.map(row => {
         const value = totalOf(row), arc = value / total * 2 * Math.PI;
         if (options.type === 'pie') {
           const start = angle; angle += arc;
+          if (options.labels && value / total >= .14) {
+            const mid = start + arc / 2;
+            pieLabels.push({ label: row.label, value, x: segments.length === 1 ? 50 : 50 + 28 * Math.cos(mid), y: segments.length === 1 ? 50 : 50 + 28 * Math.sin(mid) });
+          }
           return segments.length === 1 ? <circle key={row.label} cx={50} cy={50} r={46} fill={paint(colour(row))} {...markEvents(row)} /> : <path key={row.label} d={`M50,50 L${50 + 46 * Math.cos(start)},${50 + 46 * Math.sin(start)} A46,46 0 ${arc > Math.PI ? 1 : 0},1 ${50 + 46 * Math.cos(angle)},${50 + 46 * Math.sin(angle)} Z`} fill={paint(colour(row))} {...markEvents(row)} />;
         }
         const length = value / total * circumference, start = offset; offset += length;
         return <circle key={row.label} cx={50} cy={50} r={radius} fill="none" stroke={paint(colour(row))} strokeWidth={10} strokeDasharray={`${Math.max(.5, length - (segments.length > 1 ? 1.5 : 0))} ${circumference}`} strokeDashoffset={-start} transform="rotate(-90 50 50)" {...markEvents(row)} />;
       })}
-    </svg>{options.type === 'ring' && <div className="nm-personal-ring-centre"><strong>{fmt(total)}</strong><span>{data.noun ?? 'Total'}</span></div>}</div>;
-    content = paired(visual, partLegend, true);
+      {pieLabels.map(item => <g key={item.label} className="nm-personal-pie-label" transform={`translate(${item.x} ${item.y})`} aria-hidden="true"><rect x={-19} y={-10} width={38} height={20} rx={3} /><text textAnchor="middle"><tspan x={0} y={-1}>{item.label.length > 9 ? `${item.label.slice(0, 8)}…` : item.label}</tspan><tspan x={0} y={7}>{display(item.value).length > 11 ? `${new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(item.value)}${unit}${options.values === 'both' ? ` · ${Math.round(pct(item.value))}%` : ''}` : display(item.value)}</tspan></text></g>)}
+    </svg>{options.type === 'ring' && options.labels && <div className="nm-personal-ring-centre"><strong>{fmt(total)}</strong><span>{data.noun ?? 'Total'}</span></div>}</div>;
+    content = visual;
   } else if (options.type === 'bars') {
-    content = <BarList label={label} max={data.maximum} showValues={options.labels} unit={unit} formatValue={parts && options.values !== 'value' ? display : undefined} onSelect={data.onSelect ? value => data.onSelect?.(rows.find(row => data.series.some(s => `${row.label} · ${s.label}` === value))?.label ?? value) : undefined} items={rows.flatMap(row => data.series.map((s, si) => ({ label: data.series.length > 1 ? `${row.label} · ${s.label}` : row.label, value: number(row[s.key]), color: colour(row, si), hint: s.label })))} />;
+    content = bars;
   } else if (options.type === 'stacked') {
-    content = paired(<div className="nm-stackbar" role="img" aria-label={label}>{rows.filter(d => totalOf(d) > 0).map(row => <span key={row.label} style={{ flex: `${totalOf(row)} 0 0`, background: paint(colour(row)) }} {...markEvents(row)} />)}</div>, partLegend);
+    content = <div className="nm-stackbar" role="img" aria-label={label}>{rows.filter(d => totalOf(d) > 0).map(row => <span key={row.label} style={{ flex: `${totalOf(row)} 0 0`, background: paint(colour(row)) }} {...markEvents(row)} />)}</div>;
   } else if (options.type === 'treemap') {
     const tiles: { row: typeof rows[number]; x: number; y: number; w: number; h: number }[] = [];
     const tile = (list: typeof rows, x: number, y: number, w: number, h: number) => {
@@ -111,7 +119,7 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
     const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 80))));
     const limit = options.type === 'columns' ? Math.max(2, Math.min(14, Math.floor((slot - 8) / 7))) : 13;
     const ticks = [0, ceiling / 2, ceiling];
-    content = paired(<>{width > 0 && <svg className="nm-personal-plot" width={width} height={height} role="img" aria-label={`${label}${percent ? ' (%)' : unit ? ` (${unit.trim()})` : ''}`}>
+    content = <>{width > 0 && <svg className="nm-personal-plot" width={width} height={height} role="img" aria-label={`${label}${percent ? ' (%)' : unit ? ` (${unit.trim()})` : ''}`}>
       {ticks.map(v => <g key={v}><line className="nm-chart-grid" x1={left} x2={width - right} y1={baseline - v / ceiling * (baseline - top)} y2={baseline - v / ceiling * (baseline - top)} /><text className="nm-chart-axis" x={left - 6} y={baseline - v / ceiling * (baseline - top) + 4} textAnchor="end">{fmt(v)}{percent ? '%' : ''}</text></g>)}
       {['line', 'area'].includes(options.type) && data.series.map((s, si) => {
         const path = smoothPath(rows.map((row, i) => [x(i), y(number(row[s.key]))]));
@@ -127,7 +135,13 @@ export function PersonalChartRenderer({ data, options, label }: { data: ChartDat
           <rect className="nm-chart-hit" x={left + i * slot} y={top} width={slot} height={baseline - top} {...markEvents(row)} />
         </g>;
       })}
-    </svg>}{unit && <span className="dash-panel-meta">{unit.trim()}</span>}</>, seriesLegend);
+    </svg>}{unit && <span className="dash-panel-meta">{unit.trim()}</span>}</>;
   }
-  return <div ref={host} className="nm-personal-renderer">{content}<ChartTooltip tip={tip} /></div>;
+  const round = ['ring', 'pie'].includes(options.type);
+  const main = options.chart ? <div ref={visualHost} className={`nm-chart-element${round ? ' nm-chart-element--round' : ''}${options.type === 'pie' ? ' nm-chart-element--pie' : ''}`} data-chart-element="chart">{content}</div> : null;
+  const extraBars = options.bars && options.type !== 'bars' ? <div className="nm-chart-element" data-chart-element="bars">{bars}</div> : null;
+  const chartWithBars = paired(main, extraBars, options.bar_position, 'bars', round);
+  const legend = options.legend ? <div className="nm-chart-element" data-chart-element="legend">{data.series.length > 1 ? seriesLegend : partLegend}</div> : null;
+  const composed = paired(chartWithBars, legend, chartLegendPosition(options.position), 'legend', round && !extraBars);
+  return <div ref={host} className="nm-personal-renderer" data-chart-layout={options.chart && options.type === 'bars' && !legend || !options.chart && extraBars && !legend ? 'bars' : undefined}><div className="nm-chart-composition">{!rows.length ? <p className="tool-note nm-chart-empty">No data to display.</p> : composed || <p className="tool-note nm-chart-empty">Choose a chart, bars or legend to display.</p>}</div><ChartTooltip tip={tip} /></div>;
 }

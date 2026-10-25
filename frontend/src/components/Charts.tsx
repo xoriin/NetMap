@@ -4,7 +4,7 @@ export * from './ChartPrimitives';
 
 type PersonalProps = { viewId?: string; viewNoun?: string; viewKind?: ChartData['kind'] };
 export function DonutChart(props: Parameters<typeof Ring>[0] & PersonalProps) {
-  return <PersonalChart id={props.viewId} label={props.label} base="ring" data={{ kind: 'parts', unit: props.unit, noun: props.viewNoun ?? props.sub, rows: props.items.map(d => ({ label: d.label, value: d.value, color: d.color })), series: [{ key: 'value', label: props.sub, color: '--dash-blue' }] }}><Ring {...props} /></PersonalChart>;
+  return <PersonalChart id={props.viewId} label={props.label} base="ring" data={{ kind: 'parts', defaultLegend: props.legend ?? true, unit: props.unit, noun: props.viewNoun ?? props.sub, rows: props.items.map(d => ({ label: d.label, value: d.value, color: d.color })), series: [{ key: 'value', label: props.sub, color: '--dash-blue' }] }}><Ring {...props} /></PersonalChart>;
 }
 export function ColumnChart(props: Parameters<typeof Columns>[0] & PersonalProps) {
   return <PersonalChart id={props.viewId} label={props.label} base="columns" data={{ kind: props.viewKind ?? 'time', rows: props.rows, series: props.series, unit: props.unit, onSelect: props.onSelect }}><Columns {...props} /></PersonalChart>;

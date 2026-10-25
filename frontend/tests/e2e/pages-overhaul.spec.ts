@@ -194,34 +194,28 @@ test("VLANs count devices per group and summarise address space", async ({ page 
   await expect(page.locator(".dash-stat", { hasText: "Usable addresses" }).locator(".dash-stat-value")).toHaveText("764");
 });
 
-test("ring legends pair each name with a share bar that fills the row", async ({ page }) => {
+test("ring bars are optional and use the canonical bar grid", async ({ page }) => {
   await boot(page);
   await page.goto("/monitoring");
-  const legend = page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend");
-  await expect(legend.locator("li").first()).toBeVisible();
-  const shape = await legend.evaluate((ul) => {
-    const text = (node: Element) => { const range = document.createRange(); range.selectNodeContents(node); return range.getBoundingClientRect(); };
-    const body = ul.closest(".nm-chart-body")!.getBoundingClientRect();
-    return [...ul.querySelectorAll("li")].map((li) => {
-      const track = li.querySelector(".nm-chart-legend-track")!.getBoundingClientRect();
-      const fill = li.querySelector(".nm-chart-legend-track i")!.getBoundingClientRect();
-      return {
-        barLeft: track.left,
-        nameToBar: track.left - text(li.querySelector(".nm-chart-legend-label")!).right,
-        barToValue: text(li.querySelector("strong")!).left - track.right,
-        valueToEdge: body.right - text(li.querySelector("strong")!).right,
-        share: fill.width / track.width,
-      };
-    });
-  });
-  expect(new Set(shape.map((row) => Math.round(row.barLeft))).size, "bars start in one column").toBe(1);
-  expect(Math.min(...shape.map((row) => row.nameToBar)), "the longest name sits next to its bar").toBeLessThanOrEqual(24);
+  const panel = page.getByRole("region", { name: "Fleet health", exact: true });
+  await expect(panel.locator('.nm-chart-legend li').first()).toBeVisible();
+  await expect(panel.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+  await panel.getByRole('button', { name: /^Visual options:/ }).click();
+  await panel.getByLabel('Show bars', { exact: true }).check();
+  await panel.getByLabel('Show legend', { exact: true }).uncheck();
+  const shape = await panel.locator('.nm-bar-list').evaluate(ul => [...ul.querySelectorAll('li')].map(li => {
+    const track = li.querySelector('.nm-bar-list-track')!.getBoundingClientRect();
+    return { left: track.left, height: track.height, share: li.querySelector('i')!.getBoundingClientRect().width / track.width, numberWidth: li.querySelector('strong')!.getBoundingClientRect().width, gap: getComputedStyle(ul).rowGap };
+  }));
+  expect(new Set(shape.map(row => Math.round(row.left))).size).toBe(1);
   for (const row of shape) {
-    expect(row.barToValue).toBeLessThanOrEqual(24);
-    expect(row.valueToEdge, "the row reaches across the panel").toBeLessThanOrEqual(40);
+    expect(row.height).toBe(8);
+    expect(row.numberWidth).toBeGreaterThanOrEqual(32);
+    expect(row.gap).toBe('9px');
   }
-  expect(shape[0].share, "1 of 2 devices fills √½ of the track on the square-root scale").toBeCloseTo(Math.SQRT1_2, 1);
+  expect(shape[0].share).toBeCloseTo(1, 1);
 });
+
 
 test("Overview panels share one surface palette in Slate", async ({ page }) => {
   await boot(page);
@@ -375,7 +369,7 @@ test("Inventory cards and the type ring animate in like the other pages", async 
   expect(await card.evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-rise");
   expect(await page.locator(".inventory-bento .nm-insight").evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-rise");
   expect(await page.locator(".inventory-bento .nm-chart-seg").first().evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-sweep");
-  expect(await page.locator(".inventory-bento .nm-chart-legend-track > i").first().evaluate((node) => getComputedStyle(node).animationName)).toBe("nm-grow-x");
+  await expect(page.locator(".inventory-bento .nm-chart-legend-track")).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(await card.evaluate((node) => getComputedStyle(node).animationName)).toBe("none");
 });

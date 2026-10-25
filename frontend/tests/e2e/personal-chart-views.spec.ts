@@ -55,7 +55,7 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await expect(options.getByRole('button', { name: 'Columns', exact: true })).toHaveAttribute('aria-pressed', 'true');
     for (const width of [1440, 820, 390]) {
       await page.setViewportSize({ width, height: 1050 });
-      await expect.poll(async () => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+      await expect.poll(async () => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest('[data-chart-element="chart"]')!.getBoundingClientRect().width))).toBeLessThan(1);
       const centers = await chart.locator('.nm-personal-plot').evaluate(svg => {
         const hits = [...svg.querySelectorAll<SVGRectElement>('.nm-chart-hit')];
         const left = Number(hits[0].getAttribute('x'));
@@ -135,12 +135,13 @@ test('time series keep chronological order and multi-series values when switchin
   expect(values.slice(1)).toEqual(['1', '1']);
   await chart.getByRole('button', { name: 'Area', exact: true }).click();
   await expect(chart.locator('.nm-chart-area')).toHaveCount(2);
+  await chart.getByLabel('Show legend', { exact: true }).check();
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1050 });
     for (const position of ['left', 'right', 'top', 'bottom']) {
       await chart.getByLabel('Legend position', { exact: true }).selectOption(position);
       await expect(chart.locator('.nm-chart-pair')).toHaveAttribute('data-legend-position', position);
-      await expect.poll(() => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+      await expect.poll(() => chart.locator('.nm-personal-plot').evaluate(el => Math.abs(el.getBoundingClientRect().width - el.closest('[data-chart-element="chart"]')!.getBoundingClientRect().width))).toBeLessThan(1);
       await expect(chart.locator('.nm-chart-legend-label')).toHaveText(['Sent', 'Failed']);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
@@ -307,3 +308,134 @@ for (const theme of ['light', 'slate', 'zinc']) {
     await expect(chart.locator('.nm-donut-chart')).toBeVisible();
   });
 }
+
+for (const theme of ['light', 'slate', 'zinc']) {
+  test(`chart bars and legend are independent elements in ${theme}`, async ({ page }) => {
+    const state = await boot(page, theme);
+    await page.goto('/inventory');
+    const chart = page.locator('[data-chart-id="inventory.device-types"]');
+    const trigger = page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true });
+    await trigger.click();
+    await chart.getByRole('button', { name: 'Stacked bar', exact: true }).click();
+    await expect(chart.locator('.nm-stackbar')).toHaveCount(1);
+    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+    await chart.getByRole('button', { name: 'Ring', exact: true }).click();
+    await expect(chart.getByLabel('Show bars', { exact: true })).not.toBeChecked();
+    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+    await chart.getByLabel('Show legend', { exact: true }).uncheck();
+    await chart.getByLabel('Show bars', { exact: true }).check();
+    await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
+    for (const width of [1440, 820, 390, 320]) {
+      await page.setViewportSize({ width, height: 1050 });
+      for (const position of ['top', 'bottom', 'left', 'right']) {
+        await chart.getByLabel('Bars position', { exact: true }).selectOption(position);
+        const pair = chart.locator('.nm-chart-pair[data-chart-pair="bars"]');
+        await expect(pair).toHaveAttribute('data-legend-position', position);
+        const placement = await pair.evaluate(el => {
+          const visual = el.querySelector('.nm-chart-pair-visual')!.getBoundingClientRect();
+          const bars = el.querySelector('[data-chart-element="bars"]')!.getBoundingClientRect();
+          return { width: el.getBoundingClientRect().width, visual: { left: visual.left, right: visual.right, top: visual.top, bottom: visual.bottom }, bars: { left: bars.left, right: bars.right, top: bars.top, bottom: bars.bottom } };
+        });
+        if (position === 'top' || position === 'left' && placement.width <= 360) expect(placement.bars.bottom).toBeLessThan(placement.visual.top);
+        else if (position === 'bottom' || position === 'right' && placement.width <= 360) expect(placement.bars.top).toBeGreaterThan(placement.visual.bottom);
+        else if (position === 'left') expect(placement.bars.right).toBeLessThan(placement.visual.left);
+        else expect(placement.bars.left).toBeGreaterThan(placement.visual.right);
+        const geometry = await chart.locator('.nm-bar-list').evaluate(el => {
+          const row = el.querySelector('li')!, track = el.querySelector('.nm-bar-list-track')!;
+          const style = getComputedStyle(row);
+          return { height: track.getBoundingClientRect().height, columns: style.gridTemplateColumns.split(' ').map(Number.parseFloat), gap: Number.parseFloat(style.columnGap) };
+        });
+        expect(geometry.height).toBe(8);
+        expect(geometry.columns[0]).toBeGreaterThanOrEqual(90);
+        expect(geometry.gap).toBe(12);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    }
+    await chart.getByLabel('Show chart', { exact: true }).uncheck();
+    await expect(chart.locator('.nm-personal-ring')).toHaveCount(0);
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
+    await chart.getByLabel('Show legend', { exact: true }).check();
+    await chart.getByLabel('Legend position', { exact: true }).selectOption('top');
+    await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
+    await expect(chart.getByRole('status')).toHaveText('My view saved');
+    expect(state.views()['inventory.device-types']).toMatchObject({ version: 2, chart: false, bars: true, legend: true, bar_position: 'right', position: 'top' });
+    await page.reload();
+    await expect(chart.locator('.nm-personal-ring')).toHaveCount(0);
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
+    await trigger.click();
+    await chart.getByRole('button', { name: 'Pie', exact: true }).click();
+    await chart.getByLabel('Show chart', { exact: true }).check();
+    await chart.getByLabel('Show bars', { exact: true }).uncheck();
+    await chart.getByLabel('Show legend', { exact: true }).uncheck();
+    await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(3);
+    await chart.getByLabel('Show values', { exact: true }).uncheck();
+    await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(0);
+    await chart.getByLabel('Show values', { exact: true }).check();
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await chart.evaluate(el => { for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) ancestor.scrollTop = 0; });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: test.info().outputPath(`pie-${theme}.png`) });
+    await chart.getByLabel('Show bars', { exact: true }).check();
+    await chart.getByLabel('Bars position', { exact: true }).selectOption('right');
+    await chart.evaluate(el => { for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) ancestor.scrollTop = 0; });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await chart.locator('xpath=ancestor::*[contains(@class,"nm-app-panel")][1]').screenshot({ path: test.info().outputPath(`composition-${theme}.png`) });
+    await chart.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(0);
+    await trigger.click();
+    await chart.getByRole('button', { name: 'Reset this chart', exact: true }).click();
+    await expect(chart.locator('.nm-donut-chart')).toBeVisible();
+    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+  });
+}
+
+test('legacy tracks translate into optional bars and selecting Bars never duplicates them', async ({ page }) => {
+  const state = await boot(page);
+  state.views()['inventory.device-types'] = { version: 1, type: 'ring', legend: true, tracks: true, position: 'side' };
+  await page.goto('/inventory');
+  const chart = page.locator('[data-chart-id="inventory.device-types"]');
+  await expect(chart.locator('.nm-personal-ring')).toBeVisible();
+  await expect(chart.locator('.nm-bar-list-track')).toHaveCount(3);
+  await expect(chart.locator('.nm-chart-legend')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true }).click();
+  await chart.getByLabel('Show chart', { exact: true }).uncheck();
+  await chart.getByRole('button', { name: 'Bars', exact: true }).click();
+  await expect(chart.getByLabel('Show chart', { exact: true })).toBeChecked();
+  await expect(chart.getByLabel('Show bars', { exact: true })).not.toBeChecked();
+  await expect(chart.locator('.nm-bar-list')).toHaveCount(1);
+  state.views()['inventory.device-types'] = { version: 1, type: 'stacked', legend: true, tracks: true };
+  await page.reload();
+  await expect(chart.locator('.nm-stackbar')).toHaveCount(1);
+  await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+  state.views()['inventory.device-types'] = { version: 2, type: 'ring', chart: false, bars: false, legend: false };
+  await page.reload();
+  await expect(chart).toContainText('Choose a chart, bars or legend to display.');
+  await page.getByRole('button', { name: 'Visual options: Devices per device type', exact: true }).click();
+  await chart.getByLabel('Show chart', { exact: true }).check();
+  await expect(chart.locator('.nm-personal-ring')).toBeVisible();
+});
+
+test('pie labels handle a single slice, dominant data and small slices without overlap', async ({ page }) => {
+  const state = await boot(page);
+  const devices = Array.from({ length: 86 }, (_, index) => mockDevice({ id: index + 1, hostname: `Device ${index + 1}`, device_type: index < 78 ? 'router' : index < 81 ? 'server' : 'access_point' }));
+  await setupTopologyMocks(page, devices, []);
+  state.views()['inventory.device-types'] = { version: 2, type: 'pie', chart: true, bars: false, legend: false, labels: true };
+  await page.goto('/inventory');
+  const chart = page.locator('[data-chart-id="inventory.device-types"]');
+  await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(1);
+  await expect(chart.locator('.nm-personal-pie-label')).toContainText('78');
+  await chart.locator('.nm-personal-pie path').first().focus();
+  await expect(page.getByRole('status').filter({ hasText: 'router' })).toContainText('78');
+  await setupTopologyMocks(page, [devices[0]], []);
+  await page.reload();
+  await expect(chart.locator('.nm-personal-pie-label')).toHaveCount(1);
+  await expect(chart.locator('.nm-personal-pie-label')).toContainText('1');
+  const box = await chart.locator('.nm-personal-pie-label').boundingBox();
+  const pie = await chart.locator('.nm-personal-pie').boundingBox();
+  expect(box!.x).toBeGreaterThan(pie!.x);
+  expect(box!.x + box!.width).toBeLessThan(pie!.x + pie!.width);
+  await setupTopologyMocks(page, [], []);
+  await page.reload();
+  await expect(chart).toHaveCount(0);
+});

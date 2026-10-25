@@ -644,7 +644,7 @@ export function ThemePreviewWorkspace() {
       <section className="theme-lab-review-section">
         <div className="theme-lab-section-heading">
           <div><span className="theme-lab-step">20</span><h3>Charts</h3></div>
-          <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value. Personal chart options preserve bar geometry and place a paired legend at the top, bottom, left or right.</p>
+          <p>Shared chart components: a multi-segment ring, a stacked column chart, a part-of-whole bar and row sparklines. Colours come from the dashboard tokens; hover or focus a mark for its value. Personal chart options independently enable the chart, standard bars and text legend, with separate placement controls. Pie slices carry readable category/value labels.</p>
         </div>
         <div className="theme-lab-panel theme-lab-panel--shadow">
           <PreviewHeader icon={Server} title="Chart components" />

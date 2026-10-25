@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 
 for (const theme of ["light", "slate", "zinc"]) {
-  test(`Status pages fill the service chart width with legend bars in ${theme}`, async ({ page }) => {
+  test(`Status pages add independent service bars without forcing a legend in ${theme}`, async ({ page }) => {
     await page.route("**/api/v1/**", route => route.fulfill({ json: [] }));
     await setupCoreMocks(page);
     await setupTopologyMocks(page);
@@ -20,19 +20,34 @@ for (const theme of ["light", "slate", "zinc"]) {
     await page.route("**/api/v1/status-pages/1/preview?*", route => route.fulfill({ json: {
       summary: { counts: { operational: 34, degraded: 3, down: 1, maintenance: 2, unknown: 2 } },
     } }));
+    let saved: Record<string, unknown> = {};
+    await page.route('**/api/v1/auth/me/chart-views**', async route => {
+      if (route.request().method() === 'GET') return route.fulfill({ json: saved });
+      const id = new URL(route.request().url()).pathname.split('/chart-views/')[1];
+      saved[id] = route.request().postDataJSON();
+      return route.fulfill({ json: saved[id] });
+    });
     await page.goto("/monitoring#status-pages");
     const chart = page.getByRole("region", { name: "Service health across pages", exact: true });
     await expect(chart.locator(".dash-donut-label")).toHaveText("Services");
     await expect(chart.locator(".nm-chart-legend-label")).toHaveText(["Healthy", "Degraded", "Unavailable", "Maintenance", "No data"]);
     await expect(chart.locator(".nm-chart-legend strong")).toHaveText(["34", "3", "1", "2", "2"]);
-    await expect(chart.locator(".nm-chart-legend-track")).toHaveCount(5);
+    await expect(chart.locator('.nm-chart-legend-track, .nm-bar-list-track')).toHaveCount(0);
+    await chart.getByRole('button', { name: /^Visual options:/ }).click();
+    await chart.getByLabel('Show bars', { exact: true }).check();
+    await chart.getByLabel('Show legend', { exact: true }).uncheck();
+    await chart.getByRole('button', { name: 'Save my view', exact: true }).click();
+    await expect(chart.getByRole('status')).toHaveText('My view saved');
+    await chart.getByRole('button', { name: 'Close visual options', exact: true }).click();
+    await expect(chart.locator('.nm-bar-list-track')).toHaveCount(5);
     await expect(page.locator(".dash-stat", { hasText: "Monitored services" })).toContainText("42");
     for (const width of [1440, 820, 390]) {
       await page.setViewportSize({ width, height: 1000 });
-      const ring = (await chart.locator(".nm-donut-ring").boundingBox())!;
-      const legend = (await chart.locator(".nm-chart-legend").boundingBox())!;
+      const ring = (await chart.locator(".nm-personal-ring").boundingBox())!;
+      const legend = (await chart.locator(".nm-bar-list").boundingBox())!;
       const body = (await chart.locator(".nm-chart-body").boundingBox())!;
-      expect(legend.x).toBeGreaterThanOrEqual(ring.x + ring.width);
+      if (width > 390) expect(legend.x).toBeGreaterThanOrEqual(ring.x + ring.width);
+      else expect(legend.y).toBeGreaterThanOrEqual(ring.y + ring.height);
       expect(legend.x + legend.width).toBeLessThanOrEqual(body.x + body.width);
       expect(body.x + body.width - legend.x - legend.width).toBeLessThanOrEqual(20);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -43,8 +58,8 @@ for (const theme of ["light", "slate", "zinc"]) {
     } }));
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.reload();
-    await expect(chart.locator(".nm-chart-legend-track")).toHaveCount(1);
-    const single = await chart.locator(".nm-chart-legend-track").evaluate(track => ({
+    await expect(chart.locator(".nm-bar-list-track")).toHaveCount(1);
+    const single = await chart.locator(".nm-bar-list-track").evaluate(track => ({
       track: track.getBoundingClientRect().width,
       fill: track.querySelector("i")!.getBoundingClientRect().width,
       rightGap: track.closest(".nm-chart-body")!.getBoundingClientRect().right - track.closest("li")!.getBoundingClientRect().right,
@@ -52,9 +67,9 @@ for (const theme of ["light", "slate", "zinc"]) {
     expect(Math.abs(single.track - single.fill)).toBeLessThanOrEqual(1);
     expect(single.rightGap).toBeLessThanOrEqual(20);
     await page.screenshot({ path: test.info().outputPath("status-single-service.png") });
-    // This workspace-level choice must not remove share bars from other rings.
+    // Optional bars stay local to this chart.
     await page.goto("/monitoring#devices");
-    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend-track").first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Fleet health", exact: true }).locator(".nm-chart-legend-track, .nm-bar-list-track")).toHaveCount(0);
     await page.route("**/api/v1/status-pages", route => route.fulfill({ json: [] }));
     await page.goto("/monitoring#status-pages");
     await expect(chart).toContainText("No monitored services on any status page yet.");

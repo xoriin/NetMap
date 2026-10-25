@@ -71,7 +71,7 @@ export function ChartLegend({ items, unit = "", show = "value", bars = false, hi
 }
 
 /** Multi-segment ring on the UsageRing geometry, with a legend and per-segment tooltips. */
-export function DonutChart({ items, centre, sub, unit = "", label, legend = true, legendShow = "value", legendPosition = "side", legendBars = true }: {
+export function DonutChart({ items, centre, sub, unit = "", label, legend = true, legendShow = "value", legendPosition = "side", legendBars = false }: {
   items: ChartItem[];
   centre: ReactNode;
   sub: string;
