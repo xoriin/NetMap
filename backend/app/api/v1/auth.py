@@ -502,16 +502,18 @@ def change_password(
     payload: PasswordChangeRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
+    request: Request,
 ) -> None:
-    if not verify_password(payload.current_password, current_user.password_hash):
-        write_audit(
-            db,
-            action="auth.password_change_failed",
-            actor_user_id=current_user.id,
-            target=f"user:{current_user.username}",
-        )
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is invalid")
+    # Same windowed failure counting, lockout and per-IP limits as sign-in.
+    _verify_password_and_code(
+        db,
+        current_user,
+        request,
+        payload.current_password,
+        source="change_password",
+        failure_action="auth.password_change_failed",
+        wrong_password_detail="Current password is invalid",
+    )
 
     current_user.password_hash = hash_password(payload.new_password)
     revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="password_changed")
@@ -524,7 +526,17 @@ def change_password(
     db.commit()
 
 
-def _verify_password_and_code(db: Session, user: User, request: Request, password: str, code: str | None = None) -> None:
+def _verify_password_and_code(
+    db: Session,
+    user: User,
+    request: Request,
+    password: str,
+    code: str | None = None,
+    *,
+    source: str = "profile",
+    failure_action: str = "auth.mfa_verify_failed",
+    wrong_password_detail: str = "Current password is incorrect",
+) -> None:
     client_ip = client_ip_from_request(request)
     subjects = throttle_subjects(user.username, client_ip)
     locked, wait_seconds = is_locked(db, subjects)
@@ -540,14 +552,14 @@ def _verify_password_and_code(db: Session, user: User, request: Request, passwor
     attempts = record_login_failure(db, subjects)
     write_audit(
         db,
-        action="auth.mfa_verify_failed",
+        action=failure_action,
         actor_user_id=user.id,
         target=f"user:{user.username}",
-        detail=f"attempts={attempts} ip={client_ip or '-'} source=profile",
+        detail=f"attempts={attempts} ip={client_ip or '-'} source={source}",
     )
     db.commit()
     apply_progressive_delay(attempts)
-    detail = "Current password is incorrect" if code is None else "Password or authentication code is incorrect"
+    detail = wrong_password_detail if code is None else "Password or authentication code is incorrect"
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
