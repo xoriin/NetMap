@@ -103,3 +103,48 @@ def test_cli_runs_in_a_fresh_interpreter(tmp_path):
     assert first.returncode == 0, first.stderr
     second = subprocess.run([sys.executable, "-c", run], cwd=backend, env=env, capture_output=True, text=True)
     assert second.returncode == 0, second.stderr
+
+
+def _factory_with_locked_user():
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.auth_session import LoginThrottleState
+
+    factory = memory_session_factory()
+    db = factory()
+    db.add(User(username="alice", password_hash="x", role="SuperAdmin", is_active=True))
+    now = datetime.now(timezone.utc)
+    db.add(LoginThrottleState(subject="user:alice", failed_attempts=5, last_failed_at=now, locked_until=now + timedelta(minutes=15)))
+    db.commit()
+    db.close()
+    return factory
+
+
+def test_unlock_login_clears_the_lockout_and_audits(monkeypatch, capsys):
+    from app.services.auth.security import is_locked
+
+    monkeypatch.setattr(cli.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(cli, "_drop_privileges", lambda name: None)
+    factory = _factory_with_locked_user()
+    assert cli.main(["unlock-login", "alice"], session_factory=factory) == 0
+    db = factory()
+    assert is_locked(db, ["user:alice"]) == (False, 0)
+    audit = db.query(AuditLog).filter_by(action="auth.user_login_unlocked").one()
+    assert audit.detail == "cleared=True source=console"
+    assert "Sign-in lockout cleared for alice." in capsys.readouterr().out
+
+
+def test_unlock_login_unknown_user_and_root_check(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_drop_privileges", lambda name: None)
+    monkeypatch.setattr(cli.os, "geteuid", lambda: 0)
+    assert cli.main(["unlock-login", "nobody"], session_factory=_factory_with_locked_user()) == 1
+    monkeypatch.setattr(cli.os, "geteuid", lambda: 1000)
+    assert cli.main(["unlock-login", "alice"], session_factory=_factory_with_locked_user()) == 2
+
+
+def test_unlock_login_is_listed_in_help(capsys):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        cli.main(["--help"])
+    assert "unlock-login" in capsys.readouterr().out

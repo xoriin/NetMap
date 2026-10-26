@@ -35,11 +35,39 @@ def _reset_2fa(db, username: str) -> int:
     return 0
 
 
+def _unlock_login(db, username: str) -> int:
+    from sqlalchemy import select
+
+    from app.db.session import import_all_models
+    from app.models.user import User
+    from app.services.audit.service import write_audit
+    from app.services.auth.security import clear_user_login_lockout
+
+    import_all_models()
+    user = db.scalar(select(User).where(User.username == username))
+    if user is None:
+        print(f"No user named {username}", file=sys.stderr)
+        return 1
+    cleared = clear_user_login_lockout(db, user.username)
+    write_audit(db, action="auth.user_login_unlocked", target=f"user:{user.username}", detail=f"cleared={cleared} source=console")
+    db.commit()
+    if cleared:
+        print(f"Sign-in lockout cleared for {username}.")
+    else:
+        print(f"{username} was not locked out.")
+    return 0
+
+
+COMMANDS = {"reset-2fa": _reset_2fa, "unlock-login": _unlock_login}
+
+
 def main(argv: list[str] | None = None, *, session_factory=None) -> int:
     parser = argparse.ArgumentParser(prog="netmap-admin")
     commands = parser.add_subparsers(dest="command", required=True)
     reset = commands.add_parser("reset-2fa", help="Turn off two-factor authentication for a user")
     reset.add_argument("username")
+    unlock = commands.add_parser("unlock-login", help="Clear a user's failed sign-in lockout")
+    unlock.add_argument("username")
     args = parser.parse_args(argv)
 
     if os.geteuid() != 0:
@@ -57,7 +85,7 @@ def main(argv: list[str] | None = None, *, session_factory=None) -> int:
         session_factory = SessionLocal
     db = session_factory()
     try:
-        return _reset_2fa(db, args.username)
+        return COMMANDS[args.command](db, args.username)
     finally:
         db.close()
 
