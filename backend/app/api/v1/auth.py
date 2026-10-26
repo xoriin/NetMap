@@ -6,7 +6,7 @@ from secrets import token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -728,12 +728,18 @@ def update_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Change your own email from your profile, which asks you to confirm it is you",
         )
+    new_role = user.role
+    new_active = user.is_active
     if "role" in updates and updates["role"] is not None:
         if current_user.role != UserRole.SUPER_ADMIN and updates["role"] == UserRole.SUPER_ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can assign the SuperAdmin role")
-        user.role = updates["role"]
+        new_role = updates["role"]
     if "is_active" in updates and updates["is_active"] is not None:
-        user.is_active = updates["is_active"]
+        new_active = updates["is_active"]
+    if user.role == UserRole.SUPER_ADMIN and user.is_active and (new_role != UserRole.SUPER_ADMIN or not new_active):
+        _demote_unless_last_super_admin(db, user, new_role, new_active)
+    user.role = new_role
+    user.is_active = new_active
     if "email" in updates:
         user.email = updates["email"] or None
     if "avatar_data" in updates:
@@ -752,6 +758,29 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+LAST_SUPER_ADMIN_DETAIL = "At least one active SuperAdmin must remain"
+
+
+def _demote_unless_last_super_admin(db: Session, user: User, role: str, is_active: bool) -> None:
+    """Demote or disable an active SuperAdmin in one conditional UPDATE, so two
+    concurrent requests can never remove the last one between them."""
+    others = (
+        select(func.count())
+        .select_from(User)
+        .where(User.role == UserRole.SUPER_ADMIN, User.is_active.is_(True), User.id != user.id)
+        .scalar_subquery()
+    )
+    result = db.execute(
+        update(User)
+        .where(User.id == user.id, others > 0)
+        .values(role=role, is_active=is_active)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=LAST_SUPER_ADMIN_DETAIL)
 
 
 @router.post("/auth/users/{user_id}/unlock-login", status_code=status.HTTP_204_NO_CONTENT)
