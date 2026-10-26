@@ -141,3 +141,29 @@ def test_expired_lockout_restarts_the_failure_count(monkeypatch):
 
     assert attempts == 1
     assert is_locked(db, ["user:returning"])[0] is False
+
+
+def test_reset_rate_limit_still_applies_when_the_client_ip_is_unknown():
+    from app.services.auth.security import _check_reset_rate_limit
+
+    db = _session()
+    results = [_check_reset_rate_limit(db, None, "Alice@Example.com") for _ in range(6)]
+    assert results == [False] * 5 + [True]
+    subjects = {row.subject for row in db.query(LoginThrottleState).all()}
+    assert subjects == {"reset:ip:unknown", "reset:account:alice@example.com"}
+
+
+def test_reset_rate_limit_for_unknown_ips_has_a_global_ceiling():
+    from app.services.auth.security import _check_reset_rate_limit
+
+    db = _session()
+    results = [_check_reset_rate_limit(db, None, f"user{n}") for n in range(21)]
+    assert results == [False] * 20 + [True]
+
+
+def test_reset_rate_limit_caps_requests_per_account_across_ips():
+    from app.services.auth.security import _check_reset_rate_limit
+
+    db = _session()
+    results = [_check_reset_rate_limit(db, f"192.0.2.{n}", "alice") for n in range(6)]
+    assert results == [False] * 5 + [True]

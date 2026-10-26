@@ -891,7 +891,7 @@ def forgot_password(
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     # Always return 204 regardless of outcome to prevent user enumeration and timing attacks.
-    if _check_reset_rate_limit(db, request_client_ip(request)):
+    if _check_reset_rate_limit(db, request_client_ip(request), payload.username_or_email):
         return
     background_tasks.add_task(_deliver_self_service_reset, payload.username_or_email)
 

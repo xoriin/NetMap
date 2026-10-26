@@ -110,28 +110,39 @@ _RESET_MAX_ATTEMPTS = 5
 _RESET_LOCKOUT_MINUTES = 60
 
 
-def _check_reset_rate_limit(db: Session, ip_address: str | None) -> bool:
+_RESET_ACCOUNT_MAX_ATTEMPTS = 5
+# Shared bucket for requests whose client address is unknown, so a missing
+# address never disables the limit.
+_RESET_UNKNOWN_IP_MAX_ATTEMPTS = 20
+
+
+def _check_reset_rate_limit(db: Session, ip_address: str | None, account: str | None = None) -> bool:
     """Return True if the request should be silently dropped due to rate limiting."""
-    if not ip_address:
-        return False
-    subject = f"reset:ip:{ip_address}"
+    limits = [(f"reset:ip:{ip_address}", _RESET_MAX_ATTEMPTS) if ip_address else ("reset:ip:unknown", _RESET_UNKNOWN_IP_MAX_ATTEMPTS)]
+    account_key = (account or "").strip().lower()[:254]
+    if account_key:
+        limits.append((f"reset:account:{account_key}", _RESET_ACCOUNT_MAX_ATTEMPTS))
     now = datetime.now(timezone.utc)
-    state = db.scalar(select(LoginThrottleState).where(LoginThrottleState.subject == subject))
-    if state and state.locked_until and _as_aware_utc(state.locked_until) > now:
-        return True
-    if state is None:
-        state = LoginThrottleState(subject=subject, failed_attempts=0)
-        db.add(state)
-    elif state.locked_until or (
-        state.last_failed_at
-        and now - _as_aware_utc(state.last_failed_at) > timedelta(minutes=_RESET_LOCKOUT_MINUTES)
-    ):
-        state.failed_attempts = 0
-        state.locked_until = None
-    state.failed_attempts += 1
-    state.last_failed_at = now
-    state.updated_at = now
-    if state.failed_attempts >= _RESET_MAX_ATTEMPTS:
-        state.locked_until = now + timedelta(minutes=_RESET_LOCKOUT_MINUTES)
+    states = []
+    for subject, max_attempts in limits:
+        state = db.scalar(select(LoginThrottleState).where(LoginThrottleState.subject == subject))
+        if state and state.locked_until and _as_aware_utc(state.locked_until) > now:
+            return True
+        states.append((subject, max_attempts, state))
+    for subject, max_attempts, state in states:
+        if state is None:
+            state = LoginThrottleState(subject=subject, failed_attempts=0)
+            db.add(state)
+        elif state.locked_until or (
+            state.last_failed_at
+            and now - _as_aware_utc(state.last_failed_at) > timedelta(minutes=_RESET_LOCKOUT_MINUTES)
+        ):
+            state.failed_attempts = 0
+            state.locked_until = None
+        state.failed_attempts += 1
+        state.last_failed_at = now
+        state.updated_at = now
+        if state.failed_attempts >= max_attempts:
+            state.locked_until = now + timedelta(minutes=_RESET_LOCKOUT_MINUTES)
     db.commit()
     return False

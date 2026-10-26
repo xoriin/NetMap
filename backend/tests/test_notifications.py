@@ -290,7 +290,7 @@ def test_forgot_password_responds_before_looking_up_or_emailing(monkeypatch) -> 
     from app.api.v1 import auth
 
     monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
-    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: False)
+    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda *_args: False)
     monkeypatch.setattr(auth, "SessionLocal", lambda: (_ for _ in ()).throw(AssertionError("looked up during request")))
     tasks = BackgroundTasks()
 
@@ -304,7 +304,7 @@ def test_forgot_password_schedules_nothing_when_rate_limited(monkeypatch) -> Non
     from app.api.v1 import auth
 
     monkeypatch.setattr(auth, "request_client_ip", lambda _request: "192.0.2.10")
-    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda _db, _client_ip: True)
+    monkeypatch.setattr(auth, "_check_reset_rate_limit", lambda *_args: True)
     tasks = BackgroundTasks()
 
     auth.forgot_password(ForgotPasswordRequest(username_or_email="alice"), object(), tasks, object())
