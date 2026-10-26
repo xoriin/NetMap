@@ -93,19 +93,21 @@ def validate_range(target: str, confirm_large_scan: bool) -> DiscoveryTarget:
     return DiscoveryTarget(f"{start}-{end}", host_count, tuple(str(network) for network in range_networks))
 
 
-def ensure_private_network(network) -> None:
-    if not any(
-        network.version == private.version and (network.subnet_of(private) or network.overlaps(private))
+def is_private_network(network) -> bool:
+    """True only when the whole network lies inside one private scan range."""
+    return any(
+        network.version == private.version and network.subnet_of(private)
         for private in PRIVATE_SCAN_NETWORKS
-    ):
+    )
+
+
+def ensure_private_network(network) -> None:
+    if not is_private_network(network):
         raise ValueError("Public IP scanning is blocked by default")
 
 
 def ensure_private_range(networks) -> None:
-    if not all(
-        any(network.version == private.version and network.subnet_of(private) for private in PRIVATE_SCAN_NETWORKS)
-        for network in networks
-    ):
+    if not all(is_private_network(network) for network in networks):
         raise ValueError("Public IP scanning is blocked by default")
 
 

@@ -74,6 +74,17 @@ class DiscoveryScannerTests(unittest.TestCase):
 
         self.assertIn("Public IP scanning is blocked", str(exc.exception))
 
+    def test_validate_target_rejects_cidrs_that_only_overlap_private_space(self) -> None:
+        with patch("app.services.discovery.scanner.settings.discovery_max_hosts", 200_000):
+            for cidr in ("192.168.0.0/15", "172.0.0.0/8", "::/127"):
+                with self.subTest(cidr=cidr), self.assertRaisesRegex(ValueError, "Public IP scanning"):
+                    validate_target(cidr, confirm_large_scan=True)
+
+    def test_validate_target_accepts_cidrs_fully_inside_private_space(self) -> None:
+        for cidr in ("192.168.1.0/24", "10.20.30.0/24", "172.16.4.0/22", "fd00::/120"):
+            with self.subTest(cidr=cidr):
+                self.assertEqual(validate_target(cidr, confirm_large_scan=True).nmap_target, cidr)
+
     def test_ping_scan_timeout_scales_for_subnet_targets(self) -> None:
         timeout_seconds = discovery_process_timeout_seconds(
             DiscoveryTarget(nmap_target="10.30.20.0/24", host_count=256),
