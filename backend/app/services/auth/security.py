@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
@@ -17,22 +18,24 @@ def throttle_subjects(username: str, ip_address: str | None) -> list[str]:
     return subjects
 
 
-def is_locked(db: Session, subjects: list[str]) -> tuple[bool, int]:
-    now = datetime.now(timezone.utc)
+def is_locked(db: Session, subjects: list[str], *, now: datetime | None = None) -> tuple[bool, int]:
+    now = now or datetime.now(timezone.utc)
     longest_wait = 0
     for subject in subjects:
         state = db.scalar(select(LoginThrottleState).where(LoginThrottleState.subject == subject))
         locked_until = _as_aware_utc(state.locked_until) if state and state.locked_until else None
         if state is None or locked_until is None or locked_until <= now:
             continue
-        wait_seconds = int((locked_until - now).total_seconds())
+        # Round up: truncating would report "unlocked" in the final second, and
+        # the next failure would then re-lock for a whole window.
+        wait_seconds = math.ceil((locked_until - now).total_seconds())
         if wait_seconds > longest_wait:
             longest_wait = wait_seconds
     return longest_wait > 0, longest_wait
 
 
-def record_login_failure(db: Session, subjects: list[str]) -> int:
-    now = datetime.now(timezone.utc)
+def record_login_failure(db: Session, subjects: list[str], *, now: datetime | None = None) -> int:
+    now = now or datetime.now(timezone.utc)
     lockout_window = timedelta(minutes=max(1, settings.auth_lockout_minutes))
     observed_attempts = 1
     for subject in subjects:
