@@ -99,8 +99,10 @@
   border-top: 1px solid var(--nm-border);
 }
 
-.mon-table-body,
-.nm-table-wrap {
+/* Scoped to Admin: this stylesheet is preloaded on every page, and an unscoped gutter would leave
+   every shared table header short of its wrapper's right edge. */
+.admin-layout .mon-table-body,
+.admin-layout .nm-table-wrap {
   scrollbar-gutter: stable;
 }
 

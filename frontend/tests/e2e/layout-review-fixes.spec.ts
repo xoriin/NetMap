@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mockDevice, mockMonitoringDevice, mockUser, setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
 import { mockAddress, openExternalIps, setupExternalIps } from "./helpers/external-ip";
+import { waitForPagePreload } from "./helpers/page-preload";
 
 // Headless Chromium hides scrollbars by default, which would mask the gutter beside a table header.
 test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
@@ -58,6 +59,8 @@ async function boot(page: Page, style: Style) {
 /** Content taller than the wrapper must never add a vertical scrollbar beside the table header. */
 async function expectHeaderSpansWrapper(table: Locator, name: string) {
   await expect(table).toBeVisible();
+  // Measure after the idle page preload, so a late feature stylesheet cannot add a gutter afterwards.
+  await waitForPagePreload(table.page());
   const gap = await table.evaluate(async (tableEl) => {
     let wrap = tableEl.parentElement!;
     while (getComputedStyle(wrap).overflowX === "visible") wrap = wrap.parentElement!;
