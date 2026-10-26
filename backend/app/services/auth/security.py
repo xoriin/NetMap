@@ -46,6 +46,11 @@ def record_login_failure(db: Session, subjects: list[str]) -> int:
         if state is None:
             state = LoginThrottleState(subject=subject, failed_attempts=0)
             db.add(state)
+        elif _failures_expired(state, now, lockout_window):
+            # Failures older than the lockout window (or an expired lockout) no
+            # longer count towards the next lockout.
+            state.failed_attempts = 0
+            state.locked_until = None
         state.failed_attempts += 1
         state.last_failed_at = now
         state.updated_at = now
@@ -53,6 +58,14 @@ def record_login_failure(db: Session, subjects: list[str]) -> int:
             state.locked_until = now + lockout_window
         observed_attempts = max(observed_attempts, state.failed_attempts)
     return observed_attempts
+
+
+def _failures_expired(state: LoginThrottleState, now: datetime, window: timedelta) -> bool:
+    if state.locked_until is not None and _as_aware_utc(state.locked_until) <= now:
+        return True
+    if state.last_failed_at is None:
+        return False
+    return now - _as_aware_utc(state.last_failed_at) >= window
 
 
 def clear_login_failures(db: Session, subjects: list[str]) -> None:
