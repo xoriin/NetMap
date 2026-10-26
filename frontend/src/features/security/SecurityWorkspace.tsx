@@ -86,6 +86,14 @@ export function SecurityWorkspace({
   const autoScrollRef = useRef(autoScroll);
   const pendingLiveScrollRef = useRef(false);
   const streamHasConnectedRef = useRef(false);
+  // The live stream reads the newest token (for reconnects) and filters (for
+  // client-side matching) through refs, so token rotation and filter changes
+  // do not tear the socket down. The server authenticates once per socket.
+  const liveTokenRef = useRef(accessToken);
+  liveTokenRef.current = accessToken;
+  const liveFiltersRef = useRef(filters);
+  liveFiltersRef.current = filters;
+  const hasLiveToken = Boolean(accessToken);
   const setTopbarNote = useContext(TopbarNoteCtx);
   const pageSize = 100;
 
@@ -196,11 +204,10 @@ export function SecurityWorkspace({
   }, [events]);
 
   useEffect(() => {
-    if (!accessToken || !liveTail) {
+    if (!hasLiveToken || !liveTail) {
       setLiveStreamState("paused");
       return;
     }
-    const token = accessToken;
     let disposed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
@@ -225,9 +232,16 @@ export function SecurityWorkspace({
       setLiveStreamState(reconnectAttempt === 0 ? "connecting" : "reconnecting");
       const nextSocket = new WebSocket(buildFirewallEventsWsUrl());
       socket = nextSocket;
-      nextSocket.onopen = () => nextSocket.send(token);
+      nextSocket.onopen = () => nextSocket.send(liveTokenRef.current ?? "");
       nextSocket.onmessage = (message) => {
-        const payload = JSON.parse(message.data) as FirewallEvent | { type: "ready" | "heartbeat" };
+        let payload: FirewallEvent | { type: "ready" | "heartbeat" };
+        try {
+          payload = JSON.parse(String(message.data)) as FirewallEvent | { type: "ready" | "heartbeat" };
+        } catch {
+          // Ignore a malformed frame rather than breaking the stream.
+          return;
+        }
+        if (!payload || typeof payload !== "object") return;
         if ("type" in payload) {
           if (payload.type === "ready") {
             const shouldRefresh = streamHasConnectedRef.current;
@@ -242,7 +256,7 @@ export function SecurityWorkspace({
           }
           return;
         }
-        if (!eventMatchesFilters(payload, filters)) {
+        if (!eventMatchesFilters(payload, liveFiltersRef.current)) {
           return;
         }
         pendingLiveScrollRef.current = autoScrollRef.current;
@@ -266,7 +280,7 @@ export function SecurityWorkspace({
       clearHeartbeat();
       socket?.close();
     };
-  }, [accessToken, filters, liveTail]);
+  }, [hasLiveToken, liveTail]);
 
   function startColumnResize(columnIndex: number, event: ReactMouseEvent) {
     event.preventDefault();
