@@ -4530,7 +4530,9 @@ body.route-monitoring .workspace:has(> .mon-layout--overview) { overflow-y: auto
 body.route-monitoring .workspace > .mon-layout--overview { flex: 0 0 auto; }
 .mon-layout--overview .mon-content { flex: 0 0 auto; }
 .mon-layout--overview .mon-content > .dash-panel { flex: 0 0 auto; }
-.mon-layout--overview .mon-table-body { overflow-x: auto; overflow-y: visible; }
+.mon-layout--overview .mon-table-body { overflow-x: auto; overflow-y: hidden; }
+/* Page-height tables scroll sideways only, so no vertical scrollbar can sit beside the header. */
+.mon-layout--overview .nm-table-wrap.mon-embedded-table:not(.status-source-table-wrap) { overflow-y: hidden; }
 .mon-layout--overview .mon-view-window--endpoints .mon-table-body { overflow: visible; }
 .mon-layout--overview > .nm-console,
 .mon-layout--overview > .nm-pair { margin-top: var(--nm-space-4); }
