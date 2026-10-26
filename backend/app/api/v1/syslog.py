@@ -5,6 +5,7 @@ from typing import Annotated
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import Select, asc, desc, func, or_, select, text
 from sqlalchemy.orm import Session
 
@@ -229,10 +230,11 @@ async def live_firewall_events(websocket: WebSocket) -> None:
     await websocket.accept()
     try:
         raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
-        user = get_websocket_user(raw.strip())
     except asyncio.TimeoutError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    # The user lookup is blocking SQLite I/O; keep it off the event loop.
+    user = await run_in_threadpool(get_websocket_user, raw.strip())
     if user is None or not user_has_permission(user, "security_view"):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return

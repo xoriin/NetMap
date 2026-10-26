@@ -42,3 +42,44 @@ def test_live_firewall_websocket_rejects_role_without_security_view(monkeypatch)
         with pytest.raises(WebSocketDisconnect) as exc_info:
             websocket.receive_json()
     assert exc_info.value.code == 1008
+
+
+def test_live_firewall_websocket_user_lookup_does_not_block_event_loop(monkeypatch) -> None:
+    import asyncio
+    import time
+
+    def slow_lookup(_token):
+        time.sleep(0.5)  # stands in for a SQLite busy wait
+        return None
+
+    monkeypatch.setattr(syslog, "get_websocket_user", slow_lookup)
+    closed: list[int] = []
+
+    class FakeWebSocket:
+        async def accept(self) -> None:
+            return None
+
+        async def receive_text(self) -> str:
+            return "example-token"
+
+        async def close(self, code: int) -> None:
+            closed.append(code)
+
+    async def main() -> float:
+        gaps: list[float] = []
+        last = time.monotonic()
+
+        async def ticker() -> None:
+            nonlocal last
+            for _ in range(20):
+                await asyncio.sleep(0.02)
+                now = time.monotonic()
+                gaps.append(now - last)
+                last = now
+
+        await asyncio.gather(ticker(), syslog.live_firewall_events(FakeWebSocket()))
+        return max(gaps)
+
+    worst_gap = asyncio.run(main())
+    assert worst_gap < 0.2
+    assert closed == [1008]
