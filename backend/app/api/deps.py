@@ -106,10 +106,15 @@ def get_current_user(
     return user
 
 
-def _check(user: User, permission: str, detail: str) -> User:
+def user_has_permission(user: User, permission: str) -> bool:
+    """SuperAdmin-aware permission check shared by HTTP dependencies and WebSockets."""
     if user.role == UserRole.SUPER_ADMIN:
-        return user
-    if not has_permission(user.role, permission):
+        return True
+    return has_permission(user.role, permission)
+
+
+def _check(user: User, permission: str, detail: str) -> User:
+    if not user_has_permission(user, permission):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
     return user
 

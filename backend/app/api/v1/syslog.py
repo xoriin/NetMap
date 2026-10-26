@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from sqlalchemy import Select, asc, desc, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_security_view
+from app.api.deps import require_security_view, user_has_permission
 from app.core.config import settings
 from app.core.security import decode_token
 from app.core.validation import normalize_ip, validate_port, validate_syslog_field
@@ -24,7 +24,6 @@ from app.schemas.firewall_event import (
     SavedSearchRead,
     SyslogStatus,
 )
-from app.services.rbac.permissions import has_permission
 from app.services.syslog.storage import count_events, get_ingestion_status, get_retention_status
 from app.websocket.firewall_events import firewall_event_broadcaster
 
@@ -234,7 +233,7 @@ async def live_firewall_events(websocket: WebSocket) -> None:
     except asyncio.TimeoutError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    if user is None or not has_permission(str(user.role), "security_view"):
+    if user is None or not user_has_permission(user, "security_view"):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     # Authenticated — now check the shared quota.
