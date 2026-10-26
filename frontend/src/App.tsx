@@ -150,6 +150,9 @@ function WorkspaceApp() {
 
   const bootstrapDoneRef = useRef(false);
   const bootstrappingRef = useRef(false);
+  // Set by handleLogout when it leaves a sign-out notice (idle timeout or
+  // expired session) so the bootstrap it triggers keeps that message visible.
+  const keepAuthNoticeRef = useRef(false);
 
   const {
     graph, summary, loadInitial, refreshTopology,
@@ -176,7 +179,11 @@ function WorkspaceApp() {
     async function bootstrap() {
       bootstrappingRef.current = true;
       setLoading(true);
-      setError(null);
+      if (keepAuthNoticeRef.current) {
+        keepAuthNoticeRef.current = false;
+      } else {
+        setError(null);
+      }
       let token = tokens?.access_token ?? null;
       try {
         const setup = await api.setupStatus();
@@ -288,6 +295,7 @@ function WorkspaceApp() {
       // Session cleanup must proceed even when server-side revoke fails.
     }
     bootstrapDoneRef.current = false;
+    keepAuthNoticeRef.current = reason !== "user";
     clearRememberedQueries();
     clearStickySidebarMenus();
     storeTokens(null);

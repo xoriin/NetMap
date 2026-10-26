@@ -25,6 +25,8 @@ test("idle users are signed out when a timeout is set", async ({ page }) => {
   const logouts = await openDashboard(page, 1);
   await page.clock.fastForward(61_000);
   await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  // The sign-out notice must survive the bootstrap that follows the logout.
+  await expect(page.locator(".error-banner")).toHaveText("Session timed out after 1 minutes of inactivity.");
   expect(logouts).toHaveLength(1);
 });
 
