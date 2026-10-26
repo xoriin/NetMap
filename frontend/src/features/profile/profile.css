@@ -514,33 +514,3 @@ body.route-profile .profile-key-mask {
   body.route-profile .profile-photo-actions .nm-btn { width: 100%; }
   body.route-profile .profile-security-row { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
-
-@media (max-width: 900px) {
-  .tools-support-rail {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 920px) {
-  .tools-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .tools-console-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tools-library {
-    display: none;
-  }
-
-  .tools-guide {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 560px) {
-  .tools-summary-grid {
-    grid-template-columns: 1fr;
-  }
-}

@@ -935,3 +935,34 @@ body.theme-dark .tools-workspace .tool-output {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Narrow Tools layout. Lived in profile.css, so it only applied once Profile's stylesheet had loaded. */
+@media (max-width: 900px) {
+  .tools-support-rail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .tools-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tools-console-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tools-library {
+    display: none;
+  }
+
+  .tools-guide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .tools-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
