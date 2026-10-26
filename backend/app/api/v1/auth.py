@@ -20,6 +20,7 @@ from app.core.security import (
     decode_token,
     hash_password,
     verify_password,
+    verify_password_or_dummy,
 )
 from app.db.session import SessionLocal, get_db
 from app.middleware.csrf import CSRF_COOKIE_NAME
@@ -228,7 +229,8 @@ def login(
         )
 
     user = db.scalar(select(User).where(User.username == payload.username))
-    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+    usable_hash = user.password_hash if user is not None and user.is_active else None
+    if not verify_password_or_dummy(payload.password, usable_hash):
         attempts = record_login_failure(db, subjects)
         write_audit(
             db,

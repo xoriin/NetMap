@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -23,6 +24,21 @@ def verify_password(password: str, password_hash: str) -> bool:
         return password_hasher.verify(password_hash, password)
     except (VerificationError, VerifyMismatchError):
         return False
+
+
+_dummy_password_hash: str | None = None
+
+
+def verify_password_or_dummy(password: str, password_hash: str | None) -> bool:
+    """Verify a password, or spend the same Argon2 work when there is no usable
+    account, so response timing does not reveal which usernames exist."""
+    global _dummy_password_hash
+    if password_hash is None:
+        if _dummy_password_hash is None:
+            _dummy_password_hash = hash_password(secrets.token_urlsafe(16))
+        verify_password(password, _dummy_password_hash)
+        return False
+    return verify_password(password, password_hash)
 
 
 def create_token(
