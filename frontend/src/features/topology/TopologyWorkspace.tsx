@@ -171,6 +171,9 @@ export function TopologyWorkspace({
   const deviceTapRef = useRef<(deviceId: number) => void>(() => {});
   const backgroundTapRef = useRef<() => void>(() => {});
   const refreshOverlayNodesRef = useRef<() => void>(() => {});
+  // Pending animation frame for an overlay refresh requested by Cytoscape
+  // pan/zoom/render events, so a busy frame recomputes overlays only once.
+  const overlayRefreshFrameRef = useRef(0);
   const serverSaveLayoutRef = useRef<(positions: Record<string, { x: number; y: number }>, immediate?: boolean) => void>(() => {});
   const layoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutInitialLoadDoneRef = useRef(false);
@@ -702,7 +705,7 @@ export function TopologyWorkspace({
         };
       })
       .filter((row): row is { id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; labelFontSize: number; status: string } => row !== null);
-    setOverlayNodes(nextNodes);
+    setOverlayNodes((current) => (sameOverlayRows(current, nextNodes) ? current : nextNodes));
     const nextGroups = cy.$("node.zone").map((zone) => {
       const label = String(zone.data("label") ?? "Ungrouped");
       const bounds = zone.renderedBoundingBox();
@@ -722,7 +725,7 @@ export function TopologyWorkspace({
         online,
       };
     });
-    setOverlayGroups(nextGroups);
+    setOverlayGroups((current) => (sameOverlayRows(current, nextGroups) ? current : nextGroups));
     const relationshipById = new Map(filteredGraph.relationships.map((relationship) => [relationship.id, relationship]));
     const nextLinks = cy.$("edge").map((edge) => {
       const id = Number(edge.id().replace("relationship-", ""));
@@ -736,10 +739,11 @@ export function TopologyWorkspace({
         speed: relationship?.link_speed_mbps != null ? formatLinkSpeed(relationship.link_speed_mbps) : null,
       };
     });
-    setOverlayLinks(nextLinks);
-    setMinimapNodes(nextMiniNodes);
+    setOverlayLinks((current) => (sameOverlayRows(current, nextLinks) ? current : nextLinks));
+    setMinimapNodes((current) => (sameOverlayRows(current, nextMiniNodes) ? current : nextMiniNodes));
     const extent = cy.extent();
-    setMinimapExtent({ x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 });
+    const nextExtent = { x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 };
+    setMinimapExtent((current) => (current && sameOverlayRows([current], [nextExtent]) ? current : nextExtent));
   }, [activeIconPackId, iconsRevision, filteredGraph.devices, groupDisplayPrefs, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
 
   useEffect(() => {
@@ -757,6 +761,7 @@ export function TopologyWorkspace({
       return;
     }
     window.requestAnimationFrame(() => {
+      if (cy.destroyed()) return;
       cy.resize();
       refreshOverlayNodes();
     });
@@ -917,6 +922,15 @@ export function TopologyWorkspace({
     }
 
     if (!cyRef.current) {
+      // Pan, zoom and render fire many times per frame while the user drags
+      // or zooms; coalesce them into one overlay refresh per animation frame.
+      const scheduleOverlayRefresh = () => {
+        if (overlayRefreshFrameRef.current) return;
+        overlayRefreshFrameRef.current = window.requestAnimationFrame(() => {
+          overlayRefreshFrameRef.current = 0;
+          refreshOverlayNodesRef.current();
+        });
+      };
       cyRef.current = cytoscape({
         container: containerRef.current,
         layout: { name: "preset", fit: true, padding: 36 },
@@ -974,17 +988,28 @@ export function TopologyWorkspace({
         const cy = cyRef.current;
         if (!cy) return;
         setCyZoom(cy.zoom());
-        refreshOverlayNodesRef.current();
+        scheduleOverlayRefresh();
       });
-      cyRef.current.on("pan", () => {
-        refreshOverlayNodesRef.current();
-      });
-      cyRef.current.on("render", () => {
-        refreshOverlayNodesRef.current();
-      });
+      cyRef.current.on("pan", scheduleOverlayRefresh);
+      cyRef.current.on("render", scheduleOverlayRefresh);
       refreshOverlayNodes();
     }
   }, [userId]);
+
+  // Tear Cytoscape down on unmount and drop the pending debounced autosave
+  // (cancel, not flush) so nothing writes the layout after navigating away.
+  useEffect(() => () => {
+    if (overlayRefreshFrameRef.current) {
+      window.cancelAnimationFrame(overlayRefreshFrameRef.current);
+      overlayRefreshFrameRef.current = 0;
+    }
+    if (layoutSaveTimerRef.current) {
+      clearTimeout(layoutSaveTimerRef.current);
+      layoutSaveTimerRef.current = null;
+    }
+    cyRef.current?.destroy();
+    cyRef.current = null;
+  }, []);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -1033,72 +1058,74 @@ export function TopologyWorkspace({
       ...layout.groups.map((group) => group.id),
       ...filteredGraph.devices.map((device) => `device-${device.id}`),
     ]);
-    cy.elements().remove();
-    cy.add([
-      ...layout.groups.map((group) => ({
-        group: "nodes" as const,
-        classes: "zone",
-        data: {
-          id: group.id,
-          label: group.label,
-          zoneLabelColor: palette.liveZoneLabel,
-          zoneBgColor: palette.liveZoneFill,
-          zoneBorderColor: palette.liveZoneBorder,
-        },
-      })),
-      ...filteredGraph.devices.map((device) => {
-        const liveStatus = isDeviceMonitoringPaused(device) || !livePingEnabled
-          ? "paused"
-          : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? "unknown");
-        const colorStatus = liveStatus === "paused" ? "unknown" : liveStatus;
-        const nodeColor = device.color || statusColor(colorStatus);
-        const groupName = device.topology_group ?? "Ungrouped";
-        const nodeScale = (groupDisplayPrefs[groupName]?.nodeScalePercent ?? DEFAULT_NODE_SCALE_PERCENT) / 100;
-        const iconSize = Math.round(BASE_DEVICE_ICON_SIZE * Math.max(MIN_NODE_SCALE_PERCENT / 100, Math.min(MAX_NODE_SCALE_PERCENT / 100, nodeScale)));
-        const hitSize = Math.max(36, iconSize + 14);
-        return {
+    cy.batch(() => {
+      cy.elements().remove();
+      cy.add([
+        ...layout.groups.map((group) => ({
           group: "nodes" as const,
-          classes: `device status-${liveStatus}`,
+          classes: "zone",
           data: {
-            id: `device-${device.id}`,
-            label: deviceLabel(device),
-            labelColor: palette.canvasText,
-            color: nodeColor,
-            iconUrl: deviceIconUrl(device.icon, nodeColor),
-            icon: resolveDeviceIcon(device.icon),
-            parent: groupId(device.topology_group),
-            nodeScale,
-            hitSize,
+            id: group.id,
+            label: group.label,
+            zoneLabelColor: palette.liveZoneLabel,
+            zoneBgColor: palette.liveZoneFill,
+            zoneBorderColor: palette.liveZoneBorder,
           },
-          position: layout.positions[`device-${device.id}`],
-        };
-      }),
-      ...filteredGraph.relationships.map((relationship) => {
-        // If a metadata-based group endpoint is unavailable in current view,
-        // fall back to the backing device endpoint so render never crashes.
-        const preferredSource = relationshipVisualSourceNodeId(relationship);
-        const preferredTarget = relationshipVisualTargetNodeId(relationship);
-        const source = validNodeIds.has(preferredSource) ? preferredSource : `device-${relationship.source_device_id}`;
-        const target = validNodeIds.has(preferredTarget) ? preferredTarget : `device-${relationship.target_device_id}`;
-        const speed = relationship.link_speed_mbps ?? null;
-        return {
-          group: "edges" as const,
-          data: {
-            id: `relationship-${relationship.id}`,
-            source,
-            target,
-            label: speed !== null
-              ? `${relationship.relationship_type} · ${formatLinkSpeed(speed)}`
-              : relationship.relationship_type,
-            notes: relationship.notes,
-            linkWidth: linkSpeedEdgeWidth(speed),
-            edgeLabelColor: palette.edgeText,
-            edgeLabelBg: palette.edgeLabelBg,
-            edgeBorderColor: palette.edgeLabelBorder,
-          },
-        };
-      }),
-    ]);
+        })),
+        ...filteredGraph.devices.map((device) => {
+          const liveStatus = isDeviceMonitoringPaused(device) || !livePingEnabled
+            ? "paused"
+            : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? "unknown");
+          const colorStatus = liveStatus === "paused" ? "unknown" : liveStatus;
+          const nodeColor = device.color || statusColor(colorStatus);
+          const groupName = device.topology_group ?? "Ungrouped";
+          const nodeScale = (groupDisplayPrefs[groupName]?.nodeScalePercent ?? DEFAULT_NODE_SCALE_PERCENT) / 100;
+          const iconSize = Math.round(BASE_DEVICE_ICON_SIZE * Math.max(MIN_NODE_SCALE_PERCENT / 100, Math.min(MAX_NODE_SCALE_PERCENT / 100, nodeScale)));
+          const hitSize = Math.max(36, iconSize + 14);
+          return {
+            group: "nodes" as const,
+            classes: `device status-${liveStatus}`,
+            data: {
+              id: `device-${device.id}`,
+              label: deviceLabel(device),
+              labelColor: palette.canvasText,
+              color: nodeColor,
+              iconUrl: deviceIconUrl(device.icon, nodeColor),
+              icon: resolveDeviceIcon(device.icon),
+              parent: groupId(device.topology_group),
+              nodeScale,
+              hitSize,
+            },
+            position: layout.positions[`device-${device.id}`],
+          };
+        }),
+        ...filteredGraph.relationships.map((relationship) => {
+          // If a metadata-based group endpoint is unavailable in current view,
+          // fall back to the backing device endpoint so render never crashes.
+          const preferredSource = relationshipVisualSourceNodeId(relationship);
+          const preferredTarget = relationshipVisualTargetNodeId(relationship);
+          const source = validNodeIds.has(preferredSource) ? preferredSource : `device-${relationship.source_device_id}`;
+          const target = validNodeIds.has(preferredTarget) ? preferredTarget : `device-${relationship.target_device_id}`;
+          const speed = relationship.link_speed_mbps ?? null;
+          return {
+            group: "edges" as const,
+            data: {
+              id: `relationship-${relationship.id}`,
+              source,
+              target,
+              label: speed !== null
+                ? `${relationship.relationship_type} · ${formatLinkSpeed(speed)}`
+                : relationship.relationship_type,
+              notes: relationship.notes,
+              linkWidth: linkSpeedEdgeWidth(speed),
+              edgeLabelColor: palette.edgeText,
+              edgeLabelBg: palette.edgeLabelBg,
+              edgeBorderColor: palette.edgeLabelBorder,
+            },
+          };
+        }),
+      ]);
+    });
     cy.layout({ name: "preset", fit: false, padding: 36 }).run();
     // Rebuilding elements drops classes — restore an active path highlight so
     // the 30s live-status refresh doesn't silently clear it.
@@ -1108,8 +1135,10 @@ export function TopologyWorkspace({
         pathElements = pathElements.union(cy.$id(elementId));
       }
       if (pathElements.length > 0) {
-        pathElements.addClass("path-highlight");
-        cy.elements("node.device, edge").not(pathElements).addClass("path-dim");
+        cy.batch(() => {
+          pathElements.addClass("path-highlight");
+          cy.elements("node.device, edge").not(pathElements).addClass("path-dim");
+        });
       }
     }
     refreshOverlayNodes();
@@ -1163,7 +1192,7 @@ export function TopologyWorkspace({
     if (!cy) {
       return;
     }
-    window.requestAnimationFrame(() => { cy.resize(); });
+    window.requestAnimationFrame(() => { if (!cy.destroyed()) cy.resize(); });
   }, [showDetailsPanel]);
 
   useEffect(() => {
@@ -2046,4 +2075,21 @@ export function TopologyWorkspace({
       )}
     </section>
   );
+}
+
+/** Shallow row comparison so unchanged overlay geometry does not re-render the overlay layer. */
+function sameOverlayRows<T extends object>(current: readonly T[], next: readonly T[]): boolean {
+  if (current.length !== next.length) return false;
+  for (let index = 0; index < next.length; index += 1) {
+    const before = current[index] as Record<string, unknown>;
+    const after = next[index] as Record<string, unknown>;
+    for (const key of Object.keys(after)) {
+      const a = before[key];
+      const b = after[key];
+      if (a === b) continue;
+      if (Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, i) => value === b[i])) continue;
+      return false;
+    }
+  }
+  return true;
 }
