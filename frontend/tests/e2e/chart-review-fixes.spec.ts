@@ -42,4 +42,19 @@ for (const style of ["light", "slate", "zinc"] as const) {
     for (const width of ipam) expect(width).toBe(0);
   });
 
+  test(`insight header actions stay on one row beside the full title at 820px in ${style}`, async ({ page }) => {
+    await boot(page, style);
+    await page.setViewportSize({ width: 820, height: 1000 });
+    await page.goto("/overview");
+
+    const panel = page.getByRole("region", { name: "Top Groups", exact: true });
+    const title = panel.locator(".nm-insight-title strong");
+    await expect(title).toHaveText("Top Groups");
+    expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+    const manage = (await panel.getByRole("link", { name: /Manage/ }).boundingBox())!;
+    const options = (await panel.getByRole("button", { name: /Visual options/ }).boundingBox())!;
+    expect(Math.abs((manage.y + manage.height / 2) - (options.y + options.height / 2))).toBeLessThanOrEqual(2);
+    expect(options.x).toBeGreaterThan(manage.x + manage.width);
+  });
 }

@@ -2100,6 +2100,9 @@ body.theme-dark .nm-pick-filter input {
 /* Personal chart views: shared across every chart panel; canonical controls own their states. */
 .nm-chart-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nm-space-2); }
 .nm-chart-actions:empty { display: none; }
+/* Titles stay whole; header actions drop below them as one row when space runs out. */
+.nm-app-panel-header:has(> .nm-chart-actions) { flex-wrap: wrap; row-gap: var(--nm-space-1); padding-block: 5px; }
+.nm-app-panel-header > .nm-chart-actions { flex-wrap: nowrap; margin-left: auto; }
 .nm-personal-chart, .nm-personal-renderer { width: 100%; min-width: 0; }
 .nm-hero-visual > .nm-chart-body { padding: var(--nm-space-4) var(--nm-chart-gutter); }
 .nm-hero-visual .nm-personal-chart { box-sizing: border-box; padding-inline: var(--nm-chart-gutter); }
