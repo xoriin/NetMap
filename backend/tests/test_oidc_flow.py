@@ -21,6 +21,7 @@ from app.models.user import User, UserRole
 from app.services.oidc.provider import clear_provider_caches
 from tests.oidc_helpers import (
     CLIENT_ID,
+    ISSUER,
     FakeProviderHttp,
     make_id_token,
     memory_session_factory,
@@ -346,3 +347,51 @@ def test_callback_holds_no_db_transaction_during_token_exchange(client_and_db, f
     assert response.status_code == 302
     assert response.headers["location"] == "/"
     assert seen["in_transaction"] is False
+
+
+def test_refusal_after_provisioning_is_staged_persists_nothing(client_and_db, fake_http, monkeypatch):
+    from app.models.audit_log import AuditLog
+    from app.services.oidc import accounts
+    from app.services.oidc.provider import OidcProviderError
+
+    client, db = client_and_db
+    _enable_oidc(db)
+
+    def refuse(*_args, **_kwargs):
+        raise OidcProviderError("role_unavailable", "refused after staging")
+
+    monkeypatch.setattr(accounts, "_apply_managed_role", refuse)
+    state, nonce, _ = _start_login(client, db)
+    fake_http.token_response = {"id_token": make_id_token(sub="staged-sub", nonce=nonce, email="staged@example.com")}
+
+    response = _callback(client, state)
+
+    assert _sso_error(response) == "role_unavailable"
+    db.expire_all()
+    assert db.scalar(select(User).where(User.email == "staged@example.com")) is None
+    assert db.scalars(select(ExternalIdentity)).all() == []
+    assert db.scalars(select(AuditLog).where(AuditLog.action == "auth.oidc_user_provisioned")).all() == []
+    assert [row.detail for row in db.scalars(select(AuditLog).where(AuditLog.action == "auth.oidc_login_failed"))] == [
+        "code=role_unavailable"
+    ]
+
+
+def test_callback_refuses_an_already_linked_disabled_account(client_and_db, fake_http):
+    client, db = client_and_db
+    _enable_oidc(db)
+    user = User(username="linked", password_hash=hash_password("Local-password-123!"), role=UserRole.VIEWER, email="old@example.com", is_active=False)
+    db.add(user)
+    db.flush()
+    db.add(ExternalIdentity(provider_key="oidc", issuer=ISSUER, subject="linked-sub", user_id=user.id, email="old@example.com", email_verified=True))
+    db.commit()
+    state, nonce, _ = _start_login(client, db)
+    fake_http.token_response = {"id_token": make_id_token(sub="linked-sub", nonce=nonce, email="new@example.com", email_verified=True)}
+
+    response = _callback(client, state)
+
+    assert _sso_error(response) == "account_disabled"
+    assert client.cookies.get("netmap_access") is None
+    db.expire_all()
+    identity = db.scalar(select(ExternalIdentity).where(ExternalIdentity.subject == "linked-sub"))
+    assert (identity.email, identity.last_login_at) == ("old@example.com", None)
+    assert db.get(User, user.id).is_active is False
