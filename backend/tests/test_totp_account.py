@@ -77,7 +77,8 @@ def test_setup_requires_the_current_password_and_audits_failures(client_and_db):
     db.refresh(user)
     assert user.totp_secret is None
     db.expire_all()
-    assert db.query(AuditLog).filter(AuditLog.action == "auth.mfa_verify_failed").count() == 1
+    assert db.query(AuditLog).filter(AuditLog.action == "auth.password_verify_failed").count() == 1
+    assert db.query(AuditLog).filter(AuditLog.action == "auth.mfa_verify_failed").count() == 0
     assert client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).status_code == 200
 
 

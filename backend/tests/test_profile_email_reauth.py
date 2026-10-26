@@ -179,6 +179,15 @@ def test_admin_email_edit_of_another_user_is_audited(client_and_db):
     assert row.detail.endswith("email_changed=yes")
 
 
+def test_wrong_password_alone_is_not_audited_as_an_mfa_failure(client_and_db):
+    client, db = client_and_db
+    _user, headers = _signed_in(db)
+    client.patch("/api/v1/auth/me", headers=headers, json={"email": "evil@example.com", "current_password": "wrong password!"})
+    db.expire_all()
+    actions = [row.action for row in db.query(AuditLog).all()]
+    assert actions == ["auth.password_verify_failed"]
+
+
 def test_a_used_authentication_code_cannot_change_the_email_again(client_and_db):
     client, db = client_and_db
     user, headers = _signed_in(db)

@@ -534,7 +534,7 @@ def _verify_password_and_code(
     code: str | None = None,
     *,
     source: str = "profile",
-    failure_action: str = "auth.mfa_verify_failed",
+    failure_action: str | None = None,
     wrong_password_detail: str = "Current password is incorrect",
 ) -> None:
     client_ip = client_ip_from_request(request)
@@ -552,7 +552,8 @@ def _verify_password_and_code(
     attempts = record_login_failure(db, subjects)
     write_audit(
         db,
-        action=failure_action,
+        # Only call it an MFA failure when a second factor was actually checked.
+        action=failure_action or ("auth.password_verify_failed" if code is None else "auth.mfa_verify_failed"),
         actor_user_id=user.id,
         target=f"user:{user.username}",
         detail=f"attempts={attempts} ip={client_ip or '-'} source={source}",
