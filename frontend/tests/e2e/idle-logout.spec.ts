@@ -26,7 +26,15 @@ test("idle users are signed out when a timeout is set", async ({ page }) => {
   await page.clock.fastForward(61_000);
   await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
   // The sign-out notice must survive the bootstrap that follows the logout.
-  await expect(page.locator(".error-banner")).toHaveText("Session timed out after 1 minutes of inactivity.");
+  await expect(page.locator(".error-banner")).toHaveText("Session timed out after 1 minute of inactivity.");
+  expect(logouts).toHaveLength(1);
+});
+
+test("the idle sign-out notice uses the plural for longer timeouts", async ({ page }) => {
+  const logouts = await openDashboard(page, 2);
+  await page.clock.fastForward(121_000);
+  await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  await expect(page.locator(".error-banner")).toHaveText("Session timed out after 2 minutes of inactivity.");
   expect(logouts).toHaveLength(1);
 });
 

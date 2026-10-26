@@ -305,7 +305,8 @@ function WorkspaceApp() {
     window.history.replaceState(null, "", "/");
     setCurrentRoute("/overview");
     if (reason === "idle") {
-      setError(`Session timed out after ${Math.round(idleTimeoutMs / 60_000)} minutes of inactivity.`);
+      const idleMinutes = Math.round(idleTimeoutMs / 60_000);
+      setError(`Session timed out after ${idleMinutes} ${idleMinutes === 1 ? "minute" : "minutes"} of inactivity.`);
     } else if (reason === "expired") {
       setError("Session expired. Sign in again.");
     }
