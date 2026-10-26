@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Iterable
@@ -73,6 +74,23 @@ def execute_discovery_scan(
     for snmp_target in snmp_targets:
         ensure_private_address(ip_address(snmp_target))
 
+    # Resolve SNMP credentials before any network I/O so the session can be
+    # released for the whole nmap/SNMP phase.
+    snmp_community = payload.snmp_community
+    snmp_port = payload.snmp_port
+    snmp_timeout = payload.snmp_timeout_seconds
+    snmp_retries = 1
+    profile_error: str | None = None
+    if payload.snmp_profile_id is not None:
+        profile = db.get(SnmpProfile, payload.snmp_profile_id)
+        if profile is None:
+            profile_error = "SNMP profile not found"
+        else:
+            snmp_community = decrypt_profile_community(profile)
+            snmp_port = profile.port
+            snmp_timeout = profile.timeout_seconds
+            snmp_retries = profile.retries
+
     scan = DiscoveryScan(
         actor_user_id=actor_user_id,
         schedule_id=schedule_id,
@@ -83,30 +101,24 @@ def execute_discovery_scan(
     )
     db.add(scan)
     db.flush()
+    scan_id = scan.id
     write_audit(
         db,
         action="discovery.scan_started" if schedule_id is None else "discovery.scheduled_scan_started",
         actor_user_id=actor_user_id,
-        target=f"scan:{scan.id}",
+        target=f"scan:{scan_id}",
         detail=f"{payload.scan_type} {target.nmap_target}",
     )
+    # Commit ends the transaction; nothing below touches the session until the
+    # network phase is over (read -> close -> probe -> write).
     db.commit()
-    db.refresh(scan)
 
+    results: list[DiscoveryHost] = []
+    error: str | None = None
     try:
+        if profile_error is not None:
+            raise ValueError(profile_error)
         results = run_nmap_scan(target, payload.scan_type)
-        snmp_community = payload.snmp_community
-        snmp_port = payload.snmp_port
-        snmp_timeout = payload.snmp_timeout_seconds
-        snmp_retries = 1
-        if payload.snmp_profile_id is not None:
-            profile = db.get(SnmpProfile, payload.snmp_profile_id)
-            if profile is None:
-                raise ValueError("SNMP profile not found")
-            snmp_community = decrypt_profile_community(profile)
-            snmp_port = profile.port
-            snmp_timeout = profile.timeout_seconds
-            snmp_retries = profile.retries
         if snmp_community and snmp_targets:
             try:
                 results = enrich_hosts_from_snmp_arp(
@@ -119,27 +131,32 @@ def execute_discovery_scan(
                 )
             except (TimeoutError, SnmpError, OSError):
                 logger.exception("SNMP ARP enrichment failed during discovery scan")
+    except Exception as exc:
+        error = str(exc)
+
+    scan = db.get(DiscoveryScan, scan_id)
+    assert scan is not None
+    scan.completed_at = datetime.now(timezone.utc)
+    if error is None:
         scan.status = "completed"
         scan.result_count = len(results)
         scan.results_json = serialize_results(results)
-        scan.completed_at = datetime.now(timezone.utc)
         write_audit(
             db,
             action="discovery.scan_completed" if schedule_id is None else "discovery.scheduled_scan_completed",
             actor_user_id=actor_user_id,
-            target=f"scan:{scan.id}",
+            target=f"scan:{scan_id}",
             detail=f"{len(results)} hosts",
         )
-    except Exception as exc:
+    else:
         scan.status = "failed"
-        scan.error = str(exc)
-        scan.completed_at = datetime.now(timezone.utc)
+        scan.error = error
         write_audit(
             db,
             action="discovery.scan_failed" if schedule_id is None else "discovery.scheduled_scan_failed",
             actor_user_id=actor_user_id,
-            target=f"scan:{scan.id}",
-            detail=str(exc),
+            target=f"scan:{scan_id}",
+            detail=error,
         )
     db.commit()
     db.refresh(scan)
@@ -525,13 +542,24 @@ def _host_seen_in_scan(ip_address: str, normalized_mac: str | None, hosts: list[
     return False
 
 
-def send_observation_notifications(db: Session, schedule: DiscoverySchedule, observations: list[DiscoveryObservation]) -> None:
+@dataclass(frozen=True)
+class ObservationNotification:
+    targets: list[str]
+    message: str
+    settings: dict
+    profiles: dict[int, dict]
+
+
+def prepare_observation_notification(
+    db: Session, schedule: DiscoverySchedule, observations: list[DiscoveryObservation]
+) -> ObservationNotification | None:
+    """Read everything a notification needs while the session is open."""
     targets = json_list(schedule.notification_targets_json)
     if not targets or not observations:
-        return
+        return None
     open_observations = [obs for obs in observations if obs.status == "open"]
     if not open_observations:
-        return
+        return None
     notif_settings = load_notification_settings(db)
     profiles = {int(profile["id"]): profile for profile in list_notification_profiles(db, redacted=False)}
     counts: dict[str, int] = {}
@@ -539,8 +567,13 @@ def send_observation_notifications(db: Session, schedule: DiscoverySchedule, obs
         counts[observation.observation_type] = counts.get(observation.observation_type, 0) + 1
     count_text = ", ".join(f"{value} {key.replace('_', ' ')}" for key, value in sorted(counts.items()))
     message = f"NetMap scheduled discovery\n\n{schedule.name}: {count_text}"
-    for target in targets:
-        result = send_notification_target(target, message, notif_settings, profiles)
+    return ObservationNotification(targets=targets, message=message, settings=notif_settings, profiles=profiles)
+
+
+def deliver_observation_notification(notification: ObservationNotification) -> None:
+    """Send a prepared notification; must run with no database session held."""
+    for target in notification.targets:
+        result = send_notification_target(target, notification.message, notification.settings, notification.profiles)
         logger.info("Scheduled discovery notification via %s: %s", target, result)
 
 
@@ -642,9 +675,13 @@ class ScheduledDiscoveryService:
             schedule.last_error = scan.error
             schedule_next_run(schedule, schedule.last_run_at)
             observations = create_observations_for_scan(db, schedule, scan, previous_scan)
-            send_observation_notifications(db, schedule, observations)
+            notification = prepare_observation_notification(db, schedule, observations)
             db.commit()
-            return scan
+            db.refresh(scan)
+        # Notification delivery is network I/O: send it after the session is closed.
+        if notification is not None:
+            deliver_observation_notification(notification)
+        return scan
 
 
 scheduled_discovery = ScheduledDiscoveryService()
