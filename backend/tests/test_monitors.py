@@ -229,9 +229,11 @@ def test_monitor_crud_requires_write_permission():
     db = _session()
     viewer = Mock(id=2, role="Viewer")
     from fastapi import HTTPException
+    from app.api.deps import require_monitoring_write
     with pytest.raises(HTTPException) as exc_info:
-        create_monitor(MonitorCreate(name="Example", url="https://example.com/"), viewer, db)
+        require_monitoring_write(viewer)
     assert exc_info.value.status_code == 403
+    assert db.query(Monitor).count() == 0
 
 
 def test_monitor_history_and_uptime_computation():
