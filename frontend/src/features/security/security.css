@@ -180,6 +180,9 @@ body.route-security .security-filters {
   padding: 6px 18px;
 }
 
+/* Hero panels have no padding to cancel, so their headers sit flush inside the border. */
+.security-insight > .security-panel-header.nm-app-panel-header { margin: 0; }
+
 .security-panel-identity {
   display: inline-flex;
   min-width: 0;
