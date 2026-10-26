@@ -3,8 +3,11 @@ import { PersonalChart, type ChartData } from './PersonalChart';
 export * from './ChartPrimitives';
 
 type PersonalProps = { viewId?: string; viewNoun?: string; viewKind?: ChartData['kind'] };
-export function DonutChart(props: Parameters<typeof Ring>[0] & PersonalProps) {
-  const breakdownBars = props.legend ?? true;
+/**
+ * `breakdownBars` (default on) adds the bars beside the ring; `legend` only
+ * controls the text legend, which bars replace while they are shown.
+ */
+export function DonutChart({ breakdownBars = true, ...props }: Parameters<typeof Ring>[0] & PersonalProps & { breakdownBars?: boolean }) {
   const position = props.legendPosition === 'below' ? 'bottom' : 'right';
   const native = breakdownBars ? <div className="nm-chart-composition"><div className="nm-chart-pair nm-personal-ring-layout" data-legend-position={position} data-chart-pair="bars">
     <div className="nm-chart-pair-visual"><Ring {...props} legend={false} /></div>

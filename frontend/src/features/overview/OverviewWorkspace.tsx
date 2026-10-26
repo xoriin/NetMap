@@ -443,7 +443,7 @@ export function OverviewWorkspace({
             </div>
           ) : (
             <MovableChartPair id="overview.health-layout" className="overview-health-combo" names={["Health ring", "Health breakdown"]}>
-              <DonutChart viewId="overview.health-ring" viewNoun="devices" label="Devices by health" legend={false}
+              <DonutChart viewId="overview.health-ring" viewNoun="devices" label="Devices by health" legend={false} breakdownBars={false}
                 centre={<CountUp value={healthyPct} suffix="%" />} sub="healthy"
                 items={HEALTH_ITEMS.map(item => ({ label: item.label, value: statusCounts[item.key], color: item.color }))} />
               <ColumnChart viewId="overview.health-status" viewKind="parts" label="Devices per health status"
