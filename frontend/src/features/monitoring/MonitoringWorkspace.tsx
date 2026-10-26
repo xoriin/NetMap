@@ -930,7 +930,7 @@ export function MonitoringWorkspace({
 
   if (viewTab === "status-pages") {
     return (
-      <section className="dash-layout">
+      <section className="dash-layout mon-layout--overview">
         <div className="mon-content">
           <Suspense fallback={<PanelSkeleton />}>
             <StatusPagesPanel accessToken={accessToken} canManageAlerts={canManageAlerts} />
