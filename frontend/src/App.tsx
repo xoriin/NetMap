@@ -2,7 +2,7 @@ import { ChartViewsProvider } from "./providers/ChartViewsProvider";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
-  type SystemSettings, type TokenPair, type User, type VersionInfo, api, isMfaChallenge, subscribeTokenRefresh,
+  type SystemSettings, type TokenPair, type User, type VersionInfo, api, isMfaChallenge, subscribeSessionExpired, subscribeTokenRefresh,
 } from "./api/client";
 import { useGraphData } from "./hooks/useGraphData";
 import { useMediaQuery } from "./hooks/useMediaQuery";
@@ -310,6 +310,23 @@ function WorkspaceApp() {
       setError("Session expired. Sign in again.");
     }
   }
+
+  // A request whose 401 could not be recovered through the refresh cookie means
+  // the session is gone server-side: sign out once with the expiry notice
+  // rather than leaving every later call failing. Bootstrap failures are
+  // handled by the bootstrap itself, so only act on an established session.
+  const handleLogoutRef = useRef(handleLogout);
+  useEffect(() => {
+    handleLogoutRef.current = handleLogout;
+  });
+  const sessionEndingRef = useRef(false);
+  useEffect(() => subscribeSessionExpired(() => {
+    if (!bootstrapDoneRef.current || sessionEndingRef.current) return;
+    sessionEndingRef.current = true;
+    void handleLogoutRef.current("expired").finally(() => {
+      sessionEndingRef.current = false;
+    });
+  }), []);
 
   // Proactive token refresh — fires 3 min before the 60-min access token expiry.
   useEffect(() => {

@@ -1334,6 +1334,23 @@ function notifyTokenRefresh(tokens: TokenPair) {
   _tokenRefreshListeners.forEach((listener) => listener(tokens));
 }
 
+type SessionExpiredListener = () => void;
+const _sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+/**
+ * Notifies when an authenticated request got a 401 and the refresh cookie
+ * could not recover the session (the server rejected the refresh), so the app
+ * can end the session instead of leaving every later call failing.
+ */
+export function subscribeSessionExpired(listener: SessionExpiredListener): () => void {
+  _sessionExpiredListeners.add(listener);
+  return () => _sessionExpiredListeners.delete(listener);
+}
+
+function notifySessionExpired() {
+  _sessionExpiredListeners.forEach((listener) => listener());
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   const status = response.status;
   let message = `HTTP ${status}`;
@@ -1369,7 +1386,12 @@ async function recoverExpiredToken(path: string, options: RequestOptions): Promi
   try {
     const refreshed = await api.refresh();
     return refreshed.access_token;
-  } catch {
+  } catch (err) {
+    // Only a definitive rejection ends the session; network failures and
+    // server errors may be transient and leave the session in place.
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      notifySessionExpired();
+    }
     return null;
   }
 }
