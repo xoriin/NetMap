@@ -1355,3 +1355,6 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 .nm-console-side .cloud-provider-create { grid-template-columns: minmax(0, 1fr); padding: 0; border: 0; background: none; }
 .nm-console-side .cloud-provider-create > button { justify-self: start; }
 .admin-layout .admin-snmp-table .admin-col-right { text-align: right; }
+
+/* Side-column bar lists start at the same inset as the console forms beside them. */
+.admin-layout .nm-console-side > .admin-system-card > .nm-chart-body { padding-top: var(--nm-space-4); }
