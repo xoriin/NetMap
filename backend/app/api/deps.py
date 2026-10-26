@@ -49,18 +49,19 @@ def _authenticate_api_key(raw_key: str, request: Request, db: Session) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid, expired, or revoked API key",
         )
-    if not check_and_record(db, key.id):
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="API key rate limit exceeded",
-        )
+    # Reject a missing or disabled owner before charging the per-key quota.
     user = db.get(User, key.user_id)
     if user is None or not user.is_active:
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or inactive user",
+        )
+    if not check_and_record(db, key.id):
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="API key rate limit exceeded",
         )
     clear_lookup_failures(db, client_ip)
     touch_last_used(db, key, client_ip)

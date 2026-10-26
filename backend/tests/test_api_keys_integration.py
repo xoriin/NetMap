@@ -271,6 +271,49 @@ def test_failed_lookup_lockout_returns_429(client_and_db, monkeypatch):
     assert "apikey.auth_failed" in audit_actions
 
 
+def test_inactive_user_key_does_not_consume_rate_limit_quota(client_and_db, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "api_key_rate_limit_max_calls", 2)
+    client, db = client_and_db
+    user = _make_user(db, "paused", UserRole.VIEWER)
+    key, plaintext = _make_key(db, user)
+    user.is_active = False
+    db.commit()
+
+    for _ in range(3):
+        response = client.get("/api/v1/dashboard/summary", headers={"X-API-Key": plaintext})
+        assert response.status_code == 401
+        assert response.json() == {"detail": "Invalid or inactive user"}
+    db.expire_all()
+    calls = db.scalar(
+        select(ApiKeyThrottleState.request_count).where(ApiKeyThrottleState.subject == f"apikey:{key.id}:calls")
+    )
+    assert not calls
+
+    user.is_active = True
+    db.commit()
+    for _ in range(2):
+        assert client.get("/api/v1/dashboard/summary", headers={"X-API-Key": plaintext}).status_code == 200
+    assert client.get("/api/v1/dashboard/summary", headers={"X-API-Key": plaintext}).status_code == 429
+
+
+def test_inactive_user_key_is_not_a_failed_lookup(client_and_db, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "api_key_max_failed_lookups", 2)
+    client, db = client_and_db
+    paused = _make_user(db, "paused", UserRole.VIEWER, is_active=False)
+    _, paused_key = _make_key(db, paused)
+    active = _make_user(db, "active", UserRole.VIEWER)
+    _, active_key = _make_key(db, active, name="active")
+
+    for _ in range(3):
+        assert client.get("/api/v1/dashboard/summary", headers={"X-API-Key": paused_key}).status_code == 401
+    # A valid key for a disabled user is not a failed lookup, so the source is not locked out.
+    assert client.get("/api/v1/dashboard/summary", headers={"X-API-Key": active_key}).status_code == 200
+
+
 async def _csrf_response_status(headers: dict[str, str]) -> int:
     async def ok_app(scope, receive, send):
         await send({"type": "http.response.start", "status": 204, "headers": []})
