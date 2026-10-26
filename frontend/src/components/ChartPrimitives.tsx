@@ -490,7 +490,7 @@ export function BarList({ items, label, max, unit = "", empty = "Nothing to show
 }) {
   const { tip, show, hide } = useTip();
   if (items.length === 0) return <p className="tool-note nm-chart-empty">{empty}</p>;
-  const top = max ?? (Math.max(0, ...items.map((item) => item.value)) || 1);
+  const top = (max ?? Math.max(0, ...items.map((item) => item.value))) || 1;
   return (
     <ul className="nm-bar-list" aria-label={label}>
       {items.map((item, index) => {
