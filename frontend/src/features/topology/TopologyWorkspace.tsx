@@ -771,14 +771,25 @@ export function TopologyWorkspace({
     }
   }, [selectedGroupForDisplay, visibleGroupNames]);
 
+  // The poll below reads the latest token and device list through refs so a
+  // token rotation or a graph patch (useGraphData's own monitoring poll
+  // updates liveGraph every cycle) does not tear down and restart it.
+  const liveStatusTokenRef = useRef(accessToken);
+  liveStatusTokenRef.current = accessToken;
+  const liveStatusDevicesRef = useRef(liveGraph.devices);
+  liveStatusDevicesRef.current = liveGraph.devices;
+  const hasLiveStatusToken = Boolean(accessToken);
+  const hasLiveStatusDevices = liveGraph.devices.length > 0;
+
   async function refreshLiveStatuses(silent = false) {
-    if (!accessToken || !livePingEnabled) {
+    const token = liveStatusTokenRef.current;
+    if (!token || !livePingEnabled) {
       setLiveStatuses([]);
       return;
     }
     try {
-      const rows = await api.listMonitoringDevices(accessToken);
-      const visibleIds = new Set(liveGraph.devices.map((device) => device.id));
+      const rows = await api.listMonitoringDevices(token);
+      const visibleIds = new Set(liveStatusDevicesRef.current.map((device) => device.id));
       setLiveStatuses(rows
         .filter((row) => visibleIds.has(row.device_id))
         .map((row) => ({
@@ -796,7 +807,7 @@ export function TopologyWorkspace({
   }
 
   useEffect(() => {
-    if (!livePingEnabled || !accessToken || liveGraph.devices.length === 0) {
+    if (!livePingEnabled || !hasLiveStatusToken || !hasLiveStatusDevices) {
       setLiveStatuses([]);
       return;
     }
@@ -820,7 +831,8 @@ export function TopologyWorkspace({
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [accessToken, livePingEnabled, liveGraph.devices]);
+    // Token and device list are read through refs (see above).
+  }, [hasLiveStatusToken, livePingEnabled, hasLiveStatusDevices]);
 
   // Devices whose live status changed since the previous poll get a short
   // attention pulse so outages/recoveries draw the eye on a busy map.
