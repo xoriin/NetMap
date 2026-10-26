@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1 import auth as auth_api
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
@@ -177,3 +177,51 @@ def test_admin_email_edit_of_another_user_is_audited(client_and_db):
     row = db.query(AuditLog).filter(AuditLog.action == "auth.user_updated").one()
     assert row.target == "user:alice"
     assert row.detail.endswith("email_changed=yes")
+
+
+def test_a_used_authentication_code_cannot_change_the_email_again(client_and_db):
+    client, db = client_and_db
+    user, headers = _signed_in(db)
+    secret = _enrol(client, headers)
+    code = pyotp.TOTP(secret).now()
+    first = client.patch(
+        "/api/v1/auth/me", headers=headers, json={"email": "new@example.com", "current_password": PASSWORD, "totp_code": code}
+    )
+    assert first.status_code == 200, first.text
+    replay = client.patch(
+        "/api/v1/auth/me", headers=headers, json={"email": "evil@example.com", "current_password": PASSWORD, "totp_code": code}
+    )
+    assert replay.status_code == 401
+    assert replay.json() == {"detail": "Password or authentication code is incorrect"}
+    assert _email(db, user) == "new@example.com"
+
+
+def test_a_recovery_code_changes_the_email_once(client_and_db):
+    # Recovery codes stand in for the authenticator everywhere else on the
+    # profile, so they do here too, and each one is consumed on use.
+    client, db = client_and_db
+    user, headers = _signed_in(db)
+    secret = client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).json()["secret"]
+    confirmed = client.post("/api/v1/auth/me/totp/confirm", headers=headers, json={"code": pyotp.TOTP(secret).now()})
+    recovery = confirmed.json()["recovery_codes"][0]
+    body = {"email": "new@example.com", "current_password": PASSWORD, "totp_code": recovery}
+    assert client.patch("/api/v1/auth/me", headers=headers, json=body).status_code == 200
+    again = client.patch("/api/v1/auth/me", headers=headers, json={**body, "email": "evil@example.com"})
+    assert again.status_code == 401
+    assert _email(db, user) == "new@example.com"
+    assert client.get("/api/v1/auth/me", headers=headers).json()["recovery_codes_remaining"] == 9
+
+
+def test_unknown_fields_on_the_profile_update_are_ignored(client_and_db):
+    client, db = client_and_db
+    user, headers = _signed_in(db)
+    response = client.patch(
+        "/api/v1/auth/me",
+        headers=headers,
+        json={"display_name": "Alice", "role": "SuperAdmin", "is_active": False, "password_hash": "x", "totp_enabled": False},
+    )
+    assert response.status_code == 200, response.text
+    db.expire_all()
+    stored = db.get(User, user.id)
+    assert (stored.role, stored.is_active, stored.display_name) == ("Viewer", True, "Alice")
+    assert verify_password(PASSWORD, stored.password_hash)
