@@ -58,6 +58,9 @@ class ProfileUpdateRequest(BaseModel):
     avatar_data: str | None = Field(default=None, max_length=2_800_000)
     email: str | None = Field(default=None, max_length=254)
     entity_colors_enabled: bool | None = None
+    # Re-authentication, required only when the email address changes.
+    current_password: str | None = Field(default=None, min_length=1, max_length=256)
+    totp_code: str | None = Field(default=None, min_length=1, max_length=32)
 
     @field_validator("avatar_data")
     @classmethod

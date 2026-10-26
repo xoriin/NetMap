@@ -414,8 +414,27 @@ def update_profile(
     payload: ProfileUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
+    request: Request,
 ) -> UserRead:
-    updates = payload.model_dump(exclude_unset=True)
+    updates = payload.model_dump(exclude_unset=True, exclude={"current_password", "totp_code"})
+    email_changed = "email" in updates and (updates["email"] or None) != current_user.email
+    if email_changed:
+        # The email address receives password resets, so changing it needs the
+        # same re-authentication as other sensitive account changes.
+        if not payload.current_password:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is required to change your email",
+            )
+        code = None
+        if current_user.totp_enabled:
+            if not payload.totp_code:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication code is required to change your email",
+                )
+            code = payload.totp_code
+        _verify_password_and_code(db, current_user, request, payload.current_password, code)
     if "display_name" in updates:
         current_user.display_name = updates["display_name"]
     if "avatar_data" in updates:
@@ -429,6 +448,7 @@ def update_profile(
         action="auth.profile_updated",
         actor_user_id=current_user.id,
         target=f"user:{current_user.username}",
+        detail="email_changed" if email_changed else None,
     )
     db.commit()
     db.refresh(current_user)

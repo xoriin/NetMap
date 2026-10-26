@@ -38,19 +38,19 @@ def test_colours_are_on_by_default():
 def test_preference_can_be_turned_off_and_back_on():
     db, user = _db()
 
-    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), user, db)
+    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), user, db, request=None)
     assert user.entity_colors_enabled is False
 
-    update_profile(ProfileUpdateRequest(entity_colors_enabled=True), user, db)
+    update_profile(ProfileUpdateRequest(entity_colors_enabled=True), user, db, request=None)
     assert user.entity_colors_enabled is True
 
 
 def test_unrelated_profile_edit_leaves_the_preference_alone():
     db, user = _db()
-    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), user, db)
+    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), user, db, request=None)
 
     # display_name-only update must not reset the preference to its default.
-    update_profile(ProfileUpdateRequest(display_name="Alice B"), user, db)
+    update_profile(ProfileUpdateRequest(display_name="Alice B"), user, db, request=None)
     assert user.display_name == "Alice B"
     assert user.entity_colors_enabled is False
 
@@ -61,7 +61,7 @@ def test_preference_is_per_user():
     db.add(bob)
     db.commit()
 
-    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), alice, db)
+    update_profile(ProfileUpdateRequest(entity_colors_enabled=False), alice, db, request=None)
 
     db.refresh(bob)
     assert bob.entity_colors_enabled is True
