@@ -147,3 +147,33 @@ def test_email_change_password_failures_are_throttled(client_and_db, monkeypatch
     assert locked.status_code == 429
     assert locked.json()["detail"].startswith("Too many attempts. Retry in ")
     assert _email(db, user) == "alice@example.com"
+
+
+def _admin(db, username="root"):
+    admin = User(username=username, password_hash=hash_password(PASSWORD), role="SuperAdmin", is_active=True, email="root@example.com")
+    db.add(admin)
+    db.commit()
+    return admin, {"Authorization": f"Bearer {create_access_token(admin.id)}"}
+
+
+def test_admin_route_refuses_your_own_email_change(client_and_db):
+    client, db = client_and_db
+    admin, headers = _admin(db)
+    response = client.patch(f"/api/v1/auth/users/{admin.id}", headers=headers, json={"email": "evil@example.com"})
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Change your own email from your profile, which asks you to confirm it is you"}
+    assert _email(db, admin) == "root@example.com"
+    unchanged = client.patch(f"/api/v1/auth/users/{admin.id}", headers=headers, json={"email": "root@example.com"})
+    assert unchanged.status_code == 200, unchanged.text
+
+
+def test_admin_email_edit_of_another_user_is_audited(client_and_db):
+    client, db = client_and_db
+    user, _headers = _signed_in(db)
+    _admin_user, headers = _admin(db)
+    response = client.patch(f"/api/v1/auth/users/{user.id}", headers=headers, json={"email": "alice@corp.example"})
+    assert response.status_code == 200, response.text
+    assert _email(db, user) == "alice@corp.example"
+    row = db.query(AuditLog).filter(AuditLog.action == "auth.user_updated").one()
+    assert row.target == "user:alice"
+    assert row.detail.endswith("email_changed=yes")

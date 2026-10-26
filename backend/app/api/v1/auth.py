@@ -688,6 +688,14 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
 
     updates = payload.model_dump(exclude_unset=True)
+    email_changed = "email" in updates and (updates["email"] or None) != user.email
+    if email_changed and user.id == current_user.id:
+        # Your own email receives password resets; change it from the profile,
+        # which asks you to sign in again first.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Change your own email from your profile, which asks you to confirm it is you",
+        )
     if "role" in updates and updates["role"] is not None:
         if current_user.role != UserRole.SUPER_ADMIN and updates["role"] == UserRole.SUPER_ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can assign the SuperAdmin role")
@@ -704,7 +712,10 @@ def update_user(
         action="auth.user_updated",
         actor_user_id=current_user.id,
         target=f"user:{user.username}",
-        detail=f"role={user.role} active={user.is_active} email={'set' if user.email else 'cleared'}",
+        detail=(
+            f"role={user.role} active={user.is_active} email={'set' if user.email else 'cleared'}"
+            f" email_changed={'yes' if email_changed else 'no'}"
+        ),
     )
     db.commit()
     db.refresh(user)
