@@ -6,7 +6,8 @@ from secrets import token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_super_admin, require_user_manage
@@ -25,6 +26,7 @@ from app.core.security import (
 from app.db.session import SessionLocal, get_db
 from app.middleware.csrf import CSRF_COOKIE_NAME
 from app.models.password_reset_token import PasswordResetToken
+from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     AdminCreate,
@@ -134,26 +136,41 @@ def setup_status(db: Annotated[Session, Depends(get_db)]) -> SetupStatus:
     return SetupStatus(needs_setup=user_count == 0)
 
 
+SETUP_COMPLETED_KEY = "setup_completed"
+
+
+def _users_exist(db: Session) -> bool:
+    return (db.scalar(select(func.count()).select_from(User)) or 0) > 0
+
+
 @router.post("/setup/admin", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_initial_admin(
     payload: AdminCreate,
     db: Annotated[Session, Depends(get_db)],
 ) -> User:
-    user_count = db.scalar(select(func.count()).select_from(User)) or 0
-    if user_count > 0:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initial setup is complete")
-
-    existing_user = db.scalar(select(User).where(User.username == payload.username))
-    if existing_user is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is unavailable")
-
-    user = User(
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        role=UserRole.SUPER_ADMIN,
-    )
+    setup_complete = HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initial setup is complete")
+    if _users_exist(db):
+        raise setup_complete
+    # Hash before taking the write lock so the lock is held only briefly.
+    password_hash = hash_password(payload.password)
+    db.rollback()
+    if db.get_bind().dialect.name == "sqlite":
+        # Take the write lock now, so a concurrent setup waits here and then
+        # sees the admin this request creates.
+        db.execute(text("BEGIN IMMEDIATE"))
+    if _users_exist(db) or db.get(SystemSetting, SETUP_COMPLETED_KEY):
+        db.rollback()
+        raise setup_complete
+    user = User(username=payload.username, password_hash=password_hash, role=UserRole.SUPER_ADMIN)
     db.add(user)
-    db.flush()
+    # The settings row has a unique key, so a second setup can never commit
+    # even on a database without BEGIN IMMEDIATE.
+    db.add(SystemSetting(key=SETUP_COMPLETED_KEY, value=datetime.now(timezone.utc).isoformat()))
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is unavailable") from None
     write_audit(
         db,
         action="setup.initial_admin_created",
