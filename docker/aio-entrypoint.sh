@@ -16,6 +16,38 @@ chown -R netmap:netmap /tmp/nginx 2>/dev/null || echo "netmap: skipping chown of
 
 envsubst '${APP_PORT}' < /etc/netmap/aio-nginx.conf.template > /tmp/nginx.generated.conf
 
+# Trust X-Forwarded-For / X-Forwarded-Proto only from TRUSTED_PROXY_IPS (JSON
+# list or comma-separated addresses/CIDRs). Invalid entries are skipped.
+python3 - > /tmp/nginx-realip.conf <<'PY'
+import ipaddress
+import json
+import os
+import sys
+
+raw = os.environ.get("TRUSTED_PROXY_IPS", "").strip()
+try:
+    entries = json.loads(raw) if raw.startswith("[") else raw.split(",")
+except ValueError:
+    entries = []
+networks = []
+for entry in entries:
+    try:
+        networks.append(str(ipaddress.ip_network(str(entry).strip(), strict=False)))
+    except ValueError:
+        if str(entry).strip():
+            print(f"netmap: ignoring invalid TRUSTED_PROXY_IPS entry {entry!r}", file=sys.stderr)
+for network in networks:
+    print(f"set_real_ip_from {network};")
+if networks:
+    print("real_ip_header X-Forwarded-For;")
+    print("real_ip_recursive on;")
+print("geo $realip_remote_addr $netmap_trusted_upstream {")
+print("  default 0;")
+for network in networks:
+    print(f"  {network} 1;")
+print("}")
+PY
+
 # A restarted container can retain the old Unix socket even though no Uvicorn
 # process is listening on it. Never let nginx mistake that stale path for a
 # ready backend.

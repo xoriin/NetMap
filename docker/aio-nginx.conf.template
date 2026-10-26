@@ -23,6 +23,18 @@ http {
   uwsgi_temp_path /tmp/nginx/uwsgi;
   scgi_temp_path /tmp/nginx/scgi;
 
+  # Written by aio-entrypoint.sh: real_ip settings for TRUSTED_PROXY_IPS and
+  # the $netmap_trusted_upstream flag used below.
+  include /tmp/nginx-realip.conf;
+
+  # Pass an upstream proxy's X-Forwarded-Proto through only when that proxy
+  # is trusted; otherwise report the scheme nginx itself received.
+  map "$netmap_trusted_upstream:$http_x_forwarded_proto" $netmap_forwarded_proto {
+    default $scheme;
+    "1:https" https;
+    "1:http" http;
+  }
+
   map $http_upgrade $connection_upgrade {
     default upgrade;
     '' close;
@@ -40,8 +52,11 @@ server {
       proxy_pass http://unix:/tmp/uvicorn.sock:;
       proxy_http_version 1.1;
       proxy_set_header Host $host;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
+      # Overwrite, never append: the backend trusts these headers on its
+      # Unix socket, so client-supplied values must not reach it.
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $netmap_forwarded_proto;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
       proxy_read_timeout 600s;
