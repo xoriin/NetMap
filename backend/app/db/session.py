@@ -190,6 +190,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0082_cloud_asset_types", _migrate_cloud_asset_types)
         _run_migration(conn, inspector, "0083_shrink_avatars", _migrate_shrink_avatars)
         _run_migration(conn, inspector, "0084_user_chart_views", _migrate_chart_views)
+        _run_migration(conn, inspector, "0085_user_token_version", _migrate_user_token_version)
 
 
 
@@ -2270,3 +2271,12 @@ def _migrate_chart_views(conn, inspector) -> None:
     from app.models.chart_view import ChartView
 
     ChartView.__table__.create(bind=conn, checkfirst=True)
+
+
+def _migrate_user_token_version(conn, inspector) -> None:
+    """Session version for revoking every token at once; existing tokens without
+    the claim count as version 0, so current sessions stay signed in."""
+    if "users" not in _live_tables(conn):
+        return
+    if "token_version" not in _live_columns(conn, "users"):
+        conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))

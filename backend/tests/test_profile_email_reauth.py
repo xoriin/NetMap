@@ -52,6 +52,8 @@ def _enrol(client, headers):
         "/api/v1/auth/me/totp/confirm", headers=headers, json={"code": pyotp.TOTP(secret).at(time.time() - 30)}
     )
     assert response.status_code == 200
+    # Enabling 2FA ends the old session; carry on with the reissued token.
+    headers["Authorization"] = f"Bearer {response.json()['access_token']}"
     return secret
 
 
@@ -213,6 +215,7 @@ def test_a_recovery_code_changes_the_email_once(client_and_db):
     secret = client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).json()["secret"]
     confirmed = client.post("/api/v1/auth/me/totp/confirm", headers=headers, json={"code": pyotp.TOTP(secret).now()})
     recovery = confirmed.json()["recovery_codes"][0]
+    headers["Authorization"] = f"Bearer {confirmed.json()['access_token']}"
     body = {"email": "new@example.com", "current_password": PASSWORD, "totp_code": recovery}
     assert client.patch("/api/v1/auth/me", headers=headers, json=body).status_code == 200
     again = client.patch("/api/v1/auth/me", headers=headers, json={**body, "email": "evil@example.com"})

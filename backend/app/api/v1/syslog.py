@@ -1,4 +1,5 @@
 import asyncio
+import time
 import re
 from typing import Annotated
 
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_security_view, user_has_permission
 from app.core.config import settings
-from app.core.security import decode_token
+from app.core.security import decode_token, token_version_matches
 from app.core.validation import normalize_ip, validate_port, validate_syslog_field
 from app.db.firewall_session import get_firewall_db
 from app.db.session import SessionLocal, get_db
@@ -242,6 +243,8 @@ async def live_firewall_events(websocket: WebSocket) -> None:
     if _active_ws_connections >= settings.syslog_ws_max_connections:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    token_payload = decode_token(raw.strip(), "access")
+    last_checked = time.monotonic()
     _active_ws_connections += 1
     try:
         await firewall_event_broadcaster.register(websocket)
@@ -250,6 +253,13 @@ async def live_firewall_events(websocket: WebSocket) -> None:
             while True:
                 message = await websocket.receive_text()
                 if message == "ping":
+                    # Re-check the session on the heartbeat, so signing out
+                    # everywhere (or a disabled account) also ends this stream.
+                    if time.monotonic() - last_checked >= WS_SESSION_RECHECK_SECONDS:
+                        last_checked = time.monotonic()
+                        if not await run_in_threadpool(websocket_session_still_valid, token_payload):
+                            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                            return
                     await websocket.send_json({"type": "heartbeat"})
         except WebSocketDisconnect:
             pass
@@ -259,6 +269,9 @@ async def live_firewall_events(websocket: WebSocket) -> None:
         _active_ws_connections -= 1
 
 
+WS_SESSION_RECHECK_SECONDS = 15.0
+
+
 def get_websocket_user(token: str | None) -> User | None:
     if not token:
         return None
@@ -266,10 +279,24 @@ def get_websocket_user(token: str | None) -> User | None:
     if payload is None or payload.get("sub") is None:
         return None
     with SessionLocal() as db:
-        user = db.get(User, int(payload["sub"]))
-        if user is None or not user.is_active:
-            return None
-        return user
+        return _websocket_user_for(db, payload)
+
+
+def _websocket_user_for(db, payload: dict) -> User | None:
+    user = db.get(User, int(payload["sub"]))
+    if user is None or not user.is_active or not token_version_matches(payload, user.token_version):
+        return None
+    return user
+
+
+def websocket_session_still_valid(payload: dict | None) -> bool:
+    """Whether the session a live stream was opened with is still current. The
+    access token's own expiry is not re-checked: the stream outlives it."""
+    if payload is None or payload.get("sub") is None:
+        return False
+    with SessionLocal() as db:
+        user = _websocket_user_for(db, payload)
+        return user is not None and user_has_permission(user, "security_view")
 
 
 def apply_event_filters(

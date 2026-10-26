@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.network import request_client_ip
-from app.core.security import decode_token
+from app.core.security import decode_token, token_version_matches
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.services.api_keys.service import touch_last_used, verify_and_load
@@ -103,6 +103,11 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or inactive user",
+        )
+    if not token_version_matches(payload, user.token_version):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
         )
     return user
 

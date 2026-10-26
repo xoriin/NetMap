@@ -20,6 +20,7 @@ from app.core.security import (
     create_token,
     decode_token,
     hash_password,
+    token_version_matches,
     verify_password,
     verify_password_or_dummy,
 )
@@ -55,6 +56,7 @@ from app.schemas.auth import (
 )
 from app.services.auth import (
     apply_progressive_delay,
+    issue_token_pair,
     clear_login_failures,
     clear_user_login_lockout,
     is_locked,
@@ -115,9 +117,7 @@ def _complete_login(
     method: str,
 ) -> TokenPair:
     clear_login_failures(db, subjects)
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    register_refresh_token(db, user_id=user.id, refresh_token=refresh_token, client_ip=client_ip)
+    access_token, refresh_token = issue_token_pair(db, user, client_ip=client_ip)
     write_audit(
         db,
         action="auth.login_success",
@@ -384,11 +384,12 @@ def refresh(
 
     token_payload = validate_refresh_claims(refresh_token_value)
     user = db.get(User, int(token_payload["sub"]))
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or not token_version_matches(token_payload, user.token_version):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     prior_state = validate_refresh_token_state(db, user=user, refresh_token=refresh_token_value)
-    next_refresh_token = create_refresh_token(user.id)
+    session_claims = {"sv": int(user.token_version or 0)}
+    next_refresh_token = create_refresh_token(user.id, session_claims)
     next_claims = validate_refresh_claims(next_refresh_token)
     next_jti = str(next_claims["jti"])
     revoke_refresh_token_state(
@@ -411,7 +412,7 @@ def refresh(
         detail=f"old_jti={prior_state.jti}",
     )
     db.commit()
-    next_access_token = create_access_token(user.id)
+    next_access_token = create_access_token(user.id, session_claims)
     _set_auth_cookies(response, next_access_token, next_refresh_token)
     return TokenPair(access_token=next_access_token)
 
@@ -522,6 +523,7 @@ def change_password(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
     request: Request,
+    response: Response,
 ) -> None:
     # Same windowed failure counting, lockout and per-IP limits as sign-in.
     _verify_password_and_code(
@@ -542,7 +544,27 @@ def change_password(
         actor_user_id=current_user.id,
         target=f"user:{current_user.username}",
     )
+    # Every other session ends; this device gets fresh tokens.
+    _reissue_for_this_device(db, response, request, current_user)
     db.commit()
+
+
+def _reissue_for_this_device(db: Session, response: Response, request: Request, user: User) -> str:
+    access_token, refresh_token = issue_token_pair(db, user, client_ip=client_ip_from_request(request))
+    _set_auth_cookies(response, access_token, refresh_token)
+    return access_token
+
+
+@router.post("/auth/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+def logout_all(
+    response: Response,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="logout_all")
+    write_audit(db, action="auth.logout_all", actor_user_id=current_user.id, target=f"user:{current_user.username}")
+    db.commit()
+    _clear_auth_cookies(response)
 
 
 def _verify_password_and_code(
@@ -601,6 +623,8 @@ def start_my_totp(
 @router.post("/auth/me/totp/confirm", response_model=TotpCodesResponse)
 def confirm_my_totp(
     payload: TotpCodeRequest,
+    request: Request,
+    response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpCodesResponse:
@@ -608,28 +632,34 @@ def confirm_my_totp(
     if codes is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
     write_audit(db, action="auth.mfa_enabled", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="mfa_enabled")
+    access_token = _reissue_for_this_device(db, response, request, current_user)
     db.commit()
-    return TotpCodesResponse(recovery_codes=codes)
+    return TotpCodesResponse(recovery_codes=codes, access_token=access_token)
 
 
 @router.post("/auth/me/totp/recovery-codes", response_model=TotpCodesResponse)
 def regenerate_my_recovery_codes(
     payload: TotpManageRequest,
     request: Request,
+    response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpCodesResponse:
     _verify_password_and_code(db, current_user, request, payload.password, payload.code)
     codes = totp_service.regenerate_recovery_codes(db, current_user)
     write_audit(db, action="auth.mfa_recovery_regenerated", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="mfa_recovery_regenerated")
+    access_token = _reissue_for_this_device(db, response, request, current_user)
     db.commit()
-    return TotpCodesResponse(recovery_codes=codes)
+    return TotpCodesResponse(recovery_codes=codes, access_token=access_token)
 
 
 @router.delete("/auth/me/totp", status_code=status.HTTP_204_NO_CONTENT)
 def disable_my_totp(
     payload: TotpManageRequest,
     request: Request,
+    response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
@@ -638,6 +668,8 @@ def disable_my_totp(
     _verify_password_and_code(db, current_user, request, payload.password, payload.code)
     totp_service.disable(db, current_user)
     write_audit(db, action="auth.mfa_disabled", actor_user_id=current_user.id, target=f"user:{current_user.username}", detail="source=profile")
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="mfa_disabled")
+    _reissue_for_this_device(db, response, request, current_user)
     db.commit()
 
 
@@ -738,8 +770,12 @@ def update_user(
         new_active = updates["is_active"]
     if user.role == UserRole.SUPER_ADMIN and user.is_active and (new_role != UserRole.SUPER_ADMIN or not new_active):
         _demote_unless_last_super_admin(db, user, new_role, new_active)
+    sessions_must_end = new_role != user.role or new_active != user.is_active
     user.role = new_role
     user.is_active = new_active
+    if sessions_must_end:
+        # New permissions (or a disabled account) apply to every session now.
+        revoke_all_user_refresh_tokens(db, user_id=user.id, reason="role_or_status_changed")
     if "email" in updates:
         user.email = updates["email"] or None
     if "avatar_data" in updates:
@@ -858,28 +894,18 @@ def force_logout_user(
     current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    from app.models.auth_session import RefreshTokenState
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
-    now = datetime.now(timezone.utc)
-    active_sessions = db.scalars(
-        select(RefreshTokenState).where(
-            RefreshTokenState.user_id == user_id,
-            RefreshTokenState.revoked_at.is_(None),
-        )
-    ).all()
-    for session in active_sessions:
-        session.revoked_at = now
-        session.revoked_reason = "admin_force_logout"
+    revoked = revoke_all_user_refresh_tokens(db, user_id=user.id, reason="admin_force_logout")
     write_audit(
         db,
         action="auth.admin_force_logout",
         actor_user_id=current_user.id,
         target=f"user:{user.username}",
-        detail=f"sessions={len(active_sessions)}",
+        detail=f"sessions={revoked}",
     )
     db.commit()
 

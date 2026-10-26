@@ -49,6 +49,8 @@ def _enrol(client, headers):
     secret = client.post("/api/v1/auth/me/totp/setup", headers=headers, json={"password": PASSWORD}).json()["secret"]
     response = client.post("/api/v1/auth/me/totp/confirm", headers=headers, json={"code": pyotp.TOTP(secret).at(time.time() - 30)})
     assert response.status_code == 200
+    # Enabling 2FA ends the old session; carry on with the reissued token.
+    headers["Authorization"] = f"Bearer {response.json()['access_token']}"
     return secret, response.json()["recovery_codes"]
 
 
@@ -115,8 +117,13 @@ def test_disable_requires_password_and_code(client_and_db):
     code = pyotp.TOTP(secret).now()
     assert client.request("DELETE", "/api/v1/auth/me/totp", headers=headers, json={"password": "wrong password!", "code": code}).status_code == 401
     assert client.request("DELETE", "/api/v1/auth/me/totp", headers=headers, json={"password": PASSWORD, "code": "000000"}).status_code == 401
-    assert client.request("DELETE", "/api/v1/auth/me/totp", headers=headers, json={"password": PASSWORD, "code": code}).status_code == 204
-    assert client.get("/api/v1/auth/me", headers=headers).json()["totp_enabled"] is False
+    disabled = client.request("DELETE", "/api/v1/auth/me/totp", headers=headers, json={"password": PASSWORD, "code": code})
+    assert disabled.status_code == 204
+    # Turning 2FA off ends every session; this device gets fresh cookies.
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
+    fresh = next(h for h in disabled.headers.get_list("set-cookie") if h.startswith("netmap_access="))
+    fresh_headers = {"Authorization": f"Bearer {fresh.split(';', 1)[0].split('=', 1)[1]}"}
+    assert client.get("/api/v1/auth/me", headers=fresh_headers).json()["totp_enabled"] is False
 
 
 def test_disable_is_refused_when_required_for_the_role(client_and_db):

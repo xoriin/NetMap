@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_token
+from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.models.auth_session import RefreshTokenState
 from app.models.user import User
 
@@ -76,7 +76,29 @@ def revoke_refresh_token_state(
     state.replaced_by_jti = replaced_by_jti
 
 
+def issue_token_pair(db: Session, user: User, *, client_ip: str | None) -> tuple[str, str]:
+    """Access and refresh tokens stamped with the user's current session version."""
+    claims = {"sv": int(user.token_version or 0)}
+    access_token = create_access_token(user.id, claims)
+    refresh_token = create_refresh_token(user.id, claims)
+    register_refresh_token(db, user_id=user.id, refresh_token=refresh_token, client_ip=client_ip)
+    return access_token, refresh_token
+
+
+def bump_token_version(db: Session, *, user_id: int) -> None:
+    """End every access and refresh token the user holds, in the caller's transaction."""
+    db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(token_version=User.token_version + 1)
+        .execution_options(synchronize_session="evaluate")
+    )
+
+
 def revoke_all_user_refresh_tokens(db: Session, *, user_id: int, reason: str) -> int:
+    """Sign the user out everywhere: bump the session version (so access tokens
+    stop working at once) and revoke every refresh token, atomically."""
+    bump_token_version(db, user_id=user_id)
     now = datetime.now(timezone.utc)
     active = db.scalars(
         select(RefreshTokenState).where(

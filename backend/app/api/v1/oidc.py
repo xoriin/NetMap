@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_super_admin
 from app.core.config import settings
 from app.core.network import request_client_ip
-from app.core.security import create_access_token, create_refresh_token
+
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.oidc import (
@@ -36,7 +36,7 @@ from app.schemas.oidc import (
     OidcTestResult,
 )
 from app.services.audit.service import write_audit
-from app.services.auth import register_refresh_token
+from app.services.auth import issue_token_pair
 from app.services.oidc.accounts import login_with_claims
 from app.services.oidc.config import (
     OidcRuntimeConfig,
@@ -176,9 +176,7 @@ def oidc_callback(
 
     user = result.user
     client_ip = request_client_ip(request)
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    register_refresh_token(db, user_id=user.id, refresh_token=refresh_token, client_ip=client_ip)
+    access_token, refresh_token = issue_token_pair(db, user, client_ip=client_ip)
     write_audit(
         db,
         action="auth.oidc_login_success",

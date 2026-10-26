@@ -134,6 +134,10 @@ def _apply_managed_role(db: Session, config: OidcRuntimeConfig, user: User, clai
         return False
     previous = user.role
     user.role = target
+    # The new role applies to every session, not only the one signing in now.
+    from app.services.auth.tokens import revoke_all_user_refresh_tokens
+
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="role_or_status_changed")
     write_audit(
         db,
         action="auth.oidc_role_synced",

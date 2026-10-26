@@ -44,6 +44,8 @@ class User(Base):
     totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Bumped whenever every session must end; tokens carry it as the sv claim.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     totp_recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @property

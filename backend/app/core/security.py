@@ -66,20 +66,32 @@ def decode_token(token: str, expected_type: str) -> dict[str, Any] | None:
     return payload
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, claims: dict[str, Any] | None = None) -> str:
     return create_token(
         str(user_id),
         "access",
         timedelta(minutes=settings.access_token_minutes),
+        claims,
     )
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: int, claims: dict[str, Any] | None = None) -> str:
     return create_token(
         str(user_id),
         "refresh",
         timedelta(days=settings.refresh_token_days),
+        claims,
     )
+
+
+def token_version_matches(payload: dict[str, Any], current_version: int | None) -> bool:
+    """A token is valid only for the user's current session version. Tokens
+    issued before versions existed carry no sv claim and count as version 0;
+    anything other than a plain integer fails closed."""
+    claimed = payload.get("sv", 0)
+    if isinstance(claimed, bool) or not isinstance(claimed, int):
+        return False
+    return claimed == (current_version or 0)
 
 
 def create_password_reset_token(user_id: int) -> str:
