@@ -9,7 +9,7 @@ from app.api.v1.discovery import import_scan_results, scan_to_read_with_inventor
 from app.db.session import Base
 from app.models.audit_log import AuditLog
 from app.models.device import Device
-from app.models.discovery import DiscoveryScan
+from app.models.discovery import DiscoveryObservation, DiscoveryScan
 from app.models.site import Site
 from app.models.topology_group import TopologyGroup
 from app.schemas.discovery import DiscoveryHost, DiscoveryImportRequest
@@ -29,6 +29,7 @@ def _session():
             TopologyGroup.__table__,
             Device.__table__,
             DiscoveryScan.__table__,
+            DiscoveryObservation.__table__,
             AuditLog.__table__,
         ],
     )

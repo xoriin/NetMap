@@ -221,6 +221,7 @@ def create_observations_for_scan(
     observations: list[DiscoveryObservation] = []
 
     _resolve_reappeared_observations(db, schedule.id, current_hosts, now)
+    resolve_inventoried_new_device_observations(db, now, schedule_id=schedule.id)
 
     # MAC → device lookup to catch hosts whose IP already belongs to a different device
     scan_macs = {normalize_mac(host.mac_address) for host in current_hosts if normalize_mac(host.mac_address)}
@@ -442,6 +443,45 @@ def _as_aware_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def inventoried_new_device_ips(db: Session, observations: Iterable[DiscoveryObservation]) -> set[str]:
+    """IPs of unresolved new_device observations that are already in inventory (read-only)."""
+    ips = {
+        obs.ip_address
+        for obs in observations
+        if obs.observation_type == "new_device" and obs.status != "resolved" and obs.ip_address
+    }
+    if not ips:
+        return set()
+    return set(db.scalars(select(Device.ip_address).where(Device.ip_address.in_(ips))).all())
+
+
+def resolve_inventoried_new_device_observations(
+    db: Session,
+    now: datetime | None = None,
+    *,
+    schedule_id: int | None = None,
+) -> int:
+    """Resolve unresolved new_device observations whose IP is now in inventory.
+
+    Write-path only (scan pipeline and discovery import); the caller commits.
+    """
+    query = select(DiscoveryObservation).where(
+        DiscoveryObservation.observation_type == "new_device",
+        DiscoveryObservation.status != "resolved",
+        DiscoveryObservation.ip_address.is_not(None),
+        DiscoveryObservation.ip_address.in_(select(Device.ip_address)),
+    )
+    if schedule_id is not None:
+        query = query.where(DiscoveryObservation.schedule_id == schedule_id)
+    resolved_at = now or datetime.now(timezone.utc)
+    count = 0
+    for observation in db.scalars(query).all():
+        observation.status = "resolved"
+        observation.resolved_at = resolved_at
+        count += 1
+    return count
 
 
 def _resolve_reappeared_observations(

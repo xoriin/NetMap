@@ -36,9 +36,11 @@ from app.services.discovery.scheduled import (
     annotate_hosts_with_inventory,
     due_datetime,
     execute_discovery_scan,
+    inventoried_new_device_ips,
     json_dump_list,
     json_list,
     normalize_mac,
+    resolve_inventoried_new_device_observations,
     schedule_next_run,
     scheduled_discovery,
 )
@@ -292,28 +294,15 @@ def list_observations(
         query = query.where(DiscoveryObservation.status == status_filter)
     observations = db.scalars(query.order_by(DiscoveryObservation.last_seen_at.desc()).limit(200)).all()
 
-    # Auto-resolve open new_device observations whose IP is already in inventory.
-    stale = [o for o in observations if o.observation_type == "new_device" and o.status != "resolved" and o.ip_address]
-    if stale:
-        existing_ips = set(
-            db.scalars(
-                select(Device.ip_address).where(
-                    Device.ip_address.in_([o.ip_address for o in stale])
-                )
-            ).all()
-        )
-        now = datetime.now(timezone.utc)
-        dirty = False
-        for obs in stale:
-            if obs.ip_address in existing_ips:
-                obs.status = "resolved"
-                obs.resolved_at = now
-                dirty = True
-        if dirty:
-            db.commit()
-
-    if status_filter != "all":
-        observations = [o for o in observations if o.status == status_filter]
+    if status_filter in ("open", "acknowledged"):
+        # Read-only: a new device that is already in inventory is no longer
+        # actionable. Its stored status is resolved by the scan pipeline or a
+        # discovery import, never by this GET.
+        inventoried = inventoried_new_device_ips(db, observations)
+        observations = [
+            o for o in observations
+            if not (o.observation_type == "new_device" and o.ip_address in inventoried)
+        ]
     return [_observation_to_read(observation) for observation in observations]
 
 
@@ -526,6 +515,8 @@ def import_scan_results(
         target=f"scan:{scan.id}",
         detail=f"created={created} updated={updated} skipped_existing={skipped_existing} mode={payload.mode}",
     )
+    db.flush()
+    resolve_inventoried_new_device_observations(db)
     db.commit()
     return DiscoveryImportResult(created=created, updated=updated, skipped_existing=skipped_existing)
 
