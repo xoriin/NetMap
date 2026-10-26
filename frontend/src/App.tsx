@@ -459,6 +459,7 @@ function WorkspaceApp() {
   const visibleRoutes = appRoutes
     .filter((route) => !route.requiresSecurityRole || canViewSecurity)
     .filter((route) => !route.requiresSuperAdmin || canAccessAdmin)
+    .filter((route) => !route.devPreview || user?.role === "SuperAdmin")
     .filter((route) => route.href !== "/exports" || canAccessExports);
 
   return (

@@ -12,14 +12,16 @@ export type RouteDefinition = {
   section?: string;
   requiresSecurityRole?: boolean;
   requiresSuperAdmin?: boolean;
+  /** Dev-only UI preview; listed for the SuperAdmin role only, matching DashboardView. */
+  devPreview?: boolean;
 };
 
 export const uiPreviewsEnabled = import.meta.env.DEV;
 
 const previewRoutes: RouteDefinition[] = uiPreviewsEnabled
   ? [
-      { href: "/theme-preview", icon: Palette, label: "Theme Preview", requiresSuperAdmin: true },
-      { href: "/admin-design-preview", icon: LayoutTemplate, label: "Admin Designs", requiresSuperAdmin: true },
+      { href: "/theme-preview", icon: Palette, label: "Theme Preview", requiresSuperAdmin: true, devPreview: true },
+      { href: "/admin-design-preview", icon: LayoutTemplate, label: "Admin Designs", requiresSuperAdmin: true, devPreview: true },
     ]
   : [];
 
