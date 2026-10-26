@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 
 VALID_NOTIFICATION_PROVIDERS = {"apprise", "ntfy", "telegram", "signal", "smtp", "webhook"}
@@ -58,8 +59,8 @@ class NotificationProfileUpdate(BaseModel):
 
 class NotificationProfileRead(NotificationProfileBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 

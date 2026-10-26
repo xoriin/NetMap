@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 VALID_HTTP_METHODS = {"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}
 VALID_BODY_ENCODINGS = {"json", "text", "form", "xml"}
@@ -316,28 +317,28 @@ class MonitorRead(BaseModel):
     enabled: bool
     consecutive_failures: int
     last_status: str | None
-    last_checked_at: datetime | None
-    last_cert_expires_at: datetime | None
+    last_checked_at: UtcDatetime | None
+    last_cert_expires_at: UtcDatetime | None
     last_cert_issuer: str | None
     uptime_24h: float | None = None
     uptime_7d: float | None = None
     avg_response_time_24h: float | None = None
     heartbeat: list[str] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
 
 class MonitorCheckHistoryRead(BaseModel):
     id: int
-    checked_at: datetime
+    checked_at: UtcDatetime
     status: str
     response_time_ms: float | None
     status_code: int | None
     error: str | None
     assertion_detail: str | None
     response_size_bytes: int | None
-    cert_expires_at: datetime | None
+    cert_expires_at: UtcDatetime | None
 
     model_config = {"from_attributes": True}

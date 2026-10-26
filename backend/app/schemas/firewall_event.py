@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 _SAVED_SEARCH_FILTERS = {
     "q", "src_ip", "dst_ip", "src_port", "dst_port", "action",
@@ -10,8 +10,8 @@ _SAVED_SEARCH_FILTERS = {
 
 class FirewallEventRead(BaseModel):
     id: int
-    received_at: datetime
-    event_time: datetime | None = None
+    received_at: UtcDatetime
+    event_time: UtcDatetime | None = None
     source_host: str | None = None
     src_ip: str | None = None
     dst_ip: str | None = None
@@ -46,22 +46,22 @@ class SyslogStatus(BaseModel):
     retention_days: int
     allowlist_enabled: bool
     total_events: int
-    retention_last_run_at: datetime | None = None
+    retention_last_run_at: UtcDatetime | None = None
     retention_last_deleted: int = 0
     retention_last_error: str | None = None
-    last_event_received_at: datetime | None = None
+    last_event_received_at: UtcDatetime | None = None
     received_packets: int = 0
     stored_events: int = 0
     dropped_unparsed: int = 0
     denied_senders: int = 0
-    last_packet_at: datetime | None = None
+    last_packet_at: UtcDatetime | None = None
     last_packet_sender: str | None = None
-    last_stored_at: datetime | None = None
+    last_stored_at: UtcDatetime | None = None
     last_stored_sender: str | None = None
-    last_drop_at: datetime | None = None
+    last_drop_at: UtcDatetime | None = None
     last_drop_sender: str | None = None
     last_drop_raw: str | None = None
-    last_denied_at: datetime | None = None
+    last_denied_at: UtcDatetime | None = None
     last_denied_sender: str | None = None
 
 
@@ -85,4 +85,4 @@ class SavedSearchRead(BaseModel):
     id: int
     name: str
     filters: dict
-    created_at: datetime
+    created_at: UtcDatetime

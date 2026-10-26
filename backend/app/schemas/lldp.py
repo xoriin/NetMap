@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from app.schemas.datetimes import UtcDatetime
 
 
 class LldpNeighbourRead(BaseModel):
@@ -16,8 +16,8 @@ class LldpNeighbourRead(BaseModel):
     remote_mgmt_addr: str | None
     matched_device_id: int | None
     dismissed: bool
-    last_seen: datetime
-    created_at: datetime
+    last_seen: UtcDatetime
+    created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 

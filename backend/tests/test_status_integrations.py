@@ -655,7 +655,7 @@ def test_token_cannot_enable_alert_suppression_or_edit_suppressing_window(env):
     assert created.status_code == 201, created.text
     window = created.json()
     assert (window["pages"], window["suppress_alerts"]) == (["a"], False)
-    assert window["starts_at"].endswith("+00:00")
+    assert window["starts_at"].endswith("Z")
 
     escalate = _call(env, "PATCH", f"/maintenance/{window['id']}", secret, {"suppress_alerts": True})
     assert escalate.status_code == 403

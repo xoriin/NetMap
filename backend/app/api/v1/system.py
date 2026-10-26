@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.models.device import Device
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.user import User
+from app.schemas.datetimes import utc_isoformat, utc_isoformat_or_none
 from app.api.v1.monitoring import monitoring_cache_status
 from app.services.changelog import changelog_for_installed_version, changelog_release_to_dict
 from app.services.syslog.storage import count_events, get_retention_status
@@ -106,22 +107,22 @@ def get_diagnostics(
         .group_by(Device.monitor_status)
     ).all()
     return {
-        "generated_at": datetime.now(timezone.utc),
+        "generated_at": utc_isoformat(datetime.now(timezone.utc)),
         "database": {
             "main": _sqlite_file_sizes(data_dir / "netmap.db"),
             "firewall": _sqlite_file_sizes(data_dir / "firewall.db"),
         },
         "monitoring": {
-            "last_checked_at": last_monitor_check,
+            "last_checked_at": utc_isoformat_or_none(last_monitor_check),
             "device_status_counts": {status or "unknown": int(count or 0) for status, count in device_status_rows},
             "cache": monitoring_cache_status(),
         },
         "syslog": {
             "total_events": count_events(),
-            "retention_last_run_at": retention.last_run_at,
+            "retention_last_run_at": utc_isoformat_or_none(retention.last_run_at),
             "retention_last_deleted": retention.last_deleted,
             "retention_last_error": retention.last_error,
-            "last_event_received_at": retention.last_event_received_at,
+            "last_event_received_at": utc_isoformat_or_none(retention.last_event_received_at),
         },
         "process": {
             "pid": os.getpid(),

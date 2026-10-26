@@ -32,6 +32,7 @@ from app.services.status_pages.sources import (
     SourceRef,
     _utc,
     item_state,
+    iso,
 )
 
 Audience = Literal["public", "private"]
@@ -128,7 +129,7 @@ def _metrics(
     if extras.get("failure_rate"):
         metrics["failure_rate"] = _round(failure_rate(samples, start, now, spans_out), 4)
     if extras.get("last_check"):
-        metrics["last_check"] = state.observed_at.isoformat() if state.observed_at else None
+        metrics["last_check"] = iso(state.observed_at)
     if period is not None:
         metrics["uptime_period"] = {
             "period": extras["uptime_period"], "percent": _round(period.percent, 4), "label": period.label,
@@ -139,7 +140,7 @@ def _metrics(
 
 def _window_entry(loaded: maintenance.LoadedWindow, now: datetime, announced: bool) -> dict:
     window = loaded.window
-    times = {"starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(), "active": loaded.active(now)}
+    times = {"starts_at": iso(loaded.start), "ends_at": iso(loaded.end), "active": loaded.active(now)}
     if not announced:
         return {"title": GENERIC_MAINTENANCE_TITLE, "description": None, **times, "announced": False}
     return {"id": window.id, "title": window.title, "description": window.description, **times, "announced": True}
@@ -149,7 +150,7 @@ def _past_window(loaded: maintenance.LoadedWindow) -> dict:
     window = loaded.window
     return {
         "kind": "maintenance", "id": window.id, "title": window.title, "description": window.description,
-        "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(),
+        "starts_at": iso(loaded.start), "ends_at": iso(loaded.end),
     }
 
 
@@ -324,15 +325,15 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
         "logo": page.logo,
         "heartbeat_window": page.heartbeat_window,
         "custom_css": (validate_css(page.custom_css).css or None) if page.custom_css else None,
-        "generated_at": now.isoformat(),
-        "valid_until": next_deadline(
+        "generated_at": iso(now),
+        "valid_until": iso(next_deadline(
             page, now, states.values(), [*(n.expires_at for n in notices if n.expires_at), *age_outs], edges,
-        ).isoformat(),
+        )),
         "summary": {"state": state, "label": label, "counts": counts},
         "notices": [
             {
                 "id": n.id, "level": n.level, "title": n.title, "body": n.body, "link": n.link,
-                "expires_at": _utc(n.expires_at).isoformat() if n.expires_at else None,
+                "expires_at": iso(n.expires_at),
             }
             for n in notices
         ],

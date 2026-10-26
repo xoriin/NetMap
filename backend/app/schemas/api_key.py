@@ -1,7 +1,8 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.datetimes import UtcDatetime
 
 
 class ApiKeyCreateRequest(BaseModel):
@@ -16,11 +17,11 @@ class ApiKeyRead(BaseModel):
     name: str
     prefix: str
     suffix: str | None
-    created_at: datetime
-    expires_at: datetime | None
-    last_used_at: datetime | None
+    created_at: UtcDatetime
+    expires_at: UtcDatetime | None
+    last_used_at: UtcDatetime | None
     last_used_ip: str | None
-    revoked_at: datetime | None
+    revoked_at: UtcDatetime | None
 
 
 class ApiKeyCreateResponse(ApiKeyRead):

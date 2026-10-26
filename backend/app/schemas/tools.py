@@ -1,9 +1,9 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.validation import normalize_cidr, normalize_ip, validate_dns_name, validate_port
+from app.schemas.datetimes import UtcDatetime
 
 DnsRecordType = Literal["A", "AAAA", "MX", "TXT", "NS", "CNAME"]
 
@@ -157,7 +157,7 @@ class SubnetCalculatorResult(BaseModel):
     usable_hosts: int
     version: int
     prefix_length: int
-    calculated_at: datetime
+    calculated_at: UtcDatetime
 
 
 class SnmpInterfaceResult(BaseModel):
@@ -205,8 +205,8 @@ class SnmpProfileUpdate(BaseModel):
 class SnmpProfileRead(SnmpProfileBase):
     id: int
     version: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 def normalize_host(value: str) -> str:

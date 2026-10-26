@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.models.device import Device
 from app.models.firewall_event import FirewallEvent
+from app.schemas.datetimes import utc_isoformat
 from app.services.topology.service import device_to_dict, infer_subnet
 
 BLOCK_ACTIONS = ("block", "deny", "drop")
@@ -552,7 +553,7 @@ def format_csv_value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, datetime):
-        return value.astimezone(timezone.utc).isoformat()
+        return utc_isoformat(value)
     if isinstance(value, list):
         return _neutralize_csv_formula(", ".join(str(item) for item in value))
     if isinstance(value, str):
@@ -569,7 +570,7 @@ def _neutralize_csv_formula(value: str) -> str:
 
 def json_default(value: object) -> str:
     if isinstance(value, datetime):
-        return value.astimezone(timezone.utc).isoformat()
+        return utc_isoformat(value)
     return str(value)
 
 

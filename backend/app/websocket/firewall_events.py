@@ -8,6 +8,8 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from app.schemas.datetimes import utc_isoformat
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,7 +60,7 @@ class FirewallEventBroadcaster:
 
 def serialize_json_value(value: Any) -> str:
     if isinstance(value, datetime):
-        return value.isoformat()
+        return utc_isoformat(value)
     return str(value)
 
 

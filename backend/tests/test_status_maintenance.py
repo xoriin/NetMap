@@ -20,6 +20,7 @@ from app.models.monitor_history import DeviceMonitorHistory
 from app.models.status_page import StatusIncident, StatusMaintenance, StatusMaintenanceExit
 from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
+from app.schemas.datetimes import utc_isoformat
 from app.services.alerting import service as alerting_service
 from app.services.monitoring.health import observed_is_healthy
 from app.services.monitoring.port_checker import CheckResult
@@ -168,8 +169,8 @@ def test_window_input_with_offset_is_stored_as_utc_instant(api, db):
     ))
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["starts_at"] == "2030-10-18T12:00:00+00:00"
-    assert body["ends_at"] == "2030-10-18T12:30:00+00:00"
+    assert body["starts_at"] == "2030-10-18T12:00:00Z"
+    assert body["ends_at"] == "2030-10-18T12:30:00Z"
     db.expire_all()
     stored = db.get(StatusMaintenance, body["id"])
     assert stored.starts_at.replace(tzinfo=timezone.utc) == datetime(2030, 10, 18, 12, 0, tzinfo=timezone.utc)
@@ -254,7 +255,7 @@ def test_unannounced_pages_get_a_generic_line_for_a_suppressing_window(db):
         payload = build_page_payload(db, two, audience, T0)
         assert payload["maintenance"] == [{
             "title": "Scheduled maintenance", "description": None, "active": True,
-            "announced": False, "starts_at": start.isoformat(), "ends_at": end.isoformat(),
+            "announced": False, "starts_at": utc_isoformat(start), "ends_at": utc_isoformat(end),
         }]
         text = json.dumps(payload)
         assert "Secret firmware" not in text and "555" not in text and "Router" not in text
@@ -279,7 +280,7 @@ def test_unannounced_upcoming_line_needs_a_covered_item_on_the_page(db):
     payload = build_page_payload(db, two, "public", T0)
     assert payload["maintenance"] == [{
         "title": "Scheduled maintenance", "description": None, "active": False, "announced": False,
-        "starts_at": start.isoformat(), "ends_at": (start + timedelta(minutes=30)).isoformat(),
+        "starts_at": utc_isoformat(start), "ends_at": utc_isoformat(start + timedelta(minutes=30)),
     }]
     assert _item(payload)["state"] == "operational"
     assert build_page_payload(db, three, "public", T0)["maintenance"] == []
@@ -549,9 +550,9 @@ def test_upcoming_shown_within_seven_days_only(db):
     (entry,) = payload["maintenance"]
     assert entry == {
         "id": soon.id, "title": "Soon", "description": "Firmware", "active": False, "announced": True,
-        "starts_at": (T0 + timedelta(days=6)).isoformat(), "ends_at": (T0 + timedelta(days=6, minutes=30)).isoformat(),
+        "starts_at": utc_isoformat(T0 + timedelta(days=6)), "ends_at": utc_isoformat(T0 + timedelta(days=6, minutes=30)),
     }
-    assert payload["valid_until"] == (T0 + timedelta(seconds=10)).isoformat()
+    assert payload["valid_until"] == utc_isoformat(T0 + timedelta(seconds=10))
     assert _item(payload)["state"] == "operational"
 
     lead = build_page_payload(db, page, "public", T0 + timedelta(seconds=10))
@@ -719,7 +720,7 @@ def test_started_window_keeps_its_recorded_scope_and_can_end_early(api, db):
     assert [(p["kind"], p["title"]) for p in payload["past"]] == [("maintenance", "Renamed")]
     keys = [_ref(api.device).key]
     spans = maintenance.spans_for_page(maintenance.page_windows(db, api.page.id, keys), api.page.id, keys)
-    assert [(a, b.isoformat()) for a, b in spans[keys[0]]][0][1] == body["ends_at"]
+    assert [(a, utc_isoformat(b)) for a, b in spans[keys[0]]][0][1] == body["ends_at"]
     assert _item(payload)["state"] != "maintenance"
 
     future = client.post("/api/v1/status-pages/maintenance", json=_body(api)).json()

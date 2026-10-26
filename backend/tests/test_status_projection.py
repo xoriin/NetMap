@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.monitor import MonitorCheckHistory
 from app.models.monitor_history import DeviceMonitorHistory
 from app.models.status_page import StatusPage, StatusPageItem
+from app.schemas.datetimes import utc_isoformat
 from app.services.status_pages.projection import build_page_payload, next_deadline, summarize
 from app.services.status_pages.sources import SourceRef, freshness_deadline, load_current_states
 from tests.status_page_helpers import make_session, seed_device, seed_monitor, seed_page, seed_service_check
@@ -235,8 +236,8 @@ def test_valid_until_is_at_most_30_seconds_and_respects_freshness():
     assert next_deadline(page, NOW, [], maintenance_edges=[NOW + timedelta(seconds=7)]) == NOW + timedelta(seconds=7)
     assert next_deadline(page, NOW, [], notice_expiries=[NOW - timedelta(seconds=5)]) == NOW + timedelta(seconds=30)
     payload = build_page_payload(db, page, "public", NOW)
-    assert payload["valid_until"] == (NOW + timedelta(seconds=10)).isoformat()
-    assert payload["generated_at"] == NOW.isoformat()
+    assert payload["valid_until"] == utc_isoformat(NOW + timedelta(seconds=10))
+    assert payload["generated_at"] == utc_isoformat(NOW)
 
 
 def test_next_slot_boundary_bounds_deadline():

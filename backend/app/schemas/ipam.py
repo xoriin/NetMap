@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.cloud import normalize_cloud_asset_type_value
+from app.schemas.datetimes import UtcDatetime
 
 
 class SubnetCreate(BaseModel):
@@ -47,8 +47,8 @@ class SubnetOut(BaseModel):
     dhcp_end: str | None
     dns_servers: str | None
     notes: str | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     # Computed fields
     total_hosts: int = 0
     used: int = 0
@@ -96,7 +96,7 @@ class IpReservationCreate(BaseModel):
     label: str = Field(..., min_length=1, max_length=120)
     mac_address: str | None = None
     notes: str | None = None
-    expires_at: datetime | None = None
+    expires_at: UtcDatetime | None = None
 
 
 class IpReservationUpdate(BaseModel):
@@ -104,7 +104,7 @@ class IpReservationUpdate(BaseModel):
     subnet_id: int | None = None
     mac_address: str | None = None
     notes: str | None = None
-    expires_at: datetime | None = None
+    expires_at: UtcDatetime | None = None
 
 
 class IpReservationOut(BaseModel):
@@ -115,9 +115,9 @@ class IpReservationOut(BaseModel):
     mac_address: str | None
     notes: str | None
     reserved_by: str | None
-    expires_at: datetime | None = None
-    created_at: datetime
-    updated_at: datetime
+    expires_at: UtcDatetime | None = None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
@@ -127,10 +127,10 @@ class DhcpLeaseOut(BaseModel):
     ip_address: str
     mac_address: str | None
     hostname: str | None
-    expires_at: datetime | None
+    expires_at: UtcDatetime | None
     is_active: bool
     source: str
-    imported_at: datetime
+    imported_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
@@ -238,8 +238,8 @@ class ExternalIpAddressOut(ExternalIpAddressBase):
     id: int
     ip_address: str
     device: ExternalIpDeviceOut | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = ConfigDict(from_attributes=True)
 

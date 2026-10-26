@@ -23,6 +23,7 @@ from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.device import Device
 from app.models.user import User, UserRole
+from app.schemas.datetimes import UtcDatetime
 from app.services.audit.service import write_audit
 from app.services.exports import (
     backup_database_bytes,
@@ -58,7 +59,7 @@ class RestoreValidationResult(BaseModel):
 class ScheduledBackupRead(BaseModel):
     filename: str
     size_bytes: int
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class EncryptedBackupRequest(BaseModel):
@@ -69,7 +70,7 @@ class ExportSummaryRead(BaseModel):
     inventory_rows: int | None = None
     firewall_events: int | None = None
     exports_last_30_days: int
-    last_export_at: datetime | None = None
+    last_export_at: UtcDatetime | None = None
     last_export_type: str | None = None
     last_export_detail: str | None = None
 

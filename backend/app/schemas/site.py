@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 
 class SiteBase(BaseModel):
@@ -85,7 +85,7 @@ class SiteUpdate(BaseModel):
 
 class SiteRead(SiteBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = {"from_attributes": True}

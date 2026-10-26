@@ -1,9 +1,9 @@
-from datetime import datetime
 import ipaddress
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.validation import normalize_cidr
+from app.schemas.datetimes import UtcDatetime
 
 
 class TopologyGroupBase(BaseModel):
@@ -166,8 +166,8 @@ def validate_group_dhcp_range(
 
 class TopologyGroupRead(TopologyGroupBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 class DeviceBulkUpdateRequest(BaseModel):

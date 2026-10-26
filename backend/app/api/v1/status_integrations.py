@@ -366,7 +366,7 @@ def _window_body(db: Session, window_id: int) -> dict:
     items = [source_dict(SourceRef.from_key(key)) for key in loaded.keys]
     return {
         "id": loaded.window.id, "title": loaded.window.title, "description": loaded.window.description,
-        "starts_at": loaded.start.isoformat(), "ends_at": loaded.end.isoformat(),
+        "starts_at": iso(loaded.start), "ends_at": iso(loaded.end),
         "suppress_alerts": loaded.window.suppress_alerts, "items": items, "pages": list(slugs),
     }
 

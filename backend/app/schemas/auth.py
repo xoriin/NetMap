@@ -1,9 +1,8 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.image_validation import shrink_avatar_data_uri
 from app.models.user import UserRole
+from app.schemas.datetimes import UtcDatetime
 
 
 class SetupStatus(BaseModel):
@@ -98,7 +97,7 @@ class UserRead(BaseModel):
     email: str | None = None
     auth_source: str = "local"
     sso_issuer: str | None = None
-    sso_last_login_at: datetime | None = None
+    sso_last_login_at: UtcDatetime | None = None
     whats_new_acknowledged_version: str | None = None
     entity_colors_enabled: bool = True
     totp_enabled: bool = False

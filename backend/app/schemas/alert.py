@@ -1,7 +1,8 @@
 import json
 import re
-from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 VALID_EVENT_TYPES = {
     "device_offline", "device_online", "device_warning", "any_status_change",
@@ -105,9 +106,9 @@ class AlertRuleRead(BaseModel):
     loss_window_minutes: int | None
     open_incident: bool
     incident_min_failures: int
-    last_triggered_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
+    last_triggered_at: UtcDatetime | None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 
@@ -125,7 +126,7 @@ class AlertEventRead(BaseModel):
     alert_rule_name: str
     device_id: int | None
     event_type: str
-    fired_at: datetime
+    fired_at: UtcDatetime
     message: str
 
     model_config = {"from_attributes": True}
@@ -138,6 +139,6 @@ class NotificationDeliveryRead(BaseModel):
     target: str
     status: str
     detail: str
-    sent_at: datetime
+    sent_at: UtcDatetime
 
     model_config = {"from_attributes": True}

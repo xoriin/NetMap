@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.datetimes import UtcDatetime
 
 
 class AuditLogRead(BaseModel):
@@ -9,7 +9,7 @@ class AuditLogRead(BaseModel):
     action: str
     target: str | None = None
     detail: str | None = None
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = ConfigDict(from_attributes=True)
 

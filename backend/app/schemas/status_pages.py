@@ -1,10 +1,10 @@
 import re
-from datetime import datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.image_validation import validate_email_logo_data_uri
+from app.schemas.datetimes import UtcAwareDatetime, UtcDatetime
 from app.services.status_pages.sources import SourceRef
 
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$")
@@ -118,8 +118,8 @@ class StatusPageRead(BaseModel):
     logo: str | None
     accent: str | None
     custom_css: str | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 class ItemExtras(BaseModel):
@@ -268,7 +268,7 @@ class NoticeSet(BaseModel):
     title: str = Field(max_length=200)
     body: str | None = Field(default=None, max_length=2000)
     link: str | None = Field(default=None, max_length=2048)
-    expires_at: datetime | None = None
+    expires_at: UtcDatetime | None = None
 
 
 class NoticeRead(BaseModel):
@@ -282,8 +282,8 @@ class NoticeRead(BaseModel):
     body: str | None
     link: str | None
     author: str | None
-    created_at: datetime
-    expires_at: datetime | None
+    created_at: UtcDatetime
+    expires_at: UtcDatetime | None
 
 
 class NoticeManagerRead(NoticeRead):
@@ -300,7 +300,7 @@ class TokenCreate(BaseModel):
         description="Shown publicly as the author of this token's notices and incident updates, e.g. 'backup-server'.",
     )
     page_ids: list[int] = Field(min_length=1, max_length=100)
-    expires_at: datetime | None = None
+    expires_at: UtcDatetime | None = None
 
 
 class TokenRead(BaseModel):
@@ -309,10 +309,10 @@ class TokenRead(BaseModel):
     prefix: str
     page_ids: list[int]
     created_by: str | None
-    created_at: datetime
-    expires_at: datetime | None
-    revoked_at: datetime | None
-    last_used_at: datetime | None
+    created_at: UtcDatetime
+    expires_at: UtcDatetime | None
+    revoked_at: UtcDatetime | None
+    last_used_at: UtcDatetime | None
     active: bool
 
 
@@ -365,8 +365,8 @@ class MaintenanceCreate(BaseModel):
 
     title: str = Field(max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    starts_at: AwareDatetime
-    ends_at: AwareDatetime
+    starts_at: UtcAwareDatetime
+    ends_at: UtcAwareDatetime
     items: list[ItemSource] = Field(min_length=1, max_length=500)
     page_ids: list[int] | None = Field(
         default=None, max_length=100, description="Pages that announce the window; omit for every page showing an affected item.",
@@ -381,8 +381,8 @@ class MaintenanceUpdate(BaseModel):
 
     title: str | None = Field(default=None, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    starts_at: AwareDatetime | None = None
-    ends_at: AwareDatetime | None = None
+    starts_at: UtcAwareDatetime | None = None
+    ends_at: UtcAwareDatetime | None = None
     items: list[ItemSource] | None = Field(default=None, min_length=1, max_length=500)
     page_ids: list[int] | None = Field(default=None, max_length=100)
     suppress_alerts: bool | None = None
@@ -400,8 +400,8 @@ class IntegrationMaintenanceCreate(BaseModel):
 
     title: str = Field(max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    starts_at: AwareDatetime
-    ends_at: AwareDatetime
+    starts_at: UtcAwareDatetime
+    ends_at: UtcAwareDatetime
     items: list[ItemSource] = Field(min_length=1, max_length=500)
     pages: list[str] | None = Field(default=None, max_length=100)
     suppress_alerts: bool = False
@@ -412,8 +412,8 @@ class IntegrationMaintenanceUpdate(BaseModel):
 
     title: str | None = Field(default=None, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    starts_at: AwareDatetime | None = None
-    ends_at: AwareDatetime | None = None
+    starts_at: UtcAwareDatetime | None = None
+    ends_at: UtcAwareDatetime | None = None
     items: list[ItemSource] | None = Field(default=None, min_length=1, max_length=500)
     pages: list[str] | None = Field(default=None, max_length=100)
     suppress_alerts: bool | None = None

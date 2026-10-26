@@ -1,11 +1,11 @@
 import re
-from datetime import datetime
 from math import isfinite
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.validation import normalize_cidr, normalize_ip, validate_hostname, validate_mac
 from app.models.device import DeviceStatus
+from app.schemas.datetimes import UtcDatetime
 
 _ICON_RE = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 LIFECYCLE_STATES = ("planned", "active", "retired", "ignored")
@@ -234,10 +234,10 @@ class DeviceRead(DeviceBase):
     id: int
     topology_group: str
     monitor_status: str | None = None
-    last_monitored_at: datetime | None = None
+    last_monitored_at: UtcDatetime | None = None
     is_favourite: bool = False
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 class DeviceSnmpEnrichmentChange(BaseModel):
@@ -296,8 +296,8 @@ class RelationshipUpdate(BaseModel):
 
 class RelationshipRead(RelationshipBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -354,8 +354,8 @@ class TopologyLayoutRead(TopologyLayoutBase):
     owner_user_id: int
     positions: dict[str, LayoutPosition] = Field(default_factory=dict)
     display_prefs: dict | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
     share_code: str | None = None
 
 
@@ -392,8 +392,8 @@ def normalize_layout_positions(
 
 class CorrelatedFirewallEvent(BaseModel):
     id: int
-    received_at: datetime
-    event_time: datetime | None = None
+    received_at: UtcDatetime
+    event_time: UtcDatetime | None = None
     src_ip: str | None = None
     dst_ip: str | None = None
     src_port: int | None = None
@@ -413,7 +413,7 @@ class DeviceSecurityEventSummary(BaseModel):
     blocked_count: int
     passed_count: int
     total_count: int
-    last_seen_event_time: datetime | None = None
+    last_seen_event_time: UtcDatetime | None = None
     events: list[CorrelatedFirewallEvent] = Field(default_factory=list)
 
 
@@ -424,7 +424,7 @@ class DeviceEventCount(BaseModel):
     event_count: int
     blocked_count: int
     passed_count: int
-    last_seen_event_time: datetime | None = None
+    last_seen_event_time: UtcDatetime | None = None
 
 
 class DeviceEventCountList(BaseModel):
@@ -441,7 +441,7 @@ class DeviceLiveStatus(BaseModel):
     device_id: int
     status: DeviceStatus
     latency_ms: float | None = None
-    last_checked_at: datetime
+    last_checked_at: UtcDatetime
     error: str | None = None
 
 

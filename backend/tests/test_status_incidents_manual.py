@@ -15,6 +15,7 @@ from app.models.status_page import (
     StatusIncidentAlias, StatusIncidentUpdate, StatusIntegrationToken, StatusNotice, StatusPage, StatusPageItem,
 )
 from app.models.user import User, UserRole
+from app.schemas.datetimes import utc_isoformat
 from app.services.status_pages import cache as cache_module
 from app.services.status_pages import copy, events, incidents, notices, tokens
 from app.services.status_pages.cache import StatusSnapshotCache
@@ -238,7 +239,7 @@ def test_resolved_within_30_days_listed_in_past():
     assert [i["title"] for i in body["incidents"]] == ["Open"]
     assert [i["title"] for i in body["past"]] == ["Recent"]
     (past,) = body["past"]
-    assert past["status"] == "resolved" and past["resolved_at"] == (NOW - timedelta(days=2)).isoformat()
+    assert past["status"] == "resolved" and past["resolved_at"] == utc_isoformat(NOW - timedelta(days=2))
     assert [u["message"] for u in past["updates"]] == ["We are looking into it.", "Resolved."]
     assert "Fixed upstream" not in json.dumps(body)
     private = _payload(db, page, "private")
@@ -299,8 +300,8 @@ def test_expired_notice_disappears_without_new_probe():
     expiry = NOW + timedelta(seconds=12)
     notices.set_notice(db, PersonActor(_user(db)), page.id, "critical", "Short", None, None, expiry, now=NOW)
     body = build_page_payload(db, page, "public", NOW)
-    assert body["valid_until"] == expiry.isoformat()
-    assert body["notices"][0]["expires_at"] == expiry.isoformat()
+    assert body["valid_until"] == utc_isoformat(expiry)
+    assert body["notices"][0]["expires_at"] == utc_isoformat(expiry)
     later = build_page_payload(db, page, "public", expiry + timedelta(seconds=1))
     assert later["notices"] == [] and later["summary"]["state"] == "empty"
     with pytest.raises(incidents.IncidentError):

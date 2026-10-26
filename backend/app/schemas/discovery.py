@@ -1,9 +1,9 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.validation import normalize_ip
+from app.schemas.datetimes import UtcDatetime
 
 
 ScanType = Literal["ping", "basic_ports"]
@@ -55,8 +55,8 @@ class DiscoveryScanRead(BaseModel):
     result_count: int
     results: list[DiscoveryHost] = Field(default_factory=list)
     error: str | None = None
-    created_at: datetime
-    completed_at: datetime | None = None
+    created_at: UtcDatetime
+    completed_at: UtcDatetime | None = None
 
 
 class DiscoveryImportRequest(BaseModel):
@@ -129,14 +129,14 @@ class DiscoveryScheduleUpdate(BaseModel):
 class DiscoveryScheduleRead(DiscoveryScheduleBase):
     id: int
     owner_user_id: int
-    last_run_at: datetime | None = None
-    next_run_at: datetime | None = None
+    last_run_at: UtcDatetime | None = None
+    next_run_at: UtcDatetime | None = None
     last_scan_id: int | None = None
     last_status: str | None = None
     last_error: str | None = None
     open_observation_count: int = 0
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 class DiscoveryObservationRead(BaseModel):
@@ -151,9 +151,9 @@ class DiscoveryObservationRead(BaseModel):
     hostname: str | None = None
     summary: str
     details: dict = Field(default_factory=dict)
-    first_seen_at: datetime
-    last_seen_at: datetime
-    resolved_at: datetime | None = None
+    first_seen_at: UtcDatetime
+    last_seen_at: UtcDatetime
+    resolved_at: UtcDatetime | None = None
 
 
 class DiscoveryObservationUpdate(BaseModel):

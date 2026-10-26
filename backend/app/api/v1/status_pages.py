@@ -381,7 +381,7 @@ def _window_reads(db: Session, rows: list[maintenance.LoadedWindow]) -> list[dic
     return [
         {
             "id": w.window.id, "title": w.window.title, "description": w.window.description,
-            "starts_at": w.start.isoformat(), "ends_at": w.end.isoformat(), "suppress_alerts": w.window.suppress_alerts,
+            "starts_at": iso(w.start), "ends_at": iso(w.end), "suppress_alerts": w.window.suppress_alerts,
             "state": "active" if w.active(now) else "finished" if w.end <= now else "upcoming",
             "items": [{"source": source_dict(SourceRef.from_key(key)), "source_key": key} for key in w.keys],
             "page_ids": sorted(w.page_ids),

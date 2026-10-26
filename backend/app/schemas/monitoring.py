@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.schemas.datetimes import UtcDatetime
 
 
 class PortResult(BaseModel):
@@ -20,7 +21,7 @@ class PortResult(BaseModel):
 
 class MonitorHistoryPoint(BaseModel):
     id: int
-    checked_at: datetime
+    checked_at: UtcDatetime
     status: str
     expected_status: str = "online"
     is_healthy: bool | None = None
@@ -46,7 +47,7 @@ class DeviceMonitorSummary(BaseModel):
     site_id: int | None
     site_name: str | None
     vlan_id: str | None
-    last_checked: datetime | None
+    last_checked: UtcDatetime | None
     uptime_24h: float | None  # 0.0–1.0
     uptime_7d: float | None
     compliance_24h: float | None = None
@@ -69,7 +70,7 @@ class FleetSummary(BaseModel):
     healthy: int = 0
     unhealthy: int = 0
     avg_rtt_ms: float | None
-    last_checked: datetime | None
+    last_checked: UtcDatetime | None
 
 
 class DeviceAnalysis(BaseModel):
@@ -109,7 +110,7 @@ class PortTargetOut(BaseModel):
     follow_redirects: bool = True
     enabled: bool = True
     sort_order: int = 0
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 

@@ -17,6 +17,7 @@ from app.models.monitor_history import DeviceMonitorHistory
 from app.models.port_target import DevicePortTarget
 from app.models.status_page import StatusPageItem
 from app.models.system_setting import SystemSetting
+from app.schemas.datetimes import utc_isoformat
 from app.services.alerting.service import (
     DEFAULT_INTERVAL_SECONDS,
     DEFAULT_LOSS_WINDOW_MINUTES,
@@ -339,8 +340,7 @@ def threshold_breaching_sources(
 
 
 def iso(value: datetime | None) -> str | None:
-    value = _utc(value)
-    return value.isoformat() if value else None
+    return utc_isoformat(value) if value else None
 
 
 def source_dict(ref: SourceRef) -> dict[str, int]:
