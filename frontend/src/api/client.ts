@@ -1312,6 +1312,9 @@ export class ApiError extends Error {
     this.status = status;
     this.detail = detail;
   }
+
+  /** Seconds from a `Retry-After` header (e.g. a 429 throttle), or null when absent. */
+  retryAfterSeconds: number | null = null;
 }
 
 // Deduplicate concurrent refresh calls (e.g. React StrictMode double-invocation)
@@ -1370,7 +1373,18 @@ async function toApiError(response: Response): Promise<ApiError> {
   } catch {
     message = `HTTP ${status}: ${response.statusText || "Unknown error"}`;
   }
-  return new ApiError(status, message, detail);
+  const error = new ApiError(status, message, detail);
+  error.retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
+  return error;
+}
+
+/** Retry-After as whole seconds; accepts delta-seconds or an HTTP date. */
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const at = Date.parse(trimmed);
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
 /**
@@ -1572,7 +1586,19 @@ export const api = {
       body: JSON.stringify({}),
     }),
   me: (token: string) => request<User>("/api/v1/auth/me", { token }),
-  updateProfile: (token: string, payload: { display_name?: string | null; avatar_data?: string | null; email?: string | null; entity_colors_enabled?: boolean }) =>
+  updateProfile: (
+    token: string,
+    payload: {
+      display_name?: string | null;
+      avatar_data?: string | null;
+      email?: string | null;
+      entity_colors_enabled?: boolean;
+      /** Required by the backend only when `email` changes; never send it otherwise. */
+      current_password?: string;
+      /** Also required for an email change when the user has two-factor authentication on. */
+      totp_code?: string;
+    },
+  ) =>
     request<User>("/api/v1/auth/me", {
       method: "PATCH",
       token,

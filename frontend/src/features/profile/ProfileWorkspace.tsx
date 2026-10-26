@@ -1,5 +1,5 @@
 import { ChartViewsPreference } from "../../components/ChartViewsPreference";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import "./profile.css";
 import {
   AlertTriangle,
@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { EntityChip } from "../../components/EntityChip";
-import { api, type ApiKey, type ApiKeyExpiryDays, type TotpSetup, type User } from "../../api/client";
+import { api, ApiError, type ApiKey, type ApiKeyExpiryDays, type TotpSetup, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
@@ -294,6 +294,48 @@ export function ProfileWorkspace({
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  // Email re-auth: the backend (PATCH /auth/me) requires the current password —
+  // plus an authentication code when 2FA is on — only when the email changes.
+  const isSsoOnly = user.auth_source === "oidc";
+  const savedEmail = user.email ?? null;
+  const emailChanged = !isSsoOnly && (profileEmail.trim() || null) !== savedEmail;
+  const needsReauthCode = emailChanged && user.totp_enabled === true;
+  const [reauthPassword, setReauthPassword] = useState("");
+  const [reauthCode, setReauthCode] = useState("");
+  const [reauthError, setReauthError] = useState<{ field: "password" | "code"; message: string } | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [retryNow, setRetryNow] = useState(() => Date.now());
+  const retrySeconds = retryUntil === null ? 0 : Math.max(0, Math.ceil((retryUntil - retryNow) / 1000));
+  const reauthIds = useId();
+  const emailHintId = `${reauthIds}-email-hint`;
+  const passwordHintId = `${reauthIds}-password-hint`;
+  const passwordErrorId = `${reauthIds}-password-error`;
+  const codeHintId = `${reauthIds}-code-hint`;
+  const codeErrorId = `${reauthIds}-code-error`;
+  const profileErrorId = `${reauthIds}-profile-error`;
+
+  useEffect(() => {
+    if (retryUntil === null) return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setRetryNow(now);
+      if (now >= retryUntil) setRetryUntil(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
+
+  function clearReauth() {
+    setReauthPassword("");
+    setReauthCode("");
+    setReauthError(null);
+  }
+
+  function changeProfileEmail(value: string) {
+    setProfileEmail(value);
+    // Reverting to the saved email hides the re-auth fields; don't keep secrets around.
+    if ((value.trim() || null) === savedEmail) clearReauth();
+  }
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -358,17 +400,41 @@ export function ProfileWorkspace({
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
+    if (retryUntil !== null) return;
     setProfileBusy(true);
     setProfileError(null);
+    setReauthError(null);
     try {
       const updated = await api.updateProfile(accessToken, {
         display_name: displayName.trim() || null,
         email: profileEmail.trim() || null,
+        // Re-auth fields go only with an email change, never otherwise.
+        ...(emailChanged ? { current_password: reauthPassword } : {}),
+        ...(needsReauthCode ? { totp_code: reauthCode.trim() } : {}),
       });
       onUserUpdate(updated);
+      clearReauth();
       toast.success("Profile saved");
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Failed to save profile");
+      const detail = err instanceof ApiError && typeof err.detail === "string" ? err.detail : null;
+      if (err instanceof ApiError && err.status === 429) {
+        const fromDetail = detail?.match(/(\d+)\s*seconds?/i);
+        const seconds = err.retryAfterSeconds ?? (fromDetail ? Number(fromDetail[1]) : null);
+        if (seconds !== null && seconds > 0) {
+          const now = Date.now();
+          setRetryNow(now);
+          setRetryUntil(now + seconds * 1000);
+        } else {
+          setProfileError(detail ?? "Too many attempts. Try again later.");
+        }
+      } else if (err instanceof ApiError && err.status === 401 && emailChanged && detail) {
+        // 401s on /auth/ paths never refresh or sign out (see recoverExpiredToken).
+        if (/^authentication code is required/i.test(detail)) setReauthError({ field: "code", message: detail });
+        else if (/^current password/i.test(detail)) setReauthError({ field: "password", message: detail });
+        else setProfileError(detail);
+      } else {
+        setProfileError(err instanceof Error ? err.message : "Failed to save profile");
+      }
     } finally {
       setProfileBusy(false);
     }
@@ -580,16 +646,76 @@ export function ProfileWorkspace({
                   maxLength={254}
                   placeholder="you@example.com"
                   value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
+                  // TODO(Security): SSO-only accounts have no local password to re-authenticate an
+                  // email change. Read-only until Security decides the SSO re-auth method.
+                  readOnly={isSsoOnly}
+                  aria-describedby={emailHintId}
+                  onChange={(e) => changeProfileEmail(e.target.value)}
                 />
-                <span className="profile-field-hint">Optional — used for password reset notifications.</span>
+                <span className="profile-field-hint" id={emailHintId}>
+                  {isSsoOnly
+                    ? "Managed by your identity provider — email changes aren't available for single sign-on accounts yet."
+                    : "Optional — used for password reset notifications."}
+                </span>
               </label>
+              {emailChanged && (
+                <label className="nm-field">
+                  Current password
+                  <input
+                    className="nm-input"
+                    type="password"
+                    name="current-password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={256}
+                    value={reauthPassword}
+                    aria-invalid={reauthError?.field === "password" || undefined}
+                    aria-describedby={reauthError?.field === "password" ? `${passwordHintId} ${passwordErrorId}` : passwordHintId}
+                    onChange={(e) => setReauthPassword(e.target.value)}
+                  />
+                  <span className="profile-field-hint" id={passwordHintId}>Required to change your email.</span>
+                </label>
+              )}
+              {emailChanged && reauthError?.field === "password" && (
+                <div className="form-error" role="alert" id={passwordErrorId}>{reauthError.message}</div>
+              )}
+              {needsReauthCode && (
+                <label className="nm-field">
+                  Authentication code
+                  <input
+                    className="nm-input"
+                    name="one-time-code"
+                    autoComplete="one-time-code"
+                    required
+                    maxLength={32}
+                    value={reauthCode}
+                    aria-invalid={reauthError?.field === "code" || undefined}
+                    aria-describedby={reauthError?.field === "code" ? `${codeHintId} ${codeErrorId}` : codeHintId}
+                    onChange={(e) => setReauthCode(e.target.value)}
+                  />
+                  <span className="profile-field-hint" id={codeHintId}>From your authenticator app. You can also use a recovery code.</span>
+                </label>
+              )}
+              {needsReauthCode && reauthError?.field === "code" && (
+                <div className="form-error" role="alert" id={codeErrorId}>{reauthError.message}</div>
+              )}
                 </div>
 
-                {profileError && <div className="form-error">{profileError}</div>}
+                {retryUntil !== null ? (
+                  <div className="form-error" role="alert" id={profileErrorId}>
+                    Too many attempts. Try again in {retrySeconds} {retrySeconds === 1 ? "second" : "seconds"}.
+                  </div>
+                ) : (
+                  profileError && <div className="form-error" role="alert" id={profileErrorId}>{profileError}</div>
+                )}
 
                 <div className="profile-form-actions">
-                  <button type="submit" className="nm-btn nm-btn--primary" disabled={profileBusy || avatarBusy}>
+                  <button
+                    type="submit"
+                    className="nm-btn nm-btn--primary"
+                    disabled={profileBusy || avatarBusy || retryUntil !== null}
+                    aria-describedby={retryUntil !== null || profileError ? profileErrorId : undefined}
+                  >
                     {profileBusy ? "Saving…" : "Save account details"}
                   </button>
                 </div>
