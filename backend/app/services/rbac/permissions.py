@@ -41,8 +41,8 @@ PERMISSION_KEYS: list[str] = [
 PERMISSION_META: dict[str, dict[str, str]] = {
     "topology_write":   {"label": "Edit inventory & topology",     "description": "Create, edit and delete devices, VLANs, sites and relationships"},
     "security_view":    {"label": "View security events",          "description": "Access syslog feed, firewall events and the security dashboard"},
-    "tools_passive":    {"label": "Use passive network tools",     "description": "Run DNS lookups, ping and traceroute from the Network Tools panel"},
-    "tools_active":     {"label": "Use active scanning",           "description": "Run Nmap discovery and active port scans"},
+    "tools_passive":    {"label": "Use passive network tools",     "description": "Run DNS and reverse DNS lookups and the subnet calculator, and view LLDP neighbours"},
+    "tools_active":     {"label": "Use active scanning",           "description": "Run ping, traceroute, TCP port checks, SNMP probes and LLDP scans"},
     "inventory_export": {"label": "Export device inventory",       "description": "Download device list as CSV, JSON or PDF"},
     "firewall_export":  {"label": "Export firewall logs",          "description": "Download syslog and firewall event logs as CSV"},
     "report_export":    {"label": "Generate PDF reports",          "description": "Generate and download full network PDF reports"},
