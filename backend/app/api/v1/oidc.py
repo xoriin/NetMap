@@ -151,17 +151,25 @@ def oidc_callback(
         if not txn_cookie or txn_cookie != state:
             raise OidcProviderError("invalid_state", "Login state does not match this browser session")
         login_state = consume_login_state(db, state)
+        code_verifier = login_state.code_verifier
+        redirect_uri = login_state.redirect_uri
+        nonce = login_state.nonce
+        # Persist the single-use state and end the transaction before talking
+        # to the identity provider; no DB session is held across network I/O.
+        db.commit()
         token_response = exchange_code(
             config,
             code=code,
-            code_verifier=login_state.code_verifier,
-            redirect_uri=login_state.redirect_uri,
+            code_verifier=code_verifier,
+            redirect_uri=redirect_uri,
         )
-        claims = verify_id_token(config, str(token_response["id_token"]), expected_nonce=login_state.nonce)
+        claims = verify_id_token(config, str(token_response["id_token"]), expected_nonce=nonce)
         claims = resolve_profile_claims(config, claims, token_response)
         result = login_with_claims(db, config, claims)
     except OidcProviderError as exc:
         logger.warning("OIDC callback failed: %s (%s)", exc.code, exc.detail)
+        # Discard anything a refused login staged (for example an identity link).
+        db.rollback()
         write_audit(db, action="auth.oidc_login_failed", detail=f"code={exc.code}")
         db.commit()
         return _sso_error_redirect(exc.code)

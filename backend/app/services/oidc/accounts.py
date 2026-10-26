@@ -234,6 +234,9 @@ def login_with_claims(db: Session, config: OidcRuntimeConfig, claims: dict) -> O
                 detail=f"issuer={issuer} role={user.role}",
             )
         else:
+            if not user.is_active:
+                # Never link an identity to a disabled account.
+                raise OidcProviderError("account_disabled", "This account is disabled")
             linked = True
         identity = ExternalIdentity(
             provider_key="oidc",

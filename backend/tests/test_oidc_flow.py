@@ -291,3 +291,58 @@ def test_require_sso_blocks_non_superadmin_local_login(client_and_db, fake_http)
 
     status_payload = client.get("/api/v1/auth/oidc/status").json()
     assert status_payload["require_sso"] is True
+
+
+def test_callback_for_disabled_account_does_not_persist_identity(client_and_db, fake_http):
+    client, db = client_and_db
+    disabled = User(
+        username="gone",
+        password_hash=hash_password("Local-password-123!"),
+        role=UserRole.VIEWER,
+        email="gone@example.com",
+        is_active=False,
+    )
+    db.add(disabled)
+    db.commit()
+    _enable_oidc(db)
+    state, nonce, _ = _start_login(client, db)
+    fake_http.token_response = {
+        "id_token": make_id_token(sub="disabled-sub", nonce=nonce, email="gone@example.com", email_verified=True)
+    }
+
+    response = _callback(client, state)
+
+    assert _sso_error(response) == "account_disabled"
+    db.expire_all()
+    assert db.scalars(select(ExternalIdentity).where(ExternalIdentity.user_id == disabled.id)).all() == []
+    # The single-use state is still consumed, so the callback cannot be replayed.
+    assert db.scalar(select(OidcLoginState).where(OidcLoginState.state == state)).used_at is not None
+
+
+def test_callback_holds_no_db_transaction_during_token_exchange(client_and_db, fake_http, monkeypatch):
+    client, db = client_and_db
+    _enable_oidc(db)
+    seen = {}
+    original = client.app.dependency_overrides[get_db]
+
+    def recording_get_db():
+        for session in original():
+            seen["session"] = session
+            yield session
+
+    client.app.dependency_overrides[get_db] = recording_get_db
+    state, nonce, _ = _start_login(client, db)
+    real_post = fake_http.post_form
+
+    def post_form(url, data, *, basic_auth=None):
+        seen["in_transaction"] = seen["session"].in_transaction()
+        return real_post(url, data, basic_auth=basic_auth)
+
+    monkeypatch.setattr("app.services.oidc.flow._http_post_form", post_form)
+    fake_http.token_response = {"id_token": make_id_token(sub="s-io", nonce=nonce, email="io@example.com")}
+
+    response = _callback(client, state)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+    assert seen["in_transaction"] is False
