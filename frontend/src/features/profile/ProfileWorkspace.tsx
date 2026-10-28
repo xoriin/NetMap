@@ -13,11 +13,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { EntityChip } from "../../components/EntityChip";
-import { api, ApiError, type ApiKey, type ApiKeyExpiryDays, type TotpSetup, type User } from "../../api/client";
+import { api, ApiError, type ApiKey, type ApiKeyExpiryDays, type LinkedIdentity, type OidcStatus, type TotpSetup, type User } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
 import { RecoveryCodesView, TotpEnrolment } from "../auth/TotpEnrolment";
+import { takeSsoProfileNotice } from "../auth/ssoCallback";
 import { useTheme } from "../../providers/ThemeProvider";
 
 const API_KEY_EXPIRY_OPTIONS: { label: string; value: ApiKeyExpiryDays }[] = [
@@ -30,6 +31,40 @@ const API_KEY_EXPIRY_OPTIONS: { label: string; value: ApiKeyExpiryDays }[] = [
 function formatKeyDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : "—";
 }
+
+/** Seconds until a 429 can be retried, from Retry-After or the "Retry in N seconds" detail. */
+function retryAfterSeconds(err: ApiError): number | null {
+  const fromDetail = typeof err.detail === "string" ? err.detail.match(/(\d+)\s*seconds?/i) : null;
+  const seconds = err.retryAfterSeconds ?? (fromDetail ? Number(fromDetail[1]) : null);
+  return seconds !== null && seconds > 0 ? seconds : null;
+}
+
+function retryText(seconds: number): string {
+  return `Too many attempts. Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`;
+}
+
+/** A live "try again in N seconds" countdown for a 429. */
+function useRetryCountdown() {
+  const [until, setUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (until === null) return;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= until) setUntil(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [until]);
+  const start = useCallback((seconds: number) => {
+    const current = Date.now();
+    setNow(current);
+    setUntil(current + seconds * 1000);
+  }, []);
+  return { active: until !== null, seconds: until === null ? 0 : Math.max(0, Math.ceil((until - now) / 1000)), start };
+}
+
+type SsoModal = { kind: "link" } | { kind: "unlink"; identity: LinkedIdentity };
 
 function ProfilePanelHeader({
   icon: Icon,
@@ -294,12 +329,26 @@ export function ProfileWorkspace({
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  // Single sign-on: linked identities decide how an email change is confirmed.
+  const [identities, setIdentities] = useState<LinkedIdentity[] | null>(null);
+  const [oidc, setOidc] = useState<OidcStatus | null>(null);
+  const [ssoUnavailable, setSsoUnavailable] = useState(false);
+  const [ssoEmailManaged, setSsoEmailManaged] = useState(false);
+  const linkedIdentity = identities?.[0] ?? null;
+  const ssoEnabled = oidc?.enabled === true && !ssoUnavailable;
+
   // Email re-auth: the backend (PATCH /auth/me) requires the current password —
   // plus an authentication code when 2FA is on — only when the email changes.
+  // With a linked identity the change is confirmed by signing in again at the
+  // provider instead (POST /auth/me/email/sso), plus the code when 2FA is on.
   const isSsoOnly = user.auth_source === "oidc";
+  const ssoEmail = linkedIdentity !== null && ssoEnabled && !ssoEmailManaged;
+  const emailReadOnly = !ssoEmail && (isSsoOnly || ssoEmailManaged);
   const savedEmail = user.email ?? null;
-  const emailChanged = !isSsoOnly && (profileEmail.trim() || null) !== savedEmail;
-  const needsReauthCode = emailChanged && user.totp_enabled === true;
+  const emailEdited = (profileEmail.trim() || null) !== savedEmail;
+  const emailChanged = !ssoEmail && !emailReadOnly && emailEdited;
+  const ssoEmailChanged = ssoEmail && emailEdited;
+  const needsReauthCode = (emailChanged || ssoEmailChanged) && user.totp_enabled === true;
   const [reauthPassword, setReauthPassword] = useState("");
   const [reauthCode, setReauthCode] = useState("");
   const [reauthError, setReauthError] = useState<{ field: "password" | "code"; message: string } | null>(null);
@@ -335,6 +384,37 @@ export function ProfileWorkspace({
     // Reverting to the saved email hides the re-auth fields; don't keep secrets around.
     if ((value.trim() || null) === savedEmail) clearReauth();
   }
+
+  const [ssoNotice, setSsoNotice] = useState<string | null>(null);
+  const [ssoModal, setSsoModal] = useState<SsoModal | null>(null);
+  const [ssoPassword, setSsoPassword] = useState("");
+  const [ssoCode, setSsoCode] = useState("");
+  const [ssoBusy, setSsoBusy] = useState(false);
+  const [ssoError, setSsoError] = useState<{ field: "password" | "code" | null; message: string } | null>(null);
+  const ssoRetry = useRetryCountdown();
+  const ssoIds = useId();
+  const ssoPasswordErrorId = `${ssoIds}-password-error`;
+  const ssoCodeErrorId = `${ssoIds}-code-error`;
+  const ssoFormErrorId = `${ssoIds}-form-error`;
+
+  const loadIdentities = useCallback(() => {
+    api.myIdentities(accessToken).then(setIdentities).catch(() => setIdentities([]));
+  }, [accessToken]);
+
+  useEffect(() => {
+    loadIdentities();
+    let cancelled = false;
+    api.oidcStatus().then((status) => { if (!cancelled) setOidc(status); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [loadIdentities]);
+
+  // The single sign-on callback's outcome (link, email change, or why it failed).
+  useEffect(() => {
+    const notice = takeSsoProfileNotice();
+    if (!notice) return;
+    if (notice.tone === "success") toast.success(notice.message);
+    else setSsoNotice(notice.message);
+  }, [toast]);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -405,6 +485,19 @@ export function ProfileWorkspace({
     setProfileError(null);
     setReauthError(null);
     try {
+      if (ssoEmailChanged) {
+        if ((displayName.trim() || null) !== (user.display_name ?? null)) {
+          onUserUpdate(await api.updateProfile(accessToken, { display_name: displayName.trim() || null }));
+        }
+        const { authorize_url } = await api.startSsoEmailChange(
+          accessToken,
+          profileEmail.trim(),
+          needsReauthCode ? reauthCode.trim() : undefined,
+        );
+        // The provider sends the browser back to /?sso_email=changed (or ?sso_error=).
+        window.location.assign(authorize_url);
+        return;
+      }
       const updated = await api.updateProfile(accessToken, {
         display_name: displayName.trim() || null,
         email: profileEmail.trim() || null,
@@ -427,11 +520,19 @@ export function ProfileWorkspace({
         } else {
           setProfileError(detail ?? "Too many attempts. Try again later.");
         }
-      } else if (err instanceof ApiError && err.status === 401 && emailChanged && detail) {
+      } else if (err instanceof ApiError && err.status === 401 && (emailChanged || ssoEmailChanged) && detail) {
         // 401s on /auth/ paths never refresh or sign out (see recoverExpiredToken).
-        if (/^authentication code is required/i.test(detail)) setReauthError({ field: "code", message: detail });
+        if (/^authentication code is (required|incorrect)/i.test(detail)) setReauthError({ field: "code", message: detail });
         else if (/^current password/i.test(detail)) setReauthError({ field: "password", message: detail });
         else setProfileError(detail);
+      } else if (err instanceof ApiError && err.status === 403 && ssoEmailChanged) {
+        // SSO is off or no identity is linked any more: the email is read-only.
+        setSsoEmailManaged(true);
+        setProfileEmail(savedEmail ?? "");
+        clearReauth();
+        setProfileError(detail ?? "Your email is managed by your identity provider or an administrator");
+      } else if (err instanceof ApiError && ssoEmailChanged && detail) {
+        setProfileError(detail);
       } else {
         setProfileError(err instanceof Error ? err.message : "Failed to save profile");
       }
@@ -540,6 +641,73 @@ export function ProfileWorkspace({
     }
   }
 
+  function openSsoModal(modal: SsoModal) {
+    setSsoModal(modal);
+    setSsoPassword("");
+    setSsoCode("");
+    setSsoBusy(false);
+    setSsoError(null);
+  }
+
+  function closeSsoModal() {
+    setSsoModal(null);
+    setSsoPassword("");
+    setSsoCode("");
+    setSsoError(null);
+  }
+
+  async function submitSso(event: FormEvent) {
+    event.preventDefault();
+    if (!ssoModal || ssoRetry.active) return;
+    setSsoBusy(true);
+    setSsoError(null);
+    const payload = {
+      current_password: ssoPassword,
+      ...(user.totp_enabled ? { totp_code: ssoCode.trim() } : {}),
+    };
+    try {
+      if (ssoModal.kind === "link") {
+        const { authorize_url } = await api.linkMyIdentity(accessToken, payload);
+        // The provider sends the browser back to /?sso_link=linked (or ?sso_error=).
+        window.location.assign(authorize_url);
+        return;
+      }
+      await api.unlinkMyIdentity(accessToken, ssoModal.identity.id, payload);
+      // Other sessions were revoked and this device got new cookies; adopt them.
+      await api.refresh().catch(() => undefined);
+      closeSsoModal();
+      loadIdentities();
+      refreshUser();
+      toast.success("Single sign-on unlinked");
+    } catch (err) {
+      const detail = err instanceof ApiError && typeof err.detail === "string" ? err.detail : null;
+      if (err instanceof ApiError && err.status === 429) {
+        const seconds = retryAfterSeconds(err);
+        if (seconds !== null) ssoRetry.start(seconds);
+        else setSsoError({ field: null, message: detail ?? "Too many attempts. Try again later." });
+      } else if (err instanceof ApiError && err.status === 401 && detail) {
+        // 401s on /auth/ paths never refresh or sign out (see recoverExpiredToken).
+        if (/^authentication code is required/i.test(detail)) setSsoError({ field: "code", message: detail });
+        else if (/^current password/i.test(detail)) setSsoError({ field: "password", message: detail });
+        else setSsoError({ field: null, message: detail });
+      } else if (err instanceof ApiError && err.status === 404 && ssoModal.kind === "link") {
+        setSsoUnavailable(true);
+        setSsoError({ field: null, message: "Single sign-on isn't enabled on this server, so there's nothing to link." });
+      } else if (err instanceof ApiError && err.status === 409) {
+        loadIdentities();
+        setSsoError({ field: null, message: detail ?? "Single sign-on can't be changed right now." });
+      } else {
+        setSsoError({ field: null, message: detail ?? (err instanceof Error ? err.message : "Unable to update single sign-on") });
+      }
+    } finally {
+      setSsoBusy(false);
+    }
+  }
+
+  const canUnlinkSso = !(oidc?.enabled && oidc.require_sso && user.role !== "SuperAdmin");
+  const ssoProvider = linkedIdentity?.provider_name || oidc?.provider_name || "your identity provider";
+  const showSsoRows = identities !== null && (identities.length > 0 || ssoEnabled);
+
   const initials = (user.display_name || user.username).slice(0, 2).toUpperCase();
 
   const roleLabel = user.role.replace(/_/g, " ");
@@ -549,6 +717,13 @@ export function ProfileWorkspace({
 
   return (
     <section className="profile-layout">
+      {ssoNotice && (
+        <div className="nm-alert nm-alert--error" role="alert">
+          <AlertTriangle size={17} aria-hidden="true" />
+          <span>{ssoNotice}</span>
+          <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={() => setSsoNotice(null)}>Dismiss</button>
+        </div>
+      )}
       <section className="profile-identity-panel nm-app-panel">
         <div className="profile-identity">
           <div className="profile-avatar">
@@ -646,16 +821,16 @@ export function ProfileWorkspace({
                   maxLength={254}
                   placeholder="you@example.com"
                   value={profileEmail}
-                  // TODO(Security): SSO-only accounts have no local password to re-authenticate an
-                  // email change. Read-only until Security decides the SSO re-auth method.
-                  readOnly={isSsoOnly}
+                  readOnly={emailReadOnly}
                   aria-describedby={emailHintId}
                   onChange={(e) => changeProfileEmail(e.target.value)}
                 />
                 <span className="profile-field-hint" id={emailHintId}>
-                  {isSsoOnly
-                    ? "Managed by your identity provider — email changes aren't available for single sign-on accounts yet."
-                    : "Optional — used for password reset notifications."}
+                  {emailReadOnly
+                    ? "Managed by your identity provider or an administrator."
+                    : ssoEmailChanged
+                      ? `You'll confirm this change by signing in again with ${ssoProvider}.`
+                      : "Optional — used for password reset notifications."}
                 </span>
               </label>
               {emailChanged && (
@@ -716,7 +891,7 @@ export function ProfileWorkspace({
                     disabled={profileBusy || avatarBusy || retryUntil !== null}
                     aria-describedby={retryUntil !== null || profileError ? profileErrorId : undefined}
                   >
-                    {profileBusy ? "Saving…" : "Save account details"}
+                    {profileBusy ? "Saving…" : ssoEmailChanged ? `Confirm with ${ssoProvider}` : "Save account details"}
                   </button>
                 </div>
               </form>
@@ -853,6 +1028,33 @@ export function ProfileWorkspace({
                   </span>
                 </div>
               )}
+              {identities && showSsoRows && identities.length === 0 && (
+                <div className="profile-security-row">
+                  <span><strong>Single sign-on</strong><small>Also sign in with {ssoProvider}</small></span>
+                  <span className="profile-security-actions">
+                    <span className="nm-pill">Not linked</span>
+                    <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={() => openSsoModal({ kind: "link" })}>Link</button>
+                  </span>
+                </div>
+              )}
+              {identities && showSsoRows && identities.map((identity) => (
+                <div className="profile-security-row" key={identity.id}>
+                  <span>
+                    <strong>Single sign-on</strong>
+                    <small>
+                      {[identity.provider_name, identity.email, identity.last_login_at ? `Last used ${formatKeyDate(identity.last_login_at)}` : `Linked ${formatKeyDate(identity.created_at)}`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </small>
+                  </span>
+                  <span className="profile-security-actions">
+                    <span className="nm-pill nm-pill--online">Linked</span>
+                    {canUnlinkSso && (
+                      <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" aria-label={`Unlink ${identity.provider_name}`} onClick={() => openSsoModal({ kind: "unlink", identity })}>Unlink</button>
+                    )}
+                  </span>
+                </div>
+              ))}
               <div className="profile-security-row">
                 <span><strong>API access</strong><small>Keys inherit your account permissions</small></span>
                 <span className="nm-pill">{activeKeyCount ?? "—"} active</span>
@@ -915,6 +1117,65 @@ export function ProfileWorkspace({
               </div>
             </form>
           )}
+        </Modal>
+      )}
+      {ssoModal && (
+        <Modal title={ssoModal.kind === "link" ? "Link single sign-on" : "Unlink single sign-on"} onCancel={closeSsoModal}>
+          <form className="modal-form" onSubmit={(e) => void submitSso(e)}>
+            <label className="nm-field">
+              Current password
+              <input
+                className="nm-input"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                required
+                maxLength={256}
+                value={ssoPassword}
+                aria-invalid={ssoError?.field === "password" || undefined}
+                aria-describedby={ssoError?.field === "password" ? ssoPasswordErrorId : undefined}
+                onChange={(e) => setSsoPassword(e.target.value)}
+              />
+              <span className="profile-field-hint">
+                {ssoModal.kind === "link"
+                  ? `Next, you'll sign in with ${ssoProvider} to finish linking.`
+                  : "Unlinking signs you out on your other devices."}
+              </span>
+            </label>
+            {ssoError?.field === "password" && <div className="form-error" role="alert" id={ssoPasswordErrorId}>{ssoError.message}</div>}
+            {user.totp_enabled && (
+              <label className="nm-field">
+                Authentication code
+                <input
+                  className="nm-input"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={32}
+                  value={ssoCode}
+                  aria-invalid={ssoError?.field === "code" || undefined}
+                  aria-describedby={ssoError?.field === "code" ? ssoCodeErrorId : undefined}
+                  onChange={(e) => setSsoCode(e.target.value)}
+                />
+                <span className="profile-field-hint">You can also use a recovery code.</span>
+              </label>
+            )}
+            {ssoError?.field === "code" && <div className="form-error" role="alert" id={ssoCodeErrorId}>{ssoError.message}</div>}
+            {ssoRetry.active ? (
+              <div className="form-error" role="alert" id={ssoFormErrorId}>{retryText(ssoRetry.seconds)}</div>
+            ) : (
+              ssoError?.field === null && <div className="form-error" role="alert" id={ssoFormErrorId}>{ssoError.message}</div>
+            )}
+            <div className="profile-form-actions">
+              <button
+                type="submit"
+                className={`nm-btn ${ssoModal.kind === "unlink" ? "nm-btn--danger" : "nm-btn--primary"}`}
+                disabled={ssoBusy || ssoRetry.active || (ssoModal.kind === "link" && ssoUnavailable)}
+                aria-describedby={ssoRetry.active || ssoError?.field === null ? ssoFormErrorId : undefined}
+              >
+                {ssoBusy ? "Checking…" : ssoModal.kind === "link" ? `Continue to ${ssoProvider}` : "Unlink"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </section>

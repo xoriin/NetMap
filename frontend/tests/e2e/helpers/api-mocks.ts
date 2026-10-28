@@ -90,6 +90,7 @@ export async function setupCoreMocks(page: Page, announcement: string | null = n
     "alerts/rules": [],
     "alerts/events": [],
     "api-keys": [],
+    "auth/me/identities": [],
   };
   for (const [path, json] of Object.entries(defaults)) {
     await page.route(url => url.pathname === `/api/v1/${path}`, route =>

@@ -87,6 +87,20 @@ export type LoginResult = TokenPair | MfaChallenge;
 export type TotpSetup = { secret: string; otpauth_uri: string };
 export type TotpCodes = { recovery_codes: string[]; access_token?: string | null };
 
+/** A single sign-on identity linked to the signed-in user (GET /auth/me/identities). Datetimes are UTC. */
+export type LinkedIdentity = {
+  id: number;
+  provider_name: string;
+  issuer: string;
+  email: string | null;
+  created_at: string;
+  last_login_at: string | null;
+};
+/** Re-authentication for linking or unlinking single sign-on. */
+export type SsoReauth = { current_password: string; totp_code?: string };
+/** Where to send the browser to sign in again at the identity provider. */
+export type SsoRedirect = { authorize_url: string };
+
 export function isMfaChallenge(result: LoginResult): result is MfaChallenge {
   return "challenge" in result;
 }
@@ -1542,6 +1556,17 @@ export const api = {
     request<TotpSetup>("/api/v1/auth/login/totp/setup", { method: "POST", body: JSON.stringify(challenge ? { challenge } : {}) }),
   loginTotpSetupConfirm: (challenge: string | null, code: string) =>
     request<TotpCodes>("/api/v1/auth/login/totp/setup/confirm", { method: "POST", body: JSON.stringify({ ...(challenge ? { challenge } : {}), code }) }),
+  myIdentities: (token: string) => request<LinkedIdentity[]>("/api/v1/auth/me/identities", { token }),
+  linkMyIdentity: (token: string, payload: SsoReauth) =>
+    request<SsoRedirect>("/api/v1/auth/me/identities/link", { method: "POST", token, body: JSON.stringify(payload) }),
+  unlinkMyIdentity: (token: string, identityId: number, payload: SsoReauth) =>
+    request<void>(`/api/v1/auth/me/identities/${identityId}`, { method: "DELETE", token, body: JSON.stringify(payload) }),
+  startSsoEmailChange: (token: string, email: string, totpCode?: string) =>
+    request<SsoRedirect>("/api/v1/auth/me/email/sso", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ email, ...(totpCode ? { totp_code: totpCode } : {}) }),
+    }),
   startMyTotp: (token: string, password: string) =>
     request<TotpSetup>("/api/v1/auth/me/totp/setup", { method: "POST", token, body: JSON.stringify({ password }) }),
   confirmMyTotp: (token: string, code: string) =>
