@@ -453,8 +453,23 @@ def refresh(
     return TokenPair(access_token=next_access_token)
 
 
+def _with_sso_source(row: UserRead, identity) -> UserRead:
+    """auth_source is "oidc" while any SSO identity is linked, else "local"."""
+    if identity is None:
+        return row
+    return row.model_copy(
+        update={"auth_source": "oidc", "sso_issuer": identity.issuer, "sso_last_login_at": identity.last_login_at}
+    )
+
+
+def _user_read(db: Session, user: User) -> UserRead:
+    from app.services.oidc.accounts import auth_source_map
+
+    return _with_sso_source(UserRead.model_validate(user), auth_source_map(db, [user.id]).get(user.id))
+
+
 def _current_user_read(db: Session, user: User) -> UserRead:
-    return UserRead.model_validate(user).model_copy(update={"totp_required": totp_service.is_required_for(db, user)})
+    return _user_read(db, user).model_copy(update={"totp_required": totp_service.is_required_for(db, user)})
 
 
 @router.get("/auth/me", response_model=UserRead)
@@ -730,16 +745,7 @@ def list_users(
 
     users = db.scalars(select(User).order_by(User.username)).all()
     identities = auth_source_map(db, [u.id for u in users])
-    rows: list[UserRead] = []
-    for user in users:
-        row = UserRead.model_validate(user)
-        identity = identities.get(user.id)
-        if identity is not None:
-            row.auth_source = "oidc"
-            row.sso_issuer = identity.issuer
-            row.sso_last_login_at = identity.last_login_at
-        rows.append(row)
-    return rows
+    return [_with_sso_source(UserRead.model_validate(user), identities.get(user.id)) for user in users]
 
 
 @router.post("/auth/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -792,7 +798,7 @@ def update_user(
     payload: UserUpdateRequest,
     current_user: Annotated[User, Depends(require_user_manage)],
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> UserRead:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -841,7 +847,7 @@ def update_user(
     )
     db.commit()
     db.refresh(user)
-    return user
+    return _user_read(db, user)
 
 
 LAST_SUPER_ADMIN_DETAIL = "At least one active SuperAdmin must remain"
