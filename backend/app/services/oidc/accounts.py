@@ -10,6 +10,8 @@ Linking rules (in order):
 
 Role mapping (Phase 4) only rewrites roles when ``manage_roles`` is on, and
 never assigns SuperAdmin unless ``allow_super_admin`` is explicitly enabled.
+It never demotes the last active SuperAdmin: the role is kept and the refusal
+is logged and audited (``auth.oidc_role_sync_refused``); the sign-in proceeds.
 Locally managed roles are the default precedence: with ``manage_roles`` off,
 mapped roles apply only at provisioning time.
 """
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
 import re
 import secrets
 
@@ -28,8 +31,11 @@ from app.core.security import hash_password
 from app.models.oidc import ExternalIdentity
 from app.models.user import User, UserRole
 from app.services.audit.service import write_audit
+from app.services.auth.super_admin import demote_super_admin_unless_last
 from app.services.oidc.config import OidcRuntimeConfig
 from app.services.oidc.provider import OidcProviderError
+
+logger = logging.getLogger(__name__)
 
 # Highest privilege first; used to pick one role when several groups match.
 _BUILT_IN_ROLE_PRIORITY = (
@@ -133,6 +139,23 @@ def _apply_managed_role(db: Session, config: OidcRuntimeConfig, user: User, clai
     if user.role == target:
         return False
     previous = user.role
+    if previous == UserRole.SUPER_ADMIN and user.is_active:
+        # Same race-safe guard as user management: the provider can never remove
+        # the last active SuperAdmin. Keep the role, warn, and let the sign-in go on.
+        if not demote_super_admin_unless_last(db, user, role=target, is_active=True):
+            logger.warning(
+                "SSO role mapping would demote the last active SuperAdmin user_id=%s to %s; kept SuperAdmin",
+                user.id,
+                target,
+            )
+            write_audit(
+                db,
+                action="auth.oidc_role_sync_refused",
+                actor_user_id=user.id,
+                target=f"user:{user.username}",
+                detail=f"previous={previous} mapped={target} reason=last_active_super_admin",
+            )
+            return False
     user.role = target
     # The new role applies to every session, not only the one signing in now.
     from app.services.auth.tokens import revoke_all_user_refresh_tokens

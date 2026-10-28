@@ -6,7 +6,7 @@ from secrets import token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -70,6 +70,7 @@ from app.services.auth import (
     validate_refresh_token_state,
 )
 from app.services.auth.security import _check_reset_rate_limit
+from app.services.auth.super_admin import demote_super_admin_unless_last
 from app.schemas.admin import AdminPasswordResetRequest, AdminPasswordResetResult
 from app.services import totp as totp_service
 from app.services.audit.service import write_audit
@@ -847,21 +848,8 @@ LAST_SUPER_ADMIN_DETAIL = "At least one active SuperAdmin must remain"
 
 
 def _demote_unless_last_super_admin(db: Session, user: User, role: str, is_active: bool) -> None:
-    """Demote or disable an active SuperAdmin in one conditional UPDATE, so two
-    concurrent requests can never remove the last one between them."""
-    others = (
-        select(func.count())
-        .select_from(User)
-        .where(User.role == UserRole.SUPER_ADMIN, User.is_active.is_(True), User.id != user.id)
-        .scalar_subquery()
-    )
-    result = db.execute(
-        update(User)
-        .where(User.id == user.id, others > 0)
-        .values(role=role, is_active=is_active)
-        .execution_options(synchronize_session=False)
-    )
-    if result.rowcount != 1:
+    """Demote or disable an active SuperAdmin unless they are the last one (409)."""
+    if not demote_super_admin_unless_last(db, user, role=role, is_active=is_active):
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=LAST_SUPER_ADMIN_DETAIL)
 

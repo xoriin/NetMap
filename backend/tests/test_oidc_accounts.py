@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.security import hash_password
+from app.models.audit_log import AuditLog
 from app.models.oidc import ExternalIdentity
 from app.models.user import User, UserRole
 from app.services.oidc.accounts import login_with_claims, resolve_mapped_role
@@ -258,6 +259,64 @@ def test_provider_managed_roles_never_downgrade_local_super_admin(db):
     result = login_with_claims(db, config, _claims(groups=["unrelated"]))
     assert result.user.id == user.id
     assert result.user.role == UserRole.SUPER_ADMIN
+
+
+def _linked_super_admin(db, *, username="root", subject="subject-1", email="user@example.com", is_active=True) -> User:
+    user = _local_user(db, username=username, email=email, role=UserRole.SUPER_ADMIN, is_active=is_active)
+    # SuperAdmins are never linked by email; this one linked from their Profile.
+    db.add(ExternalIdentity(issuer=ISSUER, subject=subject, user_id=user.id, email=email, email_verified=True))
+    db.commit()
+    return user
+
+
+def _managed_super_admin_config():
+    return _config(role_mappings=dict(MAPPINGS), manage_roles=True, allow_super_admin=True, auto_provision=False)
+
+
+def test_provider_managed_roles_keep_the_last_active_super_admin(db, caplog):
+    user = _linked_super_admin(db)
+    with caplog.at_level("WARNING", logger="app.services.oidc.accounts"):
+        result = login_with_claims(db, _managed_super_admin_config(), _claims(groups=["netmap-admins"]))
+    db.commit()
+    assert result.user.id == user.id
+    assert result.role_changed is False
+    db.expire_all()
+    assert db.get(User, user.id).role == UserRole.SUPER_ADMIN
+    refused = db.scalars(select(AuditLog).where(AuditLog.action == "auth.oidc_role_sync_refused")).all()
+    assert len(refused) == 1
+    assert "reason=last_active_super_admin" in refused[0].detail
+    assert db.scalars(select(AuditLog).where(AuditLog.action == "auth.oidc_role_synced")).all() == []
+    assert "last active SuperAdmin" in caplog.text
+
+
+def test_provider_managed_roles_count_only_active_super_admins(db):
+    user = _linked_super_admin(db)
+    _local_user(db, username="retired", email="retired@example.com", role=UserRole.SUPER_ADMIN, is_active=False)
+    result = login_with_claims(db, _managed_super_admin_config(), _claims(groups=[]))
+    db.commit()
+    db.expire_all()
+    assert result.role_changed is False
+    assert db.get(User, user.id).role == UserRole.SUPER_ADMIN
+
+
+def test_provider_managed_roles_demote_a_super_admin_when_another_remains(db):
+    user = _linked_super_admin(db)
+    _local_user(db, username="deputy", email="deputy@example.com", role=UserRole.SUPER_ADMIN)
+    result = login_with_claims(db, _managed_super_admin_config(), _claims(groups=["netmap-admins"]))
+    db.commit()
+    db.expire_all()
+    assert result.role_changed is True
+    assert db.get(User, user.id).role == UserRole.NETWORK_ADMIN
+    assert db.scalars(select(AuditLog).where(AuditLog.action == "auth.oidc_role_synced")).all()
+    # The deputy is now the last active SuperAdmin; mapping them down is refused.
+    deputy = db.scalar(select(User).where(User.username == "deputy"))
+    db.add(ExternalIdentity(issuer=ISSUER, subject="subject-2", user_id=deputy.id, email=deputy.email, email_verified=True))
+    db.commit()
+    again = login_with_claims(db, _managed_super_admin_config(), _claims(sub="subject-2", email="deputy@example.com", groups=[]))
+    db.commit()
+    db.expire_all()
+    assert again.role_changed is False
+    assert db.get(User, deputy.id).role == UserRole.SUPER_ADMIN
 
 
 # --- Link by email: off by default, never for admin or 2FA accounts ---------
