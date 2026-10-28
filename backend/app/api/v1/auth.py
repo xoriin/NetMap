@@ -544,6 +544,8 @@ def change_password(
     )
 
     current_user.password_hash = hash_password(payload.new_password)
+    # A reset link sent before the change must not undo it.
+    _invalidate_pending_reset_tokens(db, current_user.id)
     revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="password_changed")
     write_audit(
         db,
