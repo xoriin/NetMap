@@ -151,10 +151,18 @@ export function MonitorsPanel({
     if (selectedId === null) { setHistory([]); return; }
     setHistory([]);
     setHistoryLoading(true);
+    let cancelled = false;
     void api.getMonitorHistory(accessToken, selectedId, 24)
-      .then(setHistory)
-      .catch(() => setHistory([]))
-      .finally(() => setHistoryLoading(false));
+      .then((points) => { if (!cancelled) setHistory(points); })
+      .catch(() => { if (!cancelled) setHistory([]); })
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    // Keep the open popup live: refresh its history silently with the list poll.
+    const id = window.setInterval(() => {
+      void api.getMonitorHistory(accessToken, selectedId, 24)
+        .then((points) => { if (!cancelled) setHistory(points); })
+        .catch(() => undefined);
+    }, 15_000);
+    return () => { cancelled = true; window.clearInterval(id); };
   }, [accessToken, selectedId]);
 
   const selectedMonitor = useMemo(() => monitors.find((m) => m.id === selectedId) ?? null, [monitors, selectedId]);

@@ -189,10 +189,18 @@ export function OverviewWorkspace({
     setMonitorHistory([]);
     if (selectedMonitorId === null || !accessToken) return;
     setMonitorHistoryLoading(true);
+    let cancelled = false;
     void api.getMonitorHistory(accessToken, selectedMonitorId, 24)
-      .then(setMonitorHistory)
-      .catch(() => setMonitorHistory([]))
-      .finally(() => setMonitorHistoryLoading(false));
+      .then((points) => { if (!cancelled) setMonitorHistory(points); })
+      .catch(() => { if (!cancelled) setMonitorHistory([]); })
+      .finally(() => { if (!cancelled) setMonitorHistoryLoading(false); });
+    // Keep the open popup live: refresh its history silently while it's open.
+    const id = window.setInterval(() => {
+      void api.getMonitorHistory(accessToken, selectedMonitorId, 24)
+        .then((points) => { if (!cancelled) setMonitorHistory(points); })
+        .catch(() => undefined);
+    }, 15_000);
+    return () => { cancelled = true; window.clearInterval(id); };
   }, [accessToken, selectedMonitorId]);
   const favouriteMonitors = useMemo(
     () => (monitorsQuery.data ?? []).filter((monitor) => monitor.is_favourite),
