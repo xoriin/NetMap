@@ -380,21 +380,33 @@ def _link_value(conn):
     return row[0] if row else None
 
 
-def test_0087_keeps_link_by_email_on_for_existing_sso_installs(monkeypatch):
+def _settings_from_environment(monkeypatch, tmp_path, env: dict[str, str]):
+    """Settings reloaded after the process environment changes (no env file)."""
+    from app.core.config import Settings
+    import app.db.session as session_module
+
+    for key in ("OIDC_ENABLED", "OIDC_LINK_BY_EMAIL"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(session_module, "settings", Settings())
+
+
+def test_0087_keeps_link_by_email_on_for_existing_sso_installs(monkeypatch, tmp_path):
     from app.db.session import _migrate_oidc_link_by_email_preserve
 
-    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
+    _settings_from_environment(monkeypatch, tmp_path, {})
     conn = _migration_db(oidc_enabled="true")
     _migrate_oidc_link_by_email_preserve(conn, None)
     _migrate_oidc_link_by_email_preserve(conn, None)
     assert _link_value(conn) == "true"
 
 
-def test_0087_uses_the_environment_when_sso_is_enabled_there(monkeypatch):
+def test_0087_uses_the_environment_when_sso_is_enabled_there(monkeypatch, tmp_path):
     from app.db.session import _migrate_oidc_link_by_email_preserve
 
-    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
-    monkeypatch.setenv("OIDC_ENABLED", "true")
+    _settings_from_environment(monkeypatch, tmp_path, {"OIDC_ENABLED": "true"})
     conn = _migration_db()
     _migrate_oidc_link_by_email_preserve(conn, None)
     assert _link_value(conn) == "true"
@@ -410,13 +422,69 @@ def test_0087_uses_the_environment_when_sso_is_enabled_there(monkeypatch):
         ({"oidc_enabled": "true"}, {"OIDC_LINK_BY_EMAIL": "false"}),  # set in the environment
     ],
 )
-def test_0087_leaves_other_installs_alone(monkeypatch, kwargs, env):
+def test_0087_leaves_other_installs_alone(monkeypatch, tmp_path, kwargs, env):
     from app.db.session import _migrate_oidc_link_by_email_preserve
 
-    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
-    monkeypatch.delenv("OIDC_ENABLED", raising=False)
-    for key, value in env.items():
-        monkeypatch.setenv(key, value)
+    _settings_from_environment(monkeypatch, tmp_path, env)
     conn = _migration_db(**kwargs)
     _migrate_oidc_link_by_email_preserve(conn, None)
     assert _link_value(conn) == kwargs.get("link_row")
+
+
+# --- 0087 reads the loaded settings, env files included ----------------------
+
+
+def _settings_from_env_file(monkeypatch, tmp_path, body: str):
+    """Settings loaded the way the app loads them: from .env in the working
+    directory, with nothing for OIDC in the process environment."""
+    from app.core.config import Settings
+    import app.db.session as session_module
+
+    for key in ("OIDC_ENABLED", "OIDC_LINK_BY_EMAIL"):
+        monkeypatch.delenv(key, raising=False)
+    (tmp_path / ".env").write_text(body)
+    monkeypatch.chdir(tmp_path)
+    loaded = Settings()
+    monkeypatch.setattr(session_module, "settings", loaded)
+    return loaded
+
+
+def test_0087_keeps_an_explicit_false_from_an_env_file(monkeypatch, tmp_path):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    loaded = _settings_from_env_file(monkeypatch, tmp_path, "OIDC_LINK_BY_EMAIL=false\n")
+    assert loaded.oidc_link_by_email is False
+    conn = _migration_db(oidc_enabled="true")
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) is None
+
+
+def test_0087_keeps_linking_for_sso_enabled_only_in_an_env_file(monkeypatch, tmp_path):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    loaded = _settings_from_env_file(monkeypatch, tmp_path, "OIDC_ENABLED=true\n")
+    assert loaded.oidc_enabled is True
+    conn = _migration_db()
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) == "true"
+
+
+def test_0087_changes_nothing_when_no_source_sets_sso(monkeypatch, tmp_path):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    _settings_from_env_file(monkeypatch, tmp_path, "LOG_LEVEL=info\n")
+    conn = _migration_db()
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) is None
+
+
+def test_0087_lets_a_database_choice_of_sso_win_over_an_env_file(monkeypatch, tmp_path):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    _settings_from_env_file(monkeypatch, tmp_path, "OIDC_ENABLED=true\n")
+    conn = _migration_db(oidc_enabled="false")
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) is None
+

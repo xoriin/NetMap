@@ -2302,9 +2302,10 @@ def _migrate_auth_sessions(conn, inspector) -> None:
 
 def _migrate_oidc_link_by_email_preserve(conn, inspector) -> None:
     """SSO link-by-email now defaults to off. Existing installs that use SSO and
-    never chose a value keep the old behaviour, written down explicitly."""
-    import os
+    never chose a value keep the old behaviour, written down explicitly.
 
+    "Chose a value" and "use SSO" are read from the loaded settings, so the
+    environment, .env and /etc/netmap/netmap.env all count."""
     tables = _live_tables(conn)
     if "users" not in tables or "system_settings" not in tables:
         return
@@ -2312,11 +2313,11 @@ def _migrate_oidc_link_by_email_preserve(conn, inspector) -> None:
         return
     if conn.execute(text("SELECT 1 FROM system_settings WHERE key = 'oidc.link_by_email'")).fetchone():
         return
-    if "OIDC_LINK_BY_EMAIL" in os.environ:
+    if "oidc_link_by_email" in settings.model_fields_set:
         return
     row = conn.execute(text("SELECT value FROM system_settings WHERE key = 'oidc.enabled'")).fetchone()
     db_value = (row[0] or "").strip() if row else ""
-    enabled = _truthy(db_value) if db_value else _truthy(os.environ.get("OIDC_ENABLED", ""))
+    enabled = _truthy(db_value) if db_value else bool(settings.oidc_enabled)
     if not enabled:
         return
     conn.execute(
