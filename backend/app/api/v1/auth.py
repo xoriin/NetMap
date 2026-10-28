@@ -453,6 +453,11 @@ def refresh(
     return TokenPair(access_token=next_access_token)
 
 
+NO_LOCAL_PASSWORD_EMAIL_DETAIL = (
+    "This account has no NetMap password. Confirm the email change by signing in again with single sign-on."
+)
+
+
 def _with_sso_source(row: UserRead, identity) -> UserRead:
     """auth_source is "oidc" while any SSO identity is linked, else "local"."""
     if identity is None:
@@ -491,7 +496,10 @@ def update_profile(
     email_changed = "email" in updates and (updates["email"] or None) != current_user.email
     if email_changed:
         # The email address receives password resets, so changing it needs the
-        # same re-authentication as other sensitive account changes.
+        # same re-authentication as other sensitive account changes. Accounts
+        # without a NetMap password confirm it at their provider instead.
+        if not current_user.has_local_password:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NO_LOCAL_PASSWORD_EMAIL_DETAIL)
         if not payload.current_password:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -590,6 +598,7 @@ def change_password(
     )
 
     current_user.password_hash = hash_password(payload.new_password)
+    current_user.has_local_password = True
     # A reset link sent before the change must not undo it.
     _invalidate_pending_reset_tokens(db, current_user.id)
     revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="password_changed")
@@ -897,6 +906,7 @@ def admin_reset_password(
     if current_user.role != UserRole.SUPER_ADMIN and user.role == UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only SuperAdmin can manage a SuperAdmin account")
     user.password_hash = hash_password(payload.new_password)
+    user.has_local_password = True
     _invalidate_pending_reset_tokens(db, user.id)
     revoke_all_user_refresh_tokens(db, user_id=user.id, reason="admin_password_reset")
     write_audit(
@@ -1078,6 +1088,7 @@ def reset_password_with_token(
 
     _invalidate_pending_reset_tokens(db, user.id)
     user.password_hash = hash_password(payload.new_password)
+    user.has_local_password = True
     revoke_all_user_refresh_tokens(db, user_id=user.id, reason="password_reset")
     write_audit(
         db,

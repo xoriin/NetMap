@@ -98,6 +98,7 @@ class UserRead(BaseModel):
     avatar_data: str | None = None
     email: str | None = None
     auth_source: str = "local"
+    has_local_password: bool = True
     sso_issuer: str | None = None
     sso_last_login_at: UtcDatetime | None = None
     whats_new_acknowledged_version: str | None = None

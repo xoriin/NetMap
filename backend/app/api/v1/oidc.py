@@ -239,6 +239,7 @@ def oidc_callback(
 
 _REAUTH_PURPOSES = {"link", "email_change"}
 EMAIL_MANAGED_DETAIL = "Your email is managed by your identity provider or an administrator"
+HAS_LOCAL_PASSWORD_DETAIL = "This account has a NetMap password. Change your email with your password instead."
 
 
 def _finish_reauth(
@@ -445,11 +446,14 @@ def change_my_email_with_sso(
 ):
     """Confirm an email change by signing in again at the linked provider.
 
-    TOTP alone never counts as re-authentication; it is asked for on top when
-    enabled. Without a linked identity the email can only be changed with the
-    password, or by an administrator."""
+    Only for accounts without a NetMap password (created by single sign-on);
+    accounts with one change their email with the password. TOTP alone never
+    counts as re-authentication; it is asked for on top when enabled."""
     from app.api.v1.auth import _verify_password_and_code
 
+    if current_user.has_local_password:
+        # Accounts with a NetMap password use PATCH /auth/me with it instead.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=HAS_LOCAL_PASSWORD_DETAIL)
     config = get_oidc_config(db)
     if not config.is_usable or _identity_for(db, config, current_user.id) is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EMAIL_MANAGED_DETAIL)

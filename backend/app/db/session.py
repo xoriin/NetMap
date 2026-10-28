@@ -194,6 +194,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0086_auth_sessions", _migrate_auth_sessions)
         _run_migration(conn, inspector, "0087_oidc_link_by_email_preserve", _migrate_oidc_link_by_email_preserve)
         _run_migration(conn, inspector, "0088_oidc_login_state_purpose", _migrate_oidc_login_state_purpose)
+        _run_migration(conn, inspector, "0089_user_has_local_password", _migrate_user_has_local_password)
 
 
 
@@ -2323,6 +2324,48 @@ def _migrate_oidc_link_by_email_preserve(conn, inspector) -> None:
     conn.execute(
         text("INSERT INTO system_settings (key, value, updated_at) VALUES ('oidc.link_by_email', 'true', :now)"),
         {"now": datetime.now(timezone.utc).isoformat()},
+    )
+
+
+# Audit actions that give an account a usable NetMap password.
+_PASSWORD_SET_ACTIONS = (
+    "auth.user_created",
+    "auth.password_changed",
+    "auth.password_reset_self_service",
+    "auth.admin_password_reset",
+)
+
+
+def _migrate_user_has_local_password(conn, inspector) -> None:
+    """users.has_local_password, true for every existing account except those
+    created by single sign-on (audit "auth.oidc_user_provisioned") that have had
+    no password set since. Their stored hash was random, so they never had a
+    usable password. Usernames never change, so the audit target identifies them."""
+    tables = _live_tables(conn)
+    if "users" not in tables or "has_local_password" in _live_columns(conn, "users"):
+        return
+    conn.execute(text("ALTER TABLE users ADD COLUMN has_local_password BOOLEAN NOT NULL DEFAULT 1"))
+    if "audit_log" not in tables:
+        return
+    placeholders = ", ".join(f":a{i}" for i in range(len(_PASSWORD_SET_ACTIONS)))
+    conn.execute(
+        text(
+            f"""
+            UPDATE users SET has_local_password = 0
+            WHERE EXISTS (
+                SELECT 1 FROM audit_log p
+                WHERE p.action = 'auth.oidc_user_provisioned'
+                  AND p.target = 'user:' || users.username
+                  AND NOT EXISTS (
+                      SELECT 1 FROM audit_log s
+                      WHERE s.target = p.target
+                        AND s.action IN ({placeholders})
+                        AND s.created_at >= p.created_at
+                  )
+            )
+            """
+        ),
+        {f"a{i}": action for i, action in enumerate(_PASSWORD_SET_ACTIONS)},
     )
 
 

@@ -268,6 +268,7 @@ def login_with_claims(db: Session, config: OidcRuntimeConfig, claims: dict) -> O
                 # Random unusable password: OIDC-provisioned accounts have no
                 # local credential until an admin sets one.
                 password_hash=hash_password(secrets.token_urlsafe(32)),
+                has_local_password=False,
                 role=_initial_role(config, claims),
                 email=email,
                 display_name=_display_name(claims),

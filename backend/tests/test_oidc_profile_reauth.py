@@ -24,8 +24,16 @@ PASSWORD = "correct horse battery staple"
 MANAGED = "Your email is managed by your identity provider or an administrator"
 
 
-def _user(db, *, role="Viewer", totp=False, linked=False):
-    user = User(username="alice", email="alice@example.com", password_hash=hash_password(PASSWORD), role=role, is_active=True)
+def _user(db, *, role="Viewer", totp=False, linked=False, password=True):
+    """password=False: an account created by single sign-on, with no NetMap password."""
+    user = User(
+        username="alice",
+        email="alice@example.com",
+        password_hash=hash_password(PASSWORD),
+        has_local_password=password,
+        role=role,
+        is_active=True,
+    )
     db.add(user)
     db.flush()
     if linked:
@@ -88,8 +96,8 @@ def _email_of(db, user):
 def test_sso_email_change_needs_a_fresh_sign_in_and_issues_no_tokens(client_and_db, fake_http):
     client, db = client_and_db
     _enable_oidc(db)
-    user, _ = _user(db, linked=True)
-    token = _sign_in(client)
+    user, _ = _user(db, linked=True, password=False)
+    token = _token_for(db, user)
     client.cookies.clear()
     start = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
     params, row = _state_from(start, db)
@@ -119,8 +127,8 @@ def test_sso_email_change_needs_a_fresh_sign_in_and_issues_no_tokens(client_and_
 def test_sso_email_change_fails_closed(client_and_db, fake_http, claims, code):
     client, db = client_and_db
     _enable_oidc(db)
-    user, _ = _user(db, linked=True)
-    token = _sign_in(client)
+    user, _ = _user(db, linked=True, password=False)
+    token = _token_for(db, user)
     start = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
     claims = dict(claims)
     if claims.get("auth_time", 0) is None:
@@ -136,8 +144,8 @@ def test_sso_email_change_fails_closed(client_and_db, fake_http, claims, code):
 def test_sso_email_change_without_a_linked_identity_is_managed(client_and_db):
     client, db = client_and_db
     _enable_oidc(db)
-    _user(db)
-    token = _sign_in(client)
+    user, _ = _user(db, password=False)
+    token = _token_for(db, user)
     response = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
     assert response.status_code == 403
     assert response.json() == {"detail": MANAGED}
@@ -145,8 +153,8 @@ def test_sso_email_change_without_a_linked_identity_is_managed(client_and_db):
 
 def test_sso_email_change_with_sso_off_is_managed(client_and_db):
     client, db = client_and_db
-    _user(db, linked=True)
-    token = _sign_in(client)
+    user, _ = _user(db, linked=True, password=False)
+    token = _token_for(db, user)
     response = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
     assert response.status_code == 403
     assert response.json() == {"detail": MANAGED}
@@ -160,8 +168,8 @@ def test_sso_email_change_still_needs_the_local_code_and_is_throttled(client_and
     monkeypatch.setattr(security.settings, "auth_max_failed_attempts", 3)
     client, db = client_and_db
     _enable_oidc(db)
-    user, secret = _user(db, linked=True, totp=True)
-    token = _sign_in(client, secret)
+    user, secret = _user(db, linked=True, totp=True, password=False)
+    token = _token_for(db, user)
     missing = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
     assert missing.status_code == 401
     for _ in range(5):
@@ -183,8 +191,8 @@ def test_totp_alone_never_changes_the_email(client_and_db, fake_http):
     """A valid code starts the provider sign-in; the email changes only after it."""
     client, db = client_and_db
     _enable_oidc(db)
-    user, secret = _user(db, linked=True, totp=True)
-    token = _sign_in(client, secret)
+    user, secret = _user(db, linked=True, totp=True, password=False)
+    token = _token_for(db, user)
     start = client.post(
         "/api/v1/auth/me/email/sso",
         json={"email": "new@example.com", "totp_code": pyotp.TOTP(secret).at(time.time() + 30)},
@@ -310,8 +318,8 @@ def test_0088_adds_the_columns_and_is_idempotent():
 def test_sso_email_change_is_rate_limited_per_user_without_2fa(client_and_db, fake_http):
     client, db = client_and_db
     _enable_oidc(db)
-    _user(db, linked=True)
-    token = _sign_in(client)
+    user, _ = _user(db, linked=True, password=False)
+    token = _token_for(db, user)
     statuses = []
     for _ in range(8):
         response = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
@@ -324,3 +332,106 @@ def test_sso_email_change_is_rate_limited_per_user_without_2fa(client_and_db, fa
     assert response.json()["detail"].startswith("Too many attempts. Retry in ")
     states = db.scalars(select(OidcLoginState).where(OidcLoginState.purpose == "email_change")).all()
     assert len(states) == len(statuses) - 1
+
+
+# --- Which email flow an account uses ------------------------------------------
+# Rhys's rule: an account with a NetMap password changes its email with the
+# password (and code); only a passwordless SSO account uses the SSO flow.
+
+NO_PASSWORD = "This account has no NetMap password. Confirm the email change by signing in again with single sign-on."
+HAS_PASSWORD = "This account has a NetMap password. Change your email with your password instead."
+
+
+def _provisioned(db):
+    from app.services.oidc.accounts import login_with_claims
+    from app.services.oidc.config import get_oidc_config
+
+    _enable_oidc(db, auto_provision="true")
+    claims = {"sub": "subject-1", "email": "sso@example.com", "email_verified": True}
+    user = login_with_claims(db, get_oidc_config(db), claims).user
+    db.commit()
+    return user
+
+
+def _token_for(db, user):
+    from app.services.auth import issue_token_pair
+
+    access, _refresh = issue_token_pair(db, user, client_ip=None)
+    db.commit()
+    return access
+
+
+def test_password_flow_changes_the_email_of_a_local_account_with_sso_linked(client_and_db):
+    client, db = client_and_db
+    _enable_oidc(db)
+    user, _ = _user(db, linked=True)
+    token = _sign_in(client)
+    response = client.patch(
+        "/api/v1/auth/me", json={"email": "new@example.com", "current_password": PASSWORD}, headers=_auth(token)
+    )
+    assert response.status_code == 200, response.text
+    assert _email_of(db, user) == "new@example.com"
+    assert response.json()["has_local_password"] is True
+
+
+@pytest.mark.parametrize("password", [None, "whatever-they-type"])
+def test_password_flow_is_refused_for_a_passwordless_sso_account(client_and_db, password):
+    client, db = client_and_db
+    user = _provisioned(db)
+    body = {"email": "new@example.com"}
+    if password:
+        body["current_password"] = password
+    response = client.patch("/api/v1/auth/me", json=body, headers=_auth(_token_for(db, user)))
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": NO_PASSWORD}
+    assert _email_of(db, user) == "sso@example.com"
+    # Not a failed sign-in: nothing counts towards a lockout.
+    assert not [a for a in db.scalars(select(AuditLog.action)).all() if "failed" in a]
+
+
+def test_passwordless_sso_account_can_still_edit_the_rest_of_its_profile(client_and_db):
+    client, db = client_and_db
+    user = _provisioned(db)
+    response = client.patch("/api/v1/auth/me", json={"display_name": "SSO person"}, headers=_auth(_token_for(db, user)))
+    assert response.status_code == 200, response.text
+    assert response.json()["has_local_password"] is False
+
+
+def test_sso_email_flow_is_refused_for_an_account_with_a_password(client_and_db):
+    client, db = client_and_db
+    _enable_oidc(db)
+    _user(db, linked=True)
+    token = _sign_in(client)
+    response = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": HAS_PASSWORD}
+    assert db.scalar(select(OidcLoginState).where(OidcLoginState.purpose == "email_change")) is None
+
+
+def test_sso_email_flow_works_for_a_passwordless_sso_account(client_and_db, fake_http):
+    client, db = client_and_db
+    user = _provisioned(db)
+    start = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(_token_for(db, user)))
+    assert start.status_code == 200, start.text
+    done = _provider_returns(client, db, fake_http, start)
+    assert _query(done) == {"sso_email": "changed"}
+    assert _email_of(db, user) == "new@example.com"
+
+
+def test_a_password_set_later_moves_the_account_to_the_password_flow(client_and_db):
+    client, db = client_and_db
+    user = _provisioned(db)
+    admin = User(username="root", password_hash=hash_password(PASSWORD), role="SuperAdmin", is_active=True)
+    db.add(admin)
+    db.commit()
+    reset = client.post(
+        f"/api/v1/auth/users/{user.id}/reset-password", json={"new_password": PASSWORD + "!"}, headers=_auth(_token_for(db, admin))
+    )
+    assert reset.status_code == 200, reset.text
+    db.expire_all()
+    assert db.get(User, user.id).has_local_password is True
+    response = client.post(
+        "/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(_token_for(db, db.get(User, user.id)))
+    )
+    assert response.status_code == 409
+    assert response.json() == {"detail": HAS_PASSWORD}

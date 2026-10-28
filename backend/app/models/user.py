@@ -46,6 +46,9 @@ class User(Base):
     totp_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Bumped whenever every session must end; tokens carry it as the sv claim.
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # False for accounts created by single sign-on until a password is set for
+    # them; their stored hash is random and can never be used to sign in.
+    has_local_password: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
     totp_recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @property
