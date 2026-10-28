@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { setupCoreMocks, setupMonitoringMocks, setupTopologyMocks } from "./helpers/api-mocks";
+import { issuerOrganisation } from "../../src/utils/certIssuer";
 
 // The endpoint overview popup must show new poll results while it stays open.
 test("the endpoint popup refreshes its history while open", async ({ page }) => {
@@ -104,5 +105,25 @@ for (const width of [1440, 390]) {
     expect(await section.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
     // Truncated issuers keep the full value on hover.
     await expect(row("Issuer")).toHaveAttribute("title", zeroSslIssuer);
+    // Shows only the organisation; the full DN stays in the hover title.
+    await expect(row("Issuer")).toHaveText("ZeroSSL");
   });
 }
+
+test.describe("issuerOrganisation", () => {
+  for (const [issuer, expected] of [
+    ["countryName=AT, organizationName=ZeroSSL, commonName=ZeroSSL RSA Domain Secure Site CA", "ZeroSSL"],
+    ["C=DE, O=ZeroSSL GmbH, CN=ZeroSSL ECC CA", "ZeroSSL GmbH"],
+    ["countryName=US, commonName=Internal Root CA", "Internal Root CA"],
+    ["CN=portal.internal.example", "portal.internal.example"],
+    ["Self-signed issuer", "Self-signed issuer"],
+    ['countryName=US, organizationName="Foo, Inc.", commonName=Foo CA', "Foo, Inc."],
+    ["countryName=US, organizationName=Foo\\, Inc., commonName=Foo CA", "Foo, Inc."],
+    ["", null],
+    [null, null],
+  ] as const) {
+    test(`${JSON.stringify(issuer)} → ${JSON.stringify(expected)}`, () => {
+      expect(issuerOrganisation(issuer)).toBe(expected);
+    });
+  }
+});
