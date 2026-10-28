@@ -3,33 +3,10 @@ import { LogIn } from "lucide-react";
 import { api, type MfaChallenge, type OidcStatus, type TokenPair } from "../../api/client";
 import { TotpCodeStep, TotpSetupStep } from "./TotpSignIn";
 import { AuthTextReveal } from "./AuthTextReveal";
+import type { SsoMfaStep } from "./ssoCallback";
 
-const SSO_ERROR_MESSAGES: Record<string, string> = {
-  provider_unreachable: "Could not reach the identity provider. Try again or contact your administrator.",
-  provider_denied: "Sign-in was cancelled or denied at the identity provider.",
-  provider_error: "The identity provider returned an error. Please try again.",
-  invalid_state: "The sign-in attempt expired or was invalid. Please try again.",
-  email_unverified: "Your email address is not verified with the identity provider.",
-  email_domain_denied: "Your email domain is not allowed to sign in here.",
-  email_missing: "The identity provider did not supply an email address for your account.",
-  account_not_linked: "No NetMap account is linked to this identity. Contact your administrator.",
-  account_disabled: "This account is disabled. Contact your administrator.",
-  sso_disabled: "Single sign-on is not enabled on this server.",
-};
-
-function ssoErrorMessage(code: string): string {
-  return SSO_ERROR_MESSAGES[code] ?? "Single sign-on failed a security check. Please try again or contact your administrator.";
-}
-
-function consumeSsoErrorParam(): string | null {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get("sso_error");
-  if (!code) return null;
-  params.delete("sso_error");
-  const query = params.toString();
-  window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
-  return ssoErrorMessage(code);
-}
+/** Who asked for the 2FA step: a password sign-in (with its challenge) or single sign-on (challenge in a cookie). */
+type MfaStep = { setup: boolean; challenge: string | null };
 
 function SsoButton({ providerName }: { providerName: string }) {
   return (
@@ -217,22 +194,29 @@ function ForgotPasswordView({ onBack, appName }: { onBack: () => void; appName?:
   );
 }
 
-export function LoginView({ onSubmit, onAuthenticated, appName, loginMessage }: {
+export function LoginView({ onSubmit, onAuthenticated, appName, loginMessage, ssoMfa = null, ssoError = null }: {
   onSubmit: (username: string, password: string) => Promise<MfaChallenge | null>;
   onAuthenticated: (tokens: TokenPair) => void;
   appName?: string;
   loginMessage?: string;
+  /** Set when the single sign-on callback still needs the NetMap 2FA code or setup. */
+  ssoMfa?: SsoMfaStep | null;
+  /** A friendly message for the callback's `sso_error` code. */
+  ssoError?: string | null;
 }) {
   const [view, setView] = useState<"login" | "forgot">("login");
-  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+  const [mfa, setMfa] = useState<MfaStep | null>(() => (ssoMfa ? { setup: ssoMfa === "setup", challenge: null } : null));
   const [notice, setNotice] = useState<string | null>(null);
   const back = useCallback(() => setMfa(null), []);
-  const expired = useCallback(() => { setMfa(null); setNotice("Your sign-in timed out. Enter your password again."); }, []);
+  const fromSso = mfa !== null && mfa.challenge === null;
+  const expired = useCallback(() => {
+    setMfa(null);
+    // After single sign-on there was no password step here, so use the server's wording.
+    setNotice(fromSso ? "Sign-in expired. Enter your password again." : "Your sign-in timed out. Enter your password again.");
+  }, [fromSso]);
   const [oidc, setOidc] = useState<OidcStatus | null>(null);
-  const [ssoError, setSsoError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSsoError(consumeSsoErrorParam());
     let cancelled = false;
     api.oidcStatus()
       .then((status) => { if (!cancelled) setOidc(status); })
@@ -241,7 +225,7 @@ export function LoginView({ onSubmit, onAuthenticated, appName, loginMessage }: 
   }, []);
 
   if (mfa) {
-    const Step = mfa.mfa_setup_required ? TotpSetupStep : TotpCodeStep;
+    const Step = mfa.setup ? TotpSetupStep : TotpCodeStep;
     return <Step challenge={mfa.challenge} appName={appName} onAuthenticated={onAuthenticated} onExpired={expired} onBack={back} />;
   }
 
@@ -251,7 +235,12 @@ export function LoginView({ onSubmit, onAuthenticated, appName, loginMessage }: 
 
   return (
     <LoginForm
-      onSubmit={async (u, p) => { setNotice(null); const challenge = await onSubmit(u, p); if (challenge) setMfa(challenge); return challenge; }}
+      onSubmit={async (u, p) => {
+        setNotice(null);
+        const challenge = await onSubmit(u, p);
+        if (challenge) setMfa({ setup: challenge.mfa_setup_required, challenge: challenge.challenge });
+        return challenge;
+      }}
       appName={appName}
       loginMessage={loginMessage}
       onForgotPassword={() => setView("forgot")}

@@ -1535,12 +1535,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
-  loginTotp: (challenge: string, code: string) =>
-    request<TokenPair>("/api/v1/auth/login/totp", { method: "POST", body: JSON.stringify({ challenge, code }) }),
-  loginTotpSetup: (challenge: string) =>
-    request<TotpSetup>("/api/v1/auth/login/totp/setup", { method: "POST", body: JSON.stringify({ challenge }) }),
-  loginTotpSetupConfirm: (challenge: string, code: string) =>
-    request<TotpCodes>("/api/v1/auth/login/totp/setup/confirm", { method: "POST", body: JSON.stringify({ challenge, code }) }),
+  // A null challenge is the single sign-on case: the server reads it from its HttpOnly pending cookie.
+  loginTotp: (challenge: string | null, code: string) =>
+    request<TokenPair>("/api/v1/auth/login/totp", { method: "POST", body: JSON.stringify({ ...(challenge ? { challenge } : {}), code }) }),
+  loginTotpSetup: (challenge: string | null) =>
+    request<TotpSetup>("/api/v1/auth/login/totp/setup", { method: "POST", body: JSON.stringify(challenge ? { challenge } : {}) }),
+  loginTotpSetupConfirm: (challenge: string | null, code: string) =>
+    request<TotpCodes>("/api/v1/auth/login/totp/setup/confirm", { method: "POST", body: JSON.stringify({ ...(challenge ? { challenge } : {}), code }) }),
   startMyTotp: (token: string, password: string) =>
     request<TotpSetup>("/api/v1/auth/me/totp/setup", { method: "POST", token, body: JSON.stringify({ password }) }),
   confirmMyTotp: (token: string, code: string) =>

@@ -20,6 +20,7 @@ import { SetupView } from "./features/auth/SetupView";
 import { LoginView } from "./features/auth/LoginView";
 import { AuthTextReveal } from "./features/auth/AuthTextReveal";
 import { ResetPasswordView } from "./features/auth/ResetPasswordView";
+import { type SsoCallback, consumeSsoCallback, discardSsoProfileNotice } from "./features/auth/ssoCallback";
 import { Sidebar, AppTopbar, clearStickySidebarMenus } from "./Sidebar";
 import { MobileMoreSheet, MobileSectionTabs, MobileTabBar } from "./MobileNav";
 import { DashboardView } from "./views/DashboardView";
@@ -48,7 +49,11 @@ function WorkspaceApp() {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => readRouteFromLocation());
+  // Read (and strip) the single sign-on callback params before anything else touches the URL.
+  const [ssoCallback, setSsoCallback] = useState<SsoCallback>(() => consumeSsoCallback());
+  // A signed-in callback outcome (link, email change or its error) belongs on Profile.
+  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() =>
+    ssoCallback.notice && !ssoCallback.mfa ? "/profile" : readRouteFromLocation());
   const [appSettings, setAppSettings] = useState<Partial<SystemSettings> | null>(null);
   const [topbarNote, setTopbarNote] = useState<ReactNode>("");
   const idleTimeoutMs = (appSettings?.idle_timeout_minutes ?? 0) * 60 * 1000;
@@ -79,6 +84,13 @@ function WorkspaceApp() {
     if (!accessToken || !user) return "login";
     return "dashboard";
   }, [accessToken, loading, needsSetup, user, resetToken]);
+
+  // The callback result is shown once: on the sign-in screen when signed out,
+  // otherwise on Profile. Clear it so a later sign-out doesn't show it again.
+  useEffect(() => {
+    if (screen === "login") discardSsoProfileNotice();
+    if (screen === "dashboard" && (ssoCallback.mfa || ssoCallback.notice)) setSsoCallback({ mfa: null, notice: null });
+  }, [screen, ssoCallback]);
 
   const documentTitle = useMemo(() => {
     if (screen === "dashboard") return routeDocumentTitle(currentRoute);
@@ -435,7 +447,16 @@ function WorkspaceApp() {
             {error && <div className="error-banner">{error}</div>}
             {screen === "loading" && <LoadingView />}
             {screen === "setup" && <SetupView onSubmit={handleSetup} />}
-            {screen === "login" && <LoginView onSubmit={handleLogin} onAuthenticated={completeLogin} appName={appSettings?.app_name} loginMessage={appSettings?.login_message} />}
+            {screen === "login" && (
+              <LoginView
+                onSubmit={handleLogin}
+                onAuthenticated={completeLogin}
+                appName={appSettings?.app_name}
+                loginMessage={appSettings?.login_message}
+                ssoMfa={ssoCallback.mfa}
+                ssoError={ssoCallback.notice?.tone === "error" ? ssoCallback.notice.message : null}
+              />
+            )}
             {screen === "reset-password" && (
               <ResetPasswordView
                 resetToken={resetToken!}

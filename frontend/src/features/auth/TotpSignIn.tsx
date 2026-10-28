@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { api, ApiError, type TokenPair } from "../../api/client";
 import { TotpEnrolment } from "./TotpEnrolment";
 
@@ -8,8 +8,28 @@ function isExpired(err: unknown) {
   return err instanceof ApiError && err.status === 401 && err.detail === EXPIRED;
 }
 
+/** Seconds until a 429 can be retried, from Retry-After or the "Retry in N seconds" detail. */
+function retryAfter(err: unknown): number | null {
+  if (!(err instanceof ApiError) || err.status !== 429) return null;
+  const fromDetail = typeof err.detail === "string" ? err.detail.match(/(\d+)\s*seconds?/i) : null;
+  const seconds = err.retryAfterSeconds ?? (fromDetail ? Number(fromDetail[1]) : null);
+  return seconds !== null && seconds > 0 ? seconds : null;
+}
+
+function retryMessage(seconds: number) {
+  return `Too many attempts. Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`;
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  const seconds = retryAfter(err);
+  if (seconds !== null) return retryMessage(seconds);
+  if (err instanceof ApiError && typeof err.detail === "string") return err.detail;
+  return err instanceof Error ? err.message : fallback;
+}
+
 type StepProps = {
-  challenge: string;
+  /** The password sign-in's challenge; null after single sign-on, where it lives in an HttpOnly cookie. */
+  challenge: string | null;
   appName?: string;
   onAuthenticated: (tokens: TokenPair) => void;
   onExpired: () => void;
@@ -32,20 +52,43 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const retrySeconds = retryUntil === null ? 0 : Math.max(0, Math.ceil((retryUntil - now) / 1000));
+  const errorId = useId();
+
+  useEffect(() => {
+    if (retryUntil === null) return;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= retryUntil) setRetryUntil(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (retryUntil !== null) return;
     setBusy(true);
     setError(null);
     try {
       onAuthenticated(await api.loginTotp(challenge, code));
     } catch (err) {
+      const seconds = retryAfter(err);
       if (isExpired(err)) onExpired();
-      else setError(err instanceof Error ? err.message : "That code didn't work");
+      else if (seconds !== null) {
+        const current = Date.now();
+        setNow(current);
+        setRetryUntil(current + seconds * 1000);
+      } else setError(errorMessage(err, "That code didn't work"));
     } finally {
       setBusy(false);
     }
   }
+
+  const shownError = retryUntil !== null ? retryMessage(retrySeconds) : error;
+  const describedBy = shownError ? errorId : undefined;
 
   return (
     <section className="auth-surface">
@@ -58,16 +101,16 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
         {useRecovery ? (
           <label key="recovery">
             Recovery code
-            <input required autoFocus autoComplete="off" placeholder="XXXXX-XXXXX" maxLength={11} value={code} onChange={(e) => setCode(e.target.value)} />
+            <input required autoFocus autoComplete="off" placeholder="XXXXX-XXXXX" maxLength={11} value={code} aria-invalid={Boolean(error) || undefined} aria-describedby={describedBy} onChange={(e) => setCode(e.target.value)} />
           </label>
         ) : (
           <label key="totp">
             Authentication code
-            <input required autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
+            <input required autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} aria-invalid={Boolean(error) || undefined} aria-describedby={describedBy} onChange={(e) => setCode(e.target.value)} />
           </label>
         )}
-        {error && <div className="form-error">{error}</div>}
-        <button type="submit" disabled={busy}>{busy ? "Verifying…" : "Verify"}</button>
+        {shownError && <div className="form-error" role="alert" id={errorId}>{shownError}</div>}
+        <button type="submit" disabled={busy || retryUntil !== null}>{busy ? "Verifying…" : "Verify"}</button>
         <button type="button" className="auth-forgot-link" onClick={() => { setUseRecovery(!useRecovery); setCode(""); setError(null); }}>
           {useRecovery ? "Use your authenticator app" : "Use a recovery code"}
         </button>
@@ -82,7 +125,7 @@ export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, 
 
   const start = useCallback(() => api.loginTotpSetup(challenge).catch((err) => {
     if (isExpired(err)) onExpired();
-    throw err;
+    throw new Error(errorMessage(err, "Unable to start setup"));
   }), [challenge, onExpired]);
 
   const confirm = useCallback(async (code: string) => {
@@ -92,7 +135,7 @@ export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, 
       return result.recovery_codes;
     } catch (err) {
       if (isExpired(err)) onExpired();
-      throw err;
+      throw new Error(errorMessage(err, "That code didn't work"));
     }
   }, [challenge, onExpired]);
 
