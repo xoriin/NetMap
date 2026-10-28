@@ -22,16 +22,25 @@ const okta = {
 
 const IDP = "https://idp.example.test/authorize?state=abc";
 
+// The three account types: has_local_password (not auth_source) picks the email flow.
+const ssoOnly = { auth_source: "oidc", has_local_password: false };
+const linkedLocal = { auth_source: "oidc", has_local_password: true };
+
+const HAS_PASSWORD_409 = "This account has a NetMap password. Change your email with your password instead.";
+const NO_PASSWORD_409 = "This account has no NetMap password. Confirm the email change by signing in again with single sign-on.";
+
 type Handler = (route: Route, body: Record<string, unknown>) => Promise<void>;
 
 type Options = {
   user?: Record<string, unknown>;
   identities?: unknown[];
+  identitiesFail?: boolean;
   oidc?: Record<string, unknown>;
   path?: string;
   onLink?: Handler;
   onUnlink?: Handler;
   onEmail?: Handler;
+  onPatch?: Handler;
 };
 
 async function setupProfile(page: Page, options: Options = {}) {
@@ -45,10 +54,12 @@ async function setupProfile(page: Page, options: Options = {}) {
     if (route.request().method() !== "PATCH") return route.fulfill({ json: current });
     const body = route.request().postDataJSON() as Record<string, unknown>;
     calls.patch.push(body);
+    if (options.onPatch) return options.onPatch(route, body);
     Object.assign(current, body);
     return route.fulfill({ json: current });
   });
-  await page.route("**/api/v1/auth/me/identities", (route) => route.fulfill({ json: identities }));
+  await page.route("**/api/v1/auth/me/identities", (route) =>
+    options.identitiesFail ? route.fulfill({ status: 500, json: { detail: "Internal Server Error" } }) : route.fulfill({ json: identities }));
   await page.route("**/api/v1/auth/me/identities/link", async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     calls.link.push(body);
@@ -91,7 +102,9 @@ async function stillSignedIn(page: Page, calls: { refreshes: number; logouts: nu
   expect(calls.logouts).toBe(0);
 }
 
-const ssoRow = (page: Page) => page.locator(".profile-security-row", { hasText: "Single sign-on" });
+// By its heading: an SSO-only account's "Sign-in method" row also reads "Single sign-on".
+const ssoRow = (page: Page) =>
+  page.locator(".profile-security-row").filter({ has: page.locator("strong", { hasText: /^Single sign-on$/ }) });
 
 test.describe("link single sign-on", () => {
   test("sends the password and code, then goes to the provider", async ({ page }) => {
@@ -191,7 +204,7 @@ test.describe("link single sign-on", () => {
 
 test.describe("unlink single sign-on", () => {
   test("lists the identity and unlinks it with the password and code", async ({ page }) => {
-    const calls = await setupProfile(page, { user: { totp_enabled: true }, identities: [okta] });
+    const calls = await setupProfile(page, { user: { ...linkedLocal, totp_enabled: true }, identities: [okta] });
     await expect(ssoRow(page)).toContainText("Okta · user@corp.example · Last used");
     await expect(ssoRow(page)).toContainText("Linked");
     await page.getByRole("button", { name: "Unlink Okta" }).click();
@@ -207,6 +220,19 @@ test.describe("unlink single sign-on", () => {
     await expect(ssoRow(page)).toContainText("Not linked");
     expect(calls.unlink).toEqual([{ url: "/api/v1/auth/me/identities/7", method: "DELETE", current_password: "hunter2-correct", totp_code: "654321" }]);
     await expect(page.getByRole("heading", { name: "Sign In" })).toHaveCount(0);
+  });
+
+  test("is hidden for an SSO-only account, with a hint", async ({ page }) => {
+    await setupProfile(page, { user: ssoOnly, identities: [okta] });
+    await expect(ssoRow(page)).toContainText("Linked");
+    await expect(ssoRow(page)).toContainText("Set a NetMap password before unlinking single sign-on.");
+    await expect(page.getByRole("button", { name: "Unlink Okta" })).toHaveCount(0);
+  });
+
+  test("is shown for a local account linked to SSO, without the hint", async ({ page }) => {
+    await setupProfile(page, { user: linkedLocal, identities: [okta] });
+    await expect(page.getByRole("button", { name: "Unlink Okta" })).toBeVisible();
+    await expect(ssoRow(page)).not.toContainText("Set a NetMap password");
   });
 
   test("is hidden for non-admins when single sign-on is required", async ({ page }) => {
@@ -260,7 +286,7 @@ test.describe("SSO email change", () => {
   const form = (page: Page) => page.locator(".profile-account-panel form");
 
   test("confirms at the provider with the code and no password", async ({ page }) => {
-    const calls = await setupProfile(page, { user: { totp_enabled: true }, identities: [okta] });
+    const calls = await setupProfile(page, { user: { ...ssoOnly, totp_enabled: true }, identities: [okta] });
     const email = form(page).getByLabel(/^Email/);
     await expect(email).not.toHaveAttribute("readonly", "");
     await email.fill("new@corp.example");
@@ -274,7 +300,7 @@ test.describe("SSO email change", () => {
   });
 
   test("saves a new display name first, without the email", async ({ page }) => {
-    const calls = await setupProfile(page, { identities: [okta] });
+    const calls = await setupProfile(page, { user: ssoOnly, identities: [okta] });
     await form(page).getByLabel(/^Display name/).fill("Renamed");
     await form(page).getByLabel(/^Email/).fill("new@corp.example");
     await form(page).getByRole("button", { name: "Confirm with Okta" }).click();
@@ -285,6 +311,7 @@ test.describe("SSO email change", () => {
 
   test("counts down the per-user 429 and blocks retrying", async ({ page }) => {
     const calls = await setupProfile(page, {
+      user: ssoOnly,
       identities: [okta],
       onEmail: (route) => route.fulfill({ status: 429, headers: { "Retry-After": "600" }, json: { detail: "Too many attempts. Retry in 600 seconds." } }),
     });
@@ -299,7 +326,7 @@ test.describe("SSO email change", () => {
   for (const detail of ["Authentication code is required to change your email", "Authentication code is incorrect"]) {
     test(`shows "${detail}" beside the code field`, async ({ page }) => {
       const calls = await setupProfile(page, {
-        user: { totp_enabled: true },
+        user: { ...ssoOnly, totp_enabled: true },
         identities: [okta],
         onEmail: (route) => route.fulfill({ status: 401, json: { detail } }),
       });
@@ -320,7 +347,7 @@ test.describe("SSO email change", () => {
     [502, "The identity provider could not be reached"],
   ] as const) {
     test(`shows the ${status} "${detail}"`, async ({ page }) => {
-      const calls = await setupProfile(page, { identities: [okta], onEmail: (route) => route.fulfill({ status, json: { detail } }) });
+      const calls = await setupProfile(page, { user: ssoOnly, identities: [okta], onEmail: (route) => route.fulfill({ status, json: { detail } }) });
       await form(page).getByLabel(/^Email/).fill("new@corp.example");
       await form(page).getByRole("button", { name: "Confirm with Okta" }).click();
       await expect(form(page).getByRole("alert")).toHaveText(detail);
@@ -330,6 +357,7 @@ test.describe("SSO email change", () => {
 
   test("falls back to read-only on 403", async ({ page }) => {
     const calls = await setupProfile(page, {
+      user: ssoOnly,
       identities: [okta],
       onEmail: (route) => route.fulfill({ status: 403, json: { detail: "Your email is managed by your identity provider or an administrator" } }),
     });
@@ -343,11 +371,70 @@ test.describe("SSO email change", () => {
     await stillSignedIn(page, calls);
   });
 
-  test("an SSO account without a linked identity stays read-only", async ({ page }) => {
-    await setupProfile(page, { user: { auth_source: "oidc" } });
+  test("an SSO-only account without a linked identity stays read-only", async ({ page }) => {
+    await setupProfile(page, { user: ssoOnly });
     const email = form(page).getByLabel(/^Email/);
     await expect(email).toHaveAttribute("readonly", "");
     await expect(email).toHaveAccessibleDescription("Managed by your identity provider or an administrator.");
+  });
+
+  test("an SSO-only account is read-only when single sign-on is off", async ({ page }) => {
+    await setupProfile(page, { user: ssoOnly, identities: [okta], oidc: { enabled: false } });
+    await expect(form(page).getByLabel(/^Email/)).toHaveAttribute("readonly", "");
+  });
+
+  test("an SSO-only account keeps the SSO flow when identities fail to load", async ({ page }) => {
+    const calls = await setupProfile(page, { user: ssoOnly, identitiesFail: true });
+    await form(page).getByLabel(/^Email/).fill("new@corp.example");
+    await expect(form(page).getByLabel(/^Current password/)).toHaveCount(0);
+    await form(page).getByRole("button", { name: /^Confirm with / }).click();
+    await expect(page).toHaveURL(IDP);
+    expect(calls.email).toEqual([{ email: "new@corp.example" }]);
+    expect(calls.patch).toEqual([]);
+  });
+
+  test(`shows the SSO 409 "${HAS_PASSWORD_409}"`, async ({ page }) => {
+    const calls = await setupProfile(page, {
+      user: ssoOnly,
+      identities: [okta],
+      onEmail: (route) => route.fulfill({ status: 409, json: { detail: HAS_PASSWORD_409 } }),
+    });
+    await form(page).getByLabel(/^Email/).fill("new@corp.example");
+    await form(page).getByRole("button", { name: "Confirm with Okta" }).click();
+    await expect(form(page).getByRole("alert")).toHaveText(HAS_PASSWORD_409);
+    await stillSignedIn(page, calls);
+  });
+
+  test("a local account linked to SSO keeps the password flow", async ({ page }) => {
+    const calls = await setupProfile(page, { user: { ...linkedLocal, totp_enabled: true }, identities: [okta] });
+    await form(page).getByLabel(/^Email/).fill("new@example.com");
+    await form(page).getByLabel(/^Current password/).fill("hunter2-correct");
+    await form(page).getByLabel(/^Authentication code/).fill("123456");
+    await expect(form(page).getByRole("button", { name: "Confirm with Okta" })).toHaveCount(0);
+    await form(page).getByRole("button", { name: "Save account details" }).click();
+    await expect(page.getByText("Profile saved")).toBeVisible();
+    expect(calls.patch).toEqual([{ display_name: "Test User", email: "new@example.com", current_password: "hunter2-correct", totp_code: "123456" }]);
+    expect(calls.email).toEqual([]);
+  });
+
+  test("identities failing to load doesn't change a linked local account's password flow", async ({ page }) => {
+    await setupProfile(page, { user: linkedLocal, identitiesFail: true });
+    await form(page).getByLabel(/^Email/).fill("new@example.com");
+    await expect(form(page).getByLabel(/^Current password/)).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "Save account details" })).toBeVisible();
+  });
+
+  test(`shows the password-flow 409 "${NO_PASSWORD_409}"`, async ({ page }) => {
+    const calls = await setupProfile(page, {
+      user: linkedLocal,
+      identities: [okta],
+      onPatch: (route) => route.fulfill({ status: 409, json: { detail: NO_PASSWORD_409 } }),
+    });
+    await form(page).getByLabel(/^Email/).fill("new@example.com");
+    await form(page).getByLabel(/^Current password/).fill("hunter2-correct");
+    await form(page).getByRole("button", { name: "Save account details" }).click();
+    await expect(form(page).getByRole("alert")).toHaveText(NO_PASSWORD_409);
+    await stillSignedIn(page, calls);
   });
 
   test("a local account without a linked identity keeps the password flow", async ({ page }) => {

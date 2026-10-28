@@ -329,24 +329,30 @@ export function ProfileWorkspace({
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  // Single sign-on: linked identities decide how an email change is confirmed.
+  // Single sign-on: the link/unlink list comes from /auth/me/identities.
   const [identities, setIdentities] = useState<LinkedIdentity[] | null>(null);
   const [oidc, setOidc] = useState<OidcStatus | null>(null);
   const [ssoUnavailable, setSsoUnavailable] = useState(false);
   const [ssoEmailManaged, setSsoEmailManaged] = useState(false);
+  const [identitiesFailed, setIdentitiesFailed] = useState(false);
   const linkedIdentity = identities?.[0] ?? null;
   const ssoEnabled = oidc?.enabled === true && !ssoUnavailable;
 
-  // Email re-auth: the backend (PATCH /auth/me) requires the current password —
-  // plus an authentication code when 2FA is on — only when the email changes.
-  // With a linked identity the change is confirmed by signing in again at the
-  // provider instead (POST /auth/me/email/sso), plus the code when 2FA is on.
-  const isSsoOnly = user.auth_source === "oidc";
-  const ssoEmail = linkedIdentity !== null && ssoEnabled && !ssoEmailManaged;
-  const emailReadOnly = !ssoEmail && (isSsoOnly || ssoEmailManaged);
+  // Email re-auth is picked by has_local_password alone (not auth_source, not
+  // linked identities). With a NetMap password — linked to SSO or not — PATCH
+  // /auth/me needs the current password, plus a code when 2FA is on. Without
+  // one (SSO-only) the change is confirmed by signing in again at the provider
+  // (POST /auth/me/email/sso), plus the code when 2FA is on; it's read-only
+  // when SSO is off, no identity is linked, or the backend says the email is
+  // managed (403). If the identities list fails to load, the SSO flow stays
+  // and the backend's 403 decides.
+  const hasLocalPassword = user.has_local_password !== false;
+  const noIdentityLinked = identities !== null && !identitiesFailed && identities.length === 0;
+  const emailReadOnly = !hasLocalPassword && (ssoEmailManaged || ssoUnavailable || oidc?.enabled === false || noIdentityLinked);
+  const ssoEmail = !hasLocalPassword && !emailReadOnly;
   const savedEmail = user.email ?? null;
   const emailEdited = (profileEmail.trim() || null) !== savedEmail;
-  const emailChanged = !ssoEmail && !emailReadOnly && emailEdited;
+  const emailChanged = hasLocalPassword && emailEdited;
   const ssoEmailChanged = ssoEmail && emailEdited;
   const needsReauthCode = (emailChanged || ssoEmailChanged) && user.totp_enabled === true;
   const [reauthPassword, setReauthPassword] = useState("");
@@ -398,7 +404,9 @@ export function ProfileWorkspace({
   const ssoFormErrorId = `${ssoIds}-form-error`;
 
   const loadIdentities = useCallback(() => {
-    api.myIdentities(accessToken).then(setIdentities).catch(() => setIdentities([]));
+    api.myIdentities(accessToken)
+      .then((list) => { setIdentities(list); setIdentitiesFailed(false); })
+      .catch(() => { setIdentities([]); setIdentitiesFailed(true); });
   }, [accessToken]);
 
   useEffect(() => {
@@ -525,6 +533,10 @@ export function ProfileWorkspace({
         if (/^authentication code is (required|incorrect)/i.test(detail)) setReauthError({ field: "code", message: detail });
         else if (/^current password/i.test(detail)) setReauthError({ field: "password", message: detail });
         else setProfileError(detail);
+      } else if (err instanceof ApiError && err.status === 409 && (emailChanged || ssoEmailChanged) && detail) {
+        // The account's password state changed under us: show why and reload it.
+        setProfileError(detail);
+        refreshUser();
       } else if (err instanceof ApiError && err.status === 403 && ssoEmailChanged) {
         // SSO is off or no identity is linked any more: the email is read-only.
         setSsoEmailManaged(true);
@@ -713,7 +725,7 @@ export function ProfileWorkspace({
   const roleLabel = user.role.replace(/_/g, " ");
   const completedProfileFields = [displayName.trim(), profileEmail.trim(), avatarPreview].filter(Boolean).length;
   const profileCompleteness = Math.round((completedProfileFields / 3) * 100);
-  const signInLabel = user.auth_source === "oidc" ? "Single sign-on" : "Local password";
+  const signInLabel = hasLocalPassword ? "Local password" : "Single sign-on";
 
   return (
     <section className="profile-layout">
@@ -782,7 +794,7 @@ export function ProfileWorkspace({
         </div>
         <div className="profile-summary-item">
           <span className="profile-summary-icon is-security"><ShieldCheck size={19} /></span>
-          <span><strong>Sign-in method</strong><b>{signInLabel}</b><small>{user.auth_source === "oidc" ? "Managed by your identity provider" : "Password protected"}</small></span>
+          <span><strong>Sign-in method</strong><b>{signInLabel}</b><small>{hasLocalPassword ? "Password protected" : "Managed by your identity provider"}</small></span>
         </div>
         <div className="profile-summary-item">
           <span className="profile-summary-icon is-api"><KeyRound size={19} /></span>
@@ -1007,10 +1019,10 @@ export function ProfileWorkspace({
                 <span className="nm-pill">{signInLabel}</span>
               </div>
               <div className="profile-security-row">
-                <span><strong>Password access</strong><small>{user.auth_source === "oidc" ? "Managed by your provider" : "Can be updated on this page"}</small></span>
-                <span className={`nm-pill ${user.auth_source === "oidc" ? "nm-pill--sso" : "nm-pill--online"}`}>{user.auth_source === "oidc" ? "SSO" : "Protected"}</span>
+                <span><strong>Password access</strong><small>{hasLocalPassword ? "Can be updated on this page" : "Managed by your provider"}</small></span>
+                <span className={`nm-pill ${hasLocalPassword ? "nm-pill--online" : "nm-pill--sso"}`}>{hasLocalPassword ? "Protected" : "SSO"}</span>
               </div>
-              {user.auth_source !== "oidc" && (
+              {hasLocalPassword && (
                 <div className="profile-security-row">
                   <span>
                     <strong>Two-factor authentication</strong>
@@ -1046,10 +1058,11 @@ export function ProfileWorkspace({
                         .filter(Boolean)
                         .join(" · ")}
                     </small>
+                    {!hasLocalPassword && <small>Set a NetMap password before unlinking single sign-on.</small>}
                   </span>
                   <span className="profile-security-actions">
                     <span className="nm-pill nm-pill--online">Linked</span>
-                    {canUnlinkSso && (
+                    {canUnlinkSso && hasLocalPassword && (
                       <button type="button" className="nm-btn nm-btn--sm nm-btn--danger" aria-label={`Unlink ${identity.provider_name}`} onClick={() => openSsoModal({ kind: "unlink", identity })}>Unlink</button>
                     )}
                   </span>
@@ -1060,7 +1073,7 @@ export function ProfileWorkspace({
                 <span className="nm-pill">{activeKeyCount ?? "—"} active</span>
               </div>
             </div>
-            {user.auth_source !== "oidc" && user.totp_enabled && (user.recovery_codes_remaining ?? 0) <= 2 && (
+            {hasLocalPassword && user.totp_enabled && (user.recovery_codes_remaining ?? 0) <= 2 && (
               <div className="profile-security-alert nm-alert nm-alert--warning" role="note">
                 <AlertTriangle size={17} aria-hidden="true" />
                 <span>You're running low on recovery codes. Generate new ones so you don't get locked out.</span>

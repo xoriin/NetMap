@@ -186,8 +186,10 @@ test("a 429 without Retry-After falls back to the seconds in detail", async ({ p
   await expect(save(page)).toBeDisabled();
 });
 
-test("SSO-only users see a read-only email with a note and send no password", async ({ page }) => {
-  const { form, bodies } = await setupProfile(page, { auth_source: "oidc", sso_issuer: "https://idp.example.com" });
+// has_local_password (not auth_source) picks the flow. These run with single
+// sign-on off (the core mocks), so an SSO-only account's email is read-only.
+test("SSO-only users (oidc, no NetMap password) see a read-only email with a note and send no password", async ({ page }) => {
+  const { form, bodies } = await setupProfile(page, { auth_source: "oidc", has_local_password: false, sso_issuer: "https://idp.example.com" });
   const email = form.getByLabel(/^Email/);
   await expect(email).toHaveAttribute("readonly", "");
   await expect(email).toHaveAccessibleDescription(/Managed by your identity provider/);
@@ -196,4 +198,36 @@ test("SSO-only users see a read-only email with a note and send no password", as
   await save(page).click();
   await expect.poll(() => bodies.length).toBe(1);
   expect(bodies[0]).toEqual({ display_name: "SSO Person", email: "user@example.com" });
+});
+
+test("a local account later linked to SSO (oidc, with a NetMap password) keeps the password flow", async ({ page }) => {
+  const { form, bodies, refreshes, logouts } = await setupProfile(page, { auth_source: "oidc", has_local_password: true, sso_issuer: "https://idp.example.com" });
+  const email = form.getByLabel(/^Email/);
+  await expect(email).not.toHaveAttribute("readonly", "");
+  await email.fill("new@example.com");
+  await form.getByLabel(/^Current password/).fill("hunter2-correct");
+  await save(page).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0]).toEqual({ display_name: "Test User", email: "new@example.com", current_password: "hunter2-correct" });
+  expect(refreshes).toEqual([]);
+  expect(logouts).toEqual([]);
+});
+
+test("a local account (local, with a NetMap password) uses the password flow", async ({ page }) => {
+  const { form } = await setupProfile(page, { auth_source: "local", has_local_password: true });
+  await form.getByLabel(/^Email/).fill("new@example.com");
+  await expect(form.getByLabel(/^Current password/)).toBeVisible();
+  await expect(save(page)).toBeVisible();
+});
+
+test("a 409 for an account with no NetMap password shows the message and does not sign out", async ({ page }) => {
+  const detail = "This account has no NetMap password. Confirm the email change by signing in again with single sign-on.";
+  const { form, refreshes, logouts } = await setupProfile(page, {}, (route) => route.fulfill({ status: 409, json: { detail } }));
+  await form.getByLabel(/^Email/).fill("new@example.com");
+  await form.getByLabel(/^Current password/).fill("hunter2-correct");
+  await save(page).click();
+  await expect(form.getByRole("alert")).toHaveText(detail);
+  await expect(page.getByRole("heading", { name: "Sign In" })).toHaveCount(0);
+  expect(refreshes).toEqual([]);
+  expect(logouts).toEqual([]);
 });

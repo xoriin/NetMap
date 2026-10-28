@@ -8,6 +8,7 @@ export const mockUser = {
   email: "admin@example.com",
   role: "SuperAdmin",
   is_active: true,
+  has_local_password: true,
 };
 
 export const mockTokenPair = {

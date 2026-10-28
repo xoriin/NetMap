@@ -10,6 +10,7 @@ export type User = {
   avatar_data: string | null;
   email: string | null;
   auth_source?: "local" | "oidc";
+  has_local_password: boolean;
   sso_issuer?: string | null;
   sso_last_login_at?: string | null;
   whats_new_acknowledged_version?: string | null;
