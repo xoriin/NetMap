@@ -42,3 +42,29 @@ test("the endpoint popup refreshes its history while open", async ({ page }) => 
   await expect(beats).toHaveCount(25);
   await expect(popup.locator(".monitor-http-history-row").first()).toContainText("Service unavailable");
 });
+
+test("the endpoint popup shows new TLS certificate details while open", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-22T10:00:00Z") });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);
+  let monitor = {
+    id: 1, name: "Google", url: "https://www.google.com/", enabled: true, last_status: "online", last_checked_at: "2026-10-22T10:00:00Z",
+    uptime_24h: 99.8, uptime_7d: 99.9, avg_response_time_24h: 120, heartbeat: Array(24).fill("online"),
+    http_method: "GET", accepted_status_codes: "200-299", check_interval_seconds: 60, timeout_seconds: 10, max_retries: 0,
+    retry_interval_seconds: 60, verify_tls: true, follow_redirects: true, max_redirects: 5, auth_type: "none", keyword: null,
+    json_path: null, cache_bust: false, upside_down: false, consecutive_failures: 0, certificate_expiry_alert: true,
+    certificate_expiry_days: 14, last_cert_expires_at: "2026-10-27T10:00:00Z", last_cert_issuer: "Old Issuer CA",
+  };
+  await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: [monitor] }));
+  await page.route("**/api/v1/monitors/1/history?*", (route) => route.fulfill({ json: [] }));
+  await page.goto("/monitoring#endpoints");
+  await page.locator(".monitors-table tbody tr").first().click();
+  const popup = page.getByRole("dialog", { name: "Google monitor overview" });
+  await expect(popup).toContainText("Old Issuer CA");
+
+  // The certificate is renewed; the next poll must show it in the open popup.
+  monitor = { ...monitor, last_cert_expires_at: "2027-01-20T10:00:00Z", last_cert_issuer: "New Issuer CA" };
+  await page.clock.runFor(31_000);
+  await expect(popup).toContainText("New Issuer CA");
+  await expect(popup.locator(".mon-analysis-row", { hasText: "Days remaining" })).toContainText("90");
+});
