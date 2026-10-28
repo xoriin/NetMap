@@ -100,7 +100,6 @@ test("the SSO setup prompt enrols without a challenge and signs in", async ({ pa
 
 for (const [name, response, expected] of [
   ["a wrong code", { status: 401, json: { detail: "Invalid authentication code" } }, /^Invalid authentication code$/],
-  ["throttling", { status: 429, headers: { "Retry-After": "45" }, json: { detail: "Too many login attempts. Retry in 45 seconds." } }, /^Too many attempts\. Try again in 45 seconds\.$/],
 ] as const) {
   test(`the SSO setup prompt shows ${name}`, async ({ page }) => {
     await setupSignedOut(page);
@@ -112,6 +111,46 @@ for (const [name, response, expected] of [
     await expect(page.locator(".form-error")).toHaveText(expected);
   });
 }
+
+test("a throttled SSO setup code counts down, blocks Verify, then allows a retry", async ({ page }) => {
+  await setupSignedOut(page);
+  await page.route("**/api/v1/auth/login/totp/setup", (route) => route.fulfill({ json: { secret: "JBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/NetMap:alice?secret=JBSWY3DPEHPK3PXP" } }));
+  let confirms = 0;
+  await page.route("**/api/v1/auth/login/totp/setup/confirm", async (route) => {
+    confirms += 1;
+    if (confirms === 1) {
+      await route.fulfill({ status: 429, headers: { "Retry-After": "2" }, json: { detail: "Too many login attempts. Retry in 2 seconds." } });
+    } else {
+      await signIn(route, page, { recovery_codes: ["AAAAA-BBBBB"], access_token: "access" });
+    }
+  });
+  await page.goto("/?sso_mfa=setup");
+  await page.getByLabel("Authentication code").fill("123456");
+  await verify(page).click();
+  const error = page.locator(".form-error");
+  await expect(error).toHaveText("Too many attempts. Try again in 2 seconds.");
+  await expect(verify(page)).toBeDisabled();
+  await expect(error).toHaveText("Too many attempts. Try again in 1 second.");
+  // Submitting with Enter while throttled sends nothing.
+  await page.getByLabel("Authentication code").press("Enter");
+  await expect(error).toHaveCount(0, { timeout: 4000 });
+  await expect(verify(page)).toBeEnabled();
+  expect(confirms).toBe(1);
+  await verify(page).click();
+  await expect(page.getByText("AAAAA-BBBBB")).toBeVisible();
+  expect(confirms).toBe(2);
+});
+
+test("a throttled SSO setup code reads the wait from the message when there is no Retry-After", async ({ page }) => {
+  await setupSignedOut(page);
+  await page.route("**/api/v1/auth/login/totp/setup", (route) => route.fulfill({ json: { secret: "JBSWY3DPEHPK3PXP", otpauth_uri: "otpauth://totp/NetMap:alice?secret=JBSWY3DPEHPK3PXP" } }));
+  await page.route("**/api/v1/auth/login/totp/setup/confirm", (route) => route.fulfill({ status: 429, json: { detail: "Too many login attempts. Retry in 45 seconds." } }));
+  await page.goto("/?sso_mfa=setup");
+  await page.getByLabel("Authentication code").fill("123456");
+  await verify(page).click();
+  await expect(page.locator(".form-error")).toHaveText(/^Too many attempts\. Try again in (45|44) seconds\.$/);
+  await expect(verify(page)).toBeDisabled();
+});
 
 test("an expired SSO setup returns to the sign-in screen", async ({ page }) => {
   await setupSignedOut(page);

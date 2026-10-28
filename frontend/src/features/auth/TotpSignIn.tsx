@@ -27,6 +27,38 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+/**
+ * A live countdown for a 429: `begin(err)` starts it (returning false when the
+ * error isn't a throttle) and `message` reads "Try again in N seconds" until it
+ * runs out, then null again.
+ */
+function useRetryCountdown() {
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (retryUntil === null) return;
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= retryUntil) setRetryUntil(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
+
+  const begin = useCallback((err: unknown) => {
+    const seconds = retryAfter(err);
+    if (seconds === null) return false;
+    const current = Date.now();
+    setNow(current);
+    setRetryUntil(current + seconds * 1000);
+    return true;
+  }, []);
+
+  const message = retryUntil === null ? null : retryMessage(Math.max(0, Math.ceil((retryUntil - now) / 1000)));
+  return { message, begin };
+}
+
 type StepProps = {
   /** The password sign-in's challenge; null after single sign-on, where it lives in an HttpOnly cookie. */
   challenge: string | null;
@@ -52,42 +84,25 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryUntil, setRetryUntil] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const retrySeconds = retryUntil === null ? 0 : Math.max(0, Math.ceil((retryUntil - now) / 1000));
+  const retry = useRetryCountdown();
   const errorId = useId();
-
-  useEffect(() => {
-    if (retryUntil === null) return;
-    const timer = window.setInterval(() => {
-      const current = Date.now();
-      setNow(current);
-      if (current >= retryUntil) setRetryUntil(null);
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [retryUntil]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (retryUntil !== null) return;
+    if (retry.message) return;
     setBusy(true);
     setError(null);
     try {
       onAuthenticated(await api.loginTotp(challenge, code));
     } catch (err) {
-      const seconds = retryAfter(err);
       if (isExpired(err)) onExpired();
-      else if (seconds !== null) {
-        const current = Date.now();
-        setNow(current);
-        setRetryUntil(current + seconds * 1000);
-      } else setError(errorMessage(err, "That code didn't work"));
+      else if (!retry.begin(err)) setError(errorMessage(err, "That code didn't work"));
     } finally {
       setBusy(false);
     }
   }
 
-  const shownError = retryUntil !== null ? retryMessage(retrySeconds) : error;
+  const shownError = retry.message ?? error;
   const describedBy = shownError ? errorId : undefined;
 
   return (
@@ -110,7 +125,7 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
           </label>
         )}
         {shownError && <div className="form-error" role="alert" id={errorId}>{shownError}</div>}
-        <button type="submit" disabled={busy || retryUntil !== null}>{busy ? "Verifying…" : "Verify"}</button>
+        <button type="submit" disabled={busy || retry.message !== null}>{busy ? "Verifying…" : "Verify"}</button>
         <button type="button" className="auth-forgot-link" onClick={() => { setUseRecovery(!useRecovery); setCode(""); setError(null); }}>
           {useRecovery ? "Use your authenticator app" : "Use a recovery code"}
         </button>
@@ -122,6 +137,8 @@ export function TotpCodeStep({ challenge, appName, onAuthenticated, onExpired, o
 
 export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, onBack }: StepProps) {
   const [tokens, setTokens] = useState<TokenPair | null>(null);
+  const retry = useRetryCountdown();
+  const beginRetry = retry.begin;
 
   const start = useCallback(() => api.loginTotpSetup(challenge).catch((err) => {
     if (isExpired(err)) onExpired();
@@ -135,9 +152,10 @@ export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, 
       return result.recovery_codes;
     } catch (err) {
       if (isExpired(err)) onExpired();
+      else beginRetry(err);
       throw new Error(errorMessage(err, "That code didn't work"));
     }
-  }, [challenge, onExpired]);
+  }, [challenge, onExpired, beginRetry]);
 
   return (
     <section className="auth-surface">
@@ -145,7 +163,7 @@ export function TotpSetupStep({ challenge, appName, onAuthenticated, onExpired, 
         <Brand appName={appName} />
         <h2 className="auth-form-heading">Set Up Two-Factor Authentication</h2>
         <p className="auth-reset-info">Your administrator requires two-factor authentication for this account.</p>
-        <TotpEnrolment start={start} confirm={confirm} onDone={() => tokens && onAuthenticated(tokens)} linkClassName="auth-forgot-link" />
+        <TotpEnrolment start={start} confirm={confirm} onDone={() => tokens && onAuthenticated(tokens)} retryMessage={retry.message} linkClassName="auth-forgot-link" />
         {!tokens && <button type="button" className="auth-forgot-link" onClick={onBack}>Back to sign in</button>}
       </div>
     </section>

@@ -11,6 +11,8 @@ type Props = {
   buttonClassName?: string;
   linkClassName?: string;
   doneLabel?: string;
+  /** A live 429 countdown from the caller: shown in place of the error, and Verify waits until it clears. */
+  retryMessage?: string | null;
 };
 
 type RecoveryCodesViewProps = {
@@ -50,7 +52,7 @@ export function RecoveryCodesView({ codes, onDone, buttonClassName, linkClassNam
   );
 }
 
-export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonClassName, linkClassName, doneLabel = "Continue" }: Props) {
+export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonClassName, linkClassName, doneLabel = "Continue", retryMessage = null }: Props) {
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const [qr, setQr] = useState<string>("");
   const [code, setCode] = useState("");
@@ -58,6 +60,13 @@ export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const started = useRef<{ start: Props["start"]; promise: Promise<TotpSetup> } | null>(null);
+
+  // When a countdown runs out, drop the throttle error it replaced.
+  const throttled = retryMessage !== null;
+  useEffect(() => {
+    if (!throttled) return;
+    return () => setError(null);
+  }, [throttled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +84,7 @@ export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonC
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (throttled) return;
     setBusy(true);
     setError(null);
     try {
@@ -108,8 +118,8 @@ export function TotpEnrolment({ start, confirm, onDone, onRecoveryCodes, buttonC
         Authentication code
         <input required autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
       </label>
-      {error && <div className="form-error">{error}</div>}
-      <button type="submit" className={buttonClassName} disabled={busy || !setup}>{busy ? "Verifying…" : "Verify"}</button>
+      {(retryMessage ?? error) && <div className="form-error">{retryMessage ?? error}</div>}
+      <button type="submit" className={buttonClassName} disabled={busy || !setup || throttled}>{busy ? "Verifying…" : "Verify"}</button>
     </form>
   );
 }
