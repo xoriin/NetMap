@@ -42,6 +42,7 @@ from app.schemas.oidc import (
 )
 from app.services.audit.service import write_audit
 from app.services.auth import issue_token_pair, revoke_all_user_refresh_tokens
+from app.services.auth.security import sso_email_change_wait_seconds
 from app.services.oidc.accounts import check_email_policy, login_with_claims
 from app.services.oidc.mfa import provider_proved_recent_mfa
 from app.services.oidc.config import (
@@ -457,6 +458,13 @@ def change_my_email_with_sso(
         raise HTTPException(status_code=422, detail="Enter a valid email address")
     if email == (current_user.email or ""):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That is already your email")
+    wait_seconds = sso_email_change_wait_seconds(db, current_user.id)
+    if wait_seconds:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many attempts. Retry in {wait_seconds} seconds.",
+            headers={"Retry-After": str(max(1, wait_seconds))},
+        )
     code = _require_code(current_user, payload.totp_code, "Authentication code is required to change your email")
     if code is not None:
         _verify_password_and_code(db, current_user, request, None, code, source="sso_email_change")

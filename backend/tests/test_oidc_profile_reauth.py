@@ -305,3 +305,22 @@ def test_0088_adds_the_columns_and_is_idempotent():
         _migrate_oidc_login_state_purpose(conn, None)
         assert {"user_id", "purpose", "pending_value"} <= set(_live_columns(conn, "oidc_login_states"))
         assert conn.execute(text("SELECT state, purpose FROM oidc_login_states")).fetchall() == [("kept", None)]
+
+
+def test_sso_email_change_is_rate_limited_per_user_without_2fa(client_and_db, fake_http):
+    client, db = client_and_db
+    _enable_oidc(db)
+    _user(db, linked=True)
+    token = _sign_in(client)
+    statuses = []
+    for _ in range(8):
+        response = client.post("/api/v1/auth/me/email/sso", json={"email": "new@example.com"}, headers=_auth(token))
+        statuses.append(response.status_code)
+        if response.status_code == 429:
+            break
+    assert statuses[-1] == 429, statuses
+    assert all(code == 200 for code in statuses[:-1])
+    assert int(response.headers["Retry-After"]) >= 1
+    assert response.json()["detail"].startswith("Too many attempts. Retry in ")
+    states = db.scalars(select(OidcLoginState).where(OidcLoginState.purpose == "email_change")).all()
+    assert len(states) == len(statuses) - 1

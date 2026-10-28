@@ -146,3 +146,34 @@ def _check_reset_rate_limit(db: Session, ip_address: str | None, account: str | 
             state.locked_until = now + timedelta(minutes=_RESET_LOCKOUT_MINUTES)
     db.commit()
     return False
+
+
+_SSO_EMAIL_MAX_REQUESTS = 5
+_SSO_EMAIL_WINDOW_MINUTES = 15
+
+
+def sso_email_change_wait_seconds(db: Session, user_id: int) -> int:
+    """Count a per-user SSO email-change request. Returns 0 when it may go
+    ahead, otherwise the seconds until the user may try again. Uses the same
+    throttle table as sign-in and password reset, and commits the count before
+    the caller contacts the provider."""
+    subject = f"sso_email:user:{user_id}"
+    now = datetime.now(timezone.utc)
+    locked, wait_seconds = is_locked(db, [subject], now=now)
+    if locked:
+        return wait_seconds
+    window = timedelta(minutes=_SSO_EMAIL_WINDOW_MINUTES)
+    state = db.scalar(select(LoginThrottleState).where(LoginThrottleState.subject == subject))
+    if state is None:
+        state = LoginThrottleState(subject=subject, failed_attempts=0)
+        db.add(state)
+    elif _failures_expired(state, now, window):
+        state.failed_attempts = 0
+        state.locked_until = None
+    state.failed_attempts += 1
+    state.last_failed_at = now
+    state.updated_at = now
+    if state.failed_attempts >= _SSO_EMAIL_MAX_REQUESTS:
+        state.locked_until = now + window
+    db.commit()
+    return 0
