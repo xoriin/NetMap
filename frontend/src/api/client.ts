@@ -1411,16 +1411,49 @@ async function recoverExpiredToken(path: string, options: RequestOptions): Promi
   if (!options.token || path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/setup/")) {
     return null;
   }
+  const result = await refreshAccessToken();
+  return result.status === "refreshed" ? result.token : null;
+}
+
+export type AccessTokenRefresh =
+  | { status: "refreshed"; token: string }
+  /** The server rejected the refresh cookie; the session-ended path has been notified. */
+  | { status: "ended" }
+  /** A network or server error; the session may still be fine, so try again later. */
+  | { status: "failed" };
+
+/**
+ * Rotate the access token through the single-flight refresh, for callers that
+ * can't rely on `request()`'s 401 retry (e.g. the live log WebSocket). Only a
+ * definitive 401/403 ends the session, exactly as an unrecoverable API 401 does.
+ */
+export async function refreshAccessToken(): Promise<AccessTokenRefresh> {
   try {
     const refreshed = await api.refresh();
-    return refreshed.access_token;
+    return { status: "refreshed", token: refreshed.access_token };
   } catch (err) {
-    // Only a definitive rejection ends the session; network failures and
-    // server errors may be transient and leave the session in place.
+    // Network failures and server errors may be transient and leave the session in place.
     if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
       notifySessionExpired();
+      return { status: "ended" };
     }
-    return null;
+    return { status: "failed" };
+  }
+}
+
+/**
+ * True when a JWT access token's `exp` is within `marginMs` (or past). A token
+ * that can't be read as a JWT returns false and is left to the server to judge.
+ */
+export function accessTokenExpiresWithin(token: string | null | undefined, marginMs: number): boolean {
+  const payload = token?.split(".")[1];
+  if (!payload) return false;
+  try {
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "="));
+    const exp = (JSON.parse(json) as { exp?: unknown }).exp;
+    return typeof exp === "number" && exp * 1000 - Date.now() <= marginMs;
+  } catch {
+    return false;
   }
 }
 

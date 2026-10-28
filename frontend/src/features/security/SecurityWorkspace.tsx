@@ -3,7 +3,7 @@ import { PersonalChart } from "../../components/PersonalChart";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import "./security.css";
 import { Ban, Database, Radio, Search, Pause, Play, ChevronDown, ChevronRight, ShieldAlert, SlidersHorizontal, TableProperties, PieChart, Users } from "lucide-react";
-import { api, type FirewallEvent, type FirewallEventList, type SavedSecuritySearch, type SyslogStatus, type Device, type TopologyGraph } from "../../api/client";
+import { accessTokenExpiresWithin, api, refreshAccessToken, type FirewallEvent, type FirewallEventList, type SavedSecuritySearch, type SyslogStatus, type Device, type TopologyGraph } from "../../api/client";
 import { TopbarNoteCtx } from "../../context";
 import { type SecurityFilters, emptySecurityFilters } from "../../types";
 import { buildFirewallEventsWsUrl, buildSearchParams, eventMatchesFilters, relatedDevicesForEvent } from "../../utils/security";
@@ -14,6 +14,11 @@ import { ClickableCell } from "../../components/ClickableCell";
 import { Modal } from "../../components/Modal";
 import { DashStat } from "../../components/DashStat";
 import { UsageRing } from "../../components/UsageRing";
+
+/** The live log stream's close code for an expired, rejected or revoked token. */
+const WS_POLICY_VIOLATION = 1008;
+/** Refresh before reconnecting when the access token has less than this left. */
+const LIVE_TOKEN_REFRESH_MARGIN_MS = 30_000;
 
 const SECURITY_COLUMN_WIDTHS_KEY = "netmap.securityEventColumnWidths.v1";
 const SECURITY_COLUMN_COUNT = 11;
@@ -219,12 +224,33 @@ export function SecurityWorkspace({
       heartbeatTimer = null;
     }
 
-    function scheduleReconnect() {
+    // `refreshFirst` is set after a 1008 (policy) close, which is how the
+    // server ends a stream whose token expired or was rejected.
+    function scheduleReconnect(refreshFirst: boolean) {
       if (disposed) return;
       setLiveStreamState("reconnecting");
       const delay = Math.min(1000 * (2 ** reconnectAttempt), 15_000);
       reconnectAttempt += 1;
-      reconnectTimer = window.setTimeout(connect, delay);
+      reconnectTimer = window.setTimeout(() => void reconnect(refreshFirst), delay);
+    }
+
+    async function reconnect(refreshFirst: boolean) {
+      if (disposed) return;
+      // After a laptop sleep the in-memory token may already be stale; sending
+      // it would only earn another 1008, so rotate it first.
+      if (refreshFirst || accessTokenExpiresWithin(liveTokenRef.current, LIVE_TOKEN_REFRESH_MARGIN_MS)) {
+        const result = await refreshAccessToken();
+        if (disposed) return;
+        // An unrecoverable refresh has already sent the app down the
+        // session-ended path; stop here rather than retrying with a dead token.
+        if (result.status === "ended") return;
+        if (result.status === "failed") {
+          scheduleReconnect(refreshFirst);
+          return;
+        }
+        liveTokenRef.current = result.token;
+      }
+      connect();
     }
 
     function connect() {
@@ -265,11 +291,11 @@ export function SecurityWorkspace({
         setResultMeta((current) => (current ? { ...current, total: current.total + 1 } : current));
       };
       nextSocket.onerror = () => nextSocket.close();
-      nextSocket.onclose = () => {
+      nextSocket.onclose = (event) => {
         if (socket !== nextSocket) return;
         socket = null;
         clearHeartbeat();
-        scheduleReconnect();
+        scheduleReconnect(event.code === WS_POLICY_VIOLATION);
       };
     }
 
