@@ -252,21 +252,17 @@ def login_with_claims(db: Session, config: OidcRuntimeConfig, claims: dict) -> O
         can_link_by_email = config.link_by_email and claims.get("email_verified") is True
         user = _find_email_link_candidate(db, issuer, email) if can_link_by_email else None
         matches = _local_email_matches(db, email) if user is None else []
-        held_back = can_link_by_email and len(matches) == 1 and _links_from_profile_only(matches[0])
-        if matches and (held_back or config.auto_provision):
+        if user is None and (matches or not config.auto_provision):
             # Never create a second account for an email a local account already
-            # uses, nor auto-link an admin or 2FA account; the owner links SSO
-            # from their Profile instead.
+            # uses, nor auto-link an admin or 2FA account (the owner links SSO
+            # from their Profile instead). The refusal is the same generic one
+            # as an unlinked identity, so it does not reveal that the email is
+            # in use, and only a verified email is ever used to link.
             raise OidcProviderError(
-                "link_from_profile",
-                "A NetMap account already uses this email; sign in and link single sign-on from your Profile",
+                "account_not_linked",
+                "No local account is linked to this identity and auto-provisioning is disabled",
             )
         if user is None:
-            if not config.auto_provision:
-                raise OidcProviderError(
-                    "account_not_linked",
-                    "No local account is linked to this identity and auto-provisioning is disabled",
-                )
             user = User(
                 username=_unique_username(db, email),
                 # Random unusable password: OIDC-provisioned accounts have no

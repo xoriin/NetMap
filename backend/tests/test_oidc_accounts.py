@@ -132,7 +132,7 @@ def test_second_subject_does_not_steal_linked_user(db):
     # already-linked user, nor become a second account with the same email.
     with pytest.raises(OidcProviderError) as exc:
         login_with_claims(db, _config(link_by_email=True), _claims(sub="subject-2"))
-    assert exc.value.code == "link_from_profile"
+    assert exc.value.code == "account_not_linked"
     assert db.query(User).count() == 1
 
 
@@ -328,7 +328,7 @@ def test_link_by_email_is_off_by_default(db):
     with pytest.raises(OidcProviderError) as exc:
         login_with_claims(db, _config(), _claims())
     # With auto-provision on, a second account for the same email is refused too.
-    assert exc.value.code == "link_from_profile"
+    assert exc.value.code == "account_not_linked"
     assert db.query(User).count() == 1
 
 
@@ -337,7 +337,7 @@ def test_privileged_accounts_are_never_linked_by_email(db, role):
     user = _local_user(db, role=role)
     with pytest.raises(OidcProviderError) as exc:
         login_with_claims(db, _config(link_by_email=True, auto_provision=False), _claims())
-    assert exc.value.code == "link_from_profile"
+    assert exc.value.code == "account_not_linked"
     assert db.scalar(select(ExternalIdentity).where(ExternalIdentity.user_id == user.id)) is None
 
 
@@ -350,7 +350,7 @@ def test_2fa_accounts_are_never_linked_by_email(db):
     db.commit()
     with pytest.raises(OidcProviderError) as exc:
         login_with_claims(db, _config(link_by_email=True), _claims())
-    assert exc.value.code == "link_from_profile"
+    assert exc.value.code == "account_not_linked"
     assert db.scalar(select(ExternalIdentity).where(ExternalIdentity.user_id == user.id)) is None
 
 
@@ -488,3 +488,31 @@ def test_0087_lets_a_database_choice_of_sso_win_over_an_env_file(monkeypatch, tm
     _migrate_oidc_link_by_email_preserve(conn, None)
     assert _link_value(conn) is None
 
+
+# --- Existing-email refusals stay generic --------------------------------------
+
+
+GENERIC_NOT_LINKED = "No local account is linked to this identity and auto-provisioning is disabled"
+
+
+def test_existing_email_refusal_does_not_reveal_the_account(db):
+    _local_user(db, role=UserRole.SUPER_ADMIN)
+    db.commit()
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, _config(link_by_email=True), _claims())
+    assert exc.value.code == "account_not_linked"
+    assert exc.value.detail == GENERIC_NOT_LINKED
+    assert db.scalar(select(ExternalIdentity)) is None
+
+
+def test_unverified_email_never_links_or_reveals_an_account(db):
+    existing = _local_user(db)
+    db.commit()
+    config = _config(link_by_email=True, allow_unverified_email=True)
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, config, _claims(email_verified=False))
+    assert exc.value.code == "account_not_linked"
+    assert exc.value.detail == GENERIC_NOT_LINKED
+    assert db.scalar(select(ExternalIdentity)) is None
+    # No second account is created for an email someone already uses.
+    assert [u.id for u in db.scalars(select(User)).all()] == [existing.id]
