@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_security_view, user_has_permission
 from app.core.config import settings
 from app.core.security import decode_token, token_version_matches
+from app.services.auth.tokens import session_claim_active
 from app.core.validation import normalize_ip, validate_port, validate_syslog_field
 from app.db.firewall_session import get_firewall_db
 from app.db.session import SessionLocal, get_db
@@ -285,6 +286,8 @@ def get_websocket_user(token: str | None) -> User | None:
 def _websocket_user_for(db, payload: dict) -> User | None:
     user = db.get(User, int(payload["sub"]))
     if user is None or not user.is_active or not token_version_matches(payload, user.token_version):
+        return None
+    if not session_claim_active(db, payload, user.id):
         return None
     return user
 

@@ -114,7 +114,7 @@ def memory_session_factory():
     # when SQLAlchemy configures mappers.
     from app.models import alert_rule, auth_session, audit_log, device, device_type, dhcp_lease, discovery, ip_reservation, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite  # noqa: F401
     from app.models.audit_log import AuditLog
-    from app.models.auth_session import LoginThrottleState, RefreshTokenState
+    from app.models.auth_session import AuthSession, LoginThrottleState, RefreshTokenState
     from app.models.oidc import ExternalIdentity, OidcLoginState
     from app.models.password_reset_token import PasswordResetToken
     from app.models.system_setting import SystemSetting
@@ -127,6 +127,7 @@ def memory_session_factory():
             SystemSetting.__table__,
             AuditLog.__table__,
             RefreshTokenState.__table__,
+            AuthSession.__table__,
             LoginThrottleState.__table__,
             PasswordResetToken.__table__,
             OidcLoginState.__table__,

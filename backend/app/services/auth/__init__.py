@@ -11,6 +11,9 @@ from app.services.auth.security import (
 from app.services.auth.tokens import (
     bump_token_version,
     issue_token_pair,
+    revoke_auth_session,
+    session_claim_active,
+    start_auth_session,
     register_refresh_token,
     revoke_all_user_refresh_tokens,
     revoke_refresh_token_state,
@@ -20,6 +23,9 @@ from app.services.auth.tokens import (
 __all__ = [
     "bump_token_version",
     "issue_token_pair",
+    "revoke_auth_session",
+    "session_claim_active",
+    "start_auth_session",
     "apply_progressive_delay",
     "clear_login_failures",
     "clear_user_login_lockout",

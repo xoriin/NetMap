@@ -16,6 +16,7 @@ from app.services.api_keys.throttle import (
     record_lookup_failure,
 )
 from app.services.audit.service import write_audit
+from app.services.auth.tokens import session_claim_active
 from app.services.rbac.permissions import has_permission
 
 bearer_scheme = HTTPBearer(
@@ -104,7 +105,7 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or inactive user",
         )
-    if not token_version_matches(payload, user.token_version):
+    if not token_version_matches(payload, user.token_version) or not session_claim_active(db, payload, user.id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

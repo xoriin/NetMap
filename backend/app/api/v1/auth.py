@@ -57,6 +57,8 @@ from app.schemas.auth import (
 from app.services.auth import (
     apply_progressive_delay,
     issue_token_pair,
+    revoke_auth_session,
+    start_auth_session,
     clear_login_failures,
     clear_user_login_lockout,
     is_locked,
@@ -388,7 +390,9 @@ def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     prior_state = validate_refresh_token_state(db, user=user, refresh_token=refresh_token_value)
-    session_claims = {"sv": int(user.token_version or 0)}
+    # Refresh tokens from before per-device sessions start a new session here.
+    session_id = prior_state.session_id or start_auth_session(db, user_id=user.id)
+    session_claims = {"sv": int(user.token_version or 0), "sid": session_id}
     next_refresh_token = create_refresh_token(user.id, session_claims)
     next_claims = validate_refresh_claims(next_refresh_token)
     next_jti = str(next_claims["jti"])
@@ -402,6 +406,7 @@ def refresh(
         user_id=user.id,
         refresh_token=next_refresh_token,
         client_ip=client_ip_from_request(request),
+        session_id=session_id,
     )
 
     write_audit(
@@ -504,6 +509,8 @@ def logout(
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
             token_state = validate_refresh_token_state(db, user=current_user, refresh_token=refresh_token_value)
             revoke_refresh_token_state(token_state, reason="logout")
+            # End this device's session, so its access token stops working too.
+            revoke_auth_session(db, session_id=token_state.session_id, user_id=current_user.id, reason="logout")
         except HTTPException:
             pass
     if current_user is not None:

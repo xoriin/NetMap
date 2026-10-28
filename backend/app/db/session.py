@@ -191,6 +191,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0083_shrink_avatars", _migrate_shrink_avatars)
         _run_migration(conn, inspector, "0084_user_chart_views", _migrate_chart_views)
         _run_migration(conn, inspector, "0085_user_token_version", _migrate_user_token_version)
+        _run_migration(conn, inspector, "0086_auth_sessions", _migrate_auth_sessions)
 
 
 
@@ -2280,3 +2281,18 @@ def _migrate_user_token_version(conn, inspector) -> None:
         return
     if "token_version" not in _live_columns(conn, "users"):
         conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
+
+
+def _migrate_auth_sessions(conn, inspector) -> None:
+    """Per-device sessions. Refresh tokens issued before this have no session and
+    join a new one on their next refresh."""
+    from app.models.auth_session import AuthSession
+
+    AuthSession.__table__.create(bind=conn, checkfirst=True)
+    if "refresh_token_state" not in _live_tables(conn):
+        return
+    if "session_id" not in _live_columns(conn, "refresh_token_state"):
+        conn.execute(text("ALTER TABLE refresh_token_state ADD COLUMN session_id VARCHAR(64)"))
+    conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_refresh_token_state_session_id ON refresh_token_state (session_id)")
+    )
