@@ -138,3 +138,64 @@ def test_token_expiry_is_read_from_the_exp_claim() -> None:
     assert syslog._token_expires_at({"exp": True}) is None
     assert syslog._token_expires_at({}) is None
     assert syslog._token_expires_at(None) is None
+
+
+def test_live_firewall_websocket_closes_on_revocation_without_pings(monkeypatch) -> None:
+    """Signing out everywhere ends a quiet stream within the re-check interval."""
+    import asyncio
+
+    monkeypatch.setattr(syslog, "get_websocket_user", lambda _token: SimpleNamespace(role="SecurityAnalyst"))
+    monkeypatch.setattr(syslog, "WS_SESSION_RECHECK_SECONDS", 0.2)
+    session = {"valid": True, "checks": 0}
+
+    def still_valid(_payload):
+        session["checks"] += 1
+        return session["valid"]
+
+    monkeypatch.setattr(syslog, "websocket_session_still_valid", still_valid)
+    token = _token_expiring_in(600)
+    sent: list[dict] = []
+    closed: list[int] = []
+
+    class QuietWebSocket:
+        def __init__(self) -> None:
+            self.first = True
+
+        async def accept(self) -> None:
+            return None
+
+        async def receive_text(self) -> str:
+            if self.first:
+                self.first = False
+                return token
+            await asyncio.Event().wait()  # the client never sends anything
+            return ""
+
+        async def send_json(self, data) -> None:
+            sent.append(data)
+
+        async def close(self, code: int, reason: str | None = None) -> None:
+            closed.append(code)
+
+    async def register(_ws) -> None:
+        return None
+
+    async def disconnect(_ws) -> None:
+        return None
+
+    monkeypatch.setattr(syslog.firewall_event_broadcaster, "register", register)
+    monkeypatch.setattr(syslog.firewall_event_broadcaster, "disconnect", disconnect)
+
+    async def main() -> None:
+        async def revoke_soon() -> None:
+            await asyncio.sleep(0.3)
+            session["valid"] = False
+
+        await asyncio.wait_for(
+            asyncio.gather(revoke_soon(), syslog.live_firewall_events(QuietWebSocket())), timeout=3
+        )
+
+    asyncio.run(main())
+    assert sent == [{"type": "ready"}]
+    assert closed == [1008]
+    assert session["checks"] >= 2

@@ -256,23 +256,27 @@ async def live_firewall_events(websocket: WebSocket) -> None:
                 # The stream ends when its access token expires; the client
                 # reconnects with its refreshed token.
                 remaining = None if expires_at is None else expires_at - _wall_clock()
-                try:
-                    if remaining is not None and remaining <= 0:
-                        raise asyncio.TimeoutError
-                    message = await asyncio.wait_for(websocket.receive_text(), timeout=remaining)
-                    if expires_at is not None and _wall_clock() >= expires_at:
-                        raise asyncio.TimeoutError
-                except asyncio.TimeoutError:
+                if remaining is not None and remaining <= 0:
                     await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=WS_TOKEN_EXPIRED_REASON)
                     return
+                # Wake at least every re-check interval, so signing out
+                # everywhere (or a disabled account) ends a quiet stream too.
+                wait = WS_SESSION_RECHECK_SECONDS if remaining is None else min(remaining, WS_SESSION_RECHECK_SECONDS)
+                # Never a zero timeout: it would cancel every receive and spin.
+                wait = max(wait, WS_MIN_WAIT_SECONDS)
+                try:
+                    message = await asyncio.wait_for(websocket.receive_text(), timeout=wait)
+                except asyncio.TimeoutError:
+                    message = None
+                if expires_at is not None and _wall_clock() >= expires_at:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=WS_TOKEN_EXPIRED_REASON)
+                    return
+                if message is None or time.monotonic() - last_checked >= WS_SESSION_RECHECK_SECONDS:
+                    last_checked = time.monotonic()
+                    if not await run_in_threadpool(websocket_session_still_valid, token_payload):
+                        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                        return
                 if message == "ping":
-                    # Re-check the session on the heartbeat, so signing out
-                    # everywhere (or a disabled account) also ends this stream.
-                    if time.monotonic() - last_checked >= WS_SESSION_RECHECK_SECONDS:
-                        last_checked = time.monotonic()
-                        if not await run_in_threadpool(websocket_session_still_valid, token_payload):
-                            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                            return
                     await websocket.send_json({"type": "heartbeat"})
         except WebSocketDisconnect:
             pass
@@ -283,6 +287,7 @@ async def live_firewall_events(websocket: WebSocket) -> None:
 
 
 WS_SESSION_RECHECK_SECONDS = 15.0
+WS_MIN_WAIT_SECONDS = 0.05
 WS_TOKEN_EXPIRED_REASON = "Access token expired"
 
 
@@ -321,7 +326,8 @@ def _websocket_user_for(db, payload: dict) -> User | None:
 
 def websocket_session_still_valid(payload: dict | None) -> bool:
     """Whether the session a live stream was opened with is still current. The
-    token's own expiry is enforced separately by the stream loop."""
+    stream loop checks this at least every WS_SESSION_RECHECK_SECONDS, with or
+    without client pings; the token's own expiry is enforced separately."""
     if payload is None or payload.get("sub") is None:
         return False
     with SessionLocal() as db:
