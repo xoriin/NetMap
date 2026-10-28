@@ -17,27 +17,32 @@ import logging
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_super_admin
+from app.api.deps import get_current_user, require_super_admin
 from app.core.config import settings
 from app.core.network import request_client_ip
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
+from app.models.oidc import ExternalIdentity
 from app.schemas.oidc import (
+    IdentityReauthRequest,
+    LinkedIdentityRead,
     OidcCheckResult,
     OidcPublicStatus,
     OidcSettingsRead,
     OidcSettingsUpdate,
     OidcTestResult,
+    SsoEmailChangeRequest,
+    SsoRedirectResponse,
 )
 from app.services.audit.service import write_audit
-from app.services.auth import issue_token_pair
-from app.services.oidc.accounts import login_with_claims
+from app.services.auth import issue_token_pair, revoke_all_user_refresh_tokens
+from app.services.oidc.accounts import check_email_policy, login_with_claims
 from app.services.oidc.mfa import provider_proved_recent_mfa
 from app.services.oidc.config import (
     OidcRuntimeConfig,
@@ -48,7 +53,9 @@ from app.services.oidc.config import (
 from app.services.oidc.flow import (
     begin_login,
     consume_login_state,
+    REAUTH_TTL_SECONDS,
     exchange_code,
+    require_fresh_auth_time,
     resolve_profile_claims,
     verify_id_token,
 )
@@ -155,6 +162,9 @@ def oidc_callback(
         code_verifier = login_state.code_verifier
         redirect_uri = login_state.redirect_uri
         nonce = login_state.nonce
+        purpose = login_state.purpose
+        reauth_user_id = login_state.user_id
+        pending_value = login_state.pending_value
         # Persist the single-use state and end the transaction before talking
         # to the identity provider; no DB session is held across network I/O.
         db.commit()
@@ -166,6 +176,10 @@ def oidc_callback(
         )
         claims = verify_id_token(config, str(token_response["id_token"]), expected_nonce=nonce)
         claims = resolve_profile_claims(config, claims, token_response)
+        if purpose:
+            # A signed-in user's re-authentication: finish it and never sign
+            # anyone in from here.
+            return _finish_reauth(db, config, purpose, reauth_user_id, pending_value, claims)
         result = login_with_claims(db, config, claims)
     except OidcProviderError as exc:
         logger.warning("OIDC callback failed: %s (%s)", exc.code, exc.detail)
@@ -220,6 +234,233 @@ def oidc_callback(
     response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
     _set_auth_cookies(response, access_token, refresh_token)
     return response
+
+
+_REAUTH_PURPOSES = {"link", "email_change"}
+EMAIL_MANAGED_DETAIL = "Your email is managed by your identity provider or an administrator"
+
+
+def _finish_reauth(
+    db: Session,
+    config: OidcRuntimeConfig,
+    purpose: str,
+    user_id: int | None,
+    pending_value: str | None,
+    claims: dict,
+) -> RedirectResponse:
+    if purpose not in _REAUTH_PURPOSES or user_id is None:
+        raise OidcProviderError("invalid_state", "Unknown re-authentication request")
+    require_fresh_auth_time(claims)
+    user = db.get(User, user_id)
+    if user is None or not user.is_active:
+        raise OidcProviderError("account_disabled", "This account is disabled")
+    subject = str(claims.get("sub") or "")
+    identity = db.scalar(
+        select(ExternalIdentity).where(ExternalIdentity.issuer == config.issuer, ExternalIdentity.subject == subject)
+    )
+    if purpose == "email_change":
+        if identity is None or identity.user_id != user.id:
+            raise OidcProviderError("reauth_mismatch", "That sign-in is not the identity linked to your account")
+        if not pending_value:
+            raise OidcProviderError("invalid_state", "Unknown re-authentication request")
+        user.email = pending_value
+        write_audit(
+            db,
+            action="auth.profile_updated",
+            actor_user_id=user.id,
+            target=f"user:{user.username}",
+            detail="email_changed method=oidc",
+        )
+        db.commit()
+        outcome = "sso_email=changed"
+    else:
+        if identity is not None and identity.user_id != user.id:
+            raise OidcProviderError("identity_in_use", "That identity is already linked to another account")
+        if identity is None:
+            if _identity_for(db, config, user.id) is not None:
+                raise OidcProviderError("already_linked", "Single sign-on is already linked to your account")
+            email = check_email_policy(config, claims)
+            db.add(
+                ExternalIdentity(
+                    provider_key="oidc",
+                    issuer=config.issuer,
+                    subject=subject,
+                    user_id=user.id,
+                    email=email,
+                    email_verified=claims.get("email_verified") is True,
+                    display_name=(str(claims.get("name") or "").strip() or None),
+                )
+            )
+            write_audit(
+                db,
+                action="auth.oidc_identity_linked",
+                actor_user_id=user.id,
+                target=f"user:{user.username}",
+                detail=f"issuer={config.issuer} method=profile",
+            )
+        db.commit()
+        outcome = "sso_link=linked"
+    response = RedirectResponse(url=f"/?{outcome}", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
+    return response
+
+
+def _identity_for(db: Session, config: OidcRuntimeConfig, user_id: int) -> ExternalIdentity | None:
+    return db.scalar(
+        select(ExternalIdentity).where(ExternalIdentity.user_id == user_id, ExternalIdentity.issuer == config.issuer)
+    )
+
+
+def _start_reauth(
+    db: Session,
+    request: Request,
+    config: OidcRuntimeConfig,
+    user: User,
+    purpose: str,
+    pending_value: str | None = None,
+) -> JSONResponse:
+    redirect_uri = _effective_redirect_url(config, request)
+    if not redirect_uri:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SSO redirect URL is not configured (set APP_URL or the OIDC redirect URL)",
+        )
+    # End the request's transaction before talking to the identity provider.
+    db.commit()
+    try:
+        authorize_url, state = begin_login(
+            db, config, redirect_uri, user_id=user.id, purpose=purpose, pending_value=pending_value
+        )
+    except OidcProviderError as exc:
+        logger.warning("OIDC re-authentication start failed: %s", exc.detail)
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="The identity provider could not be reached")
+    db.commit()
+    response = JSONResponse(SsoRedirectResponse(authorize_url=authorize_url).model_dump())
+    response.set_cookie(
+        key=TXN_COOKIE_NAME,
+        value=state,
+        httponly=True,
+        secure=settings.auth_cookies_secure,
+        samesite="lax",
+        path=TXN_COOKIE_PATH,
+        max_age=REAUTH_TTL_SECONDS,
+    )
+    return response
+
+
+def _require_code(user: User, code: str | None, detail: str) -> str | None:
+    if not user.totp_enabled:
+        return None
+    if not code:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+    return code
+
+
+@router.get("/auth/me/identities", response_model=list[LinkedIdentityRead])
+def list_my_identities(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[LinkedIdentityRead]:
+    config = get_oidc_config(db)
+    rows = db.scalars(
+        select(ExternalIdentity).where(ExternalIdentity.user_id == current_user.id).order_by(ExternalIdentity.id)
+    ).all()
+    return [
+        LinkedIdentityRead(
+            id=row.id,
+            provider_name=config.provider_name if row.issuer == config.issuer else row.issuer,
+            issuer=row.issuer,
+            email=row.email,
+            created_at=row.created_at,
+            last_login_at=row.last_login_at,
+        )
+        for row in rows
+    ]
+
+
+@router.post("/auth/me/identities/link", response_model=SsoRedirectResponse)
+def link_my_identity(
+    payload: IdentityReauthRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    from app.api.v1.auth import _verify_password_and_code
+
+    config = get_oidc_config(db)
+    if not config.is_usable:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SSO login is not enabled")
+    if _identity_for(db, config, current_user.id) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Single sign-on is already linked to your account")
+    code = _require_code(current_user, payload.totp_code, "Authentication code is required to link single sign-on")
+    _verify_password_and_code(db, current_user, request, payload.current_password, code, source="sso_link")
+    return _start_reauth(db, request, config, current_user, "link")
+
+
+@router.delete("/auth/me/identities/{identity_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unlink_my_identity(
+    identity_id: int,
+    payload: IdentityReauthRequest,
+    request: Request,
+    response: Response,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    from app.api.v1.auth import _reissue_for_this_device, _verify_password_and_code
+
+    identity = db.get(ExternalIdentity, identity_id)
+    if identity is None or identity.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked identity not found")
+    config = get_oidc_config(db)
+    if config.is_usable and config.require_sso and current_user.role != UserRole.SUPER_ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Single sign-on is required here, so only an administrator can unlink it",
+        )
+    code = _require_code(current_user, payload.totp_code, "Authentication code is required to unlink single sign-on")
+    _verify_password_and_code(db, current_user, request, payload.current_password, code, source="sso_unlink")
+    issuer = identity.issuer
+    db.delete(identity)
+    revoke_all_user_refresh_tokens(db, user_id=current_user.id, reason="sso_unlinked")
+    write_audit(
+        db,
+        action="auth.oidc_identity_unlinked",
+        actor_user_id=current_user.id,
+        target=f"user:{current_user.username}",
+        detail=f"issuer={issuer} method=profile",
+    )
+    db.refresh(current_user)
+    _reissue_for_this_device(db, response, request, current_user)
+    db.commit()
+
+
+@router.post("/auth/me/email/sso", response_model=SsoRedirectResponse)
+def change_my_email_with_sso(
+    payload: SsoEmailChangeRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Confirm an email change by signing in again at the linked provider.
+
+    TOTP alone never counts as re-authentication; it is asked for on top when
+    enabled. Without a linked identity the email can only be changed with the
+    password, or by an administrator."""
+    from app.api.v1.auth import _verify_password_and_code
+
+    config = get_oidc_config(db)
+    if not config.is_usable or _identity_for(db, config, current_user.id) is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EMAIL_MANAGED_DETAIL)
+    email = payload.email.strip()
+    if "@" not in email:
+        raise HTTPException(status_code=422, detail="Enter a valid email address")
+    if email == (current_user.email or ""):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That is already your email")
+    code = _require_code(current_user, payload.totp_code, "Authentication code is required to change your email")
+    if code is not None:
+        _verify_password_and_code(db, current_user, request, None, code, source="sso_email_change")
+    return _start_reauth(db, request, config, current_user, "email_change", pending_value=email)
 
 
 def _local_mfa_step(db: Session, config: OidcRuntimeConfig, user: User, claims: dict) -> str | None:

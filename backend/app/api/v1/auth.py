@@ -610,7 +610,7 @@ def _verify_password_and_code(
     db: Session,
     user: User,
     request: Request,
-    password: str,
+    password: str | None,
     code: str | None = None,
     *,
     source: str = "profile",
@@ -626,7 +626,10 @@ def _verify_password_and_code(
             detail=f"Too many attempts. Retry in {wait_seconds} seconds.",
             headers={"Retry-After": str(max(1, wait_seconds))},
         )
-    if verify_password(password, user.password_hash) and (code is None or totp_service.verify(db, user, code) is not None):
+    # password=None checks only the code (an SSO re-authentication supplies the
+    # first factor); it still counts against the same lockout as sign-in.
+    password_ok = verify_password(password, user.password_hash) if password is not None else code is not None
+    if password_ok and (code is None or totp_service.verify(db, user, code) is not None):
         return
     db.rollback()
     attempts = record_login_failure(db, subjects)
@@ -640,7 +643,12 @@ def _verify_password_and_code(
     )
     db.commit()
     apply_progressive_delay(attempts)
-    detail = wrong_password_detail if code is None else "Password or authentication code is incorrect"
+    if code is None:
+        detail = wrong_password_detail
+    elif password is None:
+        detail = "Authentication code is incorrect"
+    else:
+        detail = "Password or authentication code is incorrect"
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 

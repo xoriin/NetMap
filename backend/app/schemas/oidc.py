@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.datetimes import UtcDatetime
+
 
 class OidcPublicStatus(BaseModel):
     enabled: bool
@@ -69,3 +71,26 @@ class OidcCheckResult(BaseModel):
 class OidcTestResult(BaseModel):
     ok: bool
     checks: list[OidcCheckResult]
+
+
+class LinkedIdentityRead(BaseModel):
+    id: int
+    provider_name: str
+    issuer: str
+    email: str | None = None
+    created_at: UtcDatetime
+    last_login_at: UtcDatetime | None = None
+
+
+class IdentityReauthRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    totp_code: str | None = Field(default=None, min_length=1, max_length=32)
+
+
+class SsoEmailChangeRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    totp_code: str | None = Field(default=None, min_length=1, max_length=32)
+
+
+class SsoRedirectResponse(BaseModel):
+    authorize_url: str

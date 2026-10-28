@@ -50,8 +50,24 @@ def _prune_expired_states(db: Session) -> None:
         db.delete(row)
 
 
-def begin_login(db: Session, config: OidcRuntimeConfig, redirect_uri: str) -> tuple[str, str]:
-    """Create a login transaction; returns (authorize_url, state)."""
+REAUTH_TTL_SECONDS = 300
+REAUTH_MAX_AGE_SECONDS = 300
+_AUTH_TIME_SKEW_SECONDS = 60
+
+
+def begin_login(
+    db: Session,
+    config: OidcRuntimeConfig,
+    redirect_uri: str,
+    *,
+    user_id: int | None = None,
+    purpose: str | None = None,
+    pending_value: str | None = None,
+) -> tuple[str, str]:
+    """Create a login transaction; returns (authorize_url, state).
+
+    With a purpose the transaction is a signed-in user's fresh re-authentication:
+    it lives five minutes and asks the provider for a new sign-in."""
     metadata = fetch_provider_metadata(config.issuer)
 
     state = secrets.token_urlsafe(32)
@@ -66,9 +82,16 @@ def begin_login(db: Session, config: OidcRuntimeConfig, redirect_uri: str) -> tu
             nonce=nonce,
             code_verifier=code_verifier,
             redirect_uri=redirect_uri,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=STATE_TTL_MINUTES),
+            expires_at=datetime.now(timezone.utc)
+            + (timedelta(seconds=REAUTH_TTL_SECONDS) if purpose else timedelta(minutes=STATE_TTL_MINUTES)),
+            user_id=user_id if purpose else None,
+            purpose=purpose,
+            pending_value=pending_value if purpose else None,
         )
     )
+    params = {}
+    if purpose:
+        params = {"prompt": "login", "max_age": str(REAUTH_MAX_AGE_SECONDS)}
 
     query = urllib.parse.urlencode(
         {
@@ -80,6 +103,7 @@ def begin_login(db: Session, config: OidcRuntimeConfig, redirect_uri: str) -> tu
             "nonce": nonce,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
+            **params,
         }
     )
     separator = "&" if "?" in metadata["authorization_endpoint"] else "?"
@@ -97,6 +121,17 @@ def consume_login_state(db: Session, state: str) -> OidcLoginState:
         raise OidcProviderError("invalid_state", "Login attempt expired; please try again")
     row.used_at = now
     return row
+
+
+def require_fresh_auth_time(claims: dict, now: datetime | None = None) -> None:
+    """A re-authentication must come with a provider sign-in from the last five
+    minutes. Without auth_time we cannot tell, so it fails closed."""
+    auth_time = claims.get("auth_time")
+    if isinstance(auth_time, bool) or not isinstance(auth_time, (int, float)):
+        raise OidcProviderError("reauth_required", "The identity provider did not confirm a fresh sign-in")
+    current = (now or datetime.now(timezone.utc)).timestamp()
+    if auth_time > current + _AUTH_TIME_SKEW_SECONDS or current - auth_time > REAUTH_MAX_AGE_SECONDS:
+        raise OidcProviderError("reauth_required", "The identity provider did not confirm a fresh sign-in")
 
 
 def exchange_code(

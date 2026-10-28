@@ -193,6 +193,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0085_user_token_version", _migrate_user_token_version)
         _run_migration(conn, inspector, "0086_auth_sessions", _migrate_auth_sessions)
         _run_migration(conn, inspector, "0087_oidc_link_by_email_preserve", _migrate_oidc_link_by_email_preserve)
+        _run_migration(conn, inspector, "0088_oidc_login_state_purpose", _migrate_oidc_login_state_purpose)
 
 
 
@@ -2326,3 +2327,13 @@ def _migrate_oidc_link_by_email_preserve(conn, inspector) -> None:
 
 def _truthy(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _migrate_oidc_login_state_purpose(conn, inspector) -> None:
+    """In-flight SSO transactions can belong to a signed-in user's re-authentication."""
+    if "oidc_login_states" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "oidc_login_states")
+    for name, ddl in (("user_id", "INTEGER"), ("purpose", "VARCHAR(32)"), ("pending_value", "VARCHAR(254)")):
+        if name not in columns:
+            conn.execute(text(f"ALTER TABLE oidc_login_states ADD COLUMN {name} {ddl}"))

@@ -27,6 +27,11 @@ class OidcLoginState(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set only for a signed-in user's re-authentication (linking SSO from the
+    # Profile, or confirming an email change); never for a plain sign-in.
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    purpose: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pending_value: Mapped[str | None] = mapped_column(String(254), nullable=True)
 
 
 class ExternalIdentity(Base):
