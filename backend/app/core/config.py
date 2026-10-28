@@ -150,6 +150,12 @@ class Settings(BaseSettings):
     oidc_manage_roles: bool = Field(default=False, alias="OIDC_MANAGE_ROLES")
     oidc_default_role: str = Field(default="Viewer", alias="OIDC_DEFAULT_ROLE")
     oidc_allow_super_admin: bool = Field(default=False, alias="OIDC_ALLOW_SUPER_ADMIN")
+    # local_totp: SSO users with 2FA still enter their NetMap code. trust_idp: skip
+    # it only when the provider proves a recent MFA sign-in (amr/acr + auth_time).
+    oidc_mfa_policy: str = Field(default="local_totp", alias="OIDC_MFA_POLICY")
+    oidc_mfa_trusted_amr: str = Field(default="mfa", alias="OIDC_MFA_TRUSTED_AMR")
+    oidc_mfa_trusted_acr: str = Field(default="", alias="OIDC_MFA_TRUSTED_ACR")
+    oidc_mfa_max_auth_age_seconds: int = Field(default=300, alias="OIDC_MFA_MAX_AUTH_AGE_SECONDS")
     app_url: str = Field(default="", alias="APP_URL")
     log_level: str = Field(default="info", alias="LOG_LEVEL")
     app_version: str = Field(default_factory=_read_version_file, alias="APP_VERSION")

@@ -46,7 +46,13 @@ OIDC_DB_KEYS = (
     "default_role",
     "allow_super_admin",
     "require_sso",
+    "mfa_policy",
+    "mfa_trusted_amr",
+    "mfa_trusted_acr",
+    "mfa_max_auth_age_seconds",
 )
+
+MFA_POLICIES = ("local_totp", "trust_idp")
 
 REDACTED_SECRET = "__redacted__"
 
@@ -70,6 +76,10 @@ class OidcRuntimeConfig:
     default_role: str = UserRole.VIEWER
     allow_super_admin: bool = False
     require_sso: bool = False
+    mfa_policy: str = "local_totp"
+    mfa_trusted_amr: list[str] = field(default_factory=lambda: ["mfa"])
+    mfa_trusted_acr: list[str] = field(default_factory=list)
+    mfa_max_auth_age_seconds: int = 300
 
     @property
     def is_usable(self) -> bool:
@@ -175,7 +185,31 @@ def get_oidc_config(db: Session) -> OidcRuntimeConfig:
         allow_super_admin=pick_bool("allow_super_admin", settings.oidc_allow_super_admin),
         # DB-only on purpose: never enabled through the environment.
         require_sso=_parse_bool(db_values.get("require_sso", "")),
+        mfa_policy=_parse_mfa_policy(pick("mfa_policy", settings.oidc_mfa_policy)),
+        mfa_trusted_amr=_parse_list(pick("mfa_trusted_amr", settings.oidc_mfa_trusted_amr)),
+        mfa_trusted_acr=_parse_list(pick("mfa_trusted_acr", settings.oidc_mfa_trusted_acr)),
+        mfa_max_auth_age_seconds=_parse_auth_age(
+            pick("mfa_max_auth_age_seconds", str(settings.oidc_mfa_max_auth_age_seconds))
+        ),
     )
+
+
+def _parse_mfa_policy(value: str) -> str:
+    # Anything unrecognised falls back to the strict policy; there is no "off".
+    value = value.strip().lower()
+    return value if value in MFA_POLICIES else "local_totp"
+
+
+def _parse_list(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_auth_age(value: str) -> int:
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return 300
+    return min(max(seconds, 30), 86400)
 
 
 def save_oidc_db_settings(db: Session, updates: dict[str, str | None]) -> None:

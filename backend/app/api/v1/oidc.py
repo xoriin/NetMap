@@ -38,6 +38,7 @@ from app.schemas.oidc import (
 from app.services.audit.service import write_audit
 from app.services.auth import issue_token_pair
 from app.services.oidc.accounts import login_with_claims
+from app.services.oidc.mfa import provider_proved_recent_mfa
 from app.services.oidc.config import (
     OidcRuntimeConfig,
     get_oidc_config,
@@ -176,6 +177,33 @@ def oidc_callback(
 
     user = result.user
     client_ip = request_client_ip(request)
+    mfa_step = _local_mfa_step(db, config, user, claims)
+    if mfa_step is not None:
+        # Tokens are issued only once the local code is entered, through the
+        # normal /auth/login/totp (or setup) routes, never from here.
+        from app.api.v1.auth import MFA_PENDING_COOKIE, MFA_PENDING_PATH, issue_mfa_challenge, MFA_CHALLENGE_TTL
+
+        write_audit(
+            db,
+            action="auth.oidc_mfa_required",
+            actor_user_id=user.id,
+            target=f"user:{user.username}",
+            detail=f"step={mfa_step} policy={config.mfa_policy} ip={client_ip or '-'}",
+        )
+        db.commit()
+        token_type = "mfa_challenge" if mfa_step == "challenge" else "mfa_setup"
+        response = RedirectResponse(url=f"/?sso_mfa={mfa_step}", status_code=status.HTTP_302_FOUND)
+        response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
+        response.set_cookie(
+            key=MFA_PENDING_COOKIE,
+            value=issue_mfa_challenge(user, token_type, source="oidc"),
+            httponly=True,
+            secure=settings.auth_cookies_secure,
+            samesite="strict",
+            path=MFA_PENDING_PATH,
+            max_age=int(MFA_CHALLENGE_TTL.total_seconds()),
+        )
+        return response
     access_token, refresh_token = issue_token_pair(db, user, client_ip=client_ip)
     write_audit(
         db,
@@ -192,6 +220,20 @@ def oidc_callback(
     response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
     _set_auth_cookies(response, access_token, refresh_token)
     return response
+
+
+def _local_mfa_step(db: Session, config: OidcRuntimeConfig, user: User, claims: dict) -> str | None:
+    """"challenge" when the user must enter their NetMap code, "setup" when
+    their role requires 2FA they have not set up yet, otherwise None."""
+    from app.services import totp as totp_service
+
+    needs_code = user.totp_enabled
+    needs_setup = not needs_code and totp_service.is_required_for(db, user)
+    if not (needs_code or needs_setup):
+        return None
+    if provider_proved_recent_mfa(config, claims):
+        return None
+    return "challenge" if needs_code else "setup"
 
 
 # --- SuperAdmin-managed settings (Phase 3) ---------------------------------
@@ -223,6 +265,10 @@ def _settings_read(db: Session, request: Request | None = None) -> OidcSettingsR
         allow_super_admin=config.allow_super_admin,
         require_sso=config.require_sso,
         env_configured=env_configured,
+        mfa_policy=config.mfa_policy,
+        mfa_trusted_amr=", ".join(config.mfa_trusted_amr),
+        mfa_trusted_acr=", ".join(config.mfa_trusted_acr),
+        mfa_max_auth_age_seconds=config.mfa_max_auth_age_seconds,
     )
 
 
@@ -321,6 +367,10 @@ _TEXT_KEYS = (
     "group_claim",
     "role_mappings",
     "default_role",
+    "mfa_policy",
+    "mfa_trusted_amr",
+    "mfa_trusted_acr",
+    "mfa_max_auth_age_seconds",
 )
 
 

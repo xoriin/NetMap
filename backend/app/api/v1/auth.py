@@ -90,8 +90,32 @@ def _password_fingerprint(user: User) -> str:
     return hashlib.sha256(user.password_hash.encode()).hexdigest()
 
 
+MFA_PENDING_COOKIE = "netmap_mfa_pending"
+MFA_PENDING_PATH = "/api/v1/auth/login/"
+
+
+def issue_mfa_challenge(user: User, token_type: str, *, source: str | None = None) -> str:
+    claims = {"pwf": _password_fingerprint(user)}
+    if source:
+        claims["src"] = source
+    return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL, claims)
+
+
 def _issue_challenge(user: User, token_type: str) -> str:
-    return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL, {"pwf": _password_fingerprint(user)})
+    return issue_mfa_challenge(user, token_type)
+
+
+def _challenge_from(payload_challenge: str | None, request: Request) -> str:
+    challenge = payload_challenge or request.cookies.get(MFA_PENDING_COOKIE)
+    if not challenge:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
+    return challenge
+
+
+def _challenge_source(challenge: str, token_type: str) -> str | None:
+    payload = decode_token(challenge, token_type) or {}
+    source = payload.get("src")
+    return source if source == "oidc" else None
 
 
 def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
@@ -129,6 +153,7 @@ def _complete_login(
     )
     db.commit()
     _set_auth_cookies(response, access_token, refresh_token)
+    response.delete_cookie(key=MFA_PENDING_COOKIE, path=MFA_PENDING_PATH)
     return TokenPair(access_token=access_token)
 
 
@@ -295,7 +320,9 @@ def login_totp(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
 ) -> TokenPair:
-    user = _user_from_challenge(db, payload.challenge, "mfa_challenge")
+    challenge = _challenge_from(payload.challenge, request)
+    user = _user_from_challenge(db, challenge, "mfa_challenge")
+    source = _challenge_source(challenge, "mfa_challenge")
     client_ip = client_ip_from_request(request)
     subjects = throttle_subjects(user.username, client_ip)
     locked, wait_seconds = is_locked(db, subjects)
@@ -322,15 +349,16 @@ def login_totp(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
     if method == "recovery":
         write_audit(db, action="auth.mfa_recovery_used", actor_user_id=user.id, target=f"user:{user.username}", detail=f"remaining={user.recovery_codes_remaining}")
-    return _complete_login(db, response, user, client_ip, subjects, method)
+    return _complete_login(db, response, user, client_ip, subjects, f"oidc+{method}" if source else method)
 
 
 @router.post("/auth/login/totp/setup", response_model=TotpSetupResponse)
 def login_totp_setup(
     payload: TotpChallengeRequest,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpSetupResponse:
-    user = _user_from_challenge(db, payload.challenge, "mfa_setup")
+    user = _user_from_challenge(db, _challenge_from(payload.challenge, request), "mfa_setup")
     secret, uri = totp_service.begin_enrolment(db, user)
     db.commit()
     return TotpSetupResponse(secret=secret, otpauth_uri=uri)
@@ -343,7 +371,9 @@ def login_totp_setup_confirm(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
 ) -> TotpCodesResponse:
-    user = _user_from_challenge(db, payload.challenge, "mfa_setup")
+    challenge = _challenge_from(payload.challenge, request)
+    user = _user_from_challenge(db, challenge, "mfa_setup")
+    source = _challenge_source(challenge, "mfa_setup")
     client_ip = client_ip_from_request(request)
     subjects = throttle_subjects(user.username, client_ip)
     locked, wait_seconds = is_locked(db, subjects)
@@ -369,7 +399,7 @@ def login_totp_setup_confirm(
         apply_progressive_delay(attempts)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
     write_audit(db, action="auth.mfa_enabled", actor_user_id=user.id, target=f"user:{user.username}", detail="source=sign_in")
-    tokens = _complete_login(db, response, user, client_ip, subjects, "totp")
+    tokens = _complete_login(db, response, user, client_ip, subjects, "oidc+totp" if source else "totp")
     return TotpCodesResponse(recovery_codes=codes, access_token=tokens.access_token)
 
 

@@ -83,7 +83,9 @@ class MfaChallengeResponse(BaseModel):
 
 
 class TotpLoginRequest(BaseModel):
-    challenge: str = Field(min_length=1, max_length=2048)
+    # Omitted after single sign-on: the challenge then comes from the HttpOnly
+    # netmap_mfa_pending cookie the SSO callback set.
+    challenge: str | None = Field(default=None, min_length=1, max_length=2048)
     code: str = Field(min_length=1, max_length=32)
 
 
@@ -122,11 +124,15 @@ class TotpManageRequest(BaseModel):
 
 
 class TotpChallengeRequest(BaseModel):
-    challenge: str = Field(min_length=1, max_length=2048)
+    # Omitted after single sign-on: the challenge then comes from the HttpOnly
+    # netmap_mfa_pending cookie the SSO callback set.
+    challenge: str | None = Field(default=None, min_length=1, max_length=2048)
 
 
 class TotpSetupConfirmRequest(BaseModel):
-    challenge: str = Field(min_length=1, max_length=2048)
+    # Omitted after single sign-on: the challenge then comes from the HttpOnly
+    # netmap_mfa_pending cookie the SSO callback set.
+    challenge: str | None = Field(default=None, min_length=1, max_length=2048)
     code: str = Field(min_length=1, max_length=32)
 
 

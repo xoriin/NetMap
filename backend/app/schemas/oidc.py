@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -27,6 +29,10 @@ class OidcSettingsRead(BaseModel):
     allow_super_admin: bool
     require_sso: bool
     env_configured: bool
+    mfa_policy: str
+    mfa_trusted_amr: str
+    mfa_trusted_acr: str
+    mfa_max_auth_age_seconds: int
 
 
 class OidcSettingsUpdate(BaseModel):
@@ -48,6 +54,10 @@ class OidcSettingsUpdate(BaseModel):
     default_role: str | None = Field(default=None, max_length=50)
     allow_super_admin: bool | None = None
     require_sso: bool | None = None
+    mfa_policy: Literal["local_totp", "trust_idp"] | None = None
+    mfa_trusted_amr: str | None = Field(default=None, max_length=512)
+    mfa_trusted_acr: str | None = Field(default=None, max_length=1024)
+    mfa_max_auth_age_seconds: int | None = Field(default=None, ge=30, le=86400)
 
 
 class OidcCheckResult(BaseModel):
