@@ -153,7 +153,7 @@ export function MonitorDetails({
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Expires</span><strong className="mon-analysis-val">{monitor.last_cert_expires_at ? new Date(monitor.last_cert_expires_at).toLocaleDateString() : "Not available"}</strong></div>
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Days remaining</span><strong className={certDaysRemaining !== null && certDaysRemaining <= monitor.certificate_expiry_days ? "mon-analysis-val mon-analysis-val--warn" : "mon-analysis-val"}>{certDaysRemaining ?? "—"}</strong></div>
                 <div className="mon-analysis-row"><span className="dash-panel-meta">Expiry warning</span><strong className="mon-analysis-val">{monitor.certificate_expiry_alert ? `${monitor.certificate_expiry_days} days` : "Disabled"}</strong></div>
-                <div className="mon-analysis-row"><span className="dash-panel-meta">Issuer</span><strong className="mon-analysis-val monitor-http-issuer">{monitor.last_cert_issuer ?? "—"}</strong></div>
+                <div className="mon-analysis-row"><span className="dash-panel-meta">Issuer</span><strong className="mon-analysis-val monitor-http-issuer" title={monitor.last_cert_issuer ?? undefined}>{monitor.last_cert_issuer ?? "—"}</strong></div>
               </div>
             </section>
           </div>

@@ -4056,10 +4056,17 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   color: var(--nm-danger);
 }
 .monitor-http-issuer {
+  min-width: 0;
   max-width: 58%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A long nowrap value (the TLS issuer) must not widen its column past the
+   card: let the columns shrink so the issuer truncates inside the card. */
+.monitor-http-cols > .mon-hero-col,
+.monitor-http-cols .mon-analysis-row {
+  min-width: 0;
 }
 .monitor-form-shell {
   display: flex;

@@ -68,3 +68,41 @@ test("the endpoint popup shows new TLS certificate details while open", async ({
   await expect(popup).toContainText("New Issuer CA");
   await expect(popup.locator(".mon-analysis-row", { hasText: "Days remaining" })).toContainText("90");
 });
+
+// Real-shaped MonitorRead cert fields (backend/app/schemas/monitor.py) with the
+// issuer exactly as port_checker formats it: "name=value" pairs joined by ", ".
+const zeroSslIssuer = "countryName=AT, organizationName=ZeroSSL, commonName=ZeroSSL RSA Domain Secure Site CA";
+
+for (const width of [1440, 390]) {
+  test(`a long issuer keeps every TLS certificate value inside the card at ${width}`, async ({ page }) => {
+    await page.clock.install({ time: new Date("2026-10-28T10:00:00Z") });
+    await page.setViewportSize({ width, height: 1000 });
+    await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);
+    const monitor = {
+      id: 1, name: "Internal Portal", url: "https://portal.internal.example/", enabled: true, last_status: "online", last_checked_at: "2026-10-28T09:59:00Z",
+      uptime_24h: 100, uptime_7d: 100, avg_response_time_24h: 80, heartbeat: Array(24).fill("online"),
+      http_method: "GET", accepted_status_codes: "200-299", check_interval_seconds: 60, timeout_seconds: 10, max_retries: 0,
+      retry_interval_seconds: 60, verify_tls: true, follow_redirects: true, max_redirects: 5, auth_type: "none", keyword: null,
+      json_path: null, cache_bust: false, upside_down: false, consecutive_failures: 0, certificate_expiry_alert: true,
+      certificate_expiry_days: 14, last_cert_expires_at: "2026-12-27T10:00:00Z", last_cert_issuer: zeroSslIssuer,
+    };
+    await page.route("**/api/v1/monitors", (route) => route.fulfill({ json: [monitor] }));
+    await page.route("**/api/v1/monitors/1/history?*", (route) => route.fulfill({ json: [] }));
+    await page.goto("/monitoring#endpoints");
+    await page.locator(".monitors-table tbody tr").first().click();
+    const section = page.locator(".mon-hero-section", { has: page.locator(".mon-hero-section-title", { hasText: "TLS Certificate" }) });
+    await section.scrollIntoViewIfNeeded();
+    const row = (label: string) => section.locator(".mon-analysis-row", { hasText: label }).locator(".mon-analysis-val");
+    await expect(row("Days remaining")).toHaveText("60");
+    await expect(row("Expiry warning")).toHaveText("14 days");
+    const card = (await section.boundingBox())!;
+    for (const label of ["Expires", "Days remaining", "Expiry warning", "Issuer"]) {
+      const box = (await row(label).boundingBox())!;
+      expect(box.width, `${label} has a visible value`).toBeGreaterThan(0);
+      expect(box.x + box.width, `${label} stays inside the card`).toBeLessThanOrEqual(card.x + card.width + 0.5);
+    }
+    expect(await section.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    // Truncated issuers keep the full value on hover.
+    await expect(row("Issuer")).toHaveAttribute("title", zeroSslIssuer);
+  });
+}
