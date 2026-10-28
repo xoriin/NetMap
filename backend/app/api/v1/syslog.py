@@ -245,6 +245,7 @@ async def live_firewall_events(websocket: WebSocket) -> None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     token_payload = decode_token(raw.strip(), "access")
+    expires_at = _token_expires_at(token_payload)
     last_checked = time.monotonic()
     _active_ws_connections += 1
     try:
@@ -252,7 +253,18 @@ async def live_firewall_events(websocket: WebSocket) -> None:
         try:
             await websocket.send_json({"type": "ready"})
             while True:
-                message = await websocket.receive_text()
+                # The stream ends when its access token expires; the client
+                # reconnects with its refreshed token.
+                remaining = None if expires_at is None else expires_at - _wall_clock()
+                try:
+                    if remaining is not None and remaining <= 0:
+                        raise asyncio.TimeoutError
+                    message = await asyncio.wait_for(websocket.receive_text(), timeout=remaining)
+                    if expires_at is not None and _wall_clock() >= expires_at:
+                        raise asyncio.TimeoutError
+                except asyncio.TimeoutError:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=WS_TOKEN_EXPIRED_REASON)
+                    return
                 if message == "ping":
                     # Re-check the session on the heartbeat, so signing out
                     # everywhere (or a disabled account) also ends this stream.
@@ -271,6 +283,21 @@ async def live_firewall_events(websocket: WebSocket) -> None:
 
 
 WS_SESSION_RECHECK_SECONDS = 15.0
+WS_TOKEN_EXPIRED_REASON = "Access token expired"
+
+
+def _wall_clock() -> float:
+    return time.time()
+
+
+def _token_expires_at(payload: dict | None) -> float | None:
+    """The access token's expiry as a Unix time, or None when it carries none."""
+    if not payload:
+        return None
+    exp = payload.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return None
+    return float(exp)
 
 
 def get_websocket_user(token: str | None) -> User | None:
@@ -294,7 +321,7 @@ def _websocket_user_for(db, payload: dict) -> User | None:
 
 def websocket_session_still_valid(payload: dict | None) -> bool:
     """Whether the session a live stream was opened with is still current. The
-    access token's own expiry is not re-checked: the stream outlives it."""
+    token's own expiry is enforced separately by the stream loop."""
     if payload is None or payload.get("sub") is None:
         return False
     with SessionLocal() as db:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +10,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.api.v1 import syslog
+from app.core.security import create_token
 
 
 def _client() -> TestClient:
@@ -83,3 +86,55 @@ def test_live_firewall_websocket_user_lookup_does_not_block_event_loop(monkeypat
     worst_gap = asyncio.run(main())
     assert worst_gap < 0.2
     assert closed == [1008]
+
+
+def _token_expiring_in(seconds: float) -> str:
+    return create_token("1", "access", timedelta(seconds=seconds))
+
+
+def test_live_firewall_websocket_closes_when_the_access_token_expires(monkeypatch) -> None:
+    monkeypatch.setattr(syslog, "get_websocket_user", lambda _token: SimpleNamespace(role="SecurityAnalyst"))
+    monkeypatch.setattr(syslog, "websocket_session_still_valid", lambda _payload: True)
+    token = _token_expiring_in(2)
+    expires_at = syslog._token_expires_at(syslog.decode_token(token, "access"))
+
+    with _client().websocket_connect("/api/v1/syslog/events/live") as websocket:
+        websocket.send_text(token)
+        assert websocket.receive_json() == {"type": "ready"}
+        # Heartbeats still work while the token is valid.
+        websocket.send_text("ping")
+        assert websocket.receive_json() == {"type": "heartbeat"}
+        # No client message is needed: the server closes at expiry.
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            websocket.receive_json()
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == syslog.WS_TOKEN_EXPIRED_REASON
+    assert time.time() >= expires_at
+
+
+def test_live_firewall_websocket_answers_a_ping_after_expiry_by_closing(monkeypatch) -> None:
+    monkeypatch.setattr(syslog, "get_websocket_user", lambda _token: SimpleNamespace(role="SecurityAnalyst"))
+    monkeypatch.setattr(syslog, "websocket_session_still_valid", lambda _payload: True)
+    clock = {"now": time.time()}
+    monkeypatch.setattr(syslog, "_wall_clock", lambda: clock["now"])
+    token = _token_expiring_in(600)
+
+    with _client().websocket_connect("/api/v1/syslog/events/live") as websocket:
+        websocket.send_text(token)
+        assert websocket.receive_json() == {"type": "ready"}
+        websocket.send_text("ping")
+        assert websocket.receive_json() == {"type": "heartbeat"}
+        clock["now"] += 601
+        websocket.send_text("ping")
+        # No heartbeat for an expired token: the stream closes instead.
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            websocket.receive_json()
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == syslog.WS_TOKEN_EXPIRED_REASON
+
+
+def test_token_expiry_is_read_from_the_exp_claim() -> None:
+    assert syslog._token_expires_at({"exp": 1700000000}) == 1700000000.0
+    assert syslog._token_expires_at({"exp": True}) is None
+    assert syslog._token_expires_at({}) is None
+    assert syslog._token_expires_at(None) is None
