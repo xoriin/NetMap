@@ -92,7 +92,7 @@ def test_existing_identity_logs_in_by_subject_even_after_email_change(db):
 
 def test_link_by_verified_email_to_existing_user(db):
     user = _local_user(db)
-    result = login_with_claims(db, _config(auto_provision=False), _claims())
+    result = login_with_claims(db, _config(auto_provision=False, link_by_email=True), _claims())
     db.commit()
     assert result.linked is True
     assert result.user.id == user.id
@@ -124,15 +124,15 @@ def test_duplicate_local_emails_are_never_auto_linked(db):
 
 
 def test_second_subject_does_not_steal_linked_user(db):
-    user = _local_user(db)
-    login_with_claims(db, _config(), _claims())
+    _local_user(db)
+    login_with_claims(db, _config(link_by_email=True), _claims())
     db.commit()
     # A different provider subject with the same email must not attach to the
-    # already-linked user; with auto-provision it becomes a separate account.
-    result = login_with_claims(db, _config(), _claims(sub="subject-2"))
-    db.commit()
-    assert result.user.id != user.id
-    assert result.provisioned is True
+    # already-linked user, nor become a second account with the same email.
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, _config(link_by_email=True), _claims(sub="subject-2"))
+    assert exc.value.code == "link_from_profile"
+    assert db.query(User).count() == 1
 
 
 def test_disabled_user_cannot_login(db):
@@ -251,7 +251,113 @@ def test_provider_managed_roles_sync_and_downgrade(db):
 
 def test_provider_managed_roles_never_downgrade_local_super_admin(db):
     user = _local_user(db, role=UserRole.SUPER_ADMIN)
+    # SuperAdmins are never linked by email; this one linked from their Profile.
+    db.add(ExternalIdentity(issuer=ISSUER, subject="subject-1", user_id=user.id, email=user.email, email_verified=True))
+    db.commit()
     config = _config(role_mappings=dict(MAPPINGS), manage_roles=True, auto_provision=False)
     result = login_with_claims(db, config, _claims(groups=["unrelated"]))
     assert result.user.id == user.id
     assert result.user.role == UserRole.SUPER_ADMIN
+
+
+# --- Link by email: off by default, never for admin or 2FA accounts ---------
+
+
+def test_link_by_email_is_off_by_default(db):
+    _local_user(db)
+    assert OidcRuntimeConfig().link_by_email is False
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, _config(), _claims())
+    # With auto-provision on, a second account for the same email is refused too.
+    assert exc.value.code == "link_from_profile"
+    assert db.query(User).count() == 1
+
+
+@pytest.mark.parametrize("role", [UserRole.SUPER_ADMIN, UserRole.NETWORK_ADMIN])
+def test_privileged_accounts_are_never_linked_by_email(db, role):
+    user = _local_user(db, role=role)
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, _config(link_by_email=True, auto_provision=False), _claims())
+    assert exc.value.code == "link_from_profile"
+    assert db.scalar(select(ExternalIdentity).where(ExternalIdentity.user_id == user.id)) is None
+
+
+def test_2fa_accounts_are_never_linked_by_email(db):
+    from datetime import datetime, timezone
+
+    user = _local_user(db)
+    user.totp_secret = "x"
+    user.totp_enabled_at = datetime.now(timezone.utc)
+    db.commit()
+    with pytest.raises(OidcProviderError) as exc:
+        login_with_claims(db, _config(link_by_email=True), _claims())
+    assert exc.value.code == "link_from_profile"
+    assert db.scalar(select(ExternalIdentity).where(ExternalIdentity.user_id == user.id)) is None
+
+
+# --- 0087: existing SSO installs keep link-by-email, written explicitly ------
+
+
+def _migration_db(*, users=True, oidc_enabled=None, link_row=None):
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine("sqlite://")
+    conn = engine.connect()
+    conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR(80))"))
+    conn.execute(text("CREATE TABLE system_settings (key VARCHAR(120) PRIMARY KEY, value TEXT, updated_at DATETIME)"))
+    if users:
+        conn.execute(text("INSERT INTO users (id, username) VALUES (1, 'alice')"))
+    if oidc_enabled is not None:
+        conn.execute(text("INSERT INTO system_settings (key, value) VALUES ('oidc.enabled', :v)"), {"v": oidc_enabled})
+    if link_row is not None:
+        conn.execute(text("INSERT INTO system_settings (key, value) VALUES ('oidc.link_by_email', :v)"), {"v": link_row})
+    return conn
+
+
+def _link_value(conn):
+    from sqlalchemy import text
+
+    row = conn.execute(text("SELECT value FROM system_settings WHERE key = 'oidc.link_by_email'")).fetchone()
+    return row[0] if row else None
+
+
+def test_0087_keeps_link_by_email_on_for_existing_sso_installs(monkeypatch):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
+    conn = _migration_db(oidc_enabled="true")
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) == "true"
+
+
+def test_0087_uses_the_environment_when_sso_is_enabled_there(monkeypatch):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
+    monkeypatch.setenv("OIDC_ENABLED", "true")
+    conn = _migration_db()
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) == "true"
+
+
+@pytest.mark.parametrize(
+    "kwargs,env",
+    [
+        ({"users": False, "oidc_enabled": "true"}, {}),  # fresh install
+        ({"oidc_enabled": "false"}, {}),  # SSO not in use
+        ({}, {}),  # SSO never configured
+        ({"oidc_enabled": "true", "link_row": "false"}, {}),  # explicit choice kept
+        ({"oidc_enabled": "true"}, {"OIDC_LINK_BY_EMAIL": "false"}),  # set in the environment
+    ],
+)
+def test_0087_leaves_other_installs_alone(monkeypatch, kwargs, env):
+    from app.db.session import _migrate_oidc_link_by_email_preserve
+
+    monkeypatch.delenv("OIDC_LINK_BY_EMAIL", raising=False)
+    monkeypatch.delenv("OIDC_ENABLED", raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    conn = _migration_db(**kwargs)
+    _migrate_oidc_link_by_email_preserve(conn, None)
+    assert _link_value(conn) == kwargs.get("link_row")

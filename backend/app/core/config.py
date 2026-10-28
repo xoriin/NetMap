@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     oidc_allowed_email_domains: list[str] = Field(default=[], alias="OIDC_ALLOWED_EMAIL_DOMAINS")
     oidc_auto_provision: bool = Field(default=False, alias="OIDC_AUTO_PROVISION")
     oidc_provider_name: str = Field(default="SSO", alias="OIDC_PROVIDER_NAME")
-    oidc_link_by_email: bool = Field(default=True, alias="OIDC_LINK_BY_EMAIL")
+    oidc_link_by_email: bool = Field(default=False, alias="OIDC_LINK_BY_EMAIL")
     oidc_allow_unverified_email: bool = Field(default=False, alias="OIDC_ALLOW_UNVERIFIED_EMAIL")
     oidc_group_claim: str = Field(default="groups", alias="OIDC_GROUP_CLAIM")
     oidc_role_mappings: str = Field(default="", alias="OIDC_ROLE_MAPPINGS")

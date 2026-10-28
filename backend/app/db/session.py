@@ -192,6 +192,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0084_user_chart_views", _migrate_chart_views)
         _run_migration(conn, inspector, "0085_user_token_version", _migrate_user_token_version)
         _run_migration(conn, inspector, "0086_auth_sessions", _migrate_auth_sessions)
+        _run_migration(conn, inspector, "0087_oidc_link_by_email_preserve", _migrate_oidc_link_by_email_preserve)
 
 
 
@@ -2296,3 +2297,32 @@ def _migrate_auth_sessions(conn, inspector) -> None:
     conn.execute(
         text("CREATE INDEX IF NOT EXISTS ix_refresh_token_state_session_id ON refresh_token_state (session_id)")
     )
+
+
+def _migrate_oidc_link_by_email_preserve(conn, inspector) -> None:
+    """SSO link-by-email now defaults to off. Existing installs that use SSO and
+    never chose a value keep the old behaviour, written down explicitly."""
+    import os
+
+    tables = _live_tables(conn)
+    if "users" not in tables or "system_settings" not in tables:
+        return
+    if conn.execute(text("SELECT 1 FROM users LIMIT 1")).fetchone() is None:
+        return
+    if conn.execute(text("SELECT 1 FROM system_settings WHERE key = 'oidc.link_by_email'")).fetchone():
+        return
+    if "OIDC_LINK_BY_EMAIL" in os.environ:
+        return
+    row = conn.execute(text("SELECT value FROM system_settings WHERE key = 'oidc.enabled'")).fetchone()
+    db_value = (row[0] or "").strip() if row else ""
+    enabled = _truthy(db_value) if db_value else _truthy(os.environ.get("OIDC_ENABLED", ""))
+    if not enabled:
+        return
+    conn.execute(
+        text("INSERT INTO system_settings (key, value, updated_at) VALUES ('oidc.link_by_email', 'true', :now)"),
+        {"now": datetime.now(timezone.utc).isoformat()},
+    )
+
+
+def _truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}

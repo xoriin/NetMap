@@ -165,12 +165,28 @@ def _display_name(claims: dict) -> str | None:
     return name[:100] or None
 
 
+_PRIVILEGED_ROLES = {UserRole.SUPER_ADMIN, UserRole.NETWORK_ADMIN}
+
+
+def _links_from_profile_only(user: User) -> bool:
+    """Admin and 2FA accounts are never linked by email; only from their Profile."""
+    return user.role in _PRIVILEGED_ROLES or user.totp_enabled
+
+
+def _local_email_matches(db: Session, email: str) -> list[User]:
+    if not email:
+        return []
+    return list(db.scalars(select(User).where(func.lower(User.email) == email)).all())
+
+
 def _find_email_link_candidate(db: Session, issuer: str, email: str) -> User | None:
-    users = db.scalars(select(User).where(func.lower(User.email) == email)).all()
+    users = _local_email_matches(db, email)
     if len(users) != 1:
         # Zero or ambiguous matches: never guess between duplicate emails.
         return None
     user = users[0]
+    if _links_from_profile_only(user):
+        return None
     existing = db.scalar(
         select(ExternalIdentity).where(
             ExternalIdentity.issuer == issuer,
@@ -212,6 +228,16 @@ def login_with_claims(db: Session, config: OidcRuntimeConfig, claims: dict) -> O
         # email, even when unverified emails are otherwise tolerated.
         can_link_by_email = config.link_by_email and claims.get("email_verified") is True
         user = _find_email_link_candidate(db, issuer, email) if can_link_by_email else None
+        matches = _local_email_matches(db, email) if user is None else []
+        held_back = can_link_by_email and len(matches) == 1 and _links_from_profile_only(matches[0])
+        if matches and (held_back or config.auto_provision):
+            # Never create a second account for an email a local account already
+            # uses, nor auto-link an admin or 2FA account; the owner links SSO
+            # from their Profile instead.
+            raise OidcProviderError(
+                "link_from_profile",
+                "A NetMap account already uses this email; sign in and link single sign-on from your Profile",
+            )
         if user is None:
             if not config.auto_provision:
                 raise OidcProviderError(

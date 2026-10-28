@@ -90,6 +90,10 @@ def create_app() -> FastAPI:
             setting = db.get(SystemSetting, "role_permissions")
             if setting:
                 load_from_db(setting.value)
+            from app.services.oidc.config import oidc_security_warnings
+
+            for warning in oidc_security_warnings(db):
+                logger.warning("%s", warning)
         syslog_service.start()
         alert_monitor.start()
         scheduled_discovery.start()

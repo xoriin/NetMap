@@ -23,12 +23,30 @@ def test_https_upgrade_keeps_starting_without_security_flags(caplog):
     assert "SECURE_HSTS_ENABLED" in caplog.text
 
 
+def _memory_db(app):
+    from app.db.session import get_db
+    from tests.oidc_helpers import memory_session_factory
+
+    factory = memory_session_factory()
+
+    def override():
+        db = factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override
+    return factory
+
+
 @pytest.mark.parametrize("role,expected", [(None, 401), ("Viewer", 403), ("NetworkAdmin", 403), ("SuperAdmin", 200)])
 def test_runtime_security_status_requires_superadmin(monkeypatch, role, expected):
     app = FastAPI()
     app.include_router(admin.router, prefix="/api/v1")
     if role:
         app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, username="admin", role=role, is_active=True)
+    _memory_db(app)
     from app.core.config import settings
     monkeypatch.setattr(settings, "app_env", "production")
     monkeypatch.setattr(settings, "app_url", "https://netmap.example.com")
@@ -88,3 +106,21 @@ def test_unset_cookie_setting_with_hsts_on_plain_http_names_app_url(monkeypatch)
     monkeypatch.setattr(settings, "secure_headers_enabled", True)
     [warning] = https_security_warnings()
     assert "APP_URL" in warning and "AUTH_COOKIE_SECURE=false" not in warning
+
+
+def test_link_by_email_on_is_a_persistent_superadmin_warning():
+    from app.services.oidc.config import LINK_BY_EMAIL_WARNING
+    from tests.oidc_helpers import set_oidc_db_settings
+
+    app = FastAPI()
+    app.include_router(admin.router, prefix="/api/v1")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, username="admin", role="SuperAdmin", is_active=True)
+    factory = _memory_db(app)
+    with TestClient(app) as client:
+        assert LINK_BY_EMAIL_WARNING not in client.get("/api/v1/admin/runtime-security").json()["warnings"]
+        db = factory()
+        set_oidc_db_settings(db, link_by_email="true")
+        assert LINK_BY_EMAIL_WARNING in client.get("/api/v1/admin/runtime-security").json()["warnings"]
+        set_oidc_db_settings(db, link_by_email="false")
+        assert LINK_BY_EMAIL_WARNING not in client.get("/api/v1/admin/runtime-security").json()["warnings"]
+        db.close()

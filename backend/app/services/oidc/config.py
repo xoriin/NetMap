@@ -68,7 +68,7 @@ class OidcRuntimeConfig:
     allowed_email_domains: list[str] = field(default_factory=list)
     auto_provision: bool = False
     provider_name: str = "SSO"
-    link_by_email: bool = True
+    link_by_email: bool = False
     allow_unverified_email: bool = False
     group_claim: str = "groups"
     role_mappings: dict[str, str] = field(default_factory=dict)
@@ -241,3 +241,18 @@ def store_client_secret(db: Session, plaintext: str | None) -> None:
         db,
         {"client_secret_encrypted": encrypt_secret(plaintext) if plaintext else ""},
     )
+
+
+LINK_BY_EMAIL_WARNING = (
+    "Single sign-on links sign-ins to existing NetMap accounts by matching email (link by email is on). "
+    "It was kept on when this install was upgraded. Turn it off in SSO settings unless every email at "
+    "your identity provider is trustworthy. Admin and 2FA accounts are never linked this way; their "
+    "owners link SSO from their Profile."
+)
+
+
+def oidc_security_warnings(db: Session) -> list[str]:
+    config = get_oidc_config(db)
+    if config.enabled and config.link_by_email:
+        return [LINK_BY_EMAIL_WARNING]
+    return []

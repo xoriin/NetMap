@@ -389,8 +389,11 @@ def delete_device_type(
 @router.get("/runtime-security", response_model=RuntimeSecurityStatusRead)
 def get_runtime_security(
     _current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> RuntimeSecurityStatusRead:
-    return RuntimeSecurityStatusRead(warnings=https_security_warnings())
+    from app.services.oidc.config import oidc_security_warnings
+
+    return RuntimeSecurityStatusRead(warnings=https_security_warnings() + oidc_security_warnings(db))
 
 
 @router.get("/settings/public", response_model=PublicSettingsRead)

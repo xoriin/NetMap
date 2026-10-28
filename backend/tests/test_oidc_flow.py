@@ -305,7 +305,7 @@ def test_callback_for_disabled_account_does_not_persist_identity(client_and_db, 
     )
     db.add(disabled)
     db.commit()
-    _enable_oidc(db)
+    _enable_oidc(db, link_by_email="true")
     state, nonce, _ = _start_login(client, db)
     fake_http.token_response = {
         "id_token": make_id_token(sub="disabled-sub", nonce=nonce, email="gone@example.com", email_verified=True)
