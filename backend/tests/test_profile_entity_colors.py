@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.v1.auth import update_profile
 from app.db.session import Base
 from app.models.audit_log import AuditLog
+from app.models.oidc import ExternalIdentity
 from app.models.device import Device  # noqa: F401 — registers mappers Device relates to
 from app.models.site import Site  # noqa: F401
 from app.models.system_setting import SystemSetting
@@ -21,7 +22,7 @@ def _db():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__, SystemSetting.__table__])
+    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__, SystemSetting.__table__, ExternalIdentity.__table__])
     db = sessionmaker(bind=engine, autoflush=False, autocommit=False)()
     user = User(username="alice", password_hash="x", role=UserRole.VIEWER.value, display_name="Alice")
     db.add(user)

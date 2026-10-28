@@ -13,6 +13,7 @@ from app.models.audit_log import AuditLog
 from app.models.site import Site  # noqa: F401 - imported so Device relationships resolve
 from app.models.topology_group import TopologyGroup  # noqa: F401
 from app.models.auth_session import AuthSession, RefreshTokenState
+from app.models.oidc import ExternalIdentity
 from app.models.user import User, UserRole
 
 CONFLICT = {"detail": "At least one active SuperAdmin must remain"}
@@ -21,7 +22,7 @@ CONFLICT = {"detail": "At least one active SuperAdmin must remain"}
 @pytest.fixture()
 def app_and_factory(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'admins.db'}", connect_args={"check_same_thread": False, "timeout": 15})
-    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__, RefreshTokenState.__table__, AuthSession.__table__])
+    Base.metadata.create_all(engine, tables=[User.__table__, AuditLog.__table__, RefreshTokenState.__table__, AuthSession.__table__, ExternalIdentity.__table__])
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     app = FastAPI()
     app.include_router(auth_api.router, prefix="/api/v1")

@@ -110,6 +110,12 @@ class UserRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("has_local_password", mode="before")
+    @classmethod
+    def _unsaved_user_has_password(cls, value):
+        # The column default applies on insert; an unsaved User reads None.
+        return True if value is None else value
+
 
 class TotpCodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=32)
