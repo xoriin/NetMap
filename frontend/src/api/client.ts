@@ -346,18 +346,27 @@ export type DiscoveryHost = {
   proposed_updates: Array<"ip_address" | "hostname" | "mac_address" | "vendor" | "os">;
 };
 
+export type DiscoveryScanStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export type DiscoveryScanProgress = { done: number; total: number };
+
 export type DiscoveryScan = {
   id: number;
   schedule_id: number | null;
   target: string;
   scan_type: string;
-  status: string;
+  status: DiscoveryScanStatus;
   host_count: number;
   result_count: number;
+  /** Empty while the scan is queued or running. */
   results: DiscoveryHost[];
   error: string | null;
   created_at: string;
+  /** Async scans only; the synchronous backend omits it. */
+  started_at?: string | null;
   completed_at: string | null;
+  /** Async scans only; null or omitted when the backend has no count yet. */
+  progress?: DiscoveryScanProgress | null;
 };
 
 export type DiscoveryImportResult = {
@@ -1324,12 +1333,15 @@ type RequestOptions = RequestInit & {
 export class ApiError extends Error {
   readonly status: number;
   readonly detail: unknown;
+  /** Top-level `scan_id` from the body, e.g. the 409 "a manual scan is already running" response. */
+  readonly scanId: number | null;
 
-  constructor(status: number, message: string, detail?: unknown) {
+  constructor(status: number, message: string, detail?: unknown, scanId: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.scanId = scanId;
   }
 
   /** Seconds from a `Retry-After` header (e.g. a 429 throttle), or null when absent. */
@@ -1377,9 +1389,11 @@ async function toApiError(response: Response): Promise<ApiError> {
   const status = response.status;
   let message = `HTTP ${status}`;
   let detail: unknown;
+  let scanId: number | null = null;
   try {
-    const errorBody = (await response.json()) as { detail?: unknown };
+    const errorBody = (await response.json()) as { detail?: unknown; scan_id?: unknown };
     detail = errorBody.detail;
+    if (typeof errorBody.scan_id === "number" && Number.isInteger(errorBody.scan_id)) scanId = errorBody.scan_id;
     if (typeof detail === "string") {
       message = `${detail} [${status}]`;
     } else if (Array.isArray(detail) && detail.length > 0) {
@@ -1392,7 +1406,7 @@ async function toApiError(response: Response): Promise<ApiError> {
   } catch {
     message = `HTTP ${status}: ${response.statusText || "Unknown error"}`;
   }
-  const error = new ApiError(status, message, detail);
+  const error = new ApiError(status, message, detail, scanId);
   error.retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
   return error;
 }
@@ -1884,6 +1898,11 @@ export const api = {
       token,
       body: JSON.stringify(payload),
     }),
+  // Async scans: poll a queued/running scan until it reaches a terminal status.
+  // A cancel call (POST /scans/{id}/cancel) and an active-scan lookup belong
+  // beside this once the backend provides them.
+  getDiscoveryScan: (token: string, scanId: number, signal?: AbortSignal) =>
+    request<DiscoveryScan>(`/api/v1/discovery/scans/${scanId}`, { token, signal }),
   importDiscoveryResults: (
     token: string,
     scanId: number,

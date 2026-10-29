@@ -1,6 +1,8 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import {
+  ApiError,
   type DiscoveryScan,
+  type DiscoveryScanStatus,
   type DiscoveryScanType,
   type DiscoveryHost,
   type SnmpProfile,
@@ -19,6 +21,30 @@ const proposedUpdateLabels: Record<string, string> = {
   vendor: "Vendor",
   os: "OS",
 };
+
+// Async scans: poll every 3s, then every 5s once a scan has run for a minute.
+const POLL_FAST_MS = 3_000;
+const POLL_SLOW_MS = 5_000;
+const POLL_SLOW_AFTER_MS = 60_000;
+
+function isTerminalStatus(status: DiscoveryScanStatus | string) {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+/** Resolves after `ms`, or straight away when `signal` aborts. */
+function wait(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = window.setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { window.clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
+/** Server timestamps carry a UTC offset; treat a bare one as UTC rather than local time. */
+function parseServerTime(value: string | null | undefined) {
+  if (!value) return Number.NaN;
+  return Date.parse(/(Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`);
+}
 
 export function DiscoveryModal({
   accessToken,
@@ -52,6 +78,11 @@ export function DiscoveryModal({
   const [snmpPort, setSnmpPort] = useState("161");
   const [snmpTimeout, setSnmpTimeout] = useState("3");
   const [scan, setScan] = useState<DiscoveryScan | null>(null);
+  // A queued/running async scan being polled; `scan` only holds finished scans.
+  const [activeScan, setActiveScan] = useState<DiscoveryScan | null>(null);
+  const [attached, setAttached] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const trackingRef = useRef<AbortController | null>(null);
   const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set());
   const [importMode, setImportMode] = useState<"new_only" | "fill_missing" | "override_existing">("fill_missing");
   const [updateFields, setUpdateFields] = useState<Array<"hostname" | "mac_address" | "vendor" | "os">>(["hostname", "mac_address", "vendor", "os"]);
@@ -62,6 +93,17 @@ export function DiscoveryModal({
   const requiresConfirmation = targetEstimate.hostCount > 256;
   const canStartScan = !busy && target.trim().length > 0 && (!requiresConfirmation || confirmLargeScan);
   const selectedGroup = groups.find((group) => String(group.id) === selectedGroupId) ?? null;
+
+  // Closing the modal unmounts it: stop polling and drop any late responses.
+  useEffect(() => () => trackingRef.current?.abort(), []);
+
+  const activeScanId = activeScan?.id ?? null;
+  useEffect(() => {
+    if (activeScanId === null) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [activeScanId]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -113,37 +155,84 @@ export function DiscoveryModal({
     }
   }
 
+  /**
+   * Polls a queued/running scan until it finishes. Returns null when tracking
+   * was abandoned (modal closed or a newer scan started); callers must not
+   * touch state in that case.
+   */
+  async function followScan(token: string, scanId: number, initial: DiscoveryScan | null, signal: AbortSignal) {
+    const followedAt = Date.now();
+    let current = initial;
+    while (!signal.aborted) {
+      if (current && isTerminalStatus(current.status)) return current;
+      if (current) setActiveScan(current);
+      // With no record yet (attaching after a 409) fetch straight away.
+      if (current) await wait(Date.now() - followedAt < POLL_SLOW_AFTER_MS ? POLL_FAST_MS : POLL_SLOW_MS, signal);
+      if (signal.aborted) break;
+      current = await api.getDiscoveryScan(token, scanId, signal);
+    }
+    return null;
+  }
+
+  function showFinishedScan(finished: DiscoveryScan) {
+    setScan(finished);
+    setSelectedIps(new Set(finished.results.map((host) => host.ip_address)));
+    if (finished.status === "failed") {
+      setError(finished.error || "Scan failed");
+    } else if (finished.status === "cancelled") {
+      setError(finished.error || "Scan was cancelled");
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!accessToken) {
       return;
     }
+    trackingRef.current?.abort();
+    const tracking = new AbortController();
+    trackingRef.current = tracking;
     setBusy(true);
     setError(null);
     setScan(null);
+    setActiveScan(null);
+    setAttached(false);
     try {
-      const nextScan = await api.startDiscoveryScan(accessToken, {
-        target,
-        scan_type: scanType,
-        confirm_large_scan: confirmLargeScan,
-        topology_group_id: selectedGroupId ? Number(selectedGroupId) : null,
-        snmp_community: snmpEnabled && !snmpProfileId ? snmpCommunity : null,
-        snmp_profile_id: snmpEnabled && snmpProfileId ? Number(snmpProfileId) : null,
-        snmp_targets: snmpEnabled
-          ? (snmpTargets.trim() || selectedGroup?.gateway || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
-          : [],
-        snmp_port: Number(snmpPort),
-        snmp_timeout_seconds: Number(snmpTimeout),
-      });
-      setScan(nextScan);
-      setSelectedIps(new Set(nextScan.results.map((host) => host.ip_address)));
-      if (nextScan.status === "failed") {
-        setError(nextScan.error || "Scan failed");
+      let started: DiscoveryScan | null = null;
+      let scanId: number;
+      try {
+        started = await api.startDiscoveryScan(accessToken, {
+          target,
+          scan_type: scanType,
+          confirm_large_scan: confirmLargeScan,
+          topology_group_id: selectedGroupId ? Number(selectedGroupId) : null,
+          snmp_community: snmpEnabled && !snmpProfileId ? snmpCommunity : null,
+          snmp_profile_id: snmpEnabled && snmpProfileId ? Number(snmpProfileId) : null,
+          snmp_targets: snmpEnabled
+            ? (snmpTargets.trim() || selectedGroup?.gateway || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
+            : [],
+          snmp_port: Number(snmpPort),
+          snmp_timeout_seconds: Number(snmpTimeout),
+        });
+        scanId = started.id;
+      } catch (err) {
+        // 409: a manual scan is already running. Follow that one instead.
+        if (!(err instanceof ApiError && err.status === 409 && err.scanId !== null)) throw err;
+        scanId = err.scanId;
+        if (!tracking.signal.aborted) setAttached(true);
       }
+      // The synchronous backend answers with a finished scan, which needs no polling.
+      const finished = await followScan(accessToken, scanId, started, tracking.signal);
+      if (finished) showFinishedScan(finished);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Scan failed");
+      if (!tracking.signal.aborted) setError(err instanceof Error ? err.message : "Scan failed");
     } finally {
-      setBusy(false);
+      if (!tracking.signal.aborted) {
+        setBusy(false);
+        setActiveScan(null);
+        setAttached(false);
+        trackingRef.current = null;
+      }
     }
   }
 
@@ -226,6 +315,8 @@ export function DiscoveryModal({
     },
     { new: 0, existing: 0, changed: 0 },
   ) ?? { new: 0, existing: 0, changed: 0 };
+  const activeScanStartedAt = activeScan ? parseServerTime(activeScan.started_at ?? activeScan.created_at) : Number.NaN;
+  const activeScanElapsed = Number.isNaN(activeScanStartedAt) ? null : Math.max(0, Math.floor((now - activeScanStartedAt) / 1_000));
   return (
     <Modal title="Discover devices" onCancel={onCancel}>
       <form className="modal-form" onSubmit={(e) => void submit(e)}>
@@ -392,7 +483,15 @@ export function DiscoveryModal({
             </label>
           )}
         </div>
-        {busy && <ScanProgress scanType={scanType} />}
+        {busy && (activeScan ? (
+          <ScanProgress
+            scanType={activeScan.scan_type}
+            status={activeScan.status}
+            progress={activeScan.progress}
+            elapsedSeconds={activeScanElapsed}
+            note={attached ? `A scan of ${activeScan.target} was already running, so this shows its progress instead of starting another.` : null}
+          />
+        ) : <ScanProgress scanType={scanType} />)}
         {error && <div className="nm-alert nm-alert--error">{error}</div>}
         <div className="modal-actions modal-actions--plain">
           <button type="button" className="nm-btn" onClick={onCancel}>
