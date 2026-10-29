@@ -12,6 +12,7 @@ html:has(body.theme-dark) {
   --nm-text-faint: #64748b;
   --nm-shell: #020617;
   --nm-shell-raised: #020617;
+  --nm-auth-panel-bg: linear-gradient(155deg, var(--nm-shell) 0%, var(--nm-shell) 55%, var(--nm-shell-raised) 100%);
   --nm-shell-border: rgba(255,255,255,0.06);
   --nm-shell-text: #f1f5f9;
   --nm-surface-tint: var(--nm-shell-text);

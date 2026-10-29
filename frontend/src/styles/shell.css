@@ -10,7 +10,7 @@
   display: none;
   width: 42%;
   flex-shrink: 0;
-  background: linear-gradient(155deg, var(--nm-shell) 0%, var(--nm-shell) 55%, var(--nm-shell-raised) 100%);
+  background: var(--nm-auth-panel-bg);
   position: relative;
   overflow: hidden;
   align-items: center;
