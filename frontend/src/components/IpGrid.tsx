@@ -44,6 +44,7 @@ export function AddressUsage({ entries }: { entries: IpAddressEntry[] }) {
 
 export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEntry[]; onReserve?: (ip: string) => void; canWrite?: boolean }) {
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<{ entry: IpAddressEntry; anchor: DOMRect } | null>(null);
 
   if (!entries.length) return <p className="dash-empty">Subnet too large to enumerate - showing summary only.</p>;
 
@@ -70,10 +71,15 @@ export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEnt
                   type="button"
                   aria-label={`${entry.ip} · ${displayKind(entry)}`}
                   aria-pressed={selected?.ip === entry.ip}
-                  title={entry.ip}
                   className={`ipam-tile ipam-tile--${mapKind(entry)}${selected?.ip === entry.ip ? " is-selected" : ""}`}
                   onClick={() => setSelectedIp(entry.ip)}
-                />
+                  onMouseEnter={(event) => setHovered({ entry, anchor: event.currentTarget.getBoundingClientRect() })}
+                  onFocus={(event) => setHovered({ entry, anchor: event.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHovered(null)}
+                  onBlur={() => setHovered(null)}
+                >
+                  <span className="ipam-tile-num" aria-hidden="true">{addressOctet(entry.ip)}</span>
+                </button>
               ))}
             </div>
           ))}
@@ -85,6 +91,29 @@ export function IpGrid({ entries, onReserve, canWrite }: { entries: IpAddressEnt
         </div>
       </div>
       <AddressDetail entry={selected} canWrite={canWrite} onReserve={onReserve} />
+      {hovered && <AddressTooltip entry={hovered.entry} anchor={hovered.anchor} />}
+    </div>
+  );
+}
+
+function AddressTooltip({ entry, anchor }: { entry: IpAddressEntry; anchor: DOMRect }) {
+  const width = 220;
+  const left = Math.min(Math.max(8, anchor.left + anchor.width / 2 - width / 2), window.innerWidth - width - 8);
+  const above = anchor.top > 140;
+  const name = entry.display_name || entry.label;
+  return (
+    <div className={`hb-tooltip-card hb-tooltip-card--${above ? "above" : "below"} ipam-tile-tooltip`} aria-hidden="true" style={{ left, top: above ? anchor.top - 8 : anchor.bottom + 8 }}>
+      <div className="hb-tooltip-header">
+        <span className="hb-tooltip-date">{entry.ip}</span>
+        <span className="hb-tooltip-time">{displayKind(entry)}</span>
+      </div>
+      {name && <div className="ipam-tile-tooltip-line">{name}</div>}
+      {(entry.mac_address || entry.vendor) && (
+        <div className="ipam-tile-tooltip-line dash-panel-meta">{[entry.vendor, entry.mac_address].filter(Boolean).join(" · ")}</div>
+      )}
+      {!name && !entry.mac_address && !entry.vendor && (
+        <div className="ipam-tile-tooltip-line dash-panel-meta">{entry.kind === "free" ? "Available" : "No details recorded"}</div>
+      )}
     </div>
   );
 }

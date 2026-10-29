@@ -330,7 +330,7 @@ test("the /24 tile map shows all addresses with a usage bar and a selected-addre
 
   const deviceTile = dialog.getByRole("button", { name: "10.30.20.4 · Device" });
   const freeTile = dialog.getByRole("button", { name: "10.30.20.2 · Free" });
-  await expect(deviceTile).toHaveText("");
+  await expect(deviceTile).toHaveText("4");
   const box = await deviceTile.boundingBox();
   expect(box?.height ?? 0).toBeLessThanOrEqual(34);
   expect(box?.width ?? 0).toBeGreaterThan((box?.height ?? 0) * 1.2);

@@ -614,6 +614,22 @@ body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
   background: var(--nm-track-bg);
   cursor: pointer;
 }
+.ipam-tile-num {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--nm-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+}
+:is(.ipam-tile--device, .ipam-tile--dhcp, .ipam-tile--reserved, .ipam-tile--gateway) > .ipam-tile-num { color: var(--nm-on-deep); }
+.ipam-tile-tooltip { min-width: 0; width: 220px; }
+@media (max-width: 760px) { .ipam-tile-num { display: none; } }
+.ipam-tile-tooltip-line { font-size: 12px; overflow-wrap: anywhere; }
+.ipam-tile-tooltip-line + .ipam-tile-tooltip-line { margin-top: 2px; }
 
 .ipam-tile:hover { box-shadow: 0 0 0 2px var(--nm-module-body-bg), 0 0 0 3px var(--nm-border-strong); }
 .ipam-tile:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--nm-module-body-bg), 0 0 0 4px var(--nm-focus-ring, var(--nm-accent)); }
