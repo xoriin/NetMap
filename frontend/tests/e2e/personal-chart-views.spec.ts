@@ -354,9 +354,13 @@ for (const theme of ['light', 'slate', 'zinc']) {
         else expect(placement.bars.left).toBeGreaterThan(placement.visual.right);
         const geometry = await chart.locator('.nm-bar-list').evaluate(el => {
           const row = el.querySelector('li')!, track = el.querySelector('.nm-bar-list-track')!;
-          const style = getComputedStyle(row);
-          return { height: track.getBoundingClientRect().height, columns: style.gridTemplateColumns.split(' ').map(Number.parseFloat), gap: Number.parseFloat(style.columnGap) };
+          const style = getComputedStyle(el);
+          const tracks = Array.from(el.querySelectorAll('.nm-bar-list-track'), node => { const box = node.getBoundingClientRect(); return { left: box.left, right: box.right }; });
+          return { tracks, subgrid: getComputedStyle(row).gridTemplateColumns.startsWith('subgrid'), height: track.getBoundingClientRect().height, columns: style.gridTemplateColumns.split(' ').map(Number.parseFloat), gap: Number.parseFloat(style.columnGap) };
         });
+        expect(geometry.subgrid).toBe(true);
+        expect(Math.max(...geometry.tracks.map(track => track.left)) - Math.min(...geometry.tracks.map(track => track.left))).toBeLessThan(1);
+        expect(Math.max(...geometry.tracks.map(track => track.right)) - Math.min(...geometry.tracks.map(track => track.right))).toBeLessThan(1);
         expect(geometry.height).toBe(8);
         expect(geometry.columns[0]).toBeGreaterThanOrEqual(90);
         expect(geometry.gap).toBe(12);
