@@ -247,12 +247,88 @@ LINK_BY_EMAIL_WARNING = (
     "Single sign-on links sign-ins to existing NetMap accounts by matching email (link by email is on). "
     "It was kept on when this install was upgraded. Turn it off in SSO settings unless every email at "
     "your identity provider is trustworthy. Admin and 2FA accounts are never linked this way; their "
-    "owners link SSO from their Profile."
+    "owners link SSO from their Profile. If you trust your provider's emails, choose "
+    "\"I understand, keep it on\" in SSO settings to hide this notice."
 )
 
 
-def oidc_security_warnings(db: Session) -> list[str]:
+# The link-by-email acknowledgement is stored outside OIDC_DB_KEYS so the normal
+# settings save can never set it. It applies only to the exact effective
+# configuration it was given for (see link_by_email_fingerprint).
+ACK_FINGERPRINT_KEY = "link_by_email_ack_fingerprint"
+ACK_BY_KEY = "link_by_email_ack_by"
+ACK_AT_KEY = "link_by_email_ack_at"
+
+
+def link_by_email_fingerprint(config: OidcRuntimeConfig) -> str:
+    """sha256 of the effective issuer, client ID and link-by-email value."""
+    import hashlib
+
+    canonical = json.dumps(
+        {
+            "issuer": config.issuer.strip().rstrip("/"),
+            "client_id": config.client_id.strip(),
+            "link_by_email": bool(config.link_by_email),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def link_by_email_acknowledgement(db: Session, config: OidcRuntimeConfig | None = None) -> dict:
+    """Stored acknowledgement and whether it matches the current effective config."""
+    from datetime import datetime, timezone
+
+    config = config or get_oidc_config(db)
+    db_values = load_oidc_db_settings(db)
+    fingerprint = db_values.get(ACK_FINGERPRINT_KEY, "").strip()
+    acknowledged_at = None
+    raw_at = db_values.get(ACK_AT_KEY, "").strip()
+    if raw_at:
+        try:
+            acknowledged_at = datetime.fromisoformat(raw_at)
+        except ValueError:
+            acknowledged_at = None
+        else:
+            if acknowledged_at.tzinfo is None:
+                acknowledged_at = acknowledged_at.replace(tzinfo=timezone.utc)
+    return {
+        "acknowledged": bool(
+            fingerprint and config.link_by_email and fingerprint == link_by_email_fingerprint(config)
+        ),
+        "by": db_values.get(ACK_BY_KEY, "").strip() or None,
+        "at": acknowledged_at,
+    }
+
+
+def acknowledge_link_by_email(db: Session, config: OidcRuntimeConfig, actor: str) -> str:
+    """Store the acknowledgement for this effective config; caller commits."""
+    from datetime import datetime, timezone
+
+    fingerprint = link_by_email_fingerprint(config)
+    now = datetime.now(timezone.utc)
+    for key, value in (
+        (ACK_FINGERPRINT_KEY, fingerprint),
+        (ACK_BY_KEY, actor),
+        (ACK_AT_KEY, now.isoformat()),
+    ):
+        full_key = f"{OIDC_SETTING_PREFIX}{key}"
+        existing = db.get(SystemSetting, full_key)
+        if existing is not None:
+            existing.value = value
+            existing.updated_at = now
+        else:
+            db.add(SystemSetting(key=full_key, value=value, updated_at=now))
+    return fingerprint
+
+
+def oidc_security_warnings(db: Session, *, include_acknowledged: bool = False) -> list[str]:
+    """Runtime OIDC warnings. The link-by-email warning is hidden while an
+    acknowledgement matches the current effective config, unless
+    include_acknowledged is set (the startup log always warns)."""
     config = get_oidc_config(db)
     if config.enabled and config.link_by_email:
-        return [LINK_BY_EMAIL_WARNING]
+        if include_acknowledged or not link_by_email_acknowledgement(db, config)["acknowledged"]:
+            return [LINK_BY_EMAIL_WARNING]
     return []

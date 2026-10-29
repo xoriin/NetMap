@@ -35,6 +35,10 @@ class OidcSettingsRead(BaseModel):
     mfa_trusted_amr: str
     mfa_trusted_acr: str
     mfa_max_auth_age_seconds: int
+    # Read-only: set only through POST /admin/oidc/link-by-email/acknowledge.
+    link_by_email_acknowledged: bool = False
+    link_by_email_ack_by: str | None = None
+    link_by_email_ack_at: UtcDatetime | None = None
 
 
 class OidcSettingsUpdate(BaseModel):

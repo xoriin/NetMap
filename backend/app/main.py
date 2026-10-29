@@ -92,7 +92,8 @@ def create_app() -> FastAPI:
                 load_from_db(setting.value)
             from app.services.oidc.config import oidc_security_warnings
 
-            for warning in oidc_security_warnings(db):
+            # The startup log keeps warning even when an administrator acknowledged it.
+            for warning in oidc_security_warnings(db, include_acknowledged=True):
                 logger.warning("%s", warning)
         syslog_service.start()
         alert_monitor.start()

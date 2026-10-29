@@ -493,10 +493,11 @@ def _local_mfa_step(db: Session, config: OidcRuntimeConfig, user: User, claims: 
 
 
 def _settings_read(db: Session, request: Request | None = None) -> OidcSettingsRead:
-    from app.services.oidc.config import load_oidc_db_settings
+    from app.services.oidc.config import link_by_email_acknowledgement, load_oidc_db_settings
 
     config = get_oidc_config(db)
     db_values = load_oidc_db_settings(db)
+    ack = link_by_email_acknowledgement(db, config)
     env_configured = bool(settings.oidc_issuer or settings.oidc_client_id or settings.oidc_enabled)
     return OidcSettingsRead(
         enabled=config.enabled,
@@ -522,6 +523,9 @@ def _settings_read(db: Session, request: Request | None = None) -> OidcSettingsR
         mfa_trusted_amr=", ".join(config.mfa_trusted_amr),
         mfa_trusted_acr=", ".join(config.mfa_trusted_acr),
         mfa_max_auth_age_seconds=config.mfa_max_auth_age_seconds,
+        link_by_email_acknowledged=ack["acknowledged"],
+        link_by_email_ack_by=ack["by"],
+        link_by_email_ack_at=ack["at"],
     )
 
 
@@ -625,6 +629,31 @@ _TEXT_KEYS = (
     "mfa_trusted_acr",
     "mfa_max_auth_age_seconds",
 )
+
+
+@router.post("/admin/oidc/link-by-email/acknowledge", response_model=OidcSettingsRead)
+def acknowledge_oidc_link_by_email(
+    request: Request,
+    current_user: Annotated[User, Depends(require_super_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> OidcSettingsRead:
+    """Hide the link-by-email notice for the current effective issuer, client ID
+    and link-by-email value. Any change to those brings it back; the startup log
+    warning is unaffected. CSRF is enforced by the global middleware."""
+    from app.services.oidc.config import acknowledge_link_by_email
+
+    config = get_oidc_config(db)
+    if not config.link_by_email:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Link by email is not on")
+    fingerprint = acknowledge_link_by_email(db, config, current_user.username)
+    write_audit(
+        db,
+        action="oidc_link_by_email_acknowledged",
+        actor_user_id=current_user.id,
+        detail=f"fingerprint={fingerprint}",
+    )
+    db.commit()
+    return _settings_read(db, request)
 
 
 @router.put("/admin/oidc-settings", response_model=OidcSettingsRead)
