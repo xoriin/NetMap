@@ -135,7 +135,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     const colour = await selected.evaluate(node => getComputedStyle(node).backgroundColor);
     await selected.locator("..").hover();
     await page.clock.runFor(300);
-    await expect(selected).toHaveCSS("transform", "matrix(1.3, 0, 0, 1.55, 0, 0)");
+    await expect(selected).toHaveCSS("transform", "matrix(1.4, 0, 0, 1.35, 0, 0)");
     await expect(neighbour).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
     await expect(neighbour).toHaveCSS("opacity", "0.5");
     await expect(selected).toHaveCSS("opacity", "1");
@@ -167,9 +167,9 @@ for (const style of ["light", "slate", "zinc"] as const) {
     });
     for (const [property, value] of Object.entries(motion)) await expect(selected).toHaveCSS(property, value);
 
-    await expect(selected).toHaveCSS("transition-duration", "0.09s, 0.12s");
+    await expect(selected).toHaveCSS("transition-duration", "0.2s, 0.2s");
     await expect(selected.locator("..")).not.toHaveAttribute("title");
-    expect((await selected.boundingBox())!.height).toBeCloseTo(before!.height * 1.55, 0);
+    expect((await selected.boundingBox())!.height).toBeCloseTo(before!.height * 1.35, 0);
     await expect(selected).toHaveCSS("background-color", colour);
     const a = await selected.locator("..").boundingBox();
     const b = await neighbour.locator("..").boundingBox();
@@ -188,7 +188,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
       await page.clock.runFor(100);
       await selected.locator("..").hover({ force: true });
       await page.clock.runFor(300);
-      await expect(selected).toHaveCSS("transform", "matrix(1.3, 0, 0, 1.55, 0, 0)");
+      await expect(selected).toHaveCSS("transform", "matrix(1.4, 0, 0, 1.35, 0, 0)");
       expect(await frame.locator("html").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
       await expect.poll(async () => { const box = await tip.boundingBox(); return box!.x + box!.width; }).toBeLessThanOrEqual(width);
       const box = await tip.boundingBox();
@@ -228,7 +228,7 @@ for (const style of ["light", "slate", "zinc"] as const) {
     await expect(newest).toHaveCSS("animation-name", "hb-arrive");
     await page.clock.runFor(1000);
     await expect(newest).not.toHaveClass(/sp-beat--new/);
-    await expect(newest).toHaveCSS("transform", "matrix(1.3, 0, 0, 1.55, 0, 0)");
+    await expect(newest).toHaveCSS("transform", "matrix(1.4, 0, 0, 1.35, 0, 0)");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect(newest).toHaveCSS("transform", "none");
     await expect(newest).toHaveCSS("transition-duration", "0s");
