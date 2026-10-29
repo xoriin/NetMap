@@ -174,7 +174,11 @@ def _build_device_summaries(
     devices: list[Device],
 ) -> list[DeviceMonitorSummary]:
     site_map = {s.id: (s.display_name or s.name) for s in db.scalars(select(Site)).all()}
-    group_name_map = {g.id: g.name for g in db.scalars(select(TopologyGroup)).all()}
+    groups = db.scalars(select(TopologyGroup)).all()
+    group_name_map = {g.id: g.name for g in groups}
+    # A device without its own VLAN inherits its topology group's VLAN (by id, then by name).
+    group_vlan_by_id = {g.id: (g.vlan_id or "").strip() for g in groups}
+    group_vlan_by_name = {(g.name or "").strip().lower(): (g.vlan_id or "").strip() for g in groups}
     now = datetime.now(timezone.utc)
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
@@ -301,7 +305,10 @@ def _build_device_summaries(
                 topology_group=device.topology_group or group_name_map.get(device.topology_group_id) or None,
                 site_id=device.site_id,
                 site_name=site_map.get(device.site_id) if device.site_id else None,
-                vlan_id=device.vlan_id or None,
+                vlan_id=(device.vlan_id or "").strip()
+                or group_vlan_by_id.get(device.topology_group_id, "")
+                or group_vlan_by_name.get((device.topology_group or "").strip().lower(), "")
+                or None,
                 last_checked=_as_utc(last_record.checked_at) if last_record else None,
                 uptime_24h=online_24h / total_24h if total_24h > 0 else None,
                 uptime_7d=online_7d / history_7d_count if history_7d_count > 0 else None,
