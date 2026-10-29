@@ -4310,8 +4310,8 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
 .heartbeat-bar--lg .heartbeat-beat {
   --hb-k: 0;
   transform-origin: center;
-  transform: scale(calc(1 + 0.3 * var(--hb-k)), calc(1 + 0.55 * var(--hb-k)));
-  transition: transform 0.09s ease-out, opacity 0.12s ease;
+  transform: scale(calc(1 + 0.40 * var(--hb-k)), calc(1 + 0.35 * var(--hb-k)));
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.35, 1), opacity 0.2s ease;
 }
 .heartbeat-bar--lg.has-active .heartbeat-beat { opacity: calc(0.5 + 0.5 * var(--hb-k)); }
 .heartbeat-bar--lg .heartbeat-beat.is-active {
