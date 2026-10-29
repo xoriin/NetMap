@@ -2072,8 +2072,10 @@ body.theme-dark .nm-pick-filter input {
 :is(.nm-bento-stats, .nm-summary-band) > :nth-child(6) { --nm-motion-i: 6; }
 
 /* BarList (components/Charts.tsx) */
-.nm-bar-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
-.nm-bar-list li { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.6fr) auto; align-items: center; gap: var(--nm-space-3); font-size: var(--nm-text-sm); outline: none; cursor: default; }
+/* Rows share one column grid (subgrid) so every track starts and ends at the same x, whatever the label or value width. */
+.nm-bar-list { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.6fr) auto; column-gap: var(--nm-space-3); row-gap: 9px; margin: 0; padding: 0; list-style: none; }
+.nm-bar-list > :not(li) { grid-column: 1 / -1; }
+.nm-bar-list li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; font-size: var(--nm-text-sm); outline: none; cursor: default; }
 .nm-bar-list li:focus-visible { box-shadow: 0 0 0 2px var(--nm-focus-border); border-radius: 4px; }
 .nm-bar-list-label { overflow: hidden; color: var(--nm-chart-label, var(--nm-text)); text-overflow: ellipsis; white-space: nowrap; }
 .nm-bar-list-track { height: 8px; overflow: hidden; border-radius: 99px; background: var(--nm-track-bg); }

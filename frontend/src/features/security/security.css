@@ -70,17 +70,22 @@ body.route-security .security-layout {
 .security-mix-swatch--passed { background: var(--dash-green); }
 .security-mix-swatch--other { background: var(--nm-border-strong); }
 
+/* Rows share one column grid (subgrid) so every bar starts and ends at the same x. */
 .security-sources-body {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr) max-content;
+  column-gap: var(--nm-space-3);
+  align-content: start;
   padding-top: 0;
 }
 
+.security-sources-body > :not(.security-source-row) { grid-column: 1 / -1; }
+
 .security-source-row {
   display: grid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: var(--nm-space-3);
-  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto;
+  grid-template-columns: subgrid;
   padding: 5px 0;
   font-size: var(--nm-text-sm);
 }

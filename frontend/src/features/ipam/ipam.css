@@ -825,7 +825,8 @@ body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
   display: grid;
   align-items: center;
   gap: var(--nm-space-1) var(--nm-space-3);
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* Fixed percentage column (fits "100%") so every row's bar is the same width. */
+  grid-template-columns: minmax(0, 1fr) 4.5ch;
   padding: var(--nm-space-2) 0;
   border-bottom: 1px solid var(--nm-border);
 }
@@ -858,6 +859,7 @@ body.theme-dark .ipam-workspace .ipam-panel > .dash-panel-body {
 .ipam-busiest-pct {
   grid-column: 2;
   grid-row: 1 / span 2;
+  text-align: right;
   color: var(--nm-text);
   font-size: var(--nm-text-sm);
   font-variant-numeric: tabular-nums;
