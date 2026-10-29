@@ -562,3 +562,23 @@ def test_device_monitor_overrun_starts_next_batch_without_extra_delay(monkeypatc
     service._run()
     assert starts == [5, 155]
     assert waits == [5, 0, 0]
+
+
+def test_monitoring_vlan_inheritance_by_group_id_and_legacy_name():
+    with _session() as db:
+        group = TopologyGroup(name="Servers", vlan_id=" 120 ")
+        other = TopologyGroup(name="Other", vlan_id="999")
+        db.add_all([group, other])
+        db.flush()
+        devices = [
+            Device(display_name="By id", ip_address="10.0.0.1", topology_group_id=group.id),
+            Device(display_name="By name", ip_address="10.0.0.2", topology_group=" servers "),
+            Device(display_name="Own VLAN", ip_address="10.0.0.3", topology_group_id=group.id, vlan_id=" 42 "),
+            Device(display_name="Id wins", ip_address="10.0.0.4", topology_group_id=group.id, topology_group="Other"),
+            Device(display_name="Blank VLAN", ip_address="10.0.0.5", topology_group_id=group.id, vlan_id=" "),
+            Device(display_name="No group", ip_address="10.0.0.6"),
+        ]
+        db.add_all(devices)
+        db.commit()
+        rows = {row.display_name: row.vlan_id for row in _build_device_summaries(db, devices)}
+        assert rows == {"By id": "120", "By name": "120", "Own VLAN": "42", "Id wins": "120", "Blank VLAN": "120", "No group": None}
