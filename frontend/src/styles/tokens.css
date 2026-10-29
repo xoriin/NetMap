@@ -183,6 +183,7 @@
   --nm-control-sm: 28px;
   --nm-control-md: 32px;
   --nm-control-lg: 36px;
+  --nm-modal-header-control: 30px;
   color: var(--nm-text);
   background: var(--nm-bg);
 }

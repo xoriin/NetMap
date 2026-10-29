@@ -3680,6 +3680,21 @@ body.theme-dark .fav-btn--active { color: #e8b840; }
   min-height: unset;
 }
 
+.modal-header-actions .nm-btn:not(.modal-close-btn) {
+  height: var(--nm-modal-header-control);
+  min-height: var(--nm-modal-header-control);
+  padding: 0 var(--nm-space-3);
+  border-radius: var(--nm-radius-sm);
+  font-size: var(--nm-text-sm);
+  line-height: 1;
+}
+
+.modal .modal-header button.modal-close-btn {
+  width: var(--nm-modal-header-control);
+  height: var(--nm-modal-header-control);
+  padding: 0;
+}
+
 .modal-header-actions .ipam-next-ip-header-btn {
   height: 31px;
   min-height: unset;
