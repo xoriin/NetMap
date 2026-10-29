@@ -50,6 +50,10 @@ export type OidcSettings = {
   allow_super_admin: boolean;
   require_sso: boolean;
   env_configured: boolean;
+  /** Read-only: true while the link-by-email acknowledgement matches the current issuer, client ID and setting. */
+  link_by_email_acknowledged?: boolean;
+  link_by_email_ack_by?: string | null;
+  link_by_email_ack_at?: string | null;
 };
 
 export type OidcSettingsUpdate = Partial<{
@@ -1638,6 +1642,12 @@ export const api = {
       method: "PUT",
       token,
       body: JSON.stringify(payload),
+    }),
+  acknowledgeOidcLinkByEmail: (token: string) =>
+    request<OidcSettings>("/api/v1/admin/oidc/link-by-email/acknowledge", {
+      method: "POST",
+      token,
+      body: JSON.stringify({}),
     }),
   testOidcProvider: (token: string) =>
     request<OidcTestResult>("/api/v1/admin/oidc-settings/test", {

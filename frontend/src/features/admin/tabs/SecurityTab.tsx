@@ -88,6 +88,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
   const [secretDirty, setSecretDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [acknowledging, setAcknowledging] = useState(false);
   const [testResult, setTestResult] = useState<OidcTestResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -123,6 +124,22 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
       toast.error(message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function acknowledgeLinkByEmail() {
+    setAcknowledging(true);
+    setFormError(null);
+    try {
+      // Only the saved settings change; unsaved edits in the form are kept.
+      settingsQuery.setData(await api.acknowledgeOidcLinkByEmail(accessToken));
+      toast.success("Link by email notice acknowledged");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to acknowledge the link by email notice";
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setAcknowledging(false);
     }
   }
 
@@ -271,6 +288,20 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
               <span className="tool-note">Allows an SSO identity to attach to an existing local account when the email is verified.</span>
             </span>
           </label>
+          {settings?.link_by_email && !settings.link_by_email_acknowledged ? (
+            <div className="tool-form-check-detail">
+              <button type="button" className="nm-btn nm-btn--sm" disabled={acknowledging} onClick={() => void acknowledgeLinkByEmail()}>
+                {acknowledging ? "Saving..." : "I understand, keep it on"}
+              </button>
+              <span className="tool-note">Hides the security notice. It returns if the issuer, client ID or this setting changes.</span>
+            </div>
+          ) : null}
+          {settings?.link_by_email && settings.link_by_email_acknowledged ? (
+            <span className="tool-note tool-form-check-detail">
+              Acknowledged{settings.link_by_email_ack_by ? ` by ${settings.link_by_email_ack_by}` : ""}
+              {settings.link_by_email_ack_at ? ` on ${shortDate(settings.link_by_email_ack_at)}` : ""}
+            </span>
+          ) : null}
           <label className="tool-form-inline-check">
             <input type="checkbox" checked={form.allow_unverified_email} onChange={(e) => update("allow_unverified_email", e.target.checked)} />
             <span className="tool-form-check-copy">

@@ -3377,6 +3377,19 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   background: var(--nm-surface-soft);
 }
 
+.tool-form-check-detail {
+  display: grid;
+  gap: 4px;
+  margin: -4px 0 4px;
+}
+
+.tool-form-check-detail .tool-note,
+.tool-note.tool-form-check-detail {
+  font-size: 11px;
+  line-height: 1.35;
+  padding-left: 21px;
+}
+
 .tool-result-empty,
 .tool-note {
   margin: 0;
