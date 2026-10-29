@@ -105,7 +105,7 @@ class DiscoveryScannerTests(unittest.TestCase):
         self.assertEqual(timeout_seconds, 20)
 
     @patch("app.core.capabilities.shutil.which", return_value="/usr/bin/nmap")
-    @patch("app.services.discovery.scanner.subprocess.run")
+    @patch("app.services.discovery.scanner._run_nmap_process")
     def test_run_nmap_scan_uses_scaled_timeout_for_ping_sweep(self, mock_run, _mock_which) -> None:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[],
@@ -116,16 +116,15 @@ class DiscoveryScannerTests(unittest.TestCase):
 
         run_nmap_scan(DiscoveryTarget(nmap_target="10.30.20.0/24", host_count=256), "ping")
 
-        _, kwargs = mock_run.call_args
-        self.assertEqual(kwargs["timeout"], 190)
-        command = mock_run.call_args.args[0]
-        self.assertNotIn("-n", command)
+        command, timeout_seconds, _on_progress = mock_run.call_args.args
+        self.assertEqual(timeout_seconds, 190)
+        self.assertIn("-n", command)
         self.assertIn("-T3", command)
         self.assertIn("--host-timeout", command)
         self.assertIn("12s", command)
 
     @patch("app.core.capabilities.shutil.which", return_value="/usr/bin/nmap")
-    @patch("app.services.discovery.scanner.subprocess.run")
+    @patch("app.services.discovery.scanner._run_nmap_process")
     def test_run_nmap_scan_passes_range_cidrs_as_separate_targets(self, mock_run, _mock_which) -> None:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[],
@@ -143,7 +142,7 @@ class DiscoveryScannerTests(unittest.TestCase):
         self.assertNotIn("192.168.0.1-192.168.0.3", command)
 
     @patch("app.core.capabilities.shutil.which", return_value="/usr/bin/nmap")
-    @patch("app.services.discovery.scanner.subprocess.run")
+    @patch("app.services.discovery.scanner._run_nmap_process")
     def test_run_nmap_scan_returns_actionable_timeout_error(self, mock_run, _mock_which) -> None:
         mock_run.side_effect = subprocess.TimeoutExpired(
             cmd=["nmap"],

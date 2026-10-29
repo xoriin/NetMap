@@ -1,12 +1,17 @@
 import json
+import logging
 import math
 import re
 import shutil
+import socket
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import lru_cache
 from ipaddress import ip_address, ip_network, summarize_address_range
 from pathlib import Path
+from typing import Callable
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
@@ -19,6 +24,13 @@ from app.core.capabilities import (
 )
 from app.core.config import settings
 from app.schemas.discovery import DiscoveryHost
+
+logger = logging.getLogger(__name__)
+
+# Reverse DNS runs after nmap (-n), in parallel and within its own budget, so a
+# subnet with no PTR zone no longer eats the nmap process timeout (#36).
+PTR_LOOKUP_WORKERS = 16
+PTR_LOOKUP_BUDGET_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
@@ -123,14 +135,21 @@ def ensure_scan_size(host_count: int, confirm_large_scan: bool) -> None:
         raise ValueError("Large scan requires explicit confirmation")
 
 
-def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost]:
+def run_nmap_scan(
+    target: DiscoveryTarget,
+    scan_type: str,
+    on_progress: Callable[[int], None] | None = None,
+) -> list[DiscoveryHost]:
     nmap_path = require_command("nmap", "Nmap discovery")
 
+    # -v lists every address in the XML, up or down, so each <status> counts as one done.
     command = [
         "sudo",
         nmap_path,
         "-oX",
         "-",
+        "-n",
+        "-v",
         "--max-retries",
         "1",
     ]
@@ -164,13 +183,7 @@ def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost
     timeout_seconds = discovery_process_timeout_seconds(target, scan_type)
 
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        completed = _run_nmap_process(command, timeout_seconds, on_progress)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             "Discovery scan timed out after "
@@ -182,7 +195,74 @@ def run_nmap_scan(target: DiscoveryTarget, scan_type: str) -> list[DiscoveryHost
         if raw_networking_error(output):
             raise ActiveNetworkToolUnavailable(RAW_NETWORKING_UNAVAILABLE)
         raise RuntimeError(completed.stderr.strip() or "Nmap scan failed")
-    return enrich_hosts_from_neighbor_table(parse_nmap_xml(completed.stdout))
+    return enrich_hosts_from_neighbor_table(resolve_hostnames(parse_nmap_xml(completed.stdout)))
+
+
+def _run_nmap_process(
+    command: list[str],
+    timeout_seconds: float,
+    on_progress: Callable[[int], None] | None = None,
+) -> subprocess.CompletedProcess:
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    stdout_lines: list[str] = []
+    stderr_chunks: list[str] = []
+
+    def read_stdout() -> None:
+        done = 0
+        for line in process.stdout:
+            stdout_lines.append(line)
+            count = line.count("<status state=")
+            if count and on_progress is not None:
+                done += count
+                try:
+                    on_progress(done)
+                except Exception:
+                    logger.exception("Discovery progress callback failed")
+
+    def read_stderr() -> None:
+        stderr_chunks.append(process.stderr.read())
+
+    readers = [threading.Thread(target=read_stdout, daemon=True), threading.Thread(target=read_stderr, daemon=True)]
+    for reader in readers:
+        reader.start()
+    try:
+        process.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        raise
+    for reader in readers:
+        reader.join()
+    return subprocess.CompletedProcess(command, process.returncode, "".join(stdout_lines), "".join(stderr_chunks))
+
+
+def _reverse_lookup(ip_value: str) -> str | None:
+    try:
+        name = socket.gethostbyaddr(ip_value)[0]
+    except (OSError, UnicodeError):
+        return None
+    return name.rstrip(".") or None
+
+
+def resolve_hostnames(
+    hosts: list[DiscoveryHost],
+    *,
+    workers: int = PTR_LOOKUP_WORKERS,
+    budget_seconds: float = PTR_LOOKUP_BUDGET_SECONDS,
+) -> list[DiscoveryHost]:
+    pending = [host for host in hosts if not host.hostname]
+    if not pending:
+        return hosts
+    executor = ThreadPoolExecutor(max_workers=min(workers, len(pending)), thread_name_prefix="discovery-ptr")
+    futures = {executor.submit(_reverse_lookup, host.ip_address): host for host in pending}
+    finished, _ = wait(futures, timeout=budget_seconds)
+    # Lookups still waiting on the resolver finish on their own; nobody waits for them.
+    executor.shutdown(wait=False, cancel_futures=True)
+    for future in finished:
+        name = future.result()
+        if name:
+            futures[future].hostname = name
+    return hosts
 
 
 def ping_host_timeout_seconds(target: DiscoveryTarget) -> int:
