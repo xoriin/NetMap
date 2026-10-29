@@ -217,3 +217,80 @@ def test_require_sso_blocked_without_active_super_admin(admin_client, db, fake_h
     response = admin_client.put("/api/v1/admin/oidc-settings", json={"require_sso": True})
     assert response.status_code == 400
     assert "SuperAdmin" in response.json()["detail"]
+
+
+ACK_URL = "/api/v1/admin/oidc/link-by-email/acknowledge"
+
+
+def test_link_by_email_acknowledgement_hides_notice_but_keeps_startup_warning(admin_client, db):
+    from sqlalchemy import select
+    from app.models.audit_log import AuditLog
+    from app.services.oidc.config import oidc_security_warnings, link_by_email_fingerprint
+
+    set_oidc_db_settings(db, link_by_email="true")
+    assert oidc_security_warnings(db)
+    response = admin_client.post(ACK_URL)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["link_by_email_acknowledged"] is True
+    assert payload["link_by_email_ack_by"] == "root"
+    assert payload["link_by_email_ack_at"].endswith(("Z", "+00:00"))
+    db.expire_all()
+    assert oidc_security_warnings(db) == []
+    assert oidc_security_warnings(db, include_acknowledged=True)
+    audit = db.scalar(select(AuditLog).where(AuditLog.action == "oidc_link_by_email_acknowledged"))
+    assert audit is not None
+    assert audit.actor_user_id == db.scalar(select(User.id).where(User.username == "root"))
+    assert audit.detail == f"fingerprint={link_by_email_fingerprint(get_oidc_config(db))}"
+    assert admin_client.get("/api/v1/admin/oidc-settings").json()["link_by_email_acknowledged"] is True
+
+
+def test_link_by_email_off_rejects_acknowledgement(admin_client, db):
+    from sqlalchemy import select
+    from app.models.audit_log import AuditLog
+    from app.services.oidc.config import oidc_security_warnings
+
+    set_oidc_db_settings(db, link_by_email="false")
+    assert admin_client.post(ACK_URL).status_code == 409
+    assert oidc_security_warnings(db) == []
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "oidc_link_by_email_acknowledged")) is None
+
+
+@pytest.mark.parametrize("changed", [{"issuer": "https://other.test"}, {"client_id": "other-client"}, {"link_by_email": "false"}])
+def test_link_by_email_config_change_invalidates_acknowledgement(admin_client, db, changed):
+    from app.services.oidc.config import oidc_security_warnings, link_by_email_acknowledgement, link_by_email_fingerprint
+
+    set_oidc_db_settings(db, link_by_email="true")
+    original = link_by_email_fingerprint(get_oidc_config(db))
+    assert admin_client.post(ACK_URL).status_code == 200
+    save_oidc_db_settings(db, changed)
+    db.commit()
+    assert link_by_email_fingerprint(get_oidc_config(db)) != original
+    assert link_by_email_acknowledgement(db)["acknowledged"] is False
+    assert admin_client.get("/api/v1/admin/oidc-settings").json()["link_by_email_acknowledged"] is False
+    assert bool(oidc_security_warnings(db)) is (changed.get("link_by_email") != "false")
+
+
+@pytest.mark.parametrize("role", [UserRole.NETWORK_ADMIN, UserRole.VIEWER])
+def test_link_by_email_acknowledgement_requires_super_admin(admin_client, db, role):
+    from app.api.deps import get_current_user
+
+    set_oidc_db_settings(db, link_by_email="true")
+    app = admin_client.app
+    del app.dependency_overrides[require_super_admin]
+    app.dependency_overrides[get_current_user] = lambda: User(id=999, username="ordinary", role=role)
+    response = admin_client.post(ACK_URL)
+    assert response.status_code == 403
+    assert "SuperAdmin" in response.json()["detail"]
+
+
+def test_link_by_email_acknowledgement_enforces_cookie_csrf(admin_client, db):
+    from app.middleware.csrf import CsrfProtectionMiddleware
+
+    set_oidc_db_settings(db, link_by_email="true")
+    admin_client.app.add_middleware(CsrfProtectionMiddleware)
+    admin_client.cookies.set("netmap_access", "session-cookie")
+    admin_client.cookies.set("netmap_csrf", "csrf-value")
+    assert admin_client.post(ACK_URL).status_code == 403
+    assert admin_client.post(ACK_URL, headers={"X-CSRF-Token": "wrong"}).status_code == 403
+    assert admin_client.post(ACK_URL, headers={"X-CSRF-Token": "csrf-value"}).status_code == 200
