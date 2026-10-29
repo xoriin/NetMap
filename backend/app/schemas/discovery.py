@@ -45,6 +45,11 @@ class DiscoveryHost(BaseModel):
         return normalize_ip(ip_address)
 
 
+class DiscoveryScanProgress(BaseModel):
+    done: int
+    total: int
+
+
 class DiscoveryScanRead(BaseModel):
     id: int
     schedule_id: int | None = None
@@ -56,7 +61,9 @@ class DiscoveryScanRead(BaseModel):
     results: list[DiscoveryHost] = Field(default_factory=list)
     error: str | None = None
     created_at: UtcDatetime
+    started_at: UtcDatetime | None = None
     completed_at: UtcDatetime | None = None
+    progress: DiscoveryScanProgress | None = None
 
 
 class DiscoveryImportRequest(BaseModel):

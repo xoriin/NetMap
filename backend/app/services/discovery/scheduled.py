@@ -6,7 +6,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
-from typing import Iterable
+from typing import Callable, Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.models.topology_group import TopologyGroup
 from app.schemas.discovery import DiscoveryHost, DiscoveryStart
 from app.services.audit.service import write_audit
 from app.services.discovery.scanner import (
+    DiscoveryTarget,
     deserialize_results,
     enrich_hosts_from_snmp_arp,
     ensure_private_address,
@@ -58,13 +59,31 @@ def json_dump_list(values: Iterable[str]) -> str:
     return json.dumps([value for value in values if value])
 
 
-def execute_discovery_scan(
+@dataclass
+class DiscoveryScanJob:
+    """Everything the network phase needs, resolved before the session is released."""
+
+    scan_id: int
+    actor_user_id: int
+    schedule_id: int | None
+    target: DiscoveryTarget
+    scan_type: str
+    snmp_targets: list[str]
+    snmp_community: str | None
+    snmp_port: int
+    snmp_timeout: int
+    snmp_retries: int
+    profile_error: str | None
+
+
+def prepare_discovery_scan(
     db: Session,
     payload: DiscoveryStart,
     actor_user_id: int,
     *,
     schedule_id: int | None = None,
-) -> DiscoveryScan:
+    queued: bool = False,
+) -> DiscoveryScanJob:
     target = validate_target(payload.target, payload.confirm_large_scan)
     snmp_targets = list(payload.snmp_targets)
     if not snmp_targets and payload.topology_group_id is not None:
@@ -96,8 +115,10 @@ def execute_discovery_scan(
         schedule_id=schedule_id,
         target=target.nmap_target,
         scan_type=payload.scan_type,
-        status="running",
+        status="queued" if queued else "running",
         host_count=target.host_count,
+        started_at=None if queued else datetime.now(timezone.utc),
+        progress_done=0,
     )
     db.add(scan)
     db.flush()
@@ -109,43 +130,67 @@ def execute_discovery_scan(
         target=f"scan:{scan_id}",
         detail=f"{payload.scan_type} {target.nmap_target}",
     )
-    # Commit ends the transaction; nothing below touches the session until the
-    # network phase is over (read -> close -> probe -> write).
     db.commit()
+    return DiscoveryScanJob(
+        scan_id=scan_id,
+        actor_user_id=actor_user_id,
+        schedule_id=schedule_id,
+        target=target,
+        scan_type=payload.scan_type,
+        snmp_targets=snmp_targets,
+        snmp_community=snmp_community,
+        snmp_port=snmp_port,
+        snmp_timeout=snmp_timeout,
+        snmp_retries=snmp_retries,
+        profile_error=profile_error,
+    )
 
+
+def run_discovery_scan(
+    db: Session,
+    job: DiscoveryScanJob,
+    on_progress: Callable[[int], None] | None = None,
+) -> DiscoveryScan:
+    # Nothing here touches the session until the network phase is over
+    # (read -> close -> probe -> write).
     results: list[DiscoveryHost] = []
     error: str | None = None
     try:
-        if profile_error is not None:
-            raise ValueError(profile_error)
-        results = run_nmap_scan(target, payload.scan_type)
-        if snmp_community and snmp_targets:
+        if job.profile_error is not None:
+            raise ValueError(job.profile_error)
+        if on_progress is None:
+            results = run_nmap_scan(job.target, job.scan_type)
+        else:
+            results = run_nmap_scan(job.target, job.scan_type, on_progress=on_progress)
+        if job.snmp_community and job.snmp_targets:
             try:
                 results = enrich_hosts_from_snmp_arp(
                     results,
-                    snmp_targets,
-                    snmp_community,
-                    port=snmp_port,
-                    timeout_seconds=snmp_timeout,
-                    retries=snmp_retries,
+                    job.snmp_targets,
+                    job.snmp_community,
+                    port=job.snmp_port,
+                    timeout_seconds=job.snmp_timeout,
+                    retries=job.snmp_retries,
                 )
             except (TimeoutError, SnmpError, OSError):
                 logger.exception("SNMP ARP enrichment failed during discovery scan")
     except Exception as exc:
         error = str(exc)
 
-    scan = db.get(DiscoveryScan, scan_id)
+    scan = db.get(DiscoveryScan, job.scan_id)
     assert scan is not None
     scan.completed_at = datetime.now(timezone.utc)
+    manual = job.schedule_id is None
     if error is None:
         scan.status = "completed"
+        scan.progress_done = scan.host_count
         scan.result_count = len(results)
         scan.results_json = serialize_results(results)
         write_audit(
             db,
-            action="discovery.scan_completed" if schedule_id is None else "discovery.scheduled_scan_completed",
-            actor_user_id=actor_user_id,
-            target=f"scan:{scan_id}",
+            action="discovery.scan_completed" if manual else "discovery.scheduled_scan_completed",
+            actor_user_id=job.actor_user_id,
+            target=f"scan:{job.scan_id}",
             detail=f"{len(results)} hosts",
         )
     else:
@@ -153,14 +198,24 @@ def execute_discovery_scan(
         scan.error = error
         write_audit(
             db,
-            action="discovery.scan_failed" if schedule_id is None else "discovery.scheduled_scan_failed",
-            actor_user_id=actor_user_id,
-            target=f"scan:{scan_id}",
+            action="discovery.scan_failed" if manual else "discovery.scheduled_scan_failed",
+            actor_user_id=job.actor_user_id,
+            target=f"scan:{job.scan_id}",
             detail=error,
         )
     db.commit()
     db.refresh(scan)
     return scan
+
+
+def execute_discovery_scan(
+    db: Session,
+    payload: DiscoveryStart,
+    actor_user_id: int,
+    *,
+    schedule_id: int | None = None,
+) -> DiscoveryScan:
+    return run_discovery_scan(db, prepare_discovery_scan(db, payload, actor_user_id, schedule_id=schedule_id))
 
 
 def annotate_hosts_with_inventory(hosts: list[DiscoveryHost], db: Session) -> list[DiscoveryHost]:

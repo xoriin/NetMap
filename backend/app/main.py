@@ -151,7 +151,7 @@ def _cleanup_stuck_scans() -> None:
     from app.models.discovery import DiscoveryScan
 
     with SessionLocal() as db:
-        stuck = db.scalars(select(DiscoveryScan).where(DiscoveryScan.status == "running")).all()
+        stuck = db.scalars(select(DiscoveryScan).where(DiscoveryScan.status.in_(("queued", "running")))).all()
         if not stuck:
             return
         for scan in stuck:

@@ -26,6 +26,8 @@ class DiscoveryScan(Base):
         nullable=False,
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    progress_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class DiscoverySchedule(Base):

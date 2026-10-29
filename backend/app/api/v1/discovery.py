@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from app.schemas.discovery import (
     DiscoveryImportResult,
     DiscoveryObservationRead,
     DiscoveryObservationUpdate,
+    DiscoveryScanProgress,
     DiscoveryScanRead,
     DiscoveryScheduleCreate,
     DiscoveryScheduleRead,
@@ -28,6 +30,7 @@ from app.schemas.discovery import (
     DiscoveryStart,
 )
 from app.services.audit.service import write_audit
+from app.services.discovery import manual as manual_scans
 from app.services.discovery.scanner import (
     deserialize_results,
     validate_target,
@@ -35,11 +38,11 @@ from app.services.discovery.scanner import (
 from app.services.discovery.scheduled import (
     annotate_hosts_with_inventory,
     due_datetime,
-    execute_discovery_scan,
     inventoried_new_device_ips,
     json_dump_list,
     json_list,
     normalize_mac,
+    prepare_discovery_scan,
     resolve_inventoried_new_device_observations,
     schedule_next_run,
     scheduled_discovery,
@@ -78,7 +81,9 @@ def scan_to_read(scan: DiscoveryScan) -> DiscoveryScanRead:
         results=results,
         error=scan.error,
         created_at=scan.created_at,
+        started_at=scan.started_at,
         completed_at=scan.completed_at,
+        progress=None if scan.progress_done is None else DiscoveryScanProgress(done=scan.progress_done, total=scan.host_count),
     )
 
 
@@ -90,17 +95,44 @@ def scan_to_read_with_inventory(scan: DiscoveryScan, db: Session) -> DiscoverySc
     return read
 
 
-@router.post("/scans", response_model=DiscoveryScanRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/scans",
+    response_model=DiscoveryScanRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={409: {"description": "A manual scan is already queued or running; `scan_id` names it"}},
+)
 def start_scan(
     payload: DiscoveryStart,
     current_user: Annotated[User, Depends(require_discovery_manage)],
     db: Annotated[Session, Depends(get_db)],
+):
+    with manual_scans.start_lock:
+        active_id = manual_scans.active_manual_scan_id(db)
+        if active_id is not None:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"detail": "A manual discovery scan is already running", "scan_id": active_id},
+            )
+        enforce_rate_limit(current_user.id)
+        try:
+            job = prepare_discovery_scan(db, payload, current_user.id, queued=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    manual_scans.submit(job)
+    scan = db.get(DiscoveryScan, job.scan_id)
+    assert scan is not None
+    return scan_to_read(scan)
+
+
+@router.get("/scans/{scan_id}", response_model=DiscoveryScanRead)
+def get_scan(
+    scan_id: int,
+    _current_user: Annotated[User, Depends(require_discovery_manage)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> DiscoveryScanRead:
-    enforce_rate_limit(current_user.id)
-    try:
-        scan = execute_discovery_scan(db, payload, current_user.id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    scan = db.get(DiscoveryScan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
     return scan_to_read_with_inventory(scan, db)
 
 

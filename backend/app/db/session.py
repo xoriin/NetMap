@@ -195,6 +195,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0087_oidc_link_by_email_preserve", _migrate_oidc_link_by_email_preserve)
         _run_migration(conn, inspector, "0088_oidc_login_state_purpose", _migrate_oidc_login_state_purpose)
         _run_migration(conn, inspector, "0089_user_has_local_password", _migrate_user_has_local_password)
+        _run_migration(conn, inspector, "0090_discovery_scan_progress", _migrate_discovery_scan_progress)
 
 
 
@@ -2334,6 +2335,17 @@ _PASSWORD_SET_ACTIONS = (
     "auth.password_reset_self_service",
     "auth.admin_password_reset",
 )
+
+
+def _migrate_discovery_scan_progress(conn, inspector) -> None:
+    """discovery_scans.started_at and progress_done for queued manual scans."""
+    if "discovery_scans" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "discovery_scans")
+    if "started_at" not in columns:
+        conn.execute(text("ALTER TABLE discovery_scans ADD COLUMN started_at DATETIME"))
+    if "progress_done" not in columns:
+        conn.execute(text("ALTER TABLE discovery_scans ADD COLUMN progress_done INTEGER"))
 
 
 def _migrate_user_has_local_password(conn, inspector) -> None:
