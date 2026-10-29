@@ -31,6 +31,7 @@ import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { EntityChip } from "../../components/EntityChip";
 import { SwatchSelect, type SwatchOption } from "../../components/SwatchSelect";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { deviceTypeChipFor, resolveEntityColor } from "../../utils/entityColor";
 import { formatDeviceTypeLabel } from "../../utils/format";
 import { iconLabel } from "../../icons";
@@ -262,6 +263,13 @@ export function MonitoringWorkspace({
   const [devicesPage, setDevicesPage] = useState(1);
   const [devicesPageSize, setDevicesPageSize] = useState(() => loadPageSize(MON_DEVICES_PAGE_SIZE_KEY));
   const deviceTypeOptions = useDeviceTypes(accessToken).options;
+  // VLAN swatches use the same colour as the VLAN page: the topology group's
+  // configured colour, else the colour derived from the group's name.
+  const topologyGroupsQuery = useApiQuery(() => api.topologyGroups(accessToken), [accessToken], { rememberAs: "topology.groups" });
+  const vlanColor = useCallback((vlan: string) => {
+    const group = (topologyGroupsQuery.data ?? []).find((g) => (g.vlan_id ?? "").trim() === vlan);
+    return group ? resolveEntityColor(group.color ?? null, group.name) : resolveEntityColor(null, `vlan-${vlan}`);
+  }, [topologyGroupsQuery.data]);
 
   useEffect(() => {
     const syncMonitoringView = () => setViewTab(readPermittedView());
@@ -573,9 +581,9 @@ export function MonitoringWorkspace({
     ...vlanOptions.map((vlan) => ({
       value: vlan,
       label: `VLAN ${vlan}`,
-      color: resolveEntityColor(null, `vlan-${vlan}`),
+      color: vlanColor(vlan),
     })),
-  ], [vlanOptions]);
+  ], [vlanOptions, vlanColor]);
 
   useEffect(() => {
     if (filterDeviceType === "all") return;
@@ -992,7 +1000,7 @@ export function MonitoringWorkspace({
   const vlanRows = [...vlanCounts].map(([vlan, value]) => ({
     label: vlan ? `VLAN ${vlan}` : "No VLAN",
     value,
-    color: vlan ? resolveEntityColor(null, `vlan-${vlan}`) : "--dash-muted",
+    color: vlan ? vlanColor(vlan) : "--dash-muted",
   })).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, undefined, { numeric: true }));
   const unexpectedNames = unexpectedDevices.slice(0, 3).map((d) => d.display_name ?? d.hostname ?? d.ip_address).join(", ");
 
