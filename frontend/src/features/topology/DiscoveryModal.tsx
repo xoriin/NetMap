@@ -22,6 +22,17 @@ const proposedUpdateLabels: Record<string, string> = {
   os: "OS",
 };
 
+const scanTypeLabels: Record<string, string> = {
+  ping: "Ping sweep, ports not scanned",
+  basic_ports: "Basic port detection",
+};
+
+const scanStatusLabels: Record<string, string> = {
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
 // Async scans: poll every 3s, then every 5s once a scan has run for a minute.
 const POLL_FAST_MS = 3_000;
 const POLL_SLOW_MS = 5_000;
@@ -505,26 +516,29 @@ export function DiscoveryModal({
       {scan && (
         <div className="scan-results">
           <div className="scan-summary">
-            <strong>{scan.result_count}</strong>
-            <span>
-              hosts found from {scan.host_count} target addresses · {scan.scan_type} · {scan.status}
+            <div className="scan-summary-count">
+              <strong>{scan.result_count}</strong>
+              <span>{scan.result_count === 1 ? "host found" : "hosts found"}</span>
+            </div>
+            <span className="scan-summary-counts">
+              {scanCounts.new} new · {scanCounts.changed} to update · {scanCounts.existing} known
             </span>
-            <span className="dash-panel-meta">
-              {scanCounts.new} new · {scanCounts.changed} changed · {scanCounts.existing} already known
+            <span className="scan-summary-meta">
+              {scan.host_count} addresses scanned · {scanTypeLabels[scan.scan_type] ?? scan.scan_type} · {scanStatusLabels[scan.status] ?? scan.status}
             </span>
           </div>
           {scan.results.length === 0 ? (
             <div className="empty-results">No hosts responded to this scan.</div>
           ) : (
             <>
-              <div className="scan-table-header">
-                <span />
-                <span>IP address</span>
-                <span>Hostname</span>
-                <span>MAC / vendor</span>
-                <span>Status / ports</span>
-              </div>
               <div className="scan-table">
+                <div className="scan-table-header">
+                  <span />
+                  <span>IP address</span>
+                  <span>Hostname</span>
+                  <span>Vendor / MAC</span>
+                  <span>{scan.scan_type === "ping" ? "Status" : "Status / ports"}</span>
+                </div>
                 {scan.results.map((host) => (
                   <label key={host.ip_address} className="scan-row">
                     <input
@@ -532,26 +546,27 @@ export function DiscoveryModal({
                       type="checkbox"
                       onChange={() => toggleHost(host)}
                     />
-                    <span>{host.ip_address}</span>
-                    <span>
-                      {host.hostname || "No hostname"}
-                      {host.os && <span className="dash-panel-meta" style={{ display: "block", fontSize: 10 }}>{host.os}</span>}
+                    <span className="scan-cell">{host.ip_address}</span>
+                    <span className="scan-cell">
+                      {host.hostname || <span className="scan-cell-empty">—</span>}
+                      {host.os && <span className="scan-cell-sub">{host.os}</span>}
                     </span>
-                    <span>{host.vendor || host.mac_address || "No MAC/vendor"}</span>
-                    <span>
+                    <span className="scan-cell">
+                      {host.vendor || host.mac_address || <span className="scan-cell-empty">—</span>}
+                      {host.vendor && host.mac_address && <span className="scan-cell-sub">{host.mac_address}</span>}
+                    </span>
+                    <span className="scan-cell">
                       <strong>
                         {host.import_status === "new" ? "New" : host.import_status === "changed" ? "Update available" : "Known"}
                       </strong>
                       {host.proposed_updates.length > 0 && (
-                        <span className="dash-panel-meta"> · {host.proposed_updates.map((field) => proposedUpdateLabels[field] ?? field).join(", ")}</span>
+                        <span className="scan-cell-sub">{host.proposed_updates.map((field) => proposedUpdateLabels[field] ?? field).join(", ")}</span>
                       )}
-                      <span className="dash-panel-meta">
-                        {" · "}{scan.scan_type === "ping"
-                          ? "Ports not scanned"
-                          : host.open_ports.length
-                          ? host.open_ports.join(", ")
-                          : "No open ports found"}
-                      </span>
+                      {scan.scan_type !== "ping" && (
+                        <span className="scan-cell-sub">
+                          {host.open_ports.length ? `Open ${host.open_ports.join(", ")}` : "No open ports"}
+                        </span>
+                      )}
                     </span>
                   </label>
                 ))}

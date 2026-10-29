@@ -83,7 +83,7 @@ test("an async scan is polled from queued through running to completed", async (
 
   await nextPoll(page, calls);
   await expect(status).toHaveCount(0);
-  await expect(dialog.locator(".scan-summary")).toContainText("hosts found from 254 target addresses · ping · completed");
+  await expect(dialog.locator(".scan-summary")).toContainText("254 addresses scanned · Ping sweep, ports not scanned · Completed");
   await expect(dialog.locator(".scan-row input[type=checkbox]:checked")).toHaveCount(2);
   await expect(dialog.getByRole("button", { name: "Start scan" })).toBeEnabled();
   expect(calls.gets).toEqual(["/api/v1/discovery/scans/41", "/api/v1/discovery/scans/41"]);
@@ -138,7 +138,7 @@ test("a 409 attaches to the scan that is already running", async ({ page }) => {
   await expect(status).toContainText(/100 of 254 addresses scanned · 0:3\d elapsed/);
   await expect(dialog.locator(".nm-alert--error")).toHaveCount(0);
   await nextPoll(page, calls);
-  await expect(dialog.locator(".scan-summary")).toContainText("basic_ports · completed");
+  await expect(dialog.locator(".scan-summary")).toContainText("Basic port detection · Completed");
   expect(calls.posts).toBe(1);
   expect(new Set(calls.gets)).toEqual(new Set(["/api/v1/discovery/scans/77"]));
 });
@@ -167,9 +167,28 @@ test("the synchronous scan response still works without polling", async ({ page 
   const calls = await mockScans(page, { status: 201, json: legacy }, []);
   const dialog = await openScanModal(page);
   await dialog.getByRole("button", { name: "Start scan" }).click();
-  await expect(dialog.locator(".scan-summary")).toContainText("hosts found from 254 target addresses · ping · completed");
+  await expect(dialog.locator(".scan-summary")).toContainText("254 addresses scanned · Ping sweep, ports not scanned · Completed");
   await expect(dialog.locator(".scan-row input[type=checkbox]:checked")).toHaveCount(2);
   await page.clock.fastForward(10_000);
   await page.waitForTimeout(200);
   expect(calls.gets).toEqual([]);
+});
+
+test("scan results keep the column header inside the table, lined up with the rows", async ({ page }) => {
+  const detailed = [
+    { ...hosts[0], vendor: "Synology", mac_address: "00:11:32:aa:bb:cc", import_status: "changed", proposed_updates: ["hostname"] },
+    hosts[1],
+  ];
+  await mockScans(page, { status: 201, json: scanRecord({ status: "completed", completed_at: at(3), result_count: 2, results: detailed }) }, []);
+  const dialog = await openScanModal(page);
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+
+  const table = dialog.locator(".scan-table");
+  await expect(table.locator("> .scan-table-header")).toHaveCount(1);
+  const header = await table.locator(".scan-table-header > span").nth(2).boundingBox();
+  const cell = await table.locator(".scan-row").first().locator("> span").nth(1).boundingBox();
+  expect(Math.abs((header?.x ?? 0) - (cell?.x ?? 99))).toBeLessThanOrEqual(1);
+  await expect(table.locator(".scan-row").nth(1)).toContainText("—");
+  await expect(table.locator(".scan-row").first()).toContainText("Synology00:11:32:aa:bb:cc");
+  await expect(dialog.locator(".scan-summary-counts")).toHaveText("1 new · 1 to update · 0 known");
 });

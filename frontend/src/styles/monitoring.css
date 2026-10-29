@@ -900,10 +900,6 @@ body.theme-dark .scan-new-group-btn:hover {
   border-color: #1d6472;
 }
 
-body.theme-dark .scan-summary {
-  color: var(--nm-table-header-text);
-}
-
 body.theme-dark .scan-schedule-panel {
   border-color: var(--nm-border);
   background: color-mix(in srgb, var(--nm-surface) 72%, transparent);
@@ -945,12 +941,6 @@ body.theme-dark .ipam-btn--danger {
   border-color: rgba(180,60,60,0.3) !important;
   color: #e07070 !important;
   background: rgba(180,60,60,0.1) !important;
-}
-
-body.theme-dark .scan-table-header {
-  color: var(--nm-text-muted);
-  border-color: var(--nm-table-header-border);
-  background: var(--nm-border);
 }
 
 body.theme-dark .empty-results {

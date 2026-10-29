@@ -5044,50 +5044,91 @@ body.theme-dark .obs-row-type-badge--field_change { background: rgba(100,120,220
 body.theme-dark .obs-row-type-badge--disappeared { background: rgba(224,80,80,0.12); color: #e07070; }
 
 .scan-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 8px;
+  column-gap: 12px;
+  row-gap: 2px;
   margin: 18px 0 12px;
 }
 
-.scan-summary strong {
-  font-size: 26px;
+.scan-summary-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--nm-text);
+  font-weight: 600;
 }
 
-.scan-summary span {
-  color: #587183;
+.scan-summary-count strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.scan-summary-counts {
+  color: var(--nm-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.scan-summary-meta {
+  grid-column: 1 / -1;
+  color: var(--nm-text-muted);
+  font-size: 12px;
 }
 
 .scan-table {
   display: grid;
   overflow: hidden;
-  border: 1px solid rgba(209, 220, 230, 0.8);
+  border: 1px solid var(--nm-table-header-border);
   border-radius: 12px;
 }
 
-.scan-table-header {
+.scan-table-header,
+.scan-row {
   display: grid;
-  grid-template-columns: 28px 120px 1fr 1fr 120px;
+  grid-template-columns: 20px minmax(92px, 0.9fr) minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 10px;
-  padding: 0 10px 8px;
-  color: #587183;
-  font-size: 12px;
-  font-weight: 750;
+  padding: 8px 12px;
+}
+
+.scan-table-header {
+  align-items: center;
+  border-bottom: 1px solid var(--nm-table-header-border);
+  color: var(--nm-table-header-text);
+  background: var(--nm-table-header-bg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .scan-row {
-  display: grid;
-  grid-template-columns: 28px 120px 1fr 1fr 120px;
-  gap: 10px;
-  align-items: center;
+  align-items: start;
   min-height: 42px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #edf2f5;
+  border-bottom: 1px solid var(--nm-table-divider);
+  background: var(--nm-table-row-bg);
   font-size: 13px;
 }
 
 .scan-row:last-child {
   border-bottom: 0;
+}
+
+.scan-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.scan-cell-sub {
+  color: var(--nm-text-muted);
+  font-size: 11px;
+}
+
+.scan-cell-empty {
+  color: var(--nm-text-faint);
 }
 
 .scan-row input {
