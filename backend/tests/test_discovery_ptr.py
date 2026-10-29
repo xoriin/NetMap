@@ -65,3 +65,10 @@ def test_reverse_lookups_run_in_parallel_within_a_budget(monkeypatch) -> None:
     resolved = scanner.resolve_hostnames(hosts, budget_seconds=0.5)
     assert time.monotonic() - started < 1.5
     assert [host.hostname for host in resolved] == ["router.lan", None, None, "kept.lan"]
+
+
+def test_resolver_made_names_are_not_hostnames(monkeypatch) -> None:
+    names = {"10.0.0.1": "_gateway", "10.0.0.2": "_outbound.", "10.0.0.3": "nas.lan"}
+    monkeypatch.setattr(scanner.socket, "gethostbyaddr", lambda ip: (names[ip], [], [ip]))
+    hosts = [DiscoveryHost(ip_address=ip) for ip in names]
+    assert [host.hostname for host in scanner.resolve_hostnames(hosts)] == [None, None, "nas.lan"]

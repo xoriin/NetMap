@@ -241,7 +241,10 @@ def _reverse_lookup(ip_value: str) -> str | None:
         name = socket.gethostbyaddr(ip_value)[0]
     except (OSError, UnicodeError):
         return None
-    return name.rstrip(".") or None
+    name = name.rstrip(".")
+    # systemd-resolved answers "_gateway", "_outbound" and similar for addresses
+    # it knows locally; a leading underscore is never a device's hostname.
+    return None if not name or name.startswith("_") else name
 
 
 def resolve_hostnames(
