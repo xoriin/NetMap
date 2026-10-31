@@ -189,3 +189,8 @@ def test_empty_feed_url_disables_the_feed(env, monkeypatch):
     monkeypatch.setattr(feed.settings, "notice_feed_url", "")
     assert feed.feed_enabled(db) is False
     assert feed.active_notices(db) == []
+
+
+def test_feed_is_checked_every_hour():
+    assert feed.CHECK_INTERVAL_SECONDS == 3600
+    assert feed.FIRST_CHECK_DELAY_SECONDS == 60

@@ -123,7 +123,7 @@ export function ReleaseNoticesPanel({ accessToken, style }: { accessToken: strin
           <input type="checkbox" checked={enabled} disabled={pending !== null || settingsQuery.isLoading} onChange={(e) => void toggle(e.target.checked)} />
           <span className="tool-form-check-copy">
             <span>Show notices from the NetMap project</span>
-            <span className="tool-note">Warnings about breaking changes before you upgrade. NetMap reads a public file every 6 hours and sends nothing about this installation.</span>
+            <span className="tool-note">Warnings about breaking changes before you upgrade. NetMap reads a public file every hour and sends nothing about this installation.</span>
           </span>
         </label>
         {enabled && feed && (
