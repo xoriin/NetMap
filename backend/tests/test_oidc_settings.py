@@ -294,3 +294,60 @@ def test_link_by_email_acknowledgement_enforces_cookie_csrf(admin_client, db):
     assert admin_client.post(ACK_URL).status_code == 403
     assert admin_client.post(ACK_URL, headers={"X-CSRF-Token": "wrong"}).status_code == 403
     assert admin_client.post(ACK_URL, headers={"X-CSRF-Token": "csrf-value"}).status_code == 200
+
+
+def test_settings_save_cannot_set_link_by_email_acknowledgement(admin_client, db):
+    from app.services.oidc.config import link_by_email_acknowledgement, link_by_email_fingerprint, oidc_security_warnings
+
+    set_oidc_db_settings(db, link_by_email="true")
+    fingerprint = link_by_email_fingerprint(get_oidc_config(db))
+    response = admin_client.put(
+        "/api/v1/admin/oidc-settings",
+        json={
+            "provider_name": "Authentik",
+            "link_by_email_acknowledged": True,
+            "link_by_email_ack_fingerprint": fingerprint,
+            "link_by_email_ack_by": "attacker",
+            "link_by_email_ack_at": "2026-10-31T00:00:00Z",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["link_by_email_acknowledged"] is False
+    assert response.json()["link_by_email_ack_by"] is None
+    save_oidc_db_settings(db, {"link_by_email_ack_fingerprint": fingerprint})
+    db.commit()
+    db.expire_all()
+    assert link_by_email_acknowledgement(db)["acknowledged"] is False
+    assert oidc_security_warnings(db)
+
+
+def test_link_by_email_can_be_acknowledged_again_after_config_change(admin_client, db):
+    from app.services.oidc.config import link_by_email_acknowledgement, oidc_security_warnings
+
+    set_oidc_db_settings(db, link_by_email="true")
+    assert admin_client.post(ACK_URL).status_code == 200
+    save_oidc_db_settings(db, {"client_id": "rotated-client"})
+    db.commit()
+    db.expire_all()
+    assert oidc_security_warnings(db)
+    response = admin_client.post(ACK_URL)
+    assert response.status_code == 200, response.text
+    assert response.json()["link_by_email_acknowledged"] is True
+    db.expire_all()
+    assert link_by_email_acknowledgement(db)["acknowledged"] is True
+    assert oidc_security_warnings(db) == []
+
+
+def test_link_by_email_acknowledgement_ignores_unreadable_timestamp(db):
+    from app.models.system_setting import SystemSetting
+    from app.services.oidc.config import OIDC_SETTING_PREFIX, ACK_AT_KEY, acknowledge_link_by_email, link_by_email_acknowledgement
+
+    set_oidc_db_settings(db, link_by_email="true")
+    acknowledge_link_by_email(db, get_oidc_config(db), "root")
+    db.commit()
+    db.get(SystemSetting, f"{OIDC_SETTING_PREFIX}{ACK_AT_KEY}").value = "not-a-date"
+    db.commit()
+    ack = link_by_email_acknowledgement(db)
+    assert ack["acknowledged"] is True
+    assert ack["by"] == "root"
+    assert ack["at"] is None

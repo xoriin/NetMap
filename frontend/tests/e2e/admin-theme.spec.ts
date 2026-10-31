@@ -294,6 +294,49 @@ test("SSO saves fields from every task panel without replacing the stored secret
   await expect(page.getByText("Single sign-on settings saved", { exact: true })).toBeVisible();
 });
 
+test("SSO link-by-email notice is acknowledged once and shows who acknowledged it", async ({ page }) => {
+  await setupAdminMocks(page);
+  let acknowledgements = 0;
+  let current: Record<string, unknown> = { ...oidcSettings, link_by_email_acknowledged: false };
+  await page.route("**/api/v1/admin/oidc-settings", route => route.fulfill({ json: current }));
+  await page.route("**/api/v1/admin/oidc/link-by-email/acknowledge", async route => {
+    expect(route.request().method()).toBe("POST");
+    acknowledgements += 1;
+    current = { ...current, link_by_email_acknowledged: true, link_by_email_ack_by: "root", link_by_email_ack_at: "2026-10-31T09:30:00Z" };
+    return route.fulfill({ json: current });
+  });
+  await page.goto("/admin#security");
+  const acknowledge = page.getByRole("button", { name: "I understand, keep it on", exact: true });
+  await expect(acknowledge).toBeVisible();
+  await expect(page.getByText("It returns if the issuer, client ID or this setting changes.", { exact: false })).toBeVisible();
+  await acknowledge.click();
+  await expect(page.getByText("Link by email notice acknowledged", { exact: true })).toBeVisible();
+  await expect(acknowledge).toHaveCount(0);
+  await expect(page.getByText(/^Acknowledged by root on /)).toBeVisible();
+  expect(acknowledgements).toBe(1);
+});
+
+test("SSO link-by-email acknowledgement is offered only while link by email is on", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.route("**/api/v1/admin/oidc-settings", route => route.fulfill({ json: { ...oidcSettings, link_by_email: false, link_by_email_acknowledged: false } }));
+  await page.goto("/admin#security");
+  await expect(page.getByLabel("Link first-time SSO sign-ins to existing users by verified email")).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "I understand, keep it on", exact: true })).toHaveCount(0);
+  await expect(page.getByText(/^Acknowledged/)).toHaveCount(0);
+});
+
+test("SSO link-by-email acknowledgement failure keeps the button and reports the error", async ({ page }) => {
+  await setupAdminMocks(page);
+  await page.route("**/api/v1/admin/oidc-settings", route => route.fulfill({ json: { ...oidcSettings, link_by_email_acknowledged: false } }));
+  await page.route("**/api/v1/admin/oidc/link-by-email/acknowledge", route => route.fulfill({ status: 409, json: { detail: "Link by email is not on" } }));
+  await page.goto("/admin#security");
+  const acknowledge = page.getByRole("button", { name: "I understand, keep it on", exact: true });
+  await acknowledge.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Link by email is not on" })).toBeVisible();
+  await expect(acknowledge).toBeEnabled();
+  await expect(page.getByText(/^Acknowledged/)).toHaveCount(0);
+});
+
 async function setupAdminMocks(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));
