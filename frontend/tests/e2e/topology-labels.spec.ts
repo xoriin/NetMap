@@ -42,3 +42,43 @@ test.describe("Topology long names", () => {
     expect(box!.x + box!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1);
   });
 });
+
+test.describe("Topology display reset", () => {
+  test("Reset to defaults returns the selected group's display settings to the defaults", async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, [
+      mockDevice({ id: 1, hostname: "router-01", ip_address: "10.0.0.1", topology_group: "Core" }),
+      mockDevice({ id: 2, hostname: "switch-01", ip_address: "10.0.0.2", topology_group: "Core" }),
+    ], []);
+    await page.goto("/topology");
+    await page.getByRole("button", { name: "Display" }).click();
+    const panel = page.locator(".toolbar-display-panel");
+    const reset = panel.getByRole("button", { name: "Reset to defaults" });
+    const nodeSize = panel.locator("label", { hasText: "Node size" });
+    const labels = panel.locator("label", { hasText: "Device labels" });
+    await expect(reset).toBeDisabled();
+    const resetBox = (await reset.boundingBox())!;
+    const selectBox = (await panel.locator("select").boundingBox())!;
+    expect(Math.abs(resetBox.x - selectBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(resetBox.width - selectBox.width)).toBeLessThanOrEqual(1);
+    await expect(nodeSize.locator("span")).toHaveText("125%");
+    const defaultLabelSize = await labels.locator("span").textContent();
+
+    await nodeSize.locator("input").fill("160");
+    await labels.locator("input").fill("22");
+    await panel.getByRole("button", { name: "Radial" }).click();
+    await expect(nodeSize.locator("span")).toHaveText("160%");
+    await expect(labels.locator("span")).toHaveText("22px");
+    await expect(reset).toBeEnabled();
+    await page.screenshot({ path: "test-results/topology-display-changed.png" });
+
+    await reset.click();
+    await expect(nodeSize.locator("span")).toHaveText("125%");
+    await expect(labels.locator("span")).toHaveText(defaultLabelSize!);
+    await expect(panel.getByRole("button", { name: "Grid" })).toHaveClass(/nm-btn--active/);
+    await expect(panel.locator("label", { hasText: "Per row" })).toBeVisible();
+    await expect(reset).toBeDisabled();
+    await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("font-size", `${parseInt(defaultLabelSize!, 10)}px`);
+    await page.screenshot({ path: "test-results/topology-display-reset.png" });
+  });
+});

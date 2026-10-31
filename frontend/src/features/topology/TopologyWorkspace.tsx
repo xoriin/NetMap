@@ -1710,6 +1710,16 @@ export function TopologyWorkspace({
     }
   }
 
+  function resetSelectedGroupDisplay() {
+    if (!selectedGroupForDisplay) return;
+    setGroupDisplayPrefs((c) => {
+      const next = { ...c };
+      delete next[selectedGroupForDisplay];
+      return next;
+    });
+    resetSelectedGroup();
+  }
+
   function setGroupPref(patch: Partial<GroupDisplayPref>) {
     setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, ...patch } }));
   }
@@ -1809,6 +1819,7 @@ export function TopologyWorkspace({
         hiddenGroupNames={hiddenGroupNames}
         selectedGroupForDisplay={selectedGroupForDisplay}
         activeGroupDisplay={activeGroupDisplay}
+        groupHasCustomDisplay={Boolean(groupDisplayPrefs[selectedGroupForDisplay])}
         groupZoneOpacityPercent={groupZoneOpacityPercent}
         nodeLabelFontSize={nodeLabelFontSize}
         edgeLabelFontSize={edgeLabelFontSize}
@@ -1829,6 +1840,7 @@ export function TopologyWorkspace({
         onLayoutShapeChange={changeLayoutShape}
         onAutoArrange={(activeGroupDisplay.layoutShape ?? "grid") === "radial" ? autoArrangeRadialSelectedGroup : autoArrangeSelectedGroup}
         onResetGroup={resetSelectedGroup}
+        onResetGroupDisplay={resetSelectedGroupDisplay}
         onSpacingChange={applySpacingChange}
         onMaxPerRowChange={applyMaxPerRowChange}
         onZoneOpacityChange={setGroupZoneOpacityPercent}

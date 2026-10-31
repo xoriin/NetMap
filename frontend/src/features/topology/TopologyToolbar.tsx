@@ -160,6 +160,7 @@ export function TopologyToolbar({
   hiddenGroupNames,
   selectedGroupForDisplay,
   activeGroupDisplay,
+  groupHasCustomDisplay,
   groupZoneOpacityPercent,
   nodeLabelFontSize,
   edgeLabelFontSize,
@@ -179,6 +180,7 @@ export function TopologyToolbar({
   onLayoutShapeChange,
   onAutoArrange,
   onResetGroup,
+  onResetGroupDisplay,
   onSpacingChange,
   onMaxPerRowChange,
   onZoneOpacityChange,
@@ -202,6 +204,7 @@ export function TopologyToolbar({
   hiddenGroupNames: Set<string>;
   selectedGroupForDisplay: string;
   activeGroupDisplay: GroupDisplayPref;
+  groupHasCustomDisplay: boolean;
   groupZoneOpacityPercent: number;
   nodeLabelFontSize: number;
   edgeLabelFontSize: number;
@@ -221,6 +224,7 @@ export function TopologyToolbar({
   onLayoutShapeChange: (shape: GroupLayoutShape) => void;
   onAutoArrange: () => void;
   onResetGroup: () => void;
+  onResetGroupDisplay: () => void;
   onSpacingChange: (spacingScalePercent: number) => void;
   onMaxPerRowChange: (maxDevicesPerRow: number) => void;
   onZoneOpacityChange: (percent: number) => void;
@@ -432,6 +436,17 @@ export function TopologyToolbar({
                   <input type="range" min={10} max={24} step={1} value={edgeLabelFontSize}
                     onChange={(e) => onEdgeLabelSizeChange(Number(e.target.value))} />
                 </label>
+                <div className="toolbar-display-actions">
+                  <button
+                    type="button"
+                    className="nm-btn nm-btn--sm"
+                    disabled={!groupHasCustomDisplay}
+                    onClick={onResetGroupDisplay}
+                    title={`Return ${selectedGroupForDisplay}'s size, spacing, layout and label settings to the defaults`}
+                  >
+                    Reset to defaults
+                  </button>
+                </div>
               </div>
             )}
           </div>
