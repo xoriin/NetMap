@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { StatusPagePayload } from "./statusPagesApi";
 import { buildStatusDocument } from "./renderer/buildStatusDocument";
+import { groupIconsPending, loadGroupIcons } from "./groupIcons";
 import type { StatusColorScheme } from "./renderer/builtinStyles";
 import "./statusPages.css";
 
@@ -18,6 +19,15 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
   const frameRef = useRef<HTMLIFrameElement>(null);
   const shownRef = useRef<string | null>(null);
   const previousRef = useRef<StatusPagePayload | null>(null);
+  const [iconsLoaded, setIconsLoaded] = useState(0);
+  const iconsPending = groupIconsPending(payload.groups.map((group) => group.icon));
+
+  useEffect(() => {
+    if (!iconsPending) return;
+    let live = true;
+    void loadGroupIcons().then(() => { if (live) setIconsLoaded((count) => count + 1); }, () => {});
+    return () => { live = false; };
+  }, [iconsPending]);
 
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
@@ -42,7 +52,7 @@ export function StatusPageFrame({ payload, css, title, colorScheme = null, class
     if (!frame || (!hasArrivals && shownRef.current === contentHtml)) return;
     frame.srcdoc = documentHtml;
     shownRef.current = contentHtml;
-  }, [payload, css, colorScheme, darkStyle]);
+  }, [payload, css, colorScheme, darkStyle, iconsLoaded]);
 
   return (
     <iframe

@@ -33,6 +33,7 @@ export type StatusPageGroupPayload = {
   name: string;
   state: StatusSummaryState;
   collapsed: boolean;
+  icon?: string | null;
   items: StatusPageItemPayload[];
 };
 

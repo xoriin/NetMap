@@ -232,6 +232,13 @@
   padding: 6px 18px 6px 10px;
 }
 
+.status-layout-group-icon {
+  flex: 0 0 30px;
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+
 .status-layout-group-name {
   flex: 0 1 320px;
   min-width: 140px;

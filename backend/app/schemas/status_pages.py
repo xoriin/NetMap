@@ -9,6 +9,7 @@ from app.services.status_pages.sources import SourceRef
 
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$")
 ACCENT_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+GROUP_ICON_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 Visibility = Literal["public", "private"]
 HeartbeatWindow = Literal["1h", "24h"]
@@ -179,6 +180,7 @@ class LayoutGroup(BaseModel):
     id: int | None = None
     name: str = Field(min_length=1, max_length=120)
     collapsed_by_default: bool = False
+    icon: str | None = Field(default=None, max_length=64)
     items: list[LayoutItem] = Field(default_factory=list, max_length=500)
 
     @field_validator("name")
@@ -187,6 +189,16 @@ class LayoutGroup(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Group name is required")
+        return value
+
+    @field_validator("icon")
+    @classmethod
+    def _icon(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        if not value:
+            return None
+        if not GROUP_ICON_PATTERN.fullmatch(value):
+            raise ValueError("Group icon must be an icon name such as server or world")
         return value
 
 
@@ -208,6 +220,7 @@ class LayoutGroupRead(BaseModel):
     id: int
     name: str
     collapsed_by_default: bool
+    icon: str | None = None
     items: list[LayoutItemRead]
 
 

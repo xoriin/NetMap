@@ -44,6 +44,7 @@ export type StatusLayoutGroup = {
   id: number | null;
   name: string;
   collapsed_by_default: boolean;
+  icon: string | null;
   items: StatusLayoutItem[];
 };
 

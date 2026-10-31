@@ -7,6 +7,7 @@ import {
   deviceIconPath,
   iconLabel,
   type IconGlyphDefinition,
+  type IconPack,
 } from "../icons";
 
 function IconPickerGlyph({
@@ -28,20 +29,23 @@ function IconPickerGlyph({
   );
 }
 
-function IconPickerModal({
+export function IconPickerModal({
   value,
   strokeColor = "var(--nm-accent-strong)",
+  packs = allRuntimePacks,
   onSelect,
+  onClear,
   onClose,
 }: {
   value: string;
   strokeColor?: string;
+  packs?: IconPack[];
   onSelect: (icon: string) => void;
+  onClear?: () => void;
   onClose: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
-  const packs = allRuntimePacks;
   const showTabs = packs.length > 1;
 
   const allIcons = useMemo<IconGlyphDefinition[]>(() => {
@@ -68,7 +72,7 @@ function IconPickerModal({
 
   return (
     <Modal title="Choose Icon" titleIcon={<Palette size={18} />} onCancel={onClose} modalClassName="icon-picker-modal">
-        <div className="icon-picker-search-row">
+        <div className={`icon-picker-search-row${onClear ? " icon-picker-search-row--action" : ""}`}>
           <div className="nm-search">
             <Search size={14} className="nm-search-icon" aria-hidden="true" />
             <input
@@ -80,6 +84,11 @@ function IconPickerModal({
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {onClear && (
+            <button type="button" className="nm-btn nm-btn--sm" onClick={() => { onClear(); onClose(); }}>
+              Use default
+            </button>
+          )}
         </div>
         {showTabs && (
           <div className="icon-picker-tabs">

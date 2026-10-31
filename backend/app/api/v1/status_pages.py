@@ -125,7 +125,7 @@ def _detail(db: Session, page: StatusPage) -> StatusPageDetail:
     return StatusPageDetail(
         **StatusPageRead.model_validate(page).model_dump(),
         groups=[
-            {"id": g.id, "name": g.name, "collapsed_by_default": g.collapsed_by_default, "items": by_group.get(g.id, [])}
+            {"id": g.id, "name": g.name, "collapsed_by_default": g.collapsed_by_default, "icon": g.icon, "items": by_group.get(g.id, [])}
             for g in groups
         ],
     )
@@ -521,7 +521,7 @@ def preview_draft(
             if group.id is not None:
                 seen_groups.add(group.id)
             gid = group.id if group.id is not None else -(order + 1)
-            groups.append(StatusPageGroup(id=gid, page_id=page_id, name=group.name,
+            groups.append(StatusPageGroup(id=gid, page_id=page_id, name=group.name, icon=group.icon,
                                           collapsed_by_default=group.collapsed_by_default, sort_order=order))
             for item_order, item in enumerate(group.items):
                 if item.id is not None and (item.id not in owned_items or item.id in seen_items):
@@ -669,6 +669,7 @@ def replace_layout(page_id: int, payload: LayoutUpdate, current_user: CurrentUse
             db.add(row)
         row.name = group.name
         row.collapsed_by_default = group.collapsed_by_default
+        row.icon = group.icon
         row.sort_order = group_order
         db.flush()
         for item_order, item in enumerate(group.items):

@@ -323,3 +323,70 @@ def test_draft_preview_uses_unsaved_layout_and_window_without_writing(env):
     assert env.post("/api/v1/status-pages/99999/preview", json={}).status_code == 404
     env.as_user("viewer")
     assert env.post(f"/api/v1/status-pages/{pid}/preview", json={}).status_code == 403
+
+
+def test_group_icon_is_saved_cleared_and_shown_in_the_payload(env):
+    page = _page(env, "icons")
+    pid = page["id"]
+    with env.Session() as db:
+        did = seed_device(db).id
+
+    def layout(icon):
+        group = {"name": "Web", "collapsed_by_default": False, "items": [
+            {"source": {"device": did}, "display_name": "Site", "extras": {}},
+        ]}
+        if icon is not ...:
+            group["icon"] = icon
+        return {"groups": [group, {"name": "Plain", "items": []}]}
+
+    saved = env.put(f"/api/v1/status-pages/{pid}/layout", json=layout("world"))
+    assert saved.status_code == 200, saved.text
+    assert [g["icon"] for g in saved.json()["groups"]] == ["world", None]
+    assert [g["icon"] for g in env.get(f"/api/v1/status-pages/{pid}").json()["groups"]] == ["world", None]
+    shown = env.get(f"/api/v1/status-pages/{pid}/preview").json()
+    assert [g["icon"] for g in shown["groups"]] == ["world", None]
+
+    group_id = saved.json()["groups"][0]["id"]
+    kept_id = env.put(f"/api/v1/status-pages/{pid}/layout", json={"groups": [
+        {**layout("brand-github")["groups"][0], "id": group_id, "items": []},
+    ]}).json()["groups"][0]
+    assert kept_id["id"] == group_id and kept_id["icon"] == "brand-github"
+
+    for cleared in ("", "   ", None, ...):
+        body = layout(cleared)
+        body["groups"][0]["id"] = group_id
+        body["groups"][0]["items"] = []
+        assert env.put(f"/api/v1/status-pages/{pid}/layout", json=body).json()["groups"][0]["icon"] is None
+
+
+@pytest.mark.parametrize("icon", ["World", "world wide", "-world", "world-", "a--b", "<svg>", "https://x.test/i.png", "x" * 65])
+def test_group_icon_rejects_anything_but_an_icon_name(env, icon):
+    pid = _page(env, "bad-icons")["id"]
+    body = {"groups": [{"name": "Web", "icon": icon, "items": []}]}
+    assert env.put(f"/api/v1/status-pages/{pid}/layout", json=body).status_code == 422
+    assert env.post(f"/api/v1/status-pages/{pid}/preview", json=body).status_code == 422
+
+
+def test_draft_preview_shows_an_unsaved_group_icon(env):
+    pid = _page(env, "icon-preview")["id"]
+    result = env.post(f"/api/v1/status-pages/{pid}/preview", json={"groups": [{"name": "Draft", "icon": "database", "items": []}]})
+    assert result.status_code == 200, result.text
+    assert result.json()["groups"][0]["icon"] == "database"
+    assert env.get(f"/api/v1/status-pages/{pid}").json()["groups"] == []
+
+
+def test_migration_0091_adds_group_icon_and_keeps_groups():
+    from sqlalchemy import text
+
+    from app.db import session as db_session
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE status_page_groups (id INTEGER PRIMARY KEY, page_id INTEGER, name VARCHAR(120), sort_order INTEGER, collapsed_by_default BOOLEAN)"))
+        conn.execute(text("INSERT INTO status_page_groups VALUES (1, 1, 'Core', 0, 0)"))
+        db_session._migrate_status_page_group_icon(conn, None)
+        db_session._migrate_status_page_group_icon(conn, None)
+        assert "icon" in db_session._live_columns(conn, "status_page_groups")
+        assert conn.execute(text("SELECT name, icon FROM status_page_groups")).fetchall() == [("Core", None)]
+    with create_engine("sqlite://").begin() as conn:
+        db_session._migrate_status_page_group_icon(conn, None)

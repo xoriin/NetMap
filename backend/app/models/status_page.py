@@ -57,6 +57,7 @@ class StatusPageGroup(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     collapsed_by_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    icon: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class StatusPageItem(Base):

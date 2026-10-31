@@ -4,6 +4,8 @@
 .dtype-icon-current span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal.icon-picker-modal { width: min(620px, 95vw); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
 .icon-picker-search-row { padding: var(--nm-space-3) var(--nm-space-5); border-bottom: 1px solid var(--nm-border); }
+.icon-picker-search-row--action { display: flex; align-items: center; gap: var(--nm-space-2); }
+.icon-picker-search-row--action .nm-search { flex: 1; min-width: 0; }
 .icon-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: var(--nm-space-2); padding: var(--nm-space-4); overflow-y: auto; }
 .icon-picker-item { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 6px 8px; border: 1px solid transparent; border-radius: var(--nm-radius-md); background: transparent; color: var(--nm-text-muted); cursor: pointer; font-size: var(--nm-text-xs); text-align: center; line-height: 1.25; }
 .icon-picker-item:hover { background: var(--nm-row-hover); border-color: var(--nm-border-strong); color: var(--nm-text); }

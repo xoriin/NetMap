@@ -15,7 +15,7 @@ PAYLOAD_KEYS = {
     "slug", "title", "accent", "logo", "heartbeat_window", "custom_css", "generated_at", "valid_until",
     "summary", "notices", "incidents", "maintenance", "past", "groups",
 }
-GROUP_KEYS = {"id", "name", "state", "collapsed", "items"}
+GROUP_KEYS = {"id", "name", "state", "collapsed", "icon", "items"}
 ITEM_KEYS = {"id", "name", "state", "availability", "heartbeats", "response", "metrics", "incident_ids"}
 AVAILABILITY_KEYS = {"percent", "label", "coverage"}
 SUMMARY_KEYS = {"state", "label", "counts"}

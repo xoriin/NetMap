@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type ReactNode, type SetStateAction } from "react";
-import { ArrowDown, ArrowUp, GripVertical, LayoutList, Plus, Rows3, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, LayoutList, Plus, Trash2 } from "lucide-react";
+import { IconPickerModal } from "../../components/IconPicker";
+import { DEFAULT_GROUP_ICON_MARKUP, groupIconMarkup, groupIconsPending, loadGroupIcons, statusGroupIconPacks } from "./groupIcons";
 import { StatusSourcePicker, describeSource } from "./StatusSourcePicker";
 import {
   NO_EXTRAS, sourceKey,
@@ -7,7 +9,7 @@ import {
 } from "./statusPagesEditorApi";
 
 export type DraftItem = { uid: string; id: number | null; source: StatusItemSource; display_name: string; extras: StatusItemExtras };
-export type DraftGroup = { uid: string; id: number | null; name: string; collapsed_by_default: boolean; items: DraftItem[] };
+export type DraftGroup = { uid: string; id: number | null; name: string; collapsed_by_default: boolean; icon: string | null; items: DraftItem[] };
 
 let uidCounter = 0;
 const nextUid = (prefix: string) => `${prefix}-${++uidCounter}`;
@@ -18,6 +20,7 @@ export function draftFromDetail(detail: StatusPageDetail): DraftGroup[] {
     id: group.id,
     name: group.name,
     collapsed_by_default: group.collapsed_by_default,
+    icon: group.icon ?? null,
     items: group.items.map((item) => ({
       uid: nextUid("item"),
       id: item.id,
@@ -33,6 +36,7 @@ export function layoutPayload(groups: DraftGroup[]): StatusLayoutGroup[] {
     id: group.id,
     name: group.name.trim(),
     collapsed_by_default: group.collapsed_by_default,
+    icon: group.icon,
     items: group.items.map((item) => ({ id: item.id, source: item.source, display_name: item.display_name.trim(), extras: item.extras })),
   }));
 }
@@ -160,6 +164,16 @@ export function StatusPageLayoutEditor({
   onSave: () => void;
 }) {
   const [pickerGroupUid, setPickerGroupUid] = useState<string | null>(null);
+  const [iconGroupUid, setIconGroupUid] = useState<string | null>(null);
+  const [, setIconsLoaded] = useState(0);
+  const iconsPending = iconGroupUid !== null || groupIconsPending(groups.map((group) => group.icon));
+
+  useEffect(() => {
+    if (!iconsPending) return;
+    let live = true;
+    void loadGroupIcons().then(() => { if (live) setIconsLoaded((count) => count + 1); }, () => {});
+    return () => { live = false; };
+  }, [iconsPending]);
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
   const [focusUid, setFocusUid] = useState<string | null>(null);
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -192,6 +206,7 @@ export function StatusPageLayoutEditor({
   const itemCount = groups.reduce((sum, group) => sum + group.items.length, 0);
   const usedKeys = useMemo(() => new Set(groups.flatMap((group) => group.items.map((item) => sourceKey(item.source)))), [groups]);
   const pickerGroup = groups.find((group) => group.uid === pickerGroupUid) ?? null;
+  const iconGroup = groups.find((group) => group.uid === iconGroupUid) ?? null;
 
   const updateGroup = (uid: string, patch: Partial<DraftGroup>) =>
     setGroups((current) => current.map((group) => (group.uid === uid ? { ...group, ...patch } : group)));
@@ -200,7 +215,7 @@ export function StatusPageLayoutEditor({
 
   function addGroup() {
     const uid = nextUid("group");
-    setGroups((current) => [...current, { uid, id: null, name: "", collapsed_by_default: false, items: [] }]);
+    setGroups((current) => [...current, { uid, id: null, name: "", collapsed_by_default: false, icon: null, items: [] }]);
     setFocusUid(uid);
   }
 
@@ -349,7 +364,18 @@ export function StatusPageLayoutEditor({
               >
                 <GripVertical size={15} />
               </button>
-              <span className="status-editor-icon"><Rows3 size={18} /></span>
+              <button
+                type="button"
+                id={`${group.uid}-icon`}
+                className="nm-btn nm-btn--sm nm-btn--secondary status-layout-group-icon"
+                aria-label={`Change icon for group ${groupLabel}`}
+                title="Change icon"
+                onClick={() => setIconGroupUid(group.uid)}
+              >
+                <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <g dangerouslySetInnerHTML={{ __html: groupIconMarkup(group.icon) ?? DEFAULT_GROUP_ICON_MARKUP }} />
+                </svg>
+              </button>
               <input
                 className="nm-input status-layout-group-name"
                 aria-label="Group name"
@@ -583,6 +609,19 @@ export function StatusPageLayoutEditor({
           usedKeys={usedKeys}
           onPick={(source) => addItem(pickerGroup.uid, source)}
           onCancel={() => setPickerGroupUid(null)}
+        />
+      )}
+      {iconGroup && (
+        <IconPickerModal
+          value={iconGroup.icon ?? ""}
+          packs={statusGroupIconPacks()}
+          onSelect={(icon) => updateGroup(iconGroup.uid, { icon })}
+          onClear={() => updateGroup(iconGroup.uid, { icon: null })}
+          onClose={() => {
+            const uid = iconGroup.uid;
+            setIconGroupUid(null);
+            document.getElementById(`${uid}-icon`)?.focus();
+          }}
         />
       )}
     </div>

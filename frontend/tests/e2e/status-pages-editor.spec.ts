@@ -7,7 +7,7 @@ type Extras = {
   p95_response: boolean; failure_rate: boolean; last_check: boolean;
 };
 type Item = { id?: number | null; source: Source; display_name: string; extras?: Extras };
-type Group = { id?: number | null; name: string; collapsed_by_default: boolean; items: Item[] };
+type Group = { id?: number | null; name: string; collapsed_by_default: boolean; icon?: string | null; items: Item[] };
 type StoredPage = {
   id: number; slug: string; name: string; title: string | null; visibility: "public" | "private";
   heartbeat_window: "1h" | "24h"; logo: string | null; accent: string | null; custom_css: string | null;
@@ -52,7 +52,7 @@ function previewPayload(page: StoredPage) {
     summary: { state: "operational", label: "All systems operational", counts: { operational: 1, degraded: 0, down: 0, maintenance: 0, unknown: 0 } },
     notices: [], incidents: [], maintenance: [], past: [],
     groups: page.groups.map((group, gi) => ({
-      id: gi + 1, name: group.name, state: "operational", collapsed: group.collapsed_by_default,
+      id: group.id ?? gi + 1, name: group.name, state: "operational", collapsed: group.collapsed_by_default, icon: group.icon ?? null,
       items: group.items.map((item, ii) => ({
         id: gi * 100 + ii + 1, name: item.display_name, state: "operational",
         availability: { percent: 1, label: "ok", coverage: 1 }, heartbeats: beats, response: null, metrics: null, incident_ids: [],
@@ -78,7 +78,7 @@ class StatusPagesApi {
     return {
       ...page,
       groups: page.groups.map((group, gi) => ({
-        id: group.id ?? gi + 1, name: group.name, collapsed_by_default: group.collapsed_by_default,
+        id: group.id ?? gi + 1, name: group.name, collapsed_by_default: group.collapsed_by_default, icon: group.icon ?? null,
         items: group.items.map((item) => ({
           id: item.id ?? this.nextItemId++, source: item.source, source_key: sourceKey(item.source),
           display_name: item.display_name, extras: item.extras ?? NO_EXTRAS,
@@ -251,7 +251,7 @@ test("create page, add device with alias, save, preview shows alias not hostname
   await expect(page.getByText("Layout saved")).toBeVisible();
   expect(api.layoutPuts).toHaveLength(1);
   expect(api.layoutPuts[0]).toEqual([
-    { id: null, name: "Core network", collapsed_by_default: false, items: [{ id: null, source: { device: 1 }, display_name: "Edge router", extras: NO_EXTRAS }] },
+    { id: null, name: "Core network", collapsed_by_default: false, icon: null, items: [{ id: null, source: { device: 1 }, display_name: "Edge router", extras: NO_EXTRAS }] },
   ]);
 
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -661,3 +661,68 @@ test("preview renders draft group names and heartbeat window without saving", as
   expect(api.layoutPuts).toHaveLength(0);
   await page.screenshot({ path: test.info().outputPath("draft-preview.png"), fullPage: true });
 });
+
+const iconPaths = (frame: ReturnType<Page["frameLocator"]>, groupId: number) =>
+  frame.locator(`.sp-group[data-group="${groupId}"] .sp-panel-icon svg`).evaluate((svg) => svg.innerHTML);
+
+test("each group's icon can be chosen, previewed, saved and reset to the default", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(twoGroupPage());
+  await openLayout(page, api);
+  const frame = page.frameLocator("iframe.status-page-frame");
+  await expect(frame.locator('.sp-group[data-group="1"]')).toBeVisible();
+  const defaultIcon = await iconPaths(frame, 1);
+  expect(await iconPaths(frame, 2)).toBe(defaultIcon);
+  await expect(frame.locator(".sp-group[data-icon]")).toHaveCount(0);
+
+  const trigger = page.getByRole("button", { name: "Change icon for group Services" });
+  await expect(trigger).toHaveClass(/nm-btn/);
+  await trigger.click();
+  const picker = page.getByRole("dialog", { name: "Choose Icon" });
+  await picker.getByLabel("Search icons").fill("database");
+  await picker.getByRole("button", { name: "Database", exact: true }).first().click();
+  await expect(picker).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(frame.locator('.sp-group[data-group="1"]')).toHaveAttribute("data-icon", "database");
+  await expect.poll(() => iconPaths(frame, 1)).not.toBe(defaultIcon);
+  expect(await iconPaths(frame, 2)).toBe(defaultIcon);
+
+  await page.getByRole("button", { name: "Change icon for group Office" }).click();
+  await picker.getByLabel("Search icons").fill("world");
+  await picker.getByRole("button", { name: "World", exact: true }).click();
+  await expect(frame.locator('.sp-group[data-group="2"]')).toHaveAttribute("data-icon", "world");
+  await expect.poll(() => iconPaths(frame, 2)).not.toBe(defaultIcon);
+  await expect(frame.locator(".sp-panel-icon svg path").first()).toHaveAttribute("d", /\S/);
+
+  await page.getByRole("button", { name: "Save layout" }).click();
+  await expect.poll(() => api.layoutPuts.length).toBe(1);
+  expect(api.layoutPuts[0].map((group) => group.icon)).toEqual(["database", "world"]);
+
+  await trigger.click();
+  await picker.getByRole("button", { name: "Use default", exact: true }).click();
+  await expect(frame.locator('.sp-group[data-group="1"]')).not.toHaveAttribute("data-icon", /.*/);
+  await expect.poll(() => iconPaths(frame, 1)).toBe(defaultIcon);
+  await page.getByRole("button", { name: "Save layout" }).click();
+  await expect.poll(() => api.layoutPuts.length).toBe(2);
+  expect(api.layoutPuts[1].map((group) => group.icon)).toEqual([null, "world"]);
+});
+
+test("the group icon picker offers only icons every visitor's browser has", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(twoGroupPage());
+  await openApp(page);
+  await page.route("**/icon-packs/index.json", (route) => route.fulfill({ json: { packs: [{ id: "site-pack", name: "Site pack", file: "site.json" }] } }));
+  await page.route("**/icon-packs/site.json", (route) => route.fulfill({ json: { icons: [{ value: "site-only", label: "Site only", url: "/brand/email-logo.png" }] } }));
+  await api.install(page);
+  await openStatusPages(page);
+  await openEditor(page, "Ops");
+  await page.getByRole("tab", { name: "Layout" }).click();
+  await page.getByRole("button", { name: "Change icon for group Services" }).click();
+  const picker = page.getByRole("dialog", { name: "Choose Icon" });
+  await expect(picker.getByRole("button", { name: "Database", exact: true }).first()).toBeVisible();
+  await expect(picker.getByRole("button", { name: "Tabler Icons", exact: true })).toBeVisible();
+  await expect(picker.getByRole("button", { name: "Site pack" })).toHaveCount(0);
+  await picker.getByLabel("Search icons").fill("Site only");
+  await expect(picker.getByText('No icons match "Site only"')).toBeVisible();
+});
+

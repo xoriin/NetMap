@@ -751,3 +751,31 @@ for (const theme of ["light", "dark"] as const) {
     await page.screenshot({ path: test.info().outputPath(`response-narrow-${theme}.png`), fullPage: true });
   });
 }
+
+test("each group shows its chosen icon and can be targeted by custom CSS", async ({ page }) => {
+  await blockEverythingElse(page);
+  const groups = [
+    { id: 1, name: "Core network", state: "operational", collapsed: false, icon: null, items: [item(1, "Edge router")] },
+    { id: 7, name: "Databases", state: "operational", collapsed: false, icon: "database", items: [item(2, "Primary DB")] },
+    { id: 9, name: "Websites", state: "operational", collapsed: false, icon: "world", items: [item(3, "Homepage")] },
+    { id: 12, name: "Retired", state: "operational", collapsed: false, icon: "no-such-icon", items: [item(4, "Old box")] },
+  ];
+  const custom_css = '.sp-group[data-group="7"] .sp-panel-icon { color: rgb(255, 0, 0); }';
+  await page.route(PUBLIC_URL, (route) => fulfillPayload(route, payload({ groups, custom_css })));
+  await page.goto(`/status/${SLUG}`);
+  const frame = statusFrame(page);
+  const svg = (id: number) => frame.locator(`.sp-group[data-group="${id}"] .sp-panel-icon svg`);
+  await expect(svg(1)).toBeVisible();
+  const defaultIcon = await svg(1).evaluate((node) => node.innerHTML);
+
+  await expect(frame.locator('.sp-group[data-group="7"]')).toHaveAttribute("data-icon", "database");
+  expect(await svg(7).evaluate((node) => node.innerHTML)).not.toBe(defaultIcon);
+  await expect(svg(7).locator("path")).toHaveCount(3);
+  await expect.poll(() => svg(9).evaluate((node) => node.innerHTML)).not.toBe(defaultIcon);
+  await expect(svg(9).locator("path").first()).toHaveAttribute("d", /\S/);
+  await expect.poll(() => svg(12).evaluate((node) => node.innerHTML)).toBe(defaultIcon);
+
+  await expect(frame.locator('.sp-group[data-group="7"] .sp-panel-icon')).toHaveCSS("color", "rgb(255, 0, 0)");
+  await expect(frame.locator('.sp-group[data-group="1"] .sp-panel-icon')).not.toHaveCSS("color", "rgb(255, 0, 0)");
+  await expect(frame.locator(".sp-panel-icon svg :not(path, circle, ellipse, line, polyline, polygon, rect)")).toHaveCount(0);
+});

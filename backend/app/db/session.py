@@ -196,6 +196,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0088_oidc_login_state_purpose", _migrate_oidc_login_state_purpose)
         _run_migration(conn, inspector, "0089_user_has_local_password", _migrate_user_has_local_password)
         _run_migration(conn, inspector, "0090_discovery_scan_progress", _migrate_discovery_scan_progress)
+        _run_migration(conn, inspector, "0091_status_page_group_icon", _migrate_status_page_group_icon)
 
 
 
@@ -2335,6 +2336,14 @@ _PASSWORD_SET_ACTIONS = (
     "auth.password_reset_self_service",
     "auth.admin_password_reset",
 )
+
+
+def _migrate_status_page_group_icon(conn, inspector) -> None:
+    """status_page_groups.icon: optional icon name; empty keeps the default group icon."""
+    if "status_page_groups" not in _live_tables(conn):
+        return
+    if "icon" not in _live_columns(conn, "status_page_groups"):
+        conn.execute(text("ALTER TABLE status_page_groups ADD COLUMN icon VARCHAR(64)"))
 
 
 def _migrate_discovery_scan_progress(conn, inspector) -> None:

@@ -348,6 +348,7 @@ def project_page(inputs: PageInputs, audience: Audience, cycle: BuildCycle) -> P
                 "name": group.name,
                 "state": summarize([i["state"] for i in by_group[group.id]], False)[0],
                 "collapsed": group.collapsed_by_default,
+                "icon": group.icon,
                 "items": by_group[group.id],
             }
             for group in inputs.groups

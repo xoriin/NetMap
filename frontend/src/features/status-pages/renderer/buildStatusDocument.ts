@@ -5,6 +5,7 @@ import type {
 import { themeCss } from "./themeCss";
 import { HEARTBEAT_SCRIPT } from "./heartbeatScript";
 import type { DarkStyle } from "../../../providers/ThemeProvider";
+import { groupIconMarkup, groupIconShapes } from "../groupIcons";
 import { REDUCED_MOTION_OVERRIDE, RENDERER_CSP, type StatusColorScheme, builtinStyles } from "./builtinStyles";
 
 export type BuildStatusOptions = {
@@ -388,8 +389,10 @@ function groupSection(b: Builder, group: StatusPageGroupPayload, window: string)
   const section = b.el("details", "sp-group");
   section.dataset.state = group.state;
   if (!group.collapsed) section.open = true;
+  section.dataset.group = String(group.id);
+  if (group.icon) section.dataset.icon = group.icon;
   const name = b.el("summary", "sp-group-name");
-  name.append(panelIcon(b, "network"), b.el("span", "sp-group-label", group.name), b.el("span", "sp-group-state", GROUP_STATE_LABELS[group.state] ?? ""));
+  name.append(panelIcon(b, "network", groupIconMarkup(group.icon)), b.el("span", "sp-group-label", group.name), b.el("span", "sp-group-state", GROUP_STATE_LABELS[group.state] ?? ""));
   section.append(name);
   if (!group.items.length) section.append(b.el("p", "sp-group-empty", "No systems configured"));
   group.items.forEach((item) => section.append(itemRow(b, item, window)));
@@ -514,14 +517,20 @@ function incidentSection(b: Builder, className: string, title: string, incidents
   return section;
 }
 
-function panelIcon(b: Builder, kind: "network" | "activity"): HTMLElement {
+function panelIcon(b: Builder, kind: "network" | "activity", markup: string | null = null): HTMLElement {
   const well = b.el("span", "sp-panel-icon");
   well.setAttribute("aria-hidden", "true");
   const svg = b.doc.createElementNS(SVG_NS, "svg");
   for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round" })) svg.setAttribute(name, value);
-  const path = b.doc.createElementNS(SVG_NS, "path");
-  path.setAttribute("d", kind === "network" ? "M6 3h12v6H6z M3 15h6v6H3z M15 15h6v6h-6z M12 9v3 M6 15v-3h12v3" : "M22 12h-4l-3 9L9 3l-3 9H2");
-  svg.append(path); well.append(svg);
+  const shapes = groupIconShapes(b.doc, markup);
+  if (shapes.length > 0) {
+    svg.append(...shapes);
+  } else {
+    const path = b.doc.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", kind === "network" ? "M6 3h12v6H6z M3 15h6v6H3z M15 15h6v6h-6z M12 9v3 M6 15v-3h12v3" : "M22 12h-4l-3 9L9 3l-3 9H2");
+    svg.append(path);
+  }
+  well.append(svg);
   return well;
 }
 
