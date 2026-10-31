@@ -274,7 +274,7 @@ export function ThemePreviewWorkspace() {
             </div>
             <div className="theme-lab-table-tools">
               <select aria-label="Filter status" defaultValue="all"><option value="all">All statuses</option></select>
-              <label className="theme-lab-search"><Search size={14} /><input aria-label="Search assets" placeholder="Search assets" /></label>
+              <div className="theme-lab-search nm-search"><Search size={14} className="nm-search-icon" aria-hidden="true" /><input className="nm-input" aria-label="Search assets" placeholder="Search assets" /></div>
               <button type="button" className="nm-btn nm-btn--sm nm-btn--primary"><Plus size={14} />Add asset</button>
             </div>
           </div>

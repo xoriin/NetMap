@@ -92,20 +92,6 @@ body.theme-dark .overview-workspace .overview-panel > .dash-panel-body {
 .overview-workspace .overview-fav-search.nm-search {
   width: 190px;
   min-width: 160px;
-  height: var(--nm-control-sm);
-  border-color: var(--nm-border-strong);
-  background: var(--nm-modal-input);
-  color: var(--nm-text-muted);
-}
-
-.overview-workspace .overview-fav-search.nm-search .nm-input,
-.overview-workspace .overview-fav-search.nm-search .nm-input:focus {
-  height: 100%;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--nm-text);
 }
 
 .overview-workspace .dash-panel-divider {

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ChevronDown, Palette } from "lucide-react";
+import { ChevronDown, Palette, Search } from "lucide-react";
 import { Modal } from "./Modal";
 import "./IconPicker.css";
 import {
@@ -69,13 +69,17 @@ function IconPickerModal({
   return (
     <Modal title="Choose Icon" titleIcon={<Palette size={18} />} onCancel={onClose} modalClassName="icon-picker-modal">
         <div className="icon-picker-search-row">
-          <input
-            autoFocus
-            className="nm-input icon-picker-search"
-            placeholder="Search icons..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="nm-search">
+            <Search size={14} className="nm-search-icon" aria-hidden="true" />
+            <input
+              autoFocus
+              className="nm-input"
+              aria-label="Search icons"
+              placeholder="Search icons..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
         {showTabs && (
           <div className="icon-picker-tabs">

@@ -508,14 +508,16 @@ export function SecurityWorkspace({
             <span className="security-panel-identity"><span className="security-panel-icon"><SlidersHorizontal size={18} /></span><strong>Event Filters</strong></span>
             <small>{savedSearches.length} saved</small>
           </div>
-          <label className="security-search">
-            <Search size={16} aria-hidden="true" />
+          <div className="security-search nm-search">
+            <Search size={14} className="nm-search-icon" aria-hidden="true" />
             <input
+              className="nm-input"
+              aria-label="Search raw log, IP, rule, reason"
               placeholder="Search raw log, IP, rule, reason"
               value={draftFilters.q}
               onChange={(event) => updateDraftFilter("q", event.target.value)}
             />
-          </label>
+          </div>
           <div className="quick-filters">
             <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary quick-filter-block" onClick={() => applyQuickFilter("blocked")}>Blocked</button>
             <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary quick-filter-pass" onClick={() => applyQuickFilter("passed")}>Passed</button>

@@ -79,18 +79,6 @@
 .vlan-workspace .vlan-search {
   width: min(280px, 100%);
   flex: 0 1 280px;
-  border-color: var(--nm-border-strong);
-  background: var(--nm-modal-input);
-}
-
-.vlan-workspace .vlan-search:hover {
-  border-color: var(--nm-tab-hover-border);
-}
-
-.vlan-workspace .vlan-search .nm-input,
-body.theme-dark .vlan-workspace .vlan-search .nm-input,
-body.theme-dark .vlan-workspace .vlan-search .nm-input:focus {
-  background: transparent;
 }
 
 .vlan-table-viewport {

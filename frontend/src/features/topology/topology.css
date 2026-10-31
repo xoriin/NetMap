@@ -100,21 +100,17 @@ body.route-topology .dash-alert--announcement {
 }
 
 .topology-toolbar--ribbon .toolbar-select,
-body.theme-dark .topology-toolbar--ribbon .toolbar-select,
-.topology-toolbar--ribbon .topo-search-input,
-body.theme-dark .topology-toolbar--ribbon .topo-search-input {
+body.theme-dark .topology-toolbar--ribbon .toolbar-select {
   border-color: var(--nm-border-strong);
   background: var(--nm-modal-input);
   color: var(--nm-text);
 }
 
-.topology-toolbar--ribbon .toolbar-select:hover,
-.topology-toolbar--ribbon .topo-search-input:hover {
+.topology-toolbar--ribbon .toolbar-select:hover {
   border-color: var(--nm-tab-hover-border);
 }
 
-.topology-toolbar--ribbon .toolbar-select:focus,
-.topology-toolbar--ribbon .topo-search-input:focus {
+.topology-toolbar--ribbon .toolbar-select:focus {
   border-color: var(--nm-focus-border);
   outline: 1px solid var(--nm-focus-border);
   outline-offset: -1px;
@@ -552,14 +548,6 @@ body.theme-dark .topology-details-panel dd {
   box-shadow: var(--nm-shadow-md);
 }
 
-.topology-canvas-controls .topo-search-input,
-body.theme-dark .topology-canvas-controls .topo-search-input {
-  width: 220px;
-  border-color: var(--nm-border-strong);
-  background: var(--nm-modal-input);
-  color: var(--nm-text);
-}
-
 .topology-canvas-controls .topo-search-popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -575,11 +563,6 @@ body.theme-dark .topology-canvas-controls .topo-search-input {
   top: calc(100% + 4px);
 }
 
-.topology-canvas-controls .topo-search-input:hover {
-  border-color: var(--nm-tab-hover-border);
-}
-
-.topology-canvas-controls .topo-search-input:focus,
 .topology-canvas-controls .topology-canvas-control:focus-visible {
   border-color: var(--nm-focus-border);
   outline: 1px solid var(--nm-focus-border);
@@ -855,12 +838,6 @@ body.theme-dark .topo-entity-list {
 body.theme-dark .topo-entity-search-wrap {
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-input);
-}
-
-.topo-entity-search,
-body.theme-dark .topo-entity-search {
-  background: transparent;
-  color: var(--nm-text);
 }
 
 .topo-entity-row,

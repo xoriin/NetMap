@@ -180,17 +180,20 @@ function EndpointPicker({
       }}
     >
       <div className="ep-search-row">
-        <Search size={12} className="ep-search-icon" />
-        <input
-          ref={searchRef}
-          className="ep-search"
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="IP, hostname, name..."
-          autoComplete="off"
-        />
+        <div className="nm-search">
+          <Search size={14} className="nm-search-icon" aria-hidden="true" />
+          <input
+            ref={searchRef}
+            className="nm-input"
+            type="text"
+            aria-label="Search endpoints"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="IP, hostname, name..."
+            autoComplete="off"
+          />
+        </div>
       </div>
       <div className="ep-list" ref={listRef} style={{ maxHeight: dropdownPosition.listMaxHeight }}>
         {filtered.groups.length > 0 && (

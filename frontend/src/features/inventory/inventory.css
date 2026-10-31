@@ -73,27 +73,6 @@
   color: var(--nm-btn-hover-text);
 }
 
-.inventory-layout .inv-search-box {
-  border: 0;
-  background: transparent;
-}
-
-.inventory-layout .inv-search-box .nm-input {
-  border-color: var(--nm-border-strong);
-  background: var(--nm-modal-input);
-  color: var(--nm-text);
-}
-
-.inventory-layout .inv-search-box .nm-input:hover {
-  border-color: var(--nm-tab-hover-border);
-}
-
-.inventory-layout .inv-search-box .nm-input:focus {
-  border-color: var(--nm-focus-border);
-  outline: 1px solid var(--nm-focus-border);
-  outline-offset: -1px;
-}
-
 .inventory-layout .inv-bulk-menu-panel {
   border: 1px solid var(--nm-border-strong);
   border-radius: var(--nm-radius-md);

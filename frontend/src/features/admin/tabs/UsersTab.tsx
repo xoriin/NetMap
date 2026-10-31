@@ -1,6 +1,6 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { Check, X, Pencil, KeyRound, Lock, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Check, X, Pencil, KeyRound, Lock, Search, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { IconUsers } from "@tabler/icons-react";
 import { api, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
@@ -230,7 +230,10 @@ export function UsersTab({
           <h2 className="admin-section-title"><IconUsers size={16} />Users</h2>
           <button type="button" className="nm-btn" onClick={onReloadUsers}>Refresh</button>
         </div>
-        <input className="admin-search" type="search" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+        <div className="admin-search nm-search">
+          <Search size={14} className="nm-search-icon" aria-hidden="true" />
+          <input className="nm-input" type="search" aria-label="Search users" placeholder="Search users…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+        </div>
         {usersLoading ? <TableSkeleton rows={7} columns={4} /> : (
           <div className={`admin-users-table admin-users-table--accounts${canManageSuperAdmins && users.some((u) => u.totp_enabled) ? " admin-users-table--wide-actions" : ""}`}>
             <div className="admin-users-header">

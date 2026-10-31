@@ -1197,9 +1197,9 @@ export function MonitoringWorkspace({
                   </button>
                 )}
                 <div className="mon-search-wrap nm-search">
-                  <Search size={13} className="nm-search-icon" />
+                  <Search size={14} className="nm-search-icon" aria-hidden="true" />
                   <input
-                    className="mon-search nm-input"
+                    className="nm-input"
                     placeholder="Search devices…"
                     value={searchQ}
                     onChange={(e) => setSearchQ(e.target.value)}
@@ -1654,10 +1654,10 @@ export function MonitoringWorkspace({
                       <label className="mon-ports-field-label">
                         Devices{portFormDeviceIds.size > 0 && <span className="mon-ports-sel-count"> · {portFormDeviceIds.size} selected</span>}
                         <div className="mon-device-picker">
-                          <div className="ep-search-row">
-                            <Search size={12} className="ep-search-icon" />
+                          <div className="nm-search">
+                            <Search size={14} className="nm-search-icon" aria-hidden="true" />
                             <input
-                              className="ep-search"
+                              className="nm-input"
                               placeholder="Search devices…"
                               value={portDeviceSearch}
                               onChange={(e) => setPortDeviceSearch(e.target.value)}

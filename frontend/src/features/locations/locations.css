@@ -103,19 +103,10 @@ body.route-locations .workspace {
 .locations-search.nm-search {
   width: min(260px, 100%);
   flex: 0 1 260px;
-  border-color: var(--nm-border-strong);
-  background: var(--nm-modal-input);
 }
 
-.locations-sort-select.nm-select:hover,
-.locations-search.nm-search:hover {
+.locations-sort-select.nm-select:hover {
   border-color: var(--nm-tab-hover-border);
-}
-
-.locations-search .nm-input,
-body.theme-dark .locations-search .nm-input,
-body.theme-dark .locations-search .nm-input:focus {
-  background: transparent;
 }
 
 .locations-panel-body {

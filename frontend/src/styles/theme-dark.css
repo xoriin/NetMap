@@ -445,17 +445,16 @@ body.theme-dark .modal {
 }
 
 body.theme-dark .security-filters label { color: var(--nm-modal-label); }
-body.theme-dark .security-filters input {
+body.theme-dark .security-filters input:not(.nm-search input) {
   background: var(--nm-modal-input);
   border-color: var(--nm-border-strong);
   color: var(--nm-text);
 }
-body.theme-dark .security-filters input:focus {
+body.theme-dark .security-filters input:not(.nm-search input):focus {
   border-color: #1d9ab0;
   background: var(--nm-modal-input);
   outline: none;
 }
-body.theme-dark .security-search svg { color: var(--nm-text-faint); }
 
 body.theme-dark .tool-form-actions {
   border-top-color: var(--nm-border);
@@ -1110,9 +1109,6 @@ body.theme-dark .dash-panel-link:hover { color: var(--nm-accent-strong); }
 body.theme-dark .dash-panel-divider { background: var(--nm-border); }
 body.theme-dark .dash-panel-sub-title { color: var(--nm-text-faint); }
 body.theme-dark .dash-empty { color: var(--nm-text-faint); }
-body.theme-dark .overview-fav-search { background: var(--nm-modal-input); border-color: var(--nm-border-strong); color: var(--nm-text-muted); }
-body.theme-dark .overview-fav-search input { color: var(--nm-text); background: transparent; border-color: transparent; }
-body.theme-dark .overview-fav-search input::placeholder { color: var(--nm-text-faint); }
 
 
 
@@ -1297,17 +1293,6 @@ body.theme-dark .topo-entity-search-wrap {
   border-bottom-color: color-mix(in srgb, var(--nm-border) 50%, transparent);
 }
 
-body.theme-dark .topo-entity-search-icon { color: var(--nm-text-faint); }
-
-body.theme-dark .topo-entity-search {
-  background: transparent;
-  color: var(--nm-modal-label);
-}
-
-body.theme-dark .topo-entity-search::placeholder { color: var(--nm-text-faint); }
-
-body.theme-dark .topo-entity-search-clear { color: var(--nm-text-faint); }
-body.theme-dark .topo-entity-search-clear:hover { color: var(--nm-modal-label); }
 
 body.theme-dark .topo-entity-row {
   color: var(--nm-modal-label);
@@ -1769,13 +1754,7 @@ body.theme-dark .topology-toolbar-right button:hover {
 }
 .admin-tab-content { padding-top: 4px; }
 .admin-search {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid #c8d6e0;
-  border-radius: 5px;
-  font-size: 13px;
   margin-bottom: 12px;
-  box-sizing: border-box;
 }
 .admin-col-center { display: flex; align-items: center; justify-content: center; }
 .admin-user-identity {

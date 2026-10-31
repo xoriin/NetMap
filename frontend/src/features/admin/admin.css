@@ -347,7 +347,6 @@
 .admin-layout .tool-form select,
 .admin-layout .tool-form textarea,
 .admin-layout .nm-input,
-.admin-layout .admin-search,
 .admin-layout .admin-users-row select,
 .admin-layout .rbac-new-group-input,
 .admin-layout .notif-modal-type-section select {
@@ -359,16 +358,14 @@
 .admin-layout .tool-form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):hover,
 .admin-layout .tool-form select:hover,
 .admin-layout .tool-form textarea:hover,
-.admin-layout .nm-input:hover,
-.admin-layout .admin-search:hover {
+.admin-layout .nm-input:hover {
   border-color: var(--nm-tab-hover-border);
 }
 
 .admin-layout .tool-form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
 .admin-layout .tool-form select:focus,
 .admin-layout .tool-form textarea:focus,
-.admin-layout .nm-input:focus,
-.admin-layout .admin-search:focus {
+.admin-layout .nm-input:focus {
   border-color: var(--nm-focus-border);
   outline: 1px solid var(--nm-focus-border);
   outline-offset: -1px;

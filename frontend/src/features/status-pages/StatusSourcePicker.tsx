@@ -93,7 +93,7 @@ export function StatusSourcePicker({
       </div>
       <div className="status-source-filters">
         <div className="nm-search status-source-search">
-          <Search size={13} className="nm-search-icon" />
+          <Search size={14} className="nm-search-icon" aria-hidden="true" />
           <input
             className="nm-input"
             placeholder="Search name, address or ID…"

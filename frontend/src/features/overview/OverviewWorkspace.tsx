@@ -538,7 +538,7 @@ export function OverviewWorkspace({
             <OverviewPanelIdentity icon={<Star size={20} />} title="Favourites" />
             <div className="dash-panel-actions">
               <div className="overview-fav-search nm-search nm-search--toolbar">
-                <Search size={13} aria-hidden="true" />
+                <Search size={14} className="nm-search-icon" aria-hidden="true" />
                 <input
                   className="nm-input"
                   type="search"

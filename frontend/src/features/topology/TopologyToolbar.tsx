@@ -63,11 +63,13 @@ function DeviceSearch({ devices, onLocate }: { devices: Device[]; onLocate: (dev
       </button>
       {open && (
         <div className="topo-search-popover" id="topology-device-search">
-          <Search size={13} aria-hidden="true" className="topo-search-icon" />
+          <div className="nm-search topo-search-field">
+          <Search size={14} aria-hidden="true" className="nm-search-icon" />
           <input
             autoFocus
-            className="topo-search-input"
+            className="nm-input"
             type="search"
+            aria-label="Search devices on the map"
             placeholder="Name, hostname or IP…"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -82,6 +84,7 @@ function DeviceSearch({ devices, onLocate }: { devices: Device[]; onLocate: (dev
               }
             }}
           />
+          </div>
           {matches.length > 0 && (
             <div className="topo-search-results">
               {matches.map((device) => (

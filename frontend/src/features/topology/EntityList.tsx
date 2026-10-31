@@ -122,17 +122,19 @@ export function EntityList({
         {expandedEntitySection && (
           <div className="topo-entity-list">
             <div className="topo-entity-search-wrap">
-              <Search size={12} className="topo-entity-search-icon" />
-              <input
-                className="topo-entity-search"
-                placeholder={`Search ${expandedEntitySection === "relationships" ? "links" : expandedEntitySection}…`}
-                value={entitySearch}
-                onChange={(e) => setEntitySearch(e.target.value)}
-                autoFocus
-              />
-              {entitySearch && (
-                <button type="button" className="topo-entity-search-clear" onClick={() => setEntitySearch("")} aria-label="Clear search">×</button>
-              )}
+              <div className="nm-search">
+                <Search size={14} className="nm-search-icon" aria-hidden="true" />
+                <input
+                  className="nm-input"
+                  placeholder={`Search ${expandedEntitySection === "relationships" ? "links" : expandedEntitySection}…`}
+                  value={entitySearch}
+                  onChange={(e) => setEntitySearch(e.target.value)}
+                  autoFocus
+                />
+                {entitySearch && (
+                  <button type="button" className="topo-entity-search-clear" onClick={() => setEntitySearch("")} aria-label="Clear search">×</button>
+                )}
+              </div>
             </div>
             <div className="topo-entity-scroll">
             {expandedEntitySection === "devices" && (

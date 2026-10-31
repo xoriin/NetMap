@@ -364,9 +364,9 @@ export function MonitorsPanel({
             <option value="unknown">Awaiting check</option>
           </select>
           <div className="mon-search-wrap nm-search monitors-search-wrap">
-            <Search size={13} className="nm-search-icon" />
+            <Search size={14} className="nm-search-icon" aria-hidden="true" />
             <input
-              className="mon-search nm-input"
+              className="nm-input"
               placeholder="Search name or URL…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}

@@ -238,8 +238,8 @@ body.route-security .security-filters label {
   font-weight: 700;
 }
 
-body.route-security .security-filters input,
-body.theme-dark.route-security .security-filters input,
+body.route-security .security-filters input:not(.nm-search input),
+body.theme-dark.route-security .security-filters input:not(.nm-search input),
 body.route-security .security-saved-searches select {
   min-height: var(--nm-control-lg);
   border-color: var(--nm-border-strong);
@@ -247,38 +247,17 @@ body.route-security .security-saved-searches select {
   color: var(--nm-text);
 }
 
-body.route-security .security-filters input:hover,
+body.route-security .security-filters input:not(.nm-search input):hover,
 body.route-security .security-saved-searches select:hover {
   border-color: var(--nm-tab-hover-border);
 }
 
-body.route-security .security-filters input:focus,
-body.theme-dark.route-security .security-filters input:focus,
+body.route-security .security-filters input:not(.nm-search input):focus,
+body.theme-dark.route-security .security-filters input:not(.nm-search input):focus,
 body.route-security .security-saved-searches select:focus {
   border-color: var(--nm-focus-border);
   background: var(--nm-modal-input);
   outline: 0;
-}
-
-body.route-security .security-search {
-  border: 1px solid var(--nm-border-strong);
-  border-radius: var(--nm-radius-sm);
-  background: var(--nm-modal-input);
-}
-
-body.route-security .security-search input,
-body.route-security .security-search input:focus,
-body.theme-dark.route-security .security-search input,
-body.theme-dark.route-security .security-search input:focus {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-body.route-security .security-search:focus-within {
-  border-color: var(--nm-focus-border);
-  outline: 1px solid var(--nm-focus-border);
-  outline-offset: -1px;
 }
 
 body.route-security .quick-filters {

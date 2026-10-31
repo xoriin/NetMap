@@ -111,7 +111,8 @@ test("light panel headers are navy bands with light text and a solid teal icon c
   await expect(chip).toHaveCSS("color", "rgb(255, 255, 255)");
 
   // Toolbar controls keep their light style on the band.
-  await expect(header.locator(".inv-search-box input")).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  await expect(header.locator(".inv-search-box")).toHaveCSS("background-color", "rgb(254, 254, 254)");
+  await expect(header.locator(".inv-search-box input")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(header.locator(".inv-search-box input")).toHaveCSS("color", "rgb(19, 32, 44)");
   const secondary = header.getByRole("button", { name: "Import" });
   await expect(secondary).toHaveCSS("color", "rgb(19, 32, 44)");

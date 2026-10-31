@@ -187,8 +187,7 @@
 
 .theme-lab-field input:not(.nm-color-input),
 .theme-lab-field select,
-.theme-lab-table-tools select,
-.theme-lab-search {
+.theme-lab-table-tools select {
   min-height: var(--nm-control-md);
   border: 1px solid var(--nm-border-strong);
   border-radius: var(--nm-radius-sm);
@@ -205,8 +204,7 @@
 
 .theme-lab-field input:not(.nm-color-input):focus,
 .theme-lab-field select:focus,
-.theme-lab-table-tools select:focus,
-.theme-lab-search:focus-within {
+.theme-lab-table-tools select:focus {
   border-color: var(--nm-focus-border);
   outline: 1px solid var(--nm-focus-border);
   outline-offset: -1px;
@@ -338,42 +336,7 @@
 }
 
 .theme-lab-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   width: 190px;
-  min-height: 28px;
-  padding: 0 8px;
-  background: var(--nm-surface-soft);
-  color: var(--nm-text-faint);
-}
-
-.theme-lab-search input,
-body.theme-dark .theme-lab-search input {
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--nm-text);
-  font-size: var(--nm-text-xs);
-  appearance: none;
-}
-
-.theme-lab-search input:focus,
-body.theme-dark .theme-lab-search input:focus {
-  border: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.theme-lab-search input::placeholder {
-  color: var(--nm-text-faint);
 }
 
 .theme-lab-table-scroll {

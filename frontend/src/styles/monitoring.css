@@ -1430,12 +1430,6 @@ body:not(.theme-dark) .mon-uptime-bad {
 /* Search in panel header */
 .mon-search-wrap {
   width: 180px;
-  padding: 0;
-  gap: 0;
-}
-.mon-search {
-  width: 100%;
-  font-size: 12px;
 }
 
 /* Detail panel — always rendered, right column */
@@ -1620,12 +1614,7 @@ body.theme-dark .mon-mini-sparkline-line { stroke: #4db8cc; opacity: 0.75; }
 body.theme-dark .mon-ports-form-col { border-right-color: var(--nm-border); }
 
 .mon-ports-form-col .mon-device-picker { border: none; border-radius: 0; background: transparent; }
-.mon-ports-form-col .ep-search-row { border: none; border-bottom: none; background: var(--nm-surface); border: 1px solid #ccd8e0; border-radius: 5px; padding: 0; position: relative; }
-.mon-ports-form-col .ep-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
-.mon-ports-form-col .ep-search { background: transparent; border: none; border-radius: 5px; padding: 7px 10px 7px 28px; width: 100%; box-sizing: border-box; }
 .mon-ports-form-col .ep-list { margin-top: 8px; }
-body.theme-dark .mon-ports-form-col .ep-search-row { background: var(--nm-modal-input); border-color: var(--nm-border-strong); }
-body.theme-dark .mon-ports-form-col .ep-search { color: #d8eaf5; }
 .mon-ports-list-col {
   flex: 1;
   padding: 18px 20px;
@@ -2260,8 +2249,6 @@ body.theme-dark .mon-row--active { background: var(--nm-accent-soft); }
 body.theme-dark .mon-device-name { color: #d8eaf5; }
 body.theme-dark .mon-device-ip { color: var(--nm-text-faint); }
 body.theme-dark .mon-cell-mono { color: var(--nm-text-muted); }
-body.theme-dark .mon-search-wrap { background: transparent; }
-body.theme-dark .mon-search { background: transparent; color: var(--nm-modal-label); }
 body.theme-dark .mon-detail-stats { border-color: var(--nm-border-strong); }
 body.theme-dark .mon-detail-stat + .mon-detail-stat { border-color: var(--nm-border-strong); }
 body.theme-dark .mon-detail-stat-val { color: #d8eaf5; }
@@ -4408,10 +4395,6 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
     max-width: none;
   }
 
-  .mon-device-window-header .mon-search-wrap .mon-search {
-    width: 100%;
-  }
-
   .mon-device-window-header .nm-phone-filters-btn {
     order: 0;
     margin-left: 0;
@@ -4520,10 +4503,6 @@ body.theme-dark .monitor-form-modal .monitor-form .nm-select:hover {
     flex: 1 1 100%;
     min-width: 0;
     width: auto;
-  }
-
-  .monitors-table-toolbar .monitors-search-wrap .mon-search {
-    width: 100%;
   }
 
   .monitors-table-wrap .monitors-table tr > td:nth-child(3) { flex: 1 1 0; min-width: 0; font-weight: 650; }

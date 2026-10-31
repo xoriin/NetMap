@@ -18,7 +18,7 @@ function resolve(page:Page,token:string) {
 test('light-mode inputs and popup sections use the softened near-white surface',async({page})=>{
  await openProfile(page,'light');
  for(const token of ['--nm-input-surface','--nm-modal-input','--nm-popup-section-bg']) expect(await resolve(page,token)).toBe('rgb(254, 254, 254)');
- const backgrounds=await page.evaluate(()=>['profile-input','mon-port-input','mon-ports-input','ipam-form-input','rbac-new-group-input','ep-trigger','ep-search'].map(name=>{
+ const backgrounds=await page.evaluate(()=>['profile-input','mon-port-input','mon-ports-input','ipam-form-input','rbac-new-group-input','ep-trigger'].map(name=>{
   const el=document.createElement(name.startsWith('ep-')?'button':'input');el.className=name;document.body.append(el);const value=getComputedStyle(el).backgroundColor;el.remove();return `${name} ${value}`;
  }));
  for(const line of backgrounds) expect(line).toMatch(/ rgb\(254, 254, 254\)$/);

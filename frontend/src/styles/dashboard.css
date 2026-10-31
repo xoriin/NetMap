@@ -553,39 +553,9 @@ body.theme-dark .dash-alert-tag--more { background: color-mix(in srgb, var(--nm-
   margin-top: 4px;
 }
 
-.overview-fav-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 180px;
-  padding: 4px 9px;
-  border: 1px solid rgba(176, 195, 211, 0.8);
-  border-radius: 8px;
-  background: #f2f7fa;
-  color: #7a96a8;
-}
-
-.overview-fav-search input {
-  min-width: 0;
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #1a2e3d;
-  font-size: 12px;
-}
-
-.overview-fav-search input::placeholder { color: var(--nm-text-faint); }
-
 .dash-panel-header--favourites {
   padding-top: 10px;
   padding-bottom: 10px;
-}
-
-.dash-panel-header--favourites .overview-fav-search {
-  min-width: 160px;
-  height: 24px;
-  padding: 0 8px;
 }
 
 .dash-panel-title {
