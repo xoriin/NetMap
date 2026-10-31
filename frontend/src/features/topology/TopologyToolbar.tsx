@@ -160,7 +160,7 @@ export function TopologyToolbar({
   hiddenGroupNames,
   selectedGroupForDisplay,
   activeGroupDisplay,
-  groupHasCustomDisplay,
+  displaySlidersAtDefault,
   groupZoneOpacityPercent,
   nodeLabelFontSize,
   edgeLabelFontSize,
@@ -180,7 +180,7 @@ export function TopologyToolbar({
   onLayoutShapeChange,
   onAutoArrange,
   onResetGroup,
-  onResetGroupDisplay,
+  onResetDisplaySliders,
   onSpacingChange,
   onMaxPerRowChange,
   onZoneOpacityChange,
@@ -204,7 +204,7 @@ export function TopologyToolbar({
   hiddenGroupNames: Set<string>;
   selectedGroupForDisplay: string;
   activeGroupDisplay: GroupDisplayPref;
-  groupHasCustomDisplay: boolean;
+  displaySlidersAtDefault: boolean;
   groupZoneOpacityPercent: number;
   nodeLabelFontSize: number;
   edgeLabelFontSize: number;
@@ -224,7 +224,7 @@ export function TopologyToolbar({
   onLayoutShapeChange: (shape: GroupLayoutShape) => void;
   onAutoArrange: () => void;
   onResetGroup: () => void;
-  onResetGroupDisplay: () => void;
+  onResetDisplaySliders: () => void;
   onSpacingChange: (spacingScalePercent: number) => void;
   onMaxPerRowChange: (maxDevicesPerRow: number) => void;
   onZoneOpacityChange: (percent: number) => void;
@@ -440,9 +440,9 @@ export function TopologyToolbar({
                   <button
                     type="button"
                     className="nm-btn nm-btn--sm"
-                    disabled={!groupHasCustomDisplay}
-                    onClick={onResetGroupDisplay}
-                    title={`Return ${selectedGroupForDisplay}'s size, spacing, layout and label settings to the defaults`}
+                    disabled={displaySlidersAtDefault}
+                    onClick={onResetDisplaySliders}
+                    title="Return every slider to its default. Group positions and the Grid/Radial choice stay as they are."
                   >
                     Reset to defaults
                   </button>

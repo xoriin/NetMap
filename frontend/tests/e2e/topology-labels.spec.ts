@@ -3,6 +3,17 @@ import { setupCoreMocks, setupTopologyMocks, mockDevice } from "./helpers/api-mo
 
 const LONG = "This is a really long display name to see if it fits";
 
+async function settledBox(locator: Locator) {
+  let previous = await locator.boundingBox();
+  for (let i = 0; i < 20; i++) {
+    await locator.page().waitForTimeout(100);
+    const next = await locator.boundingBox();
+    if (previous && next && Math.abs(next.x - previous.x) < 0.5 && Math.abs(next.y - previous.y) < 0.5 && Math.abs(next.width - previous.width) < 0.5) return next;
+    previous = next;
+  }
+  return previous!;
+}
+
 async function clipped(locator: Locator) {
   return locator.evaluate((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
 }
@@ -44,42 +55,72 @@ test.describe("Topology long names", () => {
 });
 
 test.describe("Topology display reset", () => {
-  test("Reset to defaults returns the selected group's display settings to the defaults", async ({ page }) => {
+  async function openDisplay(page: import("@playwright/test").Page) {
     await setupCoreMocks(page);
     await setupTopologyMocks(page, [
       mockDevice({ id: 1, hostname: "router-01", ip_address: "10.0.0.1", topology_group: "Core" }),
       mockDevice({ id: 2, hostname: "switch-01", ip_address: "10.0.0.2", topology_group: "Core" }),
+      mockDevice({ id: 3, hostname: "ap-01", ip_address: "10.0.0.3", topology_group: "Core" }),
     ], []);
     await page.goto("/topology");
     await page.getByRole("button", { name: "Display" }).click();
     const panel = page.locator(".toolbar-display-panel");
-    const reset = panel.getByRole("button", { name: "Reset to defaults" });
-    const nodeSize = panel.locator("label", { hasText: "Node size" });
-    const labels = panel.locator("label", { hasText: "Device labels" });
-    await expect(reset).toBeDisabled();
+    const slider = (name: string) => panel.locator("label", { hasText: name });
+    return { panel, slider, reset: panel.getByRole("button", { name: "Reset to defaults" }) };
+  }
+
+  const DEFAULTS: Record<string, string> = {
+    "Node size": "125%", Spacing: "120%", "Per row": "4", Background: "10%", "Device labels": "13px", "Link labels": "15px",
+  };
+
+  test("Reset to defaults returns every slider to its default", async ({ page }) => {
+    const { panel, slider, reset } = await openDisplay(page);
     const resetBox = (await reset.boundingBox())!;
     const selectBox = (await panel.locator("select").boundingBox())!;
     expect(Math.abs(resetBox.x - selectBox.x)).toBeLessThanOrEqual(1);
     expect(Math.abs(resetBox.width - selectBox.width)).toBeLessThanOrEqual(1);
-    await expect(nodeSize.locator("span")).toHaveText("125%");
-    const defaultLabelSize = await labels.locator("span").textContent();
+    for (const [name, value] of Object.entries(DEFAULTS)) await expect(slider(name).locator("span"), name).toHaveText(value);
+    await expect(reset).toBeDisabled();
 
-    await nodeSize.locator("input").fill("160");
-    await labels.locator("input").fill("22");
-    await panel.getByRole("button", { name: "Radial" }).click();
-    await expect(nodeSize.locator("span")).toHaveText("160%");
-    await expect(labels.locator("span")).toHaveText("22px");
+    const changed: Record<string, string> = { "Node size": "160", Spacing: "200", "Per row": "6", Background: "60", "Device labels": "22", "Link labels": "20" };
+    for (const [name, value] of Object.entries(changed)) await slider(name).locator("input").fill(value);
+    await expect(slider("Link labels").locator("span")).toHaveText("20px");
     await expect(reset).toBeEnabled();
     await page.screenshot({ path: "test-results/topology-display-changed.png" });
 
     await reset.click();
-    await expect(nodeSize.locator("span")).toHaveText("125%");
-    await expect(labels.locator("span")).toHaveText(defaultLabelSize!);
-    await expect(panel.getByRole("button", { name: "Grid" })).toHaveClass(/nm-btn--active/);
-    await expect(panel.locator("label", { hasText: "Per row" })).toBeVisible();
+    for (const [name, value] of Object.entries(DEFAULTS)) await expect(slider(name).locator("span"), name).toHaveText(value);
     await expect(reset).toBeDisabled();
-    await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("font-size", `${parseInt(defaultLabelSize!, 10)}px`);
+    await expect(page.locator(".topology-overlay-label").first()).toHaveCSS("font-size", "13px");
     await page.screenshot({ path: "test-results/topology-display-reset.png" });
+  });
+
+  test("Reset to defaults leaves the group where it is", async ({ page }) => {
+    const { slider, reset } = await openDisplay(page);
+    await slider("Spacing").locator("input").fill("200");
+    await slider("Per row").locator("input").fill("6");
+    await expect(slider("Per row").locator("span")).toHaveText("6");
+    const middle = page.locator(".topology-overlay-node[title='router-01'] .topology-device-icon-frame");
+    const canvas = page.locator(".graph-canvas");
+    const before = await settledBox(middle);
+    const canvasBefore = (await canvas.boundingBox())!;
+    await reset.click();
+    await expect(slider("Spacing").locator("span")).toHaveText("120%");
+    const after = await settledBox(middle);
+    const canvasAfter = (await canvas.boundingBox())!;
+    expect(Math.abs(after.x - canvasAfter.x - (before.x - canvasBefore.x))).toBeLessThanOrEqual(2);
+    expect(Math.abs(after.y - canvasAfter.y - (before.y - canvasBefore.y))).toBeLessThanOrEqual(2);
+  });
+
+  test("Reset to defaults keeps a Radial group radial", async ({ page }) => {
+    const { panel, slider, reset } = await openDisplay(page);
+    await panel.getByRole("button", { name: "Radial" }).click();
+    await slider("Rings").locator("input").fill("3");
+    await expect(slider("Rings").locator("span")).toHaveText("3");
+    await reset.click();
+    await expect(panel.getByRole("button", { name: "Radial" })).toHaveClass(/nm-btn--active/);
+    await expect(slider("Rings").locator("span")).toHaveText("1");
+    await expect(reset).toBeDisabled();
   });
 });
 

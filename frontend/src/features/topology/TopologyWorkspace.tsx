@@ -50,6 +50,8 @@ import { topologyPalette } from "../../utils/topologyPalette";
 
 const DEFAULT_EDGE_LABEL_FONT_SIZE = 15;
 const DEFAULT_NODE_LABEL_FONT_SIZE = 13;
+const DEFAULT_GROUP_ZONE_OPACITY_PERCENT = 10;
+const DEFAULT_GROUP_DISPLAY = { nodeScalePercent: DEFAULT_NODE_SCALE_PERCENT, spacingScalePercent: 120, maxDevicesPerRow: 4 };
 const BASE_DEVICE_ICON_SIZE = 38;
 
 function wheelZoomFactor(event: WheelEvent): number {
@@ -124,7 +126,7 @@ export function TopologyWorkspace({
     } catch { return new Set(); }
   });
   const [groupZoneOpacityPercent, setGroupZoneOpacityPercent] = useState<number>(() => {
-    try { return readTopologyDisplayPrefs(userId).groupZoneOpacityPercent ?? 10; } catch { return 10; }
+    try { return readTopologyDisplayPrefs(userId).groupZoneOpacityPercent ?? DEFAULT_GROUP_ZONE_OPACITY_PERCENT; } catch { return DEFAULT_GROUP_ZONE_OPACITY_PERCENT; }
   });
   const [edgeLabelFontSize, setEdgeLabelFontSize] = useState<number>(() => {
     try { return Number(localStorage.getItem(`netmap.edge-label-size.${userId}`)) || DEFAULT_EDGE_LABEL_FONT_SIZE; } catch { return DEFAULT_EDGE_LABEL_FONT_SIZE; }
@@ -652,7 +654,7 @@ export function TopologyWorkspace({
     return { online, offline };
   }, [filteredGraph.devices, liveStatusByDeviceId]);
   const storedActiveGroupDisplay =
-    groupDisplayPrefs[selectedGroupForDisplay] ?? { nodeScalePercent: DEFAULT_NODE_SCALE_PERCENT, spacingScalePercent: 120, maxDevicesPerRow: 4 };
+    groupDisplayPrefs[selectedGroupForDisplay] ?? DEFAULT_GROUP_DISPLAY;
   const activeGroupDisplay = {
     ...storedActiveGroupDisplay,
     nodeScalePercent: Math.max(MIN_NODE_SCALE_PERCENT, Math.min(MAX_NODE_SCALE_PERCENT, storedActiveGroupDisplay.nodeScalePercent)),
@@ -661,6 +663,15 @@ export function TopologyWorkspace({
       Math.min(MAX_NODE_LABEL_FONT_SIZE, storedActiveGroupDisplay.labelFontSize ?? nodeLabelFontSize),
     ),
   };
+
+  const displaySlidersAtDefault =
+    activeGroupDisplay.nodeScalePercent === DEFAULT_GROUP_DISPLAY.nodeScalePercent
+    && activeGroupDisplay.spacingScalePercent === DEFAULT_GROUP_DISPLAY.spacingScalePercent
+    && activeGroupDisplay.maxDevicesPerRow === DEFAULT_GROUP_DISPLAY.maxDevicesPerRow
+    && (activeGroupDisplay.maxRings ?? 1) === 1
+    && activeGroupDisplay.labelFontSize === DEFAULT_NODE_LABEL_FONT_SIZE
+    && groupZoneOpacityPercent === DEFAULT_GROUP_ZONE_OPACITY_PERCENT
+    && edgeLabelFontSize === DEFAULT_EDGE_LABEL_FONT_SIZE;
 
   const refreshOverlayNodes = useCallback(() => {
     const cy = cyRef.current;
@@ -1710,67 +1721,56 @@ export function TopologyWorkspace({
     }
   }
 
-  function resetSelectedGroupDisplay() {
+  function resetDisplaySliders() {
     if (!selectedGroupForDisplay) return;
-    setGroupDisplayPrefs((c) => {
-      const next = { ...c };
-      delete next[selectedGroupForDisplay];
-      return next;
-    });
-    resetSelectedGroup();
+    const radial = (activeGroupDisplay.layoutShape ?? "grid") === "radial";
+    const defaults: GroupDisplayPref = {
+      ...DEFAULT_GROUP_DISPLAY,
+      labelFontSize: DEFAULT_NODE_LABEL_FONT_SIZE,
+      ...(radial ? { layoutShape: "radial" as const, maxRings: 1 } : {}),
+    };
+    const spacingChanged =
+      activeGroupDisplay.spacingScalePercent !== defaults.spacingScalePercent
+      || activeGroupDisplay.maxDevicesPerRow !== defaults.maxDevicesPerRow
+      || (radial && (activeGroupDisplay.maxRings ?? 1) !== 1);
+    if (spacingChanged) {
+      if (radial) reflowRadialGroup(defaults.spacingScalePercent, 1);
+      else reflowGridGroup();
+    }
+    setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: defaults }));
+    setGroupZoneOpacityPercent(DEFAULT_GROUP_ZONE_OPACITY_PERCENT);
+    handleEdgeLabelSizeChange(DEFAULT_EDGE_LABEL_FONT_SIZE);
   }
 
   function setGroupPref(patch: Partial<GroupDisplayPref>) {
     setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, ...patch } }));
   }
 
-  function applySpacingChange(newSpacingPercent: number) {
+  function reflowRadialGroup(spacingPercent: number, maxRings: number) {
     const cy = cyRef.current;
+    if (!cy) return;
     const nextPositions = { ...layoutPositionsRef.current };
-    if ((activeGroupDisplay.layoutShape ?? "grid") === "radial" && cy) {
-      const groupDevices = filteredGraph.devices.filter((d) => d.topology_group === selectedGroupForDisplay);
-      const curPos = groupDevices.map((d) => {
-        const id = `device-${d.id}`;
-        const node = cy.$id(id);
-        return node.length > 0 ? node.position() : (layoutPositionsRef.current[id] ?? { x: 0, y: 0 });
-      });
-      const cx = curPos.reduce((s, p) => s + p.x, 0) / curPos.length;
-      const cy_ = curPos.reduce((s, p) => s + p.y, 0) / curPos.length;
-      const finalPositions = computeRadialPositions(groupDevices, cx, cy_, newSpacingPercent, activeGroupDisplay.maxRings ?? 1);
-      for (const { id, x, y } of finalPositions) {
-        cy.$id(id).position({ x, y });
-        nextPositions[id] = { x, y };
-      }
-      layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
-      window.localStorage.setItem(savedTopologyLayoutKey(userId), JSON.stringify(layoutPositionsRef.current));
-      writeSavedTopologyLayoutMeta(userId, { savedAt: Date.now() });
-      serverSaveLayoutRef.current(layoutPositionsRef.current, true);
-      refreshOverlayNodes();
-    } else {
-      const gId = groupId(selectedGroupForDisplay);
-      if (cy) {
-        const groupNode = cy.$id(gId);
-        if (groupNode.length > 0) {
-          const bb = groupNode.boundingBox({});
-          const devYs = filteredGraph.devices
-            .filter((d) => d.topology_group === selectedGroupForDisplay)
-            .map((d) => cy.$id(`device-${d.id}`))
-            .filter((n) => n.length > 0)
-            .map((n) => n.position().y);
-          const topY = devYs.length > 0 ? Math.min(...devYs) : (bb.y1 + bb.y2) / 2;
-          nextPositions[gId] = { x: (bb.x1 + bb.x2) / 2, y: topY };
-        }
-      }
-      filteredGraph.devices
-        .filter((d) => d.topology_group === selectedGroupForDisplay)
-        .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
-      layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
-      skipPersistOnNextRenderRef.current = true;
+    const groupDevices = filteredGraph.devices.filter((d) => d.topology_group === selectedGroupForDisplay);
+    const curPos = groupDevices.map((d) => {
+      const id = `device-${d.id}`;
+      const node = cy.$id(id);
+      return node.length > 0 ? node.position() : (layoutPositionsRef.current[id] ?? { x: 0, y: 0 });
+    });
+    const cx = curPos.reduce((s, p) => s + p.x, 0) / curPos.length;
+    const cy_ = curPos.reduce((s, p) => s + p.y, 0) / curPos.length;
+    const finalPositions = computeRadialPositions(groupDevices, cx, cy_, spacingPercent, maxRings);
+    for (const { id, x, y } of finalPositions) {
+      cy.$id(id).position({ x, y });
+      nextPositions[id] = { x, y };
     }
-    setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: newSpacingPercent } }));
+    layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
+    window.localStorage.setItem(savedTopologyLayoutKey(userId), JSON.stringify(layoutPositionsRef.current));
+    writeSavedTopologyLayoutMeta(userId, { savedAt: Date.now() });
+    serverSaveLayoutRef.current(layoutPositionsRef.current, true);
+    refreshOverlayNodes();
   }
 
-  function applyMaxPerRowChange(value: number) {
+  function reflowGridGroup() {
     const cy = cyRef.current;
     const gId = groupId(selectedGroupForDisplay);
     const nextPositions = { ...layoutPositionsRef.current };
@@ -1792,6 +1792,16 @@ export function TopologyWorkspace({
       .forEach((d) => { delete nextPositions[`device-${d.id}`]; });
     layoutPositionsRef.current = sanitizeTopologyLayoutPositions(nextPositions);
     skipPersistOnNextRenderRef.current = true;
+  }
+
+  function applySpacingChange(newSpacingPercent: number) {
+    if ((activeGroupDisplay.layoutShape ?? "grid") === "radial") reflowRadialGroup(newSpacingPercent, activeGroupDisplay.maxRings ?? 1);
+    else reflowGridGroup();
+    setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, spacingScalePercent: newSpacingPercent } }));
+  }
+
+  function applyMaxPerRowChange(value: number) {
+    reflowGridGroup();
     setGroupDisplayPrefs((c) => ({ ...c, [selectedGroupForDisplay]: { ...activeGroupDisplay, maxDevicesPerRow: value } }));
   }
 
@@ -1819,7 +1829,7 @@ export function TopologyWorkspace({
         hiddenGroupNames={hiddenGroupNames}
         selectedGroupForDisplay={selectedGroupForDisplay}
         activeGroupDisplay={activeGroupDisplay}
-        groupHasCustomDisplay={Boolean(groupDisplayPrefs[selectedGroupForDisplay])}
+        displaySlidersAtDefault={displaySlidersAtDefault}
         groupZoneOpacityPercent={groupZoneOpacityPercent}
         nodeLabelFontSize={nodeLabelFontSize}
         edgeLabelFontSize={edgeLabelFontSize}
@@ -1840,7 +1850,7 @@ export function TopologyWorkspace({
         onLayoutShapeChange={changeLayoutShape}
         onAutoArrange={(activeGroupDisplay.layoutShape ?? "grid") === "radial" ? autoArrangeRadialSelectedGroup : autoArrangeSelectedGroup}
         onResetGroup={resetSelectedGroup}
-        onResetGroupDisplay={resetSelectedGroupDisplay}
+        onResetDisplaySliders={resetDisplaySliders}
         onSpacingChange={applySpacingChange}
         onMaxPerRowChange={applyMaxPerRowChange}
         onZoneOpacityChange={setGroupZoneOpacityPercent}
