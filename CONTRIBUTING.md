@@ -1,205 +1,208 @@
 # Contributing to NetMap
 
-Thanks for your interest in contributing. This document covers how to set up a local development environment, validate changes, and follow the project's workflow before opening a pull request.
-
----
-
-## Table of contents
-
-- [Project overview](#project-overview)
-- [Prerequisites](#prerequisites)
-- [Getting started](#getting-started)
-- [Running locally](#running-locally)
-- [Project structure](#project-structure)
-- [Validating changes](#validating-changes)
-- [Code style](#code-style)
-- [Submitting a pull request](#submitting-a-pull-request)
-- [Reporting bugs](#reporting-bugs)
-- [Feature requests](#feature-requests)
-
----
-
-## Project overview
-
-NetMap is a self-hosted network mapping and monitoring application. Everything runs inside a single Docker container (nginx + uvicorn + a syslog receiver, managed by tini).
-
-- **Backend** — FastAPI, SQLite (two databases: `netmap.db` and `firewall.db`), Python 3.12+
-- **Frontend** — React + TypeScript SPA, built with Vite
-- **Container** — single `aio.Dockerfile`, published to Docker Hub as `xoriin/netmap`
-
----
+Run the FastAPI backend and Vite frontend in two terminals for local development.
+Docker is optional for this workflow; use it when testing the packaged application
+or network features that need the container's tools and permissions.
 
 ## Prerequisites
 
-| Tool | Notes |
-|------|-------|
-| Docker + Compose | Required to build and run the container |
-| Node.js 20+ | Frontend build and type-checking |
-| Python 3.12+ with [uv](https://github.com/astral-sh/uv) | Backend linting and tests |
-| nmap | Required at runtime inside the container; not needed on the host for development |
+- Git
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Node.js 22.12+ and npm (CI uses Node.js 22)
+- Docker with Compose, if you want to test the container
 
----
+The commands below use Bash.
 
-## Getting started
+## Get the code
+
+Fork [xoriin/netmap](https://github.com/xoriin/netmap), clone your fork, and start
+a branch from `test`:
 
 ```bash
-# Clone the repo
-git clone https://github.com/xoriin/netmap.git
+git clone https://github.com/YOUR_USERNAME/netmap.git
 cd netmap
-
-# Copy the example env file — edit values as needed for local use
-cp .env.example .env
+git switch test
+git switch -c fix/describe-your-change
 ```
 
-`SECRET_KEY` and `MASTER_KEY` are required and have no default — generate both and set them in `.env`:
+For an existing checkout, run `git switch test` and `git pull --ff-only` before
+creating your feature branch.
+
+## Run locally
+
+### Terminal 1: Python backend
+
+From the repository root, install the locked Python dependencies, including the
+development tools. uv creates a virtual environment in `backend/.venv`:
 
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"                        # SECRET_KEY
-python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # MASTER_KEY
+cd backend
+uv sync --locked --extra dev
 ```
 
----
+Create `backend/.env` once with local settings and generated keys:
 
-## Running locally
+```bash
+uv run python - <<'PY'
+from pathlib import Path
+import secrets
+from cryptography.fernet import Fernet
 
-`docker-compose.build.yml` builds the container image from source and starts it:
+with Path(".env").open("x") as env:
+    env.write(
+        "APP_ENV=development\n"
+        "DATA_DIR=../data\n"
+        "DATABASE_URL=sqlite:///../data/netmap.db\n"
+        "APP_URL=http://localhost:5173\n"
+        'CORS_ORIGINS=["http://localhost:5173"]\n'
+        'TRUSTED_HOSTS=["localhost","127.0.0.1"]\n'
+        "SYSLOG_ENABLED=false\n"
+        f"SECRET_KEY={secrets.token_urlsafe(48)}\n"
+        f"MASTER_KEY={Fernet.generate_key().decode()}\n"
+    )
+PY
+```
+
+This refuses to overwrite an existing `.env`. If you already have one, edit its
+local settings instead. Keep both keys stable across restarts and keep `.env`
+out of commits. The database and other local data are stored in the ignored
+`data/` directory at the repository root. Use separate development data, not a
+production database.
+
+Start the API from `backend/`:
+
+```bash
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8090
+```
+
+The backend creates its databases and applies migrations on startup. You can
+check it at <http://127.0.0.1:8090/api/v1/health>.
+
+Prefer a standard Python virtual environment? Instead of `uv sync`, use:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+```
+
+Then run the same setup snippet with `python` instead of `uv run python`, and
+start the API with `python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8090`.
+
+### Terminal 2: Vite frontend
+
+Open a second terminal at the repository root:
+
+```bash
+cd frontend
+npm ci
+npm run dev -- --host 127.0.0.1
+```
+
+Open <http://localhost:5173> and complete the setup wizard to create your first
+admin account. Keep both terminals running. Vite reloads frontend changes;
+Uvicorn reloads Python changes.
+
+Vite proxies `/api` requests, including WebSockets, to `http://127.0.0.1:8090`.
+If you change the backend port, set the target when starting Vite:
+
+```bash
+VITE_API_TARGET=http://127.0.0.1:8091 npm run dev -- --host 127.0.0.1
+```
+
+Use the Vite URL in your browser. If Vite selects a different port because 5173
+is busy, free that port or update `APP_URL` and `CORS_ORIGINS` to match and restart
+the backend.
+
+### Optional: test the Docker container
+
+From the repository root, copy `.env.example` to `.env`, generate and fill in
+`SECRET_KEY` and `MASTER_KEY` as described in that file, and set:
+
+```dotenv
+CORS_ORIGINS=["http://localhost:8080"]
+TRUSTED_HOSTS=["localhost","127.0.0.1"]
+APP_URL=http://localhost:8080
+```
+
+The key-generation command for `MASTER_KEY` needs `cryptography`; you can run it
+with `uv run python` from the backend environment created above. Then, from the
+repository root:
 
 ```bash
 docker compose -f docker-compose.build.yml up --build -d
 ```
 
-The app will be available at `http://localhost:8080` by default.
+Open <http://localhost:8080>. This builds a local image from your checkout.
+The regular `docker-compose.yml` pulls the published image instead.
 
-On first start, navigate to `http://localhost:8080` and complete the setup wizard to create your first admin account.
+Host development does not bundle `nmap`, `ping`, traceroute or SNMP tools.
+Features that call these commands need the host tools and appropriate permissions;
+discovery also invokes `sudo nmap`. Use Docker to check the packaged environment.
+MAC discovery needs direct access to the local network; Docker bridge networking
+cannot provide the same ARP visibility as host networking on Linux. The local
+Python configuration above disables the syslog listener; enable it explicitly
+when working on syslog ingestion.
 
----
+## Check your changes
 
-## Project structure
-
-```
-backend/app/
-  api/v1/          — FastAPI route handlers
-  core/config.py   — Settings (pydantic-settings)
-  db/              — SQLAlchemy sessions (netmap.db + firewall.db)
-  models/          — SQLAlchemy models
-  services/        — Business logic (discovery, alerting, syslog, exports)
-
-frontend/src/
-  api/client.ts    — Typed API client
-  App.tsx          — Root component, auth, routing
-  Sidebar.tsx      — Navigation shell
-  components/      — Shared atom components
-  features/        — Page-level workspaces (devices, topology, monitoring, etc.)
-  styles/          — Layered CSS (tokens, base, shell, dashboard, workspaces,
-                       theme-dark, monitoring, components); global.css is the
-                       import index
-  utils/           — Shared helpers
-
-docker/
-  aio.Dockerfile   — Single-container build
-```
-
----
-
-## Validating changes
-
-Run both checks before opening a PR. Neither should produce errors or new warnings.
-
-**Frontend (TypeScript + build)**
+From `backend/`:
 
 ```bash
-cd frontend
-npm exec tsc -- --noEmit
-node node_modules/vite/bin/vite.js build
+uv run --locked --extra dev ruff check .
+uv run --locked --extra dev pytest tests
 ```
 
-**Backend (lint + tests)**
+With an activated standard virtual environment, use `ruff check .` and
+`python -m pytest tests` instead.
+
+From `frontend/`:
 
 ```bash
-cd backend
-uv run --extra dev ruff check .
-uv run --extra dev python -m pytest tests
+npm run build
+npm exec playwright install chromium
+npm exec playwright test
 ```
 
----
+The build includes TypeScript checking. Install Chromium on the first browser
+test run; Linux may also need `npm exec playwright install --with-deps chromium`.
+Playwright serves the built `dist/` directory, so rebuild after frontend edits
+before running it. Stop any old preview server on port 4173 to avoid testing a
+stale build.
 
-## Code style
-
-- **No comments explaining what the code does** — well-named identifiers do that. Add a comment only when the *why* is non-obvious (a hidden constraint, a workaround, a subtle invariant).
-- **No speculative abstractions** — don't refactor or add helpers beyond what the task actually needs.
-- **Frontend** — React functional components, TypeScript strict mode, no `any`. CSS lives in the layered `styles/` files; follow the existing naming conventions (BEM-adjacent, feature-prefixed: `mon-`, `ep-`, `dash-`, etc.) and use the shared `nm-*` design-system classes for common UI instead of new workspace-specific variants.
-- **Backend** — follow existing patterns for route handlers (thin handlers, logic in `services/`). New database columns require a migration script in `backend/app/db/migrations/`.
-- **Commit messages** — short present-tense summary, no ticket prefixes. Keep it descriptive of the actual change.
-
----
-
-## Submitting a pull request
-
-1. Fork the repository and create a branch from `main`.
-2. Make your changes and validate them (see above).
-3. Open a pull request against `main` with a clear description of what changed and why.
-4. If your change is user-visible, add an entry to `CHANGELOG.md` under an `## [Unreleased]` section using [Keep a Changelog](https://keepachangelog.com/) format (`### Added`, `### Changed`, `### Fixed`).
-
-Pull requests that break the TypeScript check, Ruff or backend tests won't be merged.
-
----
-
-## Releasing
-
-NetMap uses `CHANGELOG.md` as the single source of truth for release notes:
-
-1. Move `[Unreleased]` entries into a dated `## [X.Y.Z] - YYYY-MM-DD` section and bump `VERSION`.
-2. Mirror to `test/`, push branch `test`, and validate the Docker Hub test image.
-3. Merge to `main`, tag `vX.Y.Z`, and push the tag.
-
-| Push target | Docker Hub | GitHub Release |
-|---|---|---|
-| `test` branch | `xoriin/netmap:test` | No |
-| `v*` tag on `main` | `xoriin/netmap:vX.Y.Z` + `latest` | Yes (from `CHANGELOG.md`) |
-
-Every push to `test` or `main`, every pull request to `main`, and every `v*` tag first runs Ruff and the backend tests, and the frontend type-check, build and Playwright suite (`.github/workflows/ci.yml`). No image is published unless they pass.
-
-Publication also requires real AIO compatibility checks on **amd64 and arm64** (arm64 uses QEMU, so pushes to `test` check amd64 only; `main`, pull requests, `v*` tags and manual runs check both — to check arm64 on `test`, open **Actions → Docker AIO Image → Run workflow** and pick the `test` branch): fresh HTTP, HTTPS with omitted flags, legacy explicit false flags, disabled security headers, and compliant HTTPS. Each must start nginx/API successfully and report the expected cookie security and startup warnings. A disposable database is created by the published `latest` image, seeded with a user and setting, then upgraded and restarted on the candidate; integrity, persisted values and migration history must survive. This does not replace migration fixtures or a real-data release rehearsal.
-
-Run the same check locally after building a candidate image:
+Add a regression test for fixes where practical. For UI changes, also check the
+running app in light and dark themes, at desktop and narrow widths, with the
+relevant loading, empty and error states. Container startup or migration changes
+also need the image compatibility check:
 
 ```bash
 python3 scripts/smoke-image.py netmap:local-aio --previous-image xoriin/netmap:latest --platform linux/amd64
 ```
 
-The script creates and removes only uniquely named smoke containers and volumes; it never mounts live data or publishes host ports. It requires Docker and access to the previous stable image. A failed smoke check blocks registry publication, not just the subsequent release.
+Run that from the repository root after building the local image. It uses
+disposable containers and volumes, not your development data.
 
-Pushing a `v*` tag runs CI that:
+## Code conventions
 
-- refuses to publish unless the tag is release-ready: `VERSION` matches the tag, `CHANGELOG.md` has a non-empty `## [X.Y.Z]` section and nothing left under `## Unreleased`, and the email logo URL no longer points at the `test` branch (`scripts/check-release.py`),
-- builds and publishes the Docker Hub release image (`xoriin/netmap:vX.Y.Z` and `latest`), and
-- publishes a **GitHub Release** for the same tag using the matching `CHANGELOG.md` section (`scripts/release-notes-from-changelog.py`).
+- Keep changes focused and follow the surrounding implementation.
+- Use typed React components and the shared `nm-*` controls, components and theme
+  tokens. Keep `styles/global.css` as an import index.
+- Keep API handlers thin; shared backend logic belongs in `backend/app/services/`.
+- Database migrations are registered in `backend/app/db/session.py`, not Alembic
+  migration files. Test fresh installs, upgrades and preservation of existing data.
+- Keep secrets, databases, virtual environments and generated files out of commits.
 
-Pushing the **`test` branch does not create a GitHub Release** — it only builds `xoriin/netmap:test`.
+## Open a pull request
 
-The in-app What's New modal reads the same baked `CHANGELOG.md`. It opens **after install/upgrade**, not when a newer tag is merely available. Do not hand-write GitHub release bodies — edit `CHANGELOG.md` only.
+Push your feature branch to your fork and open a PR against **`xoriin/netmap:test`**.
+Briefly explain the change, why it is needed, and what you tested; include
+screenshots for UI changes and reference any related issue.
 
-Preview release notes, and check the tag will pass, locally:
+I'll review and test changes on `test`, then merge them into `main` once they're
+ready.
 
-```bash
-python3 scripts/release-notes-from-changelog.py v1.3.1
-python3 scripts/check-release.py v1.3.1
-```
+## Bugs and feature requests
 
----
-
-## Reporting bugs
-
-Open an issue at [github.com/xoriin/netmap/issues](https://github.com/xoriin/netmap/issues). Include:
-
-- NetMap version (shown in the sidebar or Admin panel)
-- How you're running it (Docker Compose, direct, etc.)
-- Steps to reproduce
-- What you expected vs. what happened
-- Relevant logs (`docker logs <container>`)
-
----
-
-## Feature requests
-
-Open an issue with the `enhancement` label. Describe the use case, not just the solution — it helps evaluate fit with the project's scope.
+Open an [issue](https://github.com/xoriin/netmap/issues) with the version, steps to
+reproduce, expected behaviour and relevant logs. For feature requests, describe
+the use case and what you want to achieve.
