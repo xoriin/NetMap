@@ -26,6 +26,7 @@ import { MobileMoreSheet, MobileSectionTabs, MobileTabBar } from "./MobileNav";
 import { DashboardView } from "./views/DashboardView";
 import { WhatsNewModal, shouldShowWhatsNew } from "./components/WhatsNewModal";
 import { RuntimeSecurityAlert } from "./components/RuntimeSecurityAlert";
+import { NoticeBanners } from "./components/ReleaseNotices";
 import { userHasPermission } from "./utils/permissions";
 import { availableAdminTabs } from "./features/admin/adminNavigation";
 import { StatusPageRoute } from "./features/status-pages/StatusPageRoute";
@@ -513,6 +514,7 @@ function WorkspaceApp() {
         <section className="workspace">
           {error && <div className="error-banner">{error}</div>}
           {user.role === "SuperAdmin" && accessToken && <RuntimeSecurityAlert accessToken={accessToken} />}
+          {accessToken && <NoticeBanners accessToken={accessToken} />}
           {appSettings?.announcement && (
             <div className="dash-alert dash-alert--overview-bar dash-alert--announcement">
               <span className="dash-alert-dot dash-alert-dot--purple" aria-hidden="true" />

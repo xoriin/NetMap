@@ -111,6 +111,8 @@ export async function setupCoreMocks(page: Page, announcement: string | null = n
     return route.fulfill({ status: 201, json: created });
   });
   await page.route("**/api/v1/admin/runtime-security", (route) => route.fulfill({ json: { warnings: [] } }));
+  await page.route("**/api/v1/notices", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/admin/notices", (route) => route.fulfill({ json: { enabled: true, url: "https://raw.githubusercontent.com/xoriin/netmap-notices/main/notices.json", checked_at: null, error: null, notices: [] } }));
   await page.route("**/api/v1/ipam/external/accounts", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/ipam/external/locations", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/exports/backup-location", (route) => route.fulfill({ json: { directory: "/app/data/backups" } }));

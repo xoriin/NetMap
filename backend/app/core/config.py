@@ -104,6 +104,10 @@ class Settings(BaseSettings):
         default=False,
         alias="ACTIVE_NETWORK_PUBLIC_TARGETS_ENABLED",
     )
+    notice_feed_url: str = Field(
+        default="https://raw.githubusercontent.com/xoriin/netmap-notices/main/notices.json",
+        alias="NOTICE_FEED_URL",
+    )
     trusted_proxy_ips: list[str] = Field(default=[], alias="TRUSTED_PROXY_IPS")
     trusted_hosts: list[str] = Field(default=[], alias="TRUSTED_HOSTS")
     secure_headers_enabled: bool = Field(default=True, alias="SECURE_HEADERS_ENABLED")

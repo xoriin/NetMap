@@ -97,6 +97,7 @@ DEFAULTS: dict[str, str] = {
     "backup_date_format": "yyyy-MM-dd",
     "totp_required": "off",
     "new_device_alerts_enabled": "true",
+    "notice_feed_enabled": "true",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (
@@ -437,6 +438,15 @@ def update_settings(
                 detail=f"enabled={str(updates['new_device_alerts_enabled']).lower()}",
             )
         updates["new_device_alerts_enabled"] = str(updates["new_device_alerts_enabled"]).lower()
+    if updates.get("notice_feed_enabled") is not None:
+        if updates["notice_feed_enabled"] != (load_settings(db)["notice_feed_enabled"] == "true"):
+            write_audit(
+                db,
+                action="admin.notice_feed_changed",
+                actor_user_id=current_user.id,
+                detail=f"enabled={str(updates['notice_feed_enabled']).lower()}",
+            )
+        updates["notice_feed_enabled"] = str(updates["notice_feed_enabled"]).lower()
     if updates.get("totp_required") is not None:
         previous = load_settings(db)["totp_required"]
         if updates["totp_required"] != previous:

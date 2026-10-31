@@ -743,9 +743,25 @@ export type SystemSettings = {
   totp_required: "off" | "admins" | "all";
   /** Email users when their account signs in from a browser it has not seen before. */
   new_device_alerts_enabled?: boolean;
+  /** Show release notices from the NetMap project's notice feed. */
+  notice_feed_enabled?: boolean;
 };
 
 export type RuntimeSecurityStatus = { warnings: string[] };
+
+export type ReleaseNotice = {
+  id: string;
+  severity: "info" | "warning" | "breaking";
+  title: string;
+  message: string;
+  link?: string | null;
+  can_dismiss: boolean;
+  can_acknowledge: boolean;
+  acknowledged_by?: string | null;
+  acknowledged_at?: string | null;
+};
+
+export type NoticeFeed = { enabled: boolean; url: string; checked_at: string | null; error: string | null; notices: ReleaseNotice[] };
 
 export type ScheduledBackup = {
   filename: string;
@@ -2130,6 +2146,13 @@ export const api = {
     request<SystemSettings>("/api/v1/admin/settings/app", { token }),
   adminSettings: (token: string) =>
     request<SystemSettings>("/api/v1/admin/settings", { token }),
+  notices: (token: string) => request<ReleaseNotice[]>("/api/v1/notices", { token }),
+  dismissNotice: (token: string, id: string) =>
+    request<void>(`/api/v1/notices/${encodeURIComponent(id)}/dismiss`, { method: "POST", token }),
+  acknowledgeNotice: (token: string, id: string) =>
+    request<void>(`/api/v1/notices/${encodeURIComponent(id)}/acknowledge`, { method: "POST", token }),
+  noticeFeed: (token: string) => request<NoticeFeed>("/api/v1/admin/notices", { token }),
+  refreshNoticeFeed: (token: string) => request<NoticeFeed>("/api/v1/admin/notices/refresh", { method: "POST", token }),
   runtimeSecurityStatus: (token: string) =>
     request<RuntimeSecurityStatus>("/api/v1/admin/runtime-security", { token }),
   updateAdminSettings: (token: string, payload: Partial<SystemSettings>) =>

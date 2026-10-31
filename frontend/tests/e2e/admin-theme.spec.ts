@@ -365,6 +365,45 @@ test("Security sends only the new sign-in email switch when it is toggled", asyn
   await expect(box).not.toBeChecked();
 });
 
+test("Admin System lists notices, checks now and switches the feed off", async ({ page }) => {
+  await setupAdminMocks(page);
+  let current = { ...settings, notice_feed_enabled: true };
+  const puts: unknown[] = [];
+  let refreshes = 0;
+  const status = (checked: string | null, error: string | null) => ({
+    enabled: current.notice_feed_enabled, url: "https://raw.githubusercontent.com/xoriin/netmap-notices/main/notices.json",
+    checked_at: checked, error, notices: current.notice_feed_enabled ? [
+      { id: "v2-postgres", severity: "breaking", title: "NetMap 2.0 moves to PostgreSQL", message: "Back up before upgrading.", link: "https://docs.netmap.dev/upgrade", can_dismiss: false, can_acknowledge: true, acknowledged_by: null },
+      { id: "watchtower", severity: "warning", title: "Pause auto-updates", message: "Hold Watchtower until 2.0 is out.", link: null, can_dismiss: true, can_acknowledge: false },
+    ] : [],
+  });
+  await page.route("**/api/v1/admin/settings", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      puts.push(body);
+      current = { ...current, ...body } as typeof current;
+    }
+    return route.fulfill({ json: current });
+  });
+  await page.route("**/api/v1/admin/notices", (route) => route.fulfill({ json: status("2026-10-31T09:00:00Z", null) }));
+  await page.route("**/api/v1/admin/notices/refresh", (route) => { refreshes += 1; return route.fulfill({ json: status("2026-10-31T10:00:00Z", "network unreachable") }); });
+  await page.goto("/admin#system");
+  const panel = page.getByRole("region", { name: "Release Notices" });
+  await expect(panel).toContainText("Checked");
+  await expect(panel).toContainText("NetMap 2.0 moves to PostgreSQL");
+  await expect(panel).toContainText("Pause auto-updates");
+  await expect(panel.getByRole("button", { name: "Acknowledge" })).toHaveCount(1);
+  await panel.getByRole("button", { name: "Check now" }).click();
+  await expect(panel).toContainText("Last check failed: network unreachable");
+  expect(refreshes).toBe(1);
+  const box = panel.getByLabel("Show notices from the NetMap project");
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  await expect(box).not.toBeChecked();
+  await expect(panel.getByRole("button", { name: "Check now" })).toBeDisabled();
+  expect(puts).toEqual([{ notice_feed_enabled: false }]);
+});
+
 async function setupAdminMocks(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));

@@ -79,6 +79,7 @@ def create_app() -> FastAPI:
         from app.services.exports.backup_schedule import backup_schedule_service
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
+        from app.services.notices import notice_feed_service
         from app.services.rbac.permissions import load_from_db
         from app.services.status_pages.cache import status_cache
 
@@ -101,6 +102,7 @@ def create_app() -> FastAPI:
         ip_reservation_reminder_service.start()
         backup_schedule_service.start()
         standalone_monitor_service.start()
+        notice_feed_service.start()
         try:
             status_cache.start()
         except Exception:
@@ -114,6 +116,7 @@ def create_app() -> FastAPI:
         from app.services.exports.backup_schedule import backup_schedule_service
         from app.services.ipam.reminders import ip_reservation_reminder_service
         from app.services.monitors.service import standalone_monitor_service
+        from app.services.notices import notice_feed_service
         from app.services.status_pages.cache import status_cache
 
         syslog_service.stop()
@@ -121,6 +124,7 @@ def create_app() -> FastAPI:
         scheduled_discovery.stop()
         ip_reservation_reminder_service.stop()
         standalone_monitor_service.stop()
+        notice_feed_service.stop()
         backup_schedule_service.stop()
         status_cache.stop()
 

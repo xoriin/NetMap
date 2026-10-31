@@ -20,6 +20,7 @@ import { PanelSkeleton } from "../../../components/Skeleton";
 import { DashStat } from "../../../components/DashStat";
 import { ColumnChart, CountUp, DonutChart, StackBar, type ChartColor } from "../../../components/Charts";
 import { StatusCssErrors } from "../../status-pages/StatusCssErrors";
+import { ReleaseNoticesPanel } from "../../../components/ReleaseNotices";
 import { cssErrors, statusPageDefaultCssApi } from "../../status-pages/statusPagesEditorApi";
 
 const motion = (index: number) => ({ "--nm-motion-i": index }) as CSSProperties;
@@ -850,6 +851,7 @@ export function SystemTab({
               </div>
             </section>
           )}
+          <ReleaseNoticesPanel accessToken={accessToken} style={motion(6)} />
         </aside>
       </div>
       {showEncryptedBackupModal && (

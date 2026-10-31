@@ -403,6 +403,11 @@
 }
 
 .workspace-security-alert { flex-shrink: 0; }
+.nm-alert.workspace-notice { align-items: center; }
+.workspace-notice a { color: inherit; font-weight: 600; text-decoration: underline; }
+.workspace-notice-action { flex-shrink: 0; margin-left: auto; }
+body.route-inventory .workspace > .workspace-security-alert + .workspace-security-alert,
+body.route-topology .workspace > .workspace-security-alert + .workspace-security-alert { margin-top: 0; }
 .workspace-security-alert > svg { flex-shrink: 0; }
 .workspace-security-alert > span { min-width: 0; overflow-wrap: anywhere; }
 
