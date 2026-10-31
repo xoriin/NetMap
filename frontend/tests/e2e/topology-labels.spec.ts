@@ -82,3 +82,28 @@ test.describe("Topology display reset", () => {
     await page.screenshot({ path: "test-results/topology-display-reset.png" });
   });
 });
+
+test.describe("Topology toolbar menus", () => {
+  test("Display menu labels are readable on the menu surface in light mode", async ({ page }) => {
+    await setupCoreMocks(page);
+    await setupTopologyMocks(page, [mockDevice({ id: 1, hostname: "router-01", topology_group: "Core" })], []);
+    await page.goto("/topology");
+    await page.getByRole("button", { name: "Display" }).click();
+    const panel = page.locator(".toolbar-display-panel");
+    const contrast = await panel.evaluate((el) => {
+      const rgb = (v: string) => (v.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const lum = (v: string) => {
+        const [r, g, b] = rgb(v).map((c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const bg = lum(getComputedStyle(el).backgroundColor);
+      return [...el.querySelectorAll("label")].map((label) => {
+        const fg = lum(getComputedStyle(label).color);
+        return { text: label.firstChild?.textContent?.trim(), ratio: (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) };
+      });
+    });
+    await page.screenshot({ path: "test-results/topology-display-light.png" });
+    expect(contrast.length).toBeGreaterThan(4);
+    for (const row of contrast) expect(row.ratio, row.text).toBeGreaterThan(4.5);
+  });
+});
