@@ -706,7 +706,7 @@ for (const theme of ["light", "dark"] as const) {
     await dialog.getByRole("button", { name: "Create token" }).click();
     const callout = dialog.locator(".nm-alert.nm-alert--info");
     await expect(callout).toHaveClass(/\btotp-key-note\b/);
-    expect(await computed(callout, "backgroundColor")).toBe(await resolveToken(callout, "--nm-accent-soft"));
+    expect(await computed(callout, "backgroundColor")).toBe(theme === "dark" ? await resolveToken(callout, "--nm-accent-soft") : "rgba(29, 154, 176, 0.18)");
     const secret = callout.locator("code");
     expect(await computed(secret, "color")).toBe(await resolveToken(secret, "--nm-text", "color"));
     await expect(secret).toHaveCSS("font-family", /JetBrains Mono|monospace/);

@@ -63,3 +63,12 @@ for (const route of ["/inventory#devices", "/topology"]) {
   });
 }
 
+
+test("light mode banners use the stronger alert tints", async ({ page }) => {
+  await open(page, "/overview", [breaking, warning, info], "light");
+  const banner = (title: string) => page.locator(".workspace-notice", { hasText: title });
+  await expect(banner(breaking.title)).toHaveCSS("background-color", "rgba(217, 75, 75, 0.18)");
+  await expect(banner(warning.title)).toHaveCSS("background-color", "rgba(212, 145, 44, 0.22)");
+  await expect(banner(info.title)).toHaveCSS("background-color", "rgba(29, 154, 176, 0.18)");
+  await expect(banner(info.title)).toHaveCSS("color", "rgb(21, 90, 102)");
+});

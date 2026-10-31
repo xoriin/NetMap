@@ -935,6 +935,9 @@ body.theme-dark .nm-search input.nm-input:focus { border-color: transparent; out
 .nm-alert--warning { border-color: rgba(212, 145, 44, 0.28); background: var(--nm-warning-soft); color: #7a5000; }
 .nm-alert--info { border-color: rgba(29, 154, 176, 0.25); background: var(--nm-accent-soft); color: var(--nm-accent-strong); }
 body.theme-dark .nm-alert--warning { color: #e8b040; }
+body:not(.theme-dark) .nm-alert--error { border-color: rgba(217, 75, 75, 0.55); background: rgba(217, 75, 75, 0.18); color: #9f2a2a; }
+body:not(.theme-dark) .nm-alert--warning { border-color: rgba(212, 145, 44, 0.6); background: rgba(212, 145, 44, 0.22); color: #6b4500; }
+body:not(.theme-dark) .nm-alert--info { border-color: rgba(29, 154, 176, 0.55); background: rgba(29, 154, 176, 0.18); color: #155a66; }
 
 .nm-status {
   display: inline-flex;
