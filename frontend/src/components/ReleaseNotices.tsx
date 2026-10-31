@@ -139,7 +139,9 @@ export function ReleaseNoticesPanel({ accessToken, style }: { accessToken: strin
               <Icon size={17} aria-hidden="true" />
               <span>
                 <NoticeText notice={notice} />
-                {notice.acknowledged_by && <span className="tool-note"> Acknowledged by {notice.acknowledged_by}.</span>}
+                {notice.severity === "breaking" && (
+                  <span className="tool-note"> Acknowledged by {notice.acknowledged_count ?? 0} {notice.acknowledged_count === 1 ? "SuperAdmin" : "SuperAdmins"}.</span>
+                )}
               </span>
               {notice.can_acknowledge && (
                 <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary workspace-notice-action" onClick={() => void acknowledge(notice)}>Acknowledge</button>

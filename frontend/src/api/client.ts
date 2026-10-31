@@ -757,8 +757,7 @@ export type ReleaseNotice = {
   link?: string | null;
   can_dismiss: boolean;
   can_acknowledge: boolean;
-  acknowledged_by?: string | null;
-  acknowledged_at?: string | null;
+  acknowledged_count?: number;
 };
 
 export type NoticeFeed = { enabled: boolean; url: string; checked_at: string | null; error: string | null; notices: ReleaseNotice[] };

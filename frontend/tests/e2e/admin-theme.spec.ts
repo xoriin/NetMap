@@ -373,7 +373,7 @@ test("Admin System lists notices, checks now and switches the feed off", async (
   const status = (checked: string | null, error: string | null) => ({
     enabled: current.notice_feed_enabled, url: "https://raw.githubusercontent.com/xoriin/netmap-notices/main/notices.json",
     checked_at: checked, error, notices: current.notice_feed_enabled ? [
-      { id: "v2-postgres", severity: "breaking", title: "NetMap 2.0 moves to PostgreSQL", message: "Back up before upgrading.", link: "https://docs.netmap.dev/upgrade", can_dismiss: false, can_acknowledge: true, acknowledged_by: null },
+      { id: "v2-postgres", severity: "breaking", title: "NetMap 2.0 moves to PostgreSQL", message: "Back up before upgrading.", link: "https://docs.netmap.dev/upgrade", can_dismiss: false, can_acknowledge: true, acknowledged_count: 2 },
       { id: "watchtower", severity: "warning", title: "Pause auto-updates", message: "Hold Watchtower until 2.0 is out.", link: null, can_dismiss: true, can_acknowledge: false },
     ] : [],
   });
@@ -393,6 +393,7 @@ test("Admin System lists notices, checks now and switches the feed off", async (
   await expect(panel).toContainText("NetMap 2.0 moves to PostgreSQL");
   await expect(panel).toContainText("Pause auto-updates");
   await expect(panel.getByRole("button", { name: "Acknowledge" })).toHaveCount(1);
+  await expect(panel).toContainText("Acknowledged by 2 SuperAdmins.");
   await panel.getByRole("button", { name: "Check now" }).click();
   await expect(panel).toContainText("Last check failed: network unreachable");
   expect(refreshes).toBe(1);

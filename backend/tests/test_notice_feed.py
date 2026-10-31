@@ -81,17 +81,25 @@ def test_info_notices_are_dismissed_per_user(env):
     assert as_user(viewer).post("/api/v1/notices/BAD%20ID/dismiss").status_code == 422
 
 
-def test_breaking_notice_stays_until_a_super_admin_acknowledges_it(env):
+def test_breaking_notice_stays_for_each_super_admin_until_they_acknowledge_it(env):
     db, as_user, admin, viewer = env
+    second = add_user(db, "root2", UserRole.SUPER_ADMIN)
     assert as_user(viewer).post("/api/v1/notices/v2-postgres/acknowledge").status_code == 403
     assert as_user(admin).post("/api/v1/notices/tip/acknowledge").status_code == 409
-    assert as_user(admin).post("/api/v1/notices/v2-postgres/acknowledge").status_code == 204
-    assert _ids(as_user(admin).get("/api/v1/notices")) == ["tip"]
+    assert as_user(second).post("/api/v1/notices/v2-postgres/acknowledge").status_code == 204
+    assert as_user(second).post("/api/v1/notices/v2-postgres/acknowledge").status_code == 204
+    assert _ids(as_user(second).get("/api/v1/notices")) == ["tip"]
+    assert _ids(as_user(admin).get("/api/v1/notices")) == ["v2-postgres", "tip"]
     status = as_user(admin).get("/api/v1/admin/notices").json()
     breaking = next(n for n in status["notices"] if n["id"] == "v2-postgres")
-    assert breaking["acknowledged_by"] == "root" and breaking["can_acknowledge"] is False
+    assert breaking["acknowledged_count"] == 1 and breaking["can_acknowledge"] is True
+    assert as_user(admin).post("/api/v1/notices/v2-postgres/acknowledge").status_code == 204
+    status = as_user(admin).get("/api/v1/admin/notices").json()
+    breaking = next(n for n in status["notices"] if n["id"] == "v2-postgres")
+    assert breaking["acknowledged_count"] == 2 and breaking["can_acknowledge"] is False
     db.expire_all()
-    assert db.scalar(select(AuditLog.target).where(AuditLog.action == "notice.acknowledged")) == "notice:v2-postgres"
+    targets = db.scalars(select(AuditLog.actor_user_id).where(AuditLog.action == "notice.acknowledged")).all()
+    assert sorted(targets) == sorted([admin.id, second.id])
 
 
 def test_feed_can_be_switched_off_and_admin_sees_its_status(env):

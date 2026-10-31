@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_super_admin
@@ -27,8 +27,7 @@ class NoticeRead(BaseModel):
 
 
 class AdminNoticeRead(NoticeRead):
-    acknowledged_by: str | None = None
-    acknowledged_at: str | None = None
+    acknowledged_count: int = 0
 
 
 class NoticeFeedRead(BaseModel):
@@ -39,8 +38,15 @@ class NoticeFeedRead(BaseModel):
     notices: list[AdminNoticeRead]
 
 
-def _is_super_admin(user: User) -> bool:
-    return user.role == UserRole.SUPER_ADMIN
+def _seen(db: Session, user: User) -> set[str]:
+    return set(db.scalars(select(NoticeDismissal.notice_id).where(NoticeDismissal.user_id == user.id)))
+
+
+def _record(db: Session, user: User, notice_id: str) -> bool:
+    if notice_id in _seen(db, user):
+        return False
+    db.add(NoticeDismissal(user_id=user.id, notice_id=notice_id))
+    return True
 
 
 def _active(db: Session, notice_id: str) -> feed.Notice:
@@ -55,17 +61,13 @@ def list_notices(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[NoticeRead]:
-    """Notices for this user: info and warning until they dismiss them; breaking
-    notices only for SuperAdmins, until one of them acknowledges it."""
-    dismissed = set(db.scalars(select(NoticeDismissal.notice_id).where(NoticeDismissal.user_id == current_user.id)))
-    acks = feed.acknowledgements(db)
-    admin = _is_super_admin(current_user)
+    """Info and warning notices until this user dismisses them; breaking notices
+    for each SuperAdmin until that SuperAdmin acknowledges them."""
+    seen = _seen(db, current_user)
+    admin = current_user.role == UserRole.SUPER_ADMIN
     shown: list[NoticeRead] = []
     for notice in feed.active_notices(db):
-        if notice.severity == "breaking":
-            if not admin or notice.id in acks:
-                continue
-        elif notice.id in dismissed:
+        if notice.id in seen or (notice.severity == "breaking" and not admin):
             continue
         shown.append(NoticeRead(
             **notice.model_dump(include={"id", "severity", "title", "message", "link"}),
@@ -83,10 +85,8 @@ def dismiss_notice(
 ) -> None:
     notice = _active(db, notice_id)
     if notice.severity == "breaking":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Breaking notices are acknowledged by a SuperAdmin")
-    exists = db.scalar(select(NoticeDismissal.id).where(NoticeDismissal.user_id == current_user.id, NoticeDismissal.notice_id == notice_id))
-    if exists is None:
-        db.add(NoticeDismissal(user_id=current_user.id, notice_id=notice_id))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Breaking notices are acknowledged, not dismissed")
+    if _record(db, current_user, notice_id):
         db.commit()
 
 
@@ -99,22 +99,24 @@ def acknowledge_notice(
     notice = _active(db, notice_id)
     if notice.severity != "breaking":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only breaking notices need acknowledging")
-    feed.acknowledge(db, notice_id, current_user.username)
-    write_audit(db, action="notice.acknowledged", actor_user_id=current_user.id, target=f"notice:{notice_id}")
-    db.commit()
+    if _record(db, current_user, notice_id):
+        write_audit(db, action="notice.acknowledged", actor_user_id=current_user.id, target=f"notice:{notice_id}")
+        db.commit()
 
 
-def _feed_read(db: Session) -> NoticeFeedRead:
-    acks = feed.acknowledgements(db)
+def _feed_read(db: Session, user: User) -> NoticeFeedRead:
+    seen = _seen(db, user)
+    counts = dict(db.execute(
+        select(NoticeDismissal.notice_id, func.count()).group_by(NoticeDismissal.notice_id)
+    ).all())
     return NoticeFeedRead(
         **feed.feed_status(db),
         notices=[
             AdminNoticeRead(
                 **notice.model_dump(include={"id", "severity", "title", "message", "link"}),
                 can_dismiss=notice.severity != "breaking",
-                can_acknowledge=notice.severity == "breaking" and notice.id not in acks,
-                acknowledged_by=acks.get(notice.id, {}).get("by"),
-                acknowledged_at=acks.get(notice.id, {}).get("at"),
+                can_acknowledge=notice.severity == "breaking" and notice.id not in seen,
+                acknowledged_count=counts.get(notice.id, 0) if notice.severity == "breaking" else 0,
             )
             for notice in feed.active_notices(db)
         ],
@@ -123,16 +125,16 @@ def _feed_read(db: Session) -> NoticeFeedRead:
 
 @router.get("/admin/notices", response_model=NoticeFeedRead)
 def admin_notice_feed(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NoticeFeedRead:
-    return _feed_read(db)
+    return _feed_read(db, current_user)
 
 
 @router.post("/admin/notices/refresh", response_model=NoticeFeedRead)
 def refresh_notice_feed(
-    _current_user: Annotated[User, Depends(require_super_admin)],
+    current_user: Annotated[User, Depends(require_super_admin)],
     db: Annotated[Session, Depends(get_db)],
 ) -> NoticeFeedRead:
     feed.refresh(db)
-    return _feed_read(db)
+    return _feed_read(db, current_user)

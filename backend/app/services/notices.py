@@ -23,7 +23,6 @@ ENABLED_KEY = "notice_feed_enabled"
 CACHE_KEY = "notice_feed_cache"
 CHECKED_AT_KEY = "notice_feed_checked_at"
 ERROR_KEY = "notice_feed_error"
-ACK_KEY = "notice_feed_acknowledged"
 
 MAX_FEED_BYTES = 64 * 1024
 MAX_NOTICES = 20
@@ -171,20 +170,6 @@ def active_notices(db: Session) -> list[Notice]:
     version = installed_app_version(settings.app_version)
     today = datetime.now(timezone.utc).date()
     return [notice for notice in cached_notices(db) if applies(notice, version, today)]
-
-
-def acknowledgements(db: Session) -> dict[str, dict]:
-    try:
-        value = json.loads(_get(db, ACK_KEY) or "{}")
-    except ValueError:
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
-def acknowledge(db: Session, notice_id: str, username: str) -> None:
-    acks = acknowledgements(db)
-    acks[notice_id] = {"by": username, "at": datetime.now(timezone.utc).isoformat()}
-    _set(db, ACK_KEY, json.dumps(acks))
 
 
 def feed_status(db: Session) -> dict:
