@@ -192,3 +192,81 @@ test("scan results keep the column header inside the table, lined up with the ro
   await expect(table.locator(".scan-row").first()).toContainText("Synology00:11:32:aa:bb:cc");
   await expect(dialog.locator(".scan-summary-counts")).toHaveText("1 new · 1 to update · 0 known");
 });
+
+async function mockCancel(page: Page, reply: { status: number; json: unknown }) {
+  const cancels: string[] = [];
+  await page.route(url => /^\/api\/v1\/discovery\/scans\/\d+\/cancel$/.test(url.pathname), route => {
+    expect(route.request().method()).toBe("POST");
+    cancels.push(new URL(route.request().url()).pathname);
+    return route.fulfill(reply);
+  });
+  return cancels;
+}
+
+test("Stop scan cancels a running scan and says so without an error", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const running = scanRecord({ status: "running", started_at: at(1), progress: { done: 10, total: 254 } });
+  const calls = await mockScans(page, { status: 202, json: scanRecord() }, [
+    running,
+    scanRecord({ status: "cancelled", started_at: at(1), completed_at: at(5), error: "Scan cancelled", progress: { done: 10, total: 254 } }),
+  ]);
+  const cancels = await mockCancel(page, { status: 202, json: running });
+  const dialog = await openScanModal(page);
+  const stop = dialog.getByRole("button", { name: "Stop scan" });
+  await expect(stop).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+  await expect(stop).toBeVisible();
+  await expect(stop).toHaveClass(/nm-btn--danger/);
+
+  await nextPoll(page, calls);
+  await stop.click();
+  await expect(dialog.getByRole("button", { name: "Stopping..." })).toBeDisabled();
+  expect(cancels).toEqual(["/api/v1/discovery/scans/41/cancel"]);
+
+  await nextPoll(page, calls);
+  await expect(dialog.locator(".nm-alert--info")).toHaveText("Scan of 192.168.50.0/24 cancelled.");
+  await expect(dialog.locator(".nm-alert--error")).toHaveCount(0);
+  await expect(dialog.locator(".scan-results")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: /^(Stop scan|Stopping\.\.\.)$/ })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Start scan" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("a queued scan can be stopped before it starts", async ({ page }) => {
+  const cancelled = scanRecord({ status: "cancelled", completed_at: at(1), error: "Scan cancelled" });
+  const calls = await mockScans(page, { status: 202, json: scanRecord() }, [cancelled]);
+  await mockCancel(page, { status: 202, json: cancelled });
+  const dialog = await openScanModal(page);
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Scan queued");
+  await dialog.getByRole("button", { name: "Stop scan" }).click();
+  await nextPoll(page, calls);
+  await expect(dialog.locator(".nm-alert--info")).toHaveText("Scan of 192.168.50.0/24 cancelled.");
+  await expect(dialog.getByRole("button", { name: "Start scan" })).toBeEnabled();
+});
+
+test("a scan that finishes before Stop arrives shows its results", async ({ page }) => {
+  const calls = await mockScans(page, { status: 202, json: scanRecord({ status: "running", started_at: at(0) }) }, [
+    scanRecord({ status: "completed", started_at: at(0), completed_at: at(4), result_count: 2, results: hosts, progress: { done: 254, total: 254 } }),
+  ]);
+  await mockCancel(page, { status: 409, json: { detail: "Scan has already finished" } });
+  const dialog = await openScanModal(page);
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+  await dialog.getByRole("button", { name: "Stop scan" }).click();
+  await nextPoll(page, calls);
+  await expect(dialog.locator(".nm-alert--error")).toHaveCount(0);
+  await expect(dialog.locator(".scan-row")).toHaveCount(2);
+});
+
+test("a failed Stop request reports the error and can be retried", async ({ page }) => {
+  await mockScans(page, { status: 202, json: scanRecord({ status: "running", started_at: at(0) }) }, [
+    scanRecord({ status: "running", started_at: at(0) }),
+  ]);
+  await mockCancel(page, { status: 403, json: { detail: "Discovery management is not permitted for your role" } });
+  const dialog = await openScanModal(page);
+  await dialog.getByRole("button", { name: "Start scan" }).click();
+  await dialog.getByRole("button", { name: "Stop scan" }).click();
+  await expect(dialog.locator(".nm-alert--error")).toContainText("Discovery management is not permitted for your role");
+  await expect(dialog.getByRole("button", { name: "Stop scan" })).toBeEnabled();
+});

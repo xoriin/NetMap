@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import lru_cache
@@ -26,6 +27,13 @@ from app.core.config import settings
 from app.schemas.discovery import DiscoveryHost
 
 logger = logging.getLogger(__name__)
+
+CANCEL_POLL_SECONDS = 0.5
+STOP_GRACE_SECONDS = 5
+
+
+class ScanCancelled(Exception):
+    pass
 
 # Reverse DNS runs after nmap (-n), in parallel and within its own budget, so a
 # subnet with no PTR zone no longer eats the nmap process timeout (#36).
@@ -139,6 +147,7 @@ def run_nmap_scan(
     target: DiscoveryTarget,
     scan_type: str,
     on_progress: Callable[[int], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> list[DiscoveryHost]:
     nmap_path = require_command("nmap", "Nmap discovery")
 
@@ -183,7 +192,7 @@ def run_nmap_scan(
     timeout_seconds = discovery_process_timeout_seconds(target, scan_type)
 
     try:
-        completed = _run_nmap_process(command, timeout_seconds, on_progress)
+        completed = _run_nmap_process(command, timeout_seconds, on_progress, cancel_event)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             "Discovery scan timed out after "
@@ -195,14 +204,20 @@ def run_nmap_scan(
         if raw_networking_error(output):
             raise ActiveNetworkToolUnavailable(RAW_NETWORKING_UNAVAILABLE)
         raise RuntimeError(completed.stderr.strip() or "Nmap scan failed")
-    return enrich_hosts_from_neighbor_table(resolve_hostnames(parse_nmap_xml(completed.stdout)))
+    hosts = parse_nmap_xml(completed.stdout)
+    if cancel_event is not None and cancel_event.is_set():
+        raise ScanCancelled()
+    return enrich_hosts_from_neighbor_table(resolve_hostnames(hosts))
 
 
 def _run_nmap_process(
     command: list[str],
     timeout_seconds: float,
     on_progress: Callable[[int], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> subprocess.CompletedProcess:
+    if cancel_event is not None and cancel_event.is_set():
+        raise ScanCancelled()
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout_lines: list[str] = []
     stderr_chunks: list[str] = []
@@ -225,15 +240,33 @@ def _run_nmap_process(
     readers = [threading.Thread(target=read_stdout, daemon=True), threading.Thread(target=read_stderr, daemon=True)]
     for reader in readers:
         reader.start()
-    try:
-        process.wait(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
-        raise
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        remaining = deadline - time.monotonic()
+        try:
+            process.wait(timeout=max(0, min(CANCEL_POLL_SECONDS, remaining)))
+            break
+        except subprocess.TimeoutExpired:
+            if cancel_event is not None and cancel_event.is_set():
+                # SIGTERM, not SIGKILL: sudo relays it to nmap, a killed sudo would orphan nmap.
+                _stop_process(process)
+                raise ScanCancelled() from None
+            if remaining <= 0:
+                process.kill()
+                process.wait()
+                raise subprocess.TimeoutExpired(command, timeout_seconds) from None
     for reader in readers:
         reader.join()
     return subprocess.CompletedProcess(command, process.returncode, "".join(stdout_lines), "".join(stderr_chunks))
+
+
+def _stop_process(process: subprocess.Popen) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=STOP_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def _reverse_lookup(ip_value: str) -> str | None:

@@ -103,7 +103,7 @@ def test_get_scan_reports_progress_and_404(factory, submitted) -> None:
 def test_worker_runs_the_queued_scan_and_records_progress(factory, submitted, monkeypatch) -> None:
     user = _admin(factory)
 
-    def fake_nmap(target, scan_type, on_progress=None):
+    def fake_nmap(target, scan_type, on_progress=None, **_options):
         on_progress(8)
         on_progress(16)
         return [DiscoveryHost(ip_address="192.168.1.5", hostname="printer.lan")]
@@ -154,3 +154,175 @@ def test_migration_0090_adds_progress_columns() -> None:
         db_session._migrate_discovery_scan_progress(conn, None)
         columns = db_session._live_columns(conn, "discovery_scans")
     assert {"started_at", "progress_done"} <= columns
+
+
+def _audit_actions(factory) -> list[str]:
+    from app.models.audit_log import AuditLog
+
+    with factory() as db:
+        return [row.action for row in db.query(AuditLog).order_by(AuditLog.id).all()]
+
+
+def test_cancel_a_queued_scan_stops_it_before_it_starts(factory, submitted, monkeypatch) -> None:
+    user = _admin(factory)
+    monkeypatch.setattr(scheduled, "run_nmap_scan", lambda *args, **kwargs: pytest.fail("nmap must not run"))
+    with real_app_client(factory, user) as client:
+        scan_id = client.post("/api/v1/discovery/scans", json={"target": "192.168.1.0/28"}).json()["id"]
+        response = client.post(f"/api/v1/discovery/scans/{scan_id}/cancel")
+        manual.run_manual_scan(submitted[0])
+        finished = client.get(f"/api/v1/discovery/scans/{scan_id}").json()
+        discovery_api.last_scan_by_user.clear()
+        next_scan = client.post("/api/v1/discovery/scans", json={"target": "192.168.2.0/28"})
+    assert response.status_code == 202
+    assert response.json()["status"] == "cancelled"
+    assert finished["status"] == "cancelled"
+    assert finished["error"] == "Scan cancelled"
+    assert finished["started_at"] is None
+    assert finished["completed_at"] is not None
+    assert next_scan.status_code == 202
+    assert "discovery.scan_cancelled" in _audit_actions(factory)
+
+
+def test_cancel_a_running_scan_stops_nmap_and_records_cancelled(factory, submitted, monkeypatch) -> None:
+    import threading
+
+    from app.services.discovery.scanner import ScanCancelled
+
+    user = _admin(factory)
+    nmap_started = threading.Event()
+    cancel_returned = threading.Event()
+
+    def fake_nmap(target, scan_type, on_progress=None, cancel_event=None):
+        nmap_started.set()
+        assert cancel_event.wait(5), "cancel was never requested"
+        # The in-memory test DB shares one connection across threads; let the request finish first.
+        assert cancel_returned.wait(5)
+        raise ScanCancelled()
+
+    monkeypatch.setattr(scheduled, "run_nmap_scan", fake_nmap)
+    with real_app_client(factory, user) as client:
+        scan_id = client.post("/api/v1/discovery/scans", json={"target": "192.168.1.0/28"}).json()["id"]
+        worker = threading.Thread(target=manual.run_manual_scan, args=(submitted[0],))
+        worker.start()
+        assert nmap_started.wait(5)
+        response = client.post(f"/api/v1/discovery/scans/{scan_id}/cancel")
+        cancel_returned.set()
+        worker.join(5)
+        finished = client.get(f"/api/v1/discovery/scans/{scan_id}").json()
+    assert not worker.is_alive()
+    assert response.status_code == 202
+    assert finished["status"] == "cancelled"
+    assert finished["error"] == "Scan cancelled"
+    assert finished["results"] == []
+    assert manual._cancel_events == {}
+    assert _audit_actions(factory).count("discovery.scan_cancelled") == 1
+
+
+def test_cancel_after_nmap_finished_discards_the_results(factory, submitted, monkeypatch) -> None:
+    def fake_nmap(target, scan_type, on_progress=None, cancel_event=None):
+        cancel_event.set()
+        return [DiscoveryHost(ip_address="192.168.1.5")]
+
+    user = _admin(factory)
+    monkeypatch.setattr(scheduled, "run_nmap_scan", fake_nmap)
+    with real_app_client(factory, user) as client:
+        scan_id = client.post("/api/v1/discovery/scans", json={"target": "192.168.1.0/28"}).json()["id"]
+        manual.run_manual_scan(submitted[0])
+        finished = client.get(f"/api/v1/discovery/scans/{scan_id}").json()
+    assert finished["status"] == "cancelled"
+    assert finished["results"] == []
+
+
+def test_cancel_a_running_scan_no_worker_owns_marks_it_cancelled(factory) -> None:
+    user = _admin(factory)
+    with factory() as db:
+        scan = DiscoveryScan(actor_user_id=user.id, target="10.0.0.0/24", scan_type="ping", status="running", host_count=256)
+        db.add(scan)
+        db.commit()
+        scan_id = scan.id
+    with real_app_client(factory, user) as client:
+        response = client.post(f"/api/v1/discovery/scans/{scan_id}/cancel")
+    assert response.status_code == 202
+    assert response.json()["status"] == "cancelled"
+
+
+@pytest.mark.parametrize(
+    ("schedule", "state", "expected"),
+    [(False, "completed", "Scan has already finished"), (False, "failed", "Scan has already finished"), (True, "running", "Scheduled scans cannot be cancelled")],
+)
+def test_cancel_refuses_finished_and_scheduled_scans(factory, schedule, state, expected) -> None:
+    from app.models.discovery import DiscoverySchedule
+
+    user = _admin(factory)
+    with factory() as db:
+        schedule_id = None
+        if schedule:
+            row = DiscoverySchedule(name="Nightly", target="10.0.0.0/24", scan_type="ping", interval_minutes=60, owner_user_id=user.id)
+            db.add(row)
+            db.commit()
+            schedule_id = row.id
+        scan = DiscoveryScan(actor_user_id=user.id, schedule_id=schedule_id, target="10.0.0.0/24", scan_type="ping", status=state, host_count=256)
+        db.add(scan)
+        db.commit()
+        scan_id = scan.id
+    with real_app_client(factory, user) as client:
+        response = client.post(f"/api/v1/discovery/scans/{scan_id}/cancel")
+        missing = client.post("/api/v1/discovery/scans/99999/cancel")
+    assert response.status_code == 409
+    assert response.json()["detail"] == expected
+    assert missing.status_code == 404
+    with factory() as db:
+        assert db.get(DiscoveryScan, scan_id).status == state
+
+
+def test_cancel_needs_discovery_permission(factory, submitted) -> None:
+    admin = _admin(factory)
+    with factory() as db:
+        viewer = add_user(db, "watcher", UserRole.VIEWER)
+    with real_app_client(factory, admin) as client:
+        scan_id = client.post("/api/v1/discovery/scans", json={"target": "192.168.1.0/28"}).json()["id"]
+    with real_app_client(factory, viewer) as client:
+        response = client.post(f"/api/v1/discovery/scans/{scan_id}/cancel")
+    assert response.status_code == 403
+    with factory() as db:
+        assert db.get(DiscoveryScan, scan_id).status == "queued"
+
+
+def test_nmap_process_is_terminated_when_cancelled() -> None:
+    import subprocess
+    import sys
+    import threading
+    import time
+
+    from app.services.discovery import scanner
+
+    cancel_event = threading.Event()
+    threading.Timer(0.3, cancel_event.set).start()
+    command = [sys.executable, "-c", "import time; time.sleep(30)"]
+    started = time.monotonic()
+    spawned: list[subprocess.Popen] = []
+    real_popen = subprocess.Popen
+
+    def tracking_popen(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        spawned.append(process)
+        return process
+
+    scanner.subprocess.Popen = tracking_popen
+    try:
+        with pytest.raises(scanner.ScanCancelled):
+            scanner._run_nmap_process(command, 60, cancel_event=cancel_event)
+    finally:
+        scanner.subprocess.Popen = real_popen
+    assert time.monotonic() - started < 5
+    assert spawned[0].returncode is not None and spawned[0].returncode < 0
+
+
+def test_nmap_process_still_times_out_without_cancel() -> None:
+    import subprocess
+    import sys
+
+    from app.services.discovery import scanner
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        scanner._run_nmap_process([sys.executable, "-c", "import time; time.sleep(30)"], 0.5)

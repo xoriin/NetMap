@@ -136,6 +136,29 @@ def get_scan(
     return scan_to_read_with_inventory(scan, db)
 
 
+@router.post(
+    "/scans/{scan_id}/cancel",
+    response_model=DiscoveryScanRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={409: {"description": "The scan is scheduled or has already finished"}},
+)
+def cancel_scan(
+    scan_id: int,
+    current_user: Annotated[User, Depends(require_discovery_manage)],
+    db: Annotated[Session, Depends(get_db)],
+) -> DiscoveryScanRead:
+    scan = db.get(DiscoveryScan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+    if scan.schedule_id is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Scheduled scans cannot be cancelled")
+    if scan.status not in manual_scans.ACTIVE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Scan has already finished")
+    manual_scans.cancel_manual_scan(db, scan_id, current_user.id)
+    db.refresh(scan)
+    return scan_to_read(scan)
+
+
 @router.get("/scans", response_model=list[DiscoveryScanRead])
 def list_scans(
     _current_user: Annotated[User, Depends(require_discovery_manage)],

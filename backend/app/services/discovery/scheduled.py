@@ -20,6 +20,7 @@ from app.schemas.discovery import DiscoveryHost, DiscoveryStart
 from app.services.audit.service import write_audit
 from app.services.discovery.scanner import (
     DiscoveryTarget,
+    ScanCancelled,
     deserialize_results,
     enrich_hosts_from_snmp_arp,
     ensure_private_address,
@@ -146,22 +147,29 @@ def prepare_discovery_scan(
     )
 
 
+SCAN_CANCELLED_MESSAGE = "Scan cancelled"
+
+
 def run_discovery_scan(
     db: Session,
     job: DiscoveryScanJob,
     on_progress: Callable[[int], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> DiscoveryScan:
     # Nothing here touches the session until the network phase is over
     # (read -> close -> probe -> write).
     results: list[DiscoveryHost] = []
     error: str | None = None
+    cancelled = False
     try:
         if job.profile_error is not None:
             raise ValueError(job.profile_error)
-        if on_progress is None:
-            results = run_nmap_scan(job.target, job.scan_type)
-        else:
-            results = run_nmap_scan(job.target, job.scan_type, on_progress=on_progress)
+        scan_options: dict = {}
+        if on_progress is not None:
+            scan_options["on_progress"] = on_progress
+        if cancel_event is not None:
+            scan_options["cancel_event"] = cancel_event
+        results = run_nmap_scan(job.target, job.scan_type, **scan_options)
         if job.snmp_community and job.snmp_targets:
             try:
                 results = enrich_hosts_from_snmp_arp(
@@ -174,6 +182,10 @@ def run_discovery_scan(
                 )
             except (TimeoutError, SnmpError, OSError):
                 logger.exception("SNMP ARP enrichment failed during discovery scan")
+        if cancel_event is not None and cancel_event.is_set():
+            raise ScanCancelled()
+    except ScanCancelled:
+        cancelled = True
     except Exception as exc:
         error = str(exc)
 
@@ -181,7 +193,10 @@ def run_discovery_scan(
     assert scan is not None
     scan.completed_at = datetime.now(timezone.utc)
     manual = job.schedule_id is None
-    if error is None:
+    if cancelled:
+        scan.status = "cancelled"
+        scan.error = SCAN_CANCELLED_MESSAGE
+    elif error is None:
         scan.status = "completed"
         scan.progress_done = scan.host_count
         scan.result_count = len(results)

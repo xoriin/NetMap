@@ -116,7 +116,7 @@ class DiscoveryScannerTests(unittest.TestCase):
 
         run_nmap_scan(DiscoveryTarget(nmap_target="10.30.20.0/24", host_count=256), "ping")
 
-        command, timeout_seconds, _on_progress = mock_run.call_args.args
+        command, timeout_seconds, _on_progress, _cancel_event = mock_run.call_args.args
         self.assertEqual(timeout_seconds, 190)
         self.assertIn("-n", command)
         self.assertIn("-T3", command)

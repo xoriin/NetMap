@@ -15,7 +15,7 @@ from app.services.discovery.scanner import DiscoveryTarget
 def test_nmap_runs_without_reverse_dns_and_reports_progress(monkeypatch) -> None:
     calls: dict = {}
 
-    def fake_process(command, timeout_seconds, on_progress=None):
+    def fake_process(command, timeout_seconds, on_progress=None, cancel_event=None):
         calls["command"] = command
         on_progress(256)
         return subprocess.CompletedProcess(command, 0, "<nmaprun></nmaprun>", "")

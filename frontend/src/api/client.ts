@@ -1899,10 +1899,10 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   // Async scans: poll a queued/running scan until it reaches a terminal status.
-  // A cancel call (POST /scans/{id}/cancel) and an active-scan lookup belong
-  // beside this once the backend provides them.
   getDiscoveryScan: (token: string, scanId: number, signal?: AbortSignal) =>
     request<DiscoveryScan>(`/api/v1/discovery/scans/${scanId}`, { token, signal }),
+  cancelDiscoveryScan: (token: string, scanId: number) =>
+    request<DiscoveryScan>(`/api/v1/discovery/scans/${scanId}/cancel`, { method: "POST", token }),
   importDiscoveryResults: (
     token: string,
     scanId: number,

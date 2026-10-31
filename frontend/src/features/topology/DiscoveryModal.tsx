@@ -92,6 +92,8 @@ export function DiscoveryModal({
   // A queued/running async scan being polled; `scan` only holds finished scans.
   const [activeScan, setActiveScan] = useState<DiscoveryScan | null>(null);
   const [attached, setAttached] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const trackingRef = useRef<AbortController | null>(null);
   const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set());
@@ -186,12 +188,28 @@ export function DiscoveryModal({
   }
 
   function showFinishedScan(finished: DiscoveryScan) {
+    if (finished.status === "cancelled") {
+      setNotice(`Scan of ${finished.target} cancelled.`);
+      return;
+    }
     setScan(finished);
     setSelectedIps(new Set(finished.results.map((host) => host.ip_address)));
     if (finished.status === "failed") {
       setError(finished.error || "Scan failed");
-    } else if (finished.status === "cancelled") {
-      setError(finished.error || "Scan was cancelled");
+    }
+  }
+
+  async function stopScan() {
+    if (!accessToken || !activeScan) return;
+    setStopping(true);
+    try {
+      setActiveScan(await api.cancelDiscoveryScan(accessToken, activeScan.id));
+    } catch (err) {
+      // 409: it finished first; polling shows the result.
+      if (!(err instanceof ApiError && err.status === 409)) {
+        setStopping(false);
+        setError(err instanceof Error ? err.message : "Unable to stop the scan");
+      }
     }
   }
 
@@ -205,6 +223,7 @@ export function DiscoveryModal({
     trackingRef.current = tracking;
     setBusy(true);
     setError(null);
+    setNotice(null);
     setScan(null);
     setActiveScan(null);
     setAttached(false);
@@ -240,6 +259,7 @@ export function DiscoveryModal({
     } finally {
       if (!tracking.signal.aborted) {
         setBusy(false);
+        setStopping(false);
         setActiveScan(null);
         setAttached(false);
         trackingRef.current = null;
@@ -504,7 +524,13 @@ export function DiscoveryModal({
           />
         ) : <ScanProgress scanType={scanType} />)}
         {error && <div className="nm-alert nm-alert--error">{error}</div>}
+        {notice && <div className="nm-alert nm-alert--info" role="status">{notice}</div>}
         <div className="modal-actions modal-actions--plain">
+          {busy && activeScan && (
+            <button type="button" className="nm-btn nm-btn--danger" disabled={stopping} onClick={() => void stopScan()}>
+              {stopping ? "Stopping..." : "Stop scan"}
+            </button>
+          )}
           <button type="button" className="nm-btn" onClick={onCancel}>
             Cancel
           </button>
