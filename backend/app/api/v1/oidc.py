@@ -227,12 +227,17 @@ def oidc_callback(
         target=f"user:{user.username}",
         detail=f"issuer={config.issuer} provisioned={result.provisioned} linked={result.linked} ip={client_ip or '-'}",
     )
+    from app.services.auth.devices import record_sign_in_device, send_notice_later, set_device_cookie
+
+    device_token, notice = record_sign_in_device(db, user, request, client_ip=client_ip, method="oidc")
     db.commit()
+    send_notice_later(notice)
 
     from app.api.v1.auth import _set_auth_cookies
 
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
     response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
+    set_device_cookie(response, device_token)
     _set_auth_cookies(response, access_token, refresh_token)
     return response
 

@@ -6,7 +6,7 @@ import socket
 import ssl
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse, urlunparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -497,6 +497,54 @@ def send_self_service_password_reset_email(
             note="If you did not request this, you can safely ignore this email. Your password will not change.",
         ),
     )
+
+
+def new_device_sign_in_email(
+    db: Session,
+    *,
+    username: str,
+    display_name: str | None,
+    email: str,
+    when: str,
+    device: str,
+    ip: str,
+    method: str,
+    app_name: str = "NetMap",
+) -> Callable[[], str] | None:
+    """Build the new-device notice in the request (settings are read here) and
+    return a callable that sends it, so the caller can send it off the request."""
+    s = _load_account_email_settings(db)
+    if not s.get("smtp_host") or not email:
+        return None
+    name = display_name or username
+    support = _support_contact_line(db)
+    body = (
+        f"Hi {name},\n\n"
+        f"Your {app_name} account just signed in from a device it has not seen before.\n\n"
+        f"When: {when}\n"
+        f"Device: {device}\n"
+        f"IP address: {ip}\n"
+        f"Signed in with: {method}\n\n"
+        f"If this was you, there is nothing to do. If it was not, change your password and "
+        f"sign out the device from your Profile, then tell your administrator.\n\n"
+        f"{support}"
+        f"— {app_name}"
+    )
+    message = {**s, "smtp_to": email}
+    content = EmailContent(
+        eyebrow="Account security",
+        heading="New sign-in to your account",
+        paragraphs=(
+            f"Hi {name},",
+            f"Your {app_name} account just signed in from a device it has not seen before.",
+        ),
+        detail_title=f"{device} · {ip}",
+        detail_text=f"{when} · signed in with {method}",
+        action_label=f"Review your devices in {app_name}",
+        action_url=s.get("email_brand_url", ""),
+        note="If this was you, there is nothing to do. If it was not, change your password and sign out the device from your Profile, then tell your administrator.",
+    )
+    return lambda: _send_smtp(body, message, subject=f"{app_name} — New sign-in to your account", content=content)
 
 
 def send_welcome_email(

@@ -57,7 +57,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def import_all_models() -> None:
-    from app.models import chart_view, alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, status_page, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
+    from app.models import chart_view, alert_rule, api_key, auth_session, audit_log, device, device_type, dhcp_lease, discovery, external_ip, ip_reservation, known_device, monitor, monitor_history, notification_delivery, notification_profile, oidc, password_reset_token, port_target, relationship, saved_search, site, snmp_profile, status_page, subnet, system_setting, topology_group, topology_layout, user, user_device_favourite, user_monitor_favourite  # noqa: F401
 
 
 def init_db() -> None:
@@ -197,6 +197,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0089_user_has_local_password", _migrate_user_has_local_password)
         _run_migration(conn, inspector, "0090_discovery_scan_progress", _migrate_discovery_scan_progress)
         _run_migration(conn, inspector, "0091_status_page_group_icon", _migrate_status_page_group_icon)
+        _run_migration(conn, inspector, "0092_new_device_alerts", _migrate_new_device_alerts)
 
 
 
@@ -2336,6 +2337,15 @@ _PASSWORD_SET_ACTIONS = (
     "auth.password_reset_self_service",
     "auth.admin_password_reset",
 )
+
+
+def _migrate_new_device_alerts(conn, inspector) -> None:
+    """users.new_device_alerts (on unless the user opts out). The
+    user_known_devices table itself comes from create_all."""
+    if "users" not in _live_tables(conn):
+        return
+    if "new_device_alerts" not in _live_columns(conn, "users"):
+        conn.execute(text("ALTER TABLE users ADD COLUMN new_device_alerts BOOLEAN NOT NULL DEFAULT 1"))
 
 
 def _migrate_status_page_group_icon(conn, inspector) -> None:

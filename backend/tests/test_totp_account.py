@@ -275,3 +275,26 @@ def test_changing_the_2fa_requirement_is_audited(client_and_db):
         (admin.id, "from=off to=admins"),
         (admin.id, "from=admins to=all"),
     ]
+
+
+def test_new_device_emails_can_be_switched_off_for_everyone_and_it_is_audited(client_and_db):
+    from app.api.v1 import admin as admin_api
+    from app.services.auth.devices import alerts_enabled
+
+    client, db = client_and_db
+    client.app.include_router(admin_api.router, prefix="/api/v1")
+    admin = User(username="root-admin", password_hash=hash_password(PASSWORD), role="SuperAdmin", is_active=True)
+    db.add(admin)
+    db.commit()
+    headers = {"Authorization": f"Bearer {create_access_token(admin.id)}"}
+
+    assert client.get("/api/v1/admin/settings", headers=headers).json()["new_device_alerts_enabled"] is True
+    assert alerts_enabled(db) is True
+    response = client.put("/api/v1/admin/settings", headers=headers, json={"new_device_alerts_enabled": False})
+    assert response.status_code == 200 and response.json()["new_device_alerts_enabled"] is False
+    assert client.put("/api/v1/admin/settings", headers=headers, json={"new_device_alerts_enabled": False}).status_code == 200
+    assert client.put("/api/v1/admin/settings", headers=headers, json={"idle_timeout_minutes": 30}).json()["new_device_alerts_enabled"] is False
+    db.expire_all()
+    assert alerts_enabled(db) is False
+    changes = db.query(AuditLog).filter(AuditLog.action == "admin.new_device_alerts_changed").all()
+    assert [(c.actor_user_id, c.detail) for c in changes] == [(admin.id, "enabled=false")]

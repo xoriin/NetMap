@@ -45,11 +45,12 @@ class SystemSettingsRead(BaseModel):
     backup_filename_prefix: str = "netmap-backup"
     backup_date_format: str = "yyyy-MM-dd"
     totp_required: Literal["off", "admins", "all"] = "off"
+    new_device_alerts_enabled: bool = True
 
     @field_validator(
         "live_ping_enabled", "active_network_public_targets_enabled",
         "ip_reservation_default_expiry_enabled", "ip_reservation_reminder_enabled",
-        "backup_schedule_enabled",
+        "backup_schedule_enabled", "new_device_alerts_enabled",
         mode="before",
     )
     @classmethod
@@ -111,6 +112,7 @@ class SystemSettingsUpdate(BaseModel):
     backup_filename_prefix: str | None = Field(None, min_length=1, max_length=60, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
     backup_date_format: Literal["yyyy-MM-dd", "MM-dd-yyyy", "dd-MM-yyyy"] | None = None
     totp_required: Literal["off", "admins", "all"] | None = None
+    new_device_alerts_enabled: bool | None = None
 
     @field_validator("ip_reservation_reminder_channels")
     @classmethod

@@ -441,3 +441,34 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+test("new sign-in emails can be turned off and on from Preferences", async ({ page }) => {
+  await setupProfileMocks(page);
+  const patches: Array<Record<string, unknown>> = [];
+  let current = { ...profileUser, new_device_alerts: true };
+  await page.route("**/api/v1/auth/me", (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      current = { ...current, ...body };
+    }
+    return route.fulfill({ json: current });
+  });
+  await page.goto("/profile");
+  const toggle = page.getByRole("button", { name: "New sign-in emails", exact: true });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveClass(/nm-btn--active/);
+  await expect(page.getByText("Email me when my account signs in from a device it has not seen before.")).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveText("Disabled");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(patches).toEqual([{ new_device_alerts: false }, { new_device_alerts: true }]);
+});
+
+test("new sign-in emails explain that an email address is needed", async ({ page }) => {
+  await setupProfileMocks(page, { email: null });
+  await page.goto("/profile");
+  await expect(page.getByText("Add an email address above to receive an email when your account signs in from a new device.")).toBeVisible();
+});

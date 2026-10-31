@@ -326,6 +326,8 @@ export function ProfileWorkspace({
   const avatarChanged = avatarPreview !== (user.avatar_data ?? null);
   const [colorPrefBusy, setColorPrefBusy] = useState(false);
   const entityColorsEnabled = user.entity_colors_enabled !== false;
+  const [signInAlertBusy, setSignInAlertBusy] = useState(false);
+  const signInAlertsEnabled = user.new_device_alerts !== false;
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -566,6 +568,20 @@ export function ProfileWorkspace({
       setProfileError(err instanceof Error ? err.message : "Failed to save preference");
     } finally {
       setColorPrefBusy(false);
+    }
+  }
+
+  async function saveSignInAlerts(next: boolean) {
+    setSignInAlertBusy(true);
+    setProfileError(null);
+    try {
+      const updated = await api.updateProfile(accessToken, { new_device_alerts: next });
+      onUserUpdate(updated);
+      toast.success(next ? "New sign-in emails on" : "New sign-in emails off");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to save preference");
+    } finally {
+      setSignInAlertBusy(false);
     }
   }
 
@@ -985,6 +1001,30 @@ export function ProfileWorkspace({
                   >
                     {colorPrefBusy ? "Saving…" : entityColorsEnabled ? "Enabled" : "Disabled"}
                   </button>
+                </div>
+              </div>
+              <div className="profile-pref-row">
+                <div className="profile-pref-text">
+                  <strong>New sign-in emails</strong>
+                  <span>
+                    {user.email
+                      ? "Email me when my account signs in from a device it has not seen before."
+                      : "Add an email address above to receive an email when your account signs in from a new device."}
+                  </span>
+                </div>
+                <div className="profile-pref-control">
+                  <span className="profile-pref-options">
+                    <button
+                      type="button"
+                      className={`nm-btn nm-btn--sm${signInAlertsEnabled ? " nm-btn--active" : " nm-btn--secondary"}`}
+                      disabled={signInAlertBusy || avatarBusy}
+                      aria-pressed={signInAlertsEnabled}
+                      aria-label="New sign-in emails"
+                      onClick={() => void saveSignInAlerts(!signInAlertsEnabled)}
+                    >
+                      {signInAlertBusy ? "Saving…" : signInAlertsEnabled ? "Enabled" : "Disabled"}
+                    </button>
+                  </span>
                 </div>
               </div>
               <div className="profile-pref-row">

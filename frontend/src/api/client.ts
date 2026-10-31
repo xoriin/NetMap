@@ -16,6 +16,8 @@ export type User = {
   whats_new_acknowledged_version?: string | null;
   /** Per-user opt-out for coloured entity chips. Defaults to on. */
   entity_colors_enabled?: boolean;
+  /** Per-user opt-out for new-device sign-in emails. Defaults to on. */
+  new_device_alerts?: boolean;
   /** Effective permissions for the user's current role. */
   permissions?: string[];
   totp_enabled?: boolean;
@@ -739,6 +741,8 @@ export type SystemSettings = {
   backup_filename_prefix?: string;
   backup_date_format?: "yyyy-MM-dd" | "MM-dd-yyyy" | "dd-MM-yyyy";
   totp_required: "off" | "admins" | "all";
+  /** Email users when their account signs in from a browser it has not seen before. */
+  new_device_alerts_enabled?: boolean;
 };
 
 export type RuntimeSecurityStatus = { warnings: string[] };
@@ -1677,6 +1681,7 @@ export const api = {
       avatar_data?: string | null;
       email?: string | null;
       entity_colors_enabled?: boolean;
+      new_device_alerts?: boolean;
       /** Required by the backend only when `email` changes; never send it otherwise. */
       current_password?: string;
       /** Also required for an email change when the user has two-factor authentication on. */

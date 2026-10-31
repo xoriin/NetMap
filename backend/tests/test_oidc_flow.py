@@ -395,3 +395,29 @@ def test_callback_refuses_an_already_linked_disabled_account(client_and_db, fake
     identity = db.scalar(select(ExternalIdentity).where(ExternalIdentity.subject == "linked-sub"))
     assert (identity.email, identity.last_login_at) == ("old@example.com", None)
     assert db.get(User, user.id).is_active is False
+
+
+def test_sso_sign_in_from_a_new_browser_sends_a_notice(client_and_db, fake_http, monkeypatch):
+    from app.services import notifications
+    from app.services.auth import devices
+
+    client, db = client_and_db
+    sent: list[dict] = []
+    monkeypatch.setattr(notifications, "new_device_sign_in_email", lambda _db, **fields: (lambda: sent.append(fields) or "ok"))
+    monkeypatch.setattr(devices, "_sender", type("Inline", (), {"submit": staticmethod(lambda fn, *args: fn(*args))})())
+    _enable_oidc(db)
+
+    def sign_in():
+        state, nonce, _ = _start_login(client, db)
+        fake_http.token_response = {"access_token": "provider-access", "id_token": make_id_token(nonce=nonce, email="sso.user@example.com")}
+        response = _callback(client, state)
+        assert response.status_code == 302 and response.headers["location"] == "/"
+        return response
+
+    first = sign_in()
+    assert any(c.startswith("netmap_device=") and "SameSite=lax" in c for c in first.headers.get_list("set-cookie"))
+    sign_in()
+    assert sent == []
+    client.cookies.delete("netmap_device")
+    sign_in()
+    assert [notice["method"] for notice in sent] == ["single sign-on"]

@@ -57,6 +57,7 @@ class ProfileUpdateRequest(BaseModel):
     avatar_data: str | None = Field(default=None, max_length=2_800_000)
     email: str | None = Field(default=None, max_length=254)
     entity_colors_enabled: bool | None = None
+    new_device_alerts: bool | None = None
     # Re-authentication, required only when the email address changes.
     current_password: str | None = Field(default=None, min_length=1, max_length=256)
     totp_code: str | None = Field(default=None, min_length=1, max_length=32)
@@ -103,6 +104,7 @@ class UserRead(BaseModel):
     sso_last_login_at: UtcDatetime | None = None
     whats_new_acknowledged_version: str | None = None
     entity_colors_enabled: bool = True
+    new_device_alerts: bool = True
     totp_enabled: bool = False
     totp_required: bool = False
     recovery_codes_remaining: int = 0
@@ -110,7 +112,7 @@ class UserRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("has_local_password", mode="before")
+    @field_validator("has_local_password", "new_device_alerts", mode="before")
     @classmethod
     def _unsaved_user_has_password(cls, value):
         # The column default applies on insert; an unsaved User reads None.

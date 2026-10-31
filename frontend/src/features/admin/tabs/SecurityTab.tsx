@@ -1,6 +1,6 @@
 import { AdminTaskPanel } from "../AdminTaskPanel";
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
-import { AlertCircle, KeyRound, KeySquare, Layers, Shield, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { AlertCircle, KeyRound, KeySquare, Layers, Mail, Shield, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { api, type ApiKeyAdmin, type OidcSettings, type OidcTestResult, type SystemSettings, type User } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { useToast } from "../../../components/Toast";
@@ -416,6 +416,48 @@ function TwoFactorPanel({ accessToken }: { accessToken: string }) {
   );
 }
 
+function SignInAlertsPanel({ accessToken }: { accessToken: string }) {
+  const toast = useToast();
+  const query = useApiQuery(() => api.adminSettings(accessToken), [accessToken]);
+  const [pending, setPending] = useState<boolean | null>(null);
+  const enabled = pending ?? query.data?.new_device_alerts_enabled !== false;
+
+  async function toggle(next: boolean) {
+    setPending(next);
+    try {
+      query.setData(await api.updateAdminSettings(accessToken, { new_device_alerts_enabled: next }));
+      toast.success(next ? "New sign-in emails turned on" : "New sign-in emails turned off");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to save the sign-in email setting");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className="panel admin-panel nm-app-panel nm-motion-item">
+      <div className="admin-panel-header nm-app-panel-header">
+        <h2 className="admin-section-title"><Mail size={16} />Sign-In Alerts</h2>
+      </div>
+      {query.error && <div className="form-error">{query.error}</div>}
+      <div className="tool-form">
+        <label className="tool-form-inline-check">
+          <input
+            type="checkbox"
+            checked={enabled}
+            disabled={pending !== null || query.isLoading}
+            onChange={(e) => void toggle(e.target.checked)}
+          />
+          <span className="tool-form-check-copy">
+            <span>Email users when they sign in from a new device</span>
+            <span className="tool-note">Sent to the account's email address through the account email server. Each user can also turn it off on their Profile.</span>
+          </span>
+        </label>
+      </div>
+    </section>
+  );
+}
+
 function ApiKeysOversightPanel({ accessToken }: { accessToken: string }) {
   const toast = useToast();
   const confirmAction = useConfirm();
@@ -704,6 +746,7 @@ export function SecurityTab({
             </div>
             <aside className="nm-console-side">
               <TwoFactorPanel accessToken={accessToken} />
+              <SignInAlertsPanel accessToken={accessToken} />
               <AdminCard title="Recent Failed Sign-Ins" icon={<AlertCircle size={16} />} className="nm-fill" style={motion(3)}>
                 <EventList empty="No failed sign-ins recently." rows={recentFailures.map((r) => ({
                   key: r.id, tone: auditEventTone(r.action), title: auditLogUsername(r),

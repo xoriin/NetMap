@@ -337,6 +337,34 @@ test("SSO link-by-email acknowledgement failure keeps the button and reports the
   await expect(page.getByText(/^Acknowledged/)).toHaveCount(0);
 });
 
+test("Security sends only the new sign-in email switch when it is toggled", async ({ page }) => {
+  await setupAdminMocks(page);
+  const puts: Array<Record<string, unknown>> = [];
+  let settings = { totp_required: "off", new_device_alerts_enabled: true };
+  await page.route("**/api/v1/admin/settings", (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      puts.push(body);
+      settings = { ...settings, ...body } as typeof settings;
+    }
+    return route.fulfill({ json: settings });
+  });
+  await page.goto("/admin#security");
+  const panel = page.locator(".admin-panel").filter({ has: page.getByRole("heading", { name: "Sign-In Alerts" }) });
+  const box = panel.getByLabel("Email users when they sign in from a new device");
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  await expect(page.getByText("New sign-in emails turned off", { exact: true })).toBeVisible();
+  await expect(box).not.toBeChecked();
+  expect(puts).toEqual([{ new_device_alerts_enabled: false }]);
+  await page.route("**/api/v1/admin/settings", (route) => route.request().method() === "PUT"
+    ? route.fulfill({ status: 500, json: { detail: "Database is locked" } })
+    : route.fulfill({ json: settings }));
+  await box.check();
+  await expect(page.getByText("Database is locked", { exact: false }).first()).toBeVisible();
+  await expect(box).not.toBeChecked();
+});
+
 async function setupAdminMocks(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: [] }));

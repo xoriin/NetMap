@@ -49,6 +49,7 @@ class User(Base):
     # False for accounts created by single sign-on until a password is set for
     # them; their stored hash is random and can never be used to sign in.
     has_local_password: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
+    new_device_alerts: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
     totp_recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @property

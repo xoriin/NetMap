@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_super_admin, require_user_manage
 from app.core.config import settings
 from app.core.network import request_client_ip
+from app.services.auth.devices import record_sign_in_device, send_notice_later, set_device_cookie
 from app.core.security import (
     create_access_token,
     create_password_reset_token,
@@ -137,6 +138,7 @@ def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
 
 def _complete_login(
     db: Session,
+    request: Request,
     response: Response,
     user: User,
     client_ip: str | None,
@@ -152,7 +154,10 @@ def _complete_login(
         target=f"user:{user.username}",
         detail=f"ip={client_ip or '-'} method={method}",
     )
+    device_token, notice = record_sign_in_device(db, user, request, client_ip=client_ip, method=method)
     db.commit()
+    send_notice_later(notice)
+    set_device_cookie(response, device_token)
     _set_auth_cookies(response, access_token, refresh_token)
     response.delete_cookie(key=MFA_PENDING_COOKIE, path=MFA_PENDING_PATH)
     return TokenPair(access_token=access_token)
@@ -311,7 +316,7 @@ def login(
         return MfaChallengeResponse(mfa_required=True, challenge=_issue_challenge(user, "mfa_challenge"))
     if totp_service.is_required_for(db, user):
         return MfaChallengeResponse(mfa_setup_required=True, challenge=_issue_challenge(user, "mfa_setup"))
-    return _complete_login(db, response, user, client_ip, subjects, "password")
+    return _complete_login(db, request, response, user, client_ip, subjects, "password")
 
 
 @router.post("/auth/login/totp", response_model=TokenPair)
@@ -350,7 +355,7 @@ def login_totp(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
     if method == "recovery":
         write_audit(db, action="auth.mfa_recovery_used", actor_user_id=user.id, target=f"user:{user.username}", detail=f"remaining={user.recovery_codes_remaining}")
-    return _complete_login(db, response, user, client_ip, subjects, f"oidc+{method}" if source else method)
+    return _complete_login(db, request, response, user, client_ip, subjects, f"oidc+{method}" if source else method)
 
 
 @router.post("/auth/login/totp/setup", response_model=TotpSetupResponse)
@@ -400,7 +405,7 @@ def login_totp_setup_confirm(
         apply_progressive_delay(attempts)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication code")
     write_audit(db, action="auth.mfa_enabled", actor_user_id=user.id, target=f"user:{user.username}", detail="source=sign_in")
-    tokens = _complete_login(db, response, user, client_ip, subjects, "oidc+totp" if source else "totp")
+    tokens = _complete_login(db, request, response, user, client_ip, subjects, "oidc+totp" if source else "totp")
     return TotpCodesResponse(recovery_codes=codes, access_token=tokens.access_token)
 
 
@@ -522,6 +527,8 @@ def update_profile(
         current_user.email = updates["email"] or None
     if updates.get("entity_colors_enabled") is not None:
         current_user.entity_colors_enabled = bool(updates["entity_colors_enabled"])
+    if updates.get("new_device_alerts") is not None:
+        current_user.new_device_alerts = bool(updates["new_device_alerts"])
     write_audit(
         db,
         action="auth.profile_updated",

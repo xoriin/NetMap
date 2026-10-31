@@ -96,6 +96,7 @@ DEFAULTS: dict[str, str] = {
     "backup_filename_prefix": "netmap-backup",
     "backup_date_format": "yyyy-MM-dd",
     "totp_required": "off",
+    "new_device_alerts_enabled": "true",
 }
 
 BUILT_IN_DEVICE_TYPES: tuple[DeviceTypeRead, ...] = (
@@ -426,6 +427,16 @@ def update_settings(
     updates = payload.model_dump(exclude_unset=True)
     if "ip_reservation_reminder_channels" in updates and updates["ip_reservation_reminder_channels"] is not None:
         updates["ip_reservation_reminder_channels"] = json.dumps(updates["ip_reservation_reminder_channels"])
+    if updates.get("new_device_alerts_enabled") is not None:
+        previous = load_settings(db)["new_device_alerts_enabled"] == "true"
+        if updates["new_device_alerts_enabled"] != previous:
+            write_audit(
+                db,
+                action="admin.new_device_alerts_changed",
+                actor_user_id=current_user.id,
+                detail=f"enabled={str(updates['new_device_alerts_enabled']).lower()}",
+            )
+        updates["new_device_alerts_enabled"] = str(updates["new_device_alerts_enabled"]).lower()
     if updates.get("totp_required") is not None:
         previous = load_settings(db)["totp_required"]
         if updates["totp_required"] != previous:
