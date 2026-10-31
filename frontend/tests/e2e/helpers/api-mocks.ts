@@ -198,6 +198,9 @@ export async function setupTopologyMocks(
   await page.route("**/api/v1/security/device-event-counts*", (route) =>
     route.fulfill({ json: [] })
   );
+  await page.route("**/api/v1/topology/devices/*/security-events?*", (route) =>
+    route.fulfill({ json: { device_id: 0, window_hours: 24, blocked_count: 0, passed_count: 0, total_count: 0, last_seen_event_time: null, events: [] } })
+  );
 }
 
 export async function setupInventoryMocks(

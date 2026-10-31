@@ -736,16 +736,21 @@ body.theme-dark .topology-details-panel dd {
 
 .topology-overlay-label,
 body.theme-dark .topology-overlay-label {
-  max-width: 150px;
-  overflow: hidden;
+  max-width: 11em;
   padding: 3px 7px;
   border: 1px solid #30485b;
   border-radius: 6px;
   background: rgba(7, 19, 29, 0.94);
   color: #d8e5ef;
   font-weight: 600;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  text-align: center;
   text-shadow: 0 1px 3px #02070c;
+  white-space: normal;
+}
+
+.topology-overlay-label > span {
+  max-width: 100%;
 }
 
 body:not(.theme-dark) .topology-device-icon-frame {
