@@ -10,7 +10,7 @@ import { PanelSkeleton } from "../../../components/Skeleton";
 import { DashStat } from "../../../components/DashStat";
 import { ColumnChart, CountUp, DonutChart, SparkBars, type ChartColor, type ChartItem } from "../../../components/Charts";
 import {
-  notificationMethodCatalog, appriseSupportedMethods, emptyProfileForm,
+  notificationMethodCatalog, emptyProfileForm,
   providerForMethod, buildNotificationConfig, profileFormIsComplete,
   populateFormFromProfile, notificationProfileMethodLabel, legacyChannelLabels,
   type NotificationMethodId, type NotificationProfileForm,
@@ -273,8 +273,6 @@ export function NotificationsTab({
     const id = target.startsWith("profile:") ? Number(target.slice(8)) : NaN;
     return notificationProfiles.find((p) => p.id === id)?.name ?? legacyChannelLabels[target] ?? target;
   };
-  const guided = notificationMethodCatalog.filter((m) => m.id !== "custom").map((m) => m.label);
-  const viaApprise = appriseSupportedMethods.filter((name) => !guided.some((g) => g.toLowerCase().startsWith(name.toLowerCase())));
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const historyOk = !deliveriesQuery.error;
 
@@ -372,16 +370,6 @@ export function NotificationsTab({
                   </div>
                 </div>
               ))}
-            </div>
-            <div className="admin-services">
-              <div>
-                <span className="admin-services-label">Guided setup</span>
-                <div className="admin-service-chips">{guided.map((name) => <span key={name} className="notif-method-tag">{name}</span>)}</div>
-              </div>
-              <div>
-                <span className="admin-services-label">Through Custom Apprise URL</span>
-                <div className="admin-service-chips">{viaApprise.map((name) => <span key={name} className="notif-method-tag">{name}</span>)}<span className="notif-method-tag">and more</span></div>
-              </div>
             </div>
           </section>
         </div>

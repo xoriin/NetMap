@@ -45,12 +45,6 @@ export const notificationMethodCatalog = [
   { id: "custom", label: "Custom Apprise URL", description: "Any Apprise-supported notification service" },
 ] as const;
 
-export const appriseSupportedMethods = [
-  "Discord", "Slack", "Gotify", "Pushover", "Google Chat", "Matrix", "Mattermost",
-  "Rocket.Chat", "Webex Teams", "ntfy", "Email", "Mailgun", "Opsgenie", "PagerDuty",
-  "Telegram", "Signal", "SMS gateways", "Custom JSON/webhook",
-];
-
 export type NotificationMethodId = typeof notificationMethodCatalog[number]["id"];
 
 export type NotificationProfileForm = {

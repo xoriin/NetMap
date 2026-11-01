@@ -1330,13 +1330,6 @@ body.theme-dark .admin-layout .admin-task-panel--nested > .admin-task-title {
 .admin-task-stack > .admin-task-panel { margin: 0; }
 #admin-syslog > .admin-task-stack { gap: var(--nm-space-3); }
 
-.admin-services { display: grid; gap: var(--nm-space-4); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--nm-space-4); padding-top: var(--nm-space-4); border-top: 1px solid var(--nm-border); }
-.admin-services-label { display: block; margin-bottom: var(--nm-space-2); color: var(--nm-text-muted); font-size: var(--nm-text-sm); }
-.admin-service-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.admin-service-chips .notif-method-tag { margin: 0; }
-@media (max-width: 760px) { .admin-services { grid-template-columns: minmax(0, 1fr); } }
-
-
 .notif-spark { display: flex; align-items: center; gap: var(--nm-space-3); margin-left: auto; margin-right: var(--nm-space-4); }
 .notif-spark-label { min-width: 104px; color: var(--nm-text-muted); font-size: var(--nm-text-sm); font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) {
