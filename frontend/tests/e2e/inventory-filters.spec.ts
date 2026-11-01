@@ -260,7 +260,11 @@ test.describe("Inventory approved workspace hierarchy", () => {
 
     await row.getByRole("checkbox", { name: "Select Access Switch" }).click();
     await expect(sidebar).toBeHidden();
+    await page.route("**/api/v1/topology/devices/*/favourite", (route) =>
+      route.fulfill({ json: mockDevice({ id: Number(route.request().url().split("/").at(-2)), is_favourite: true }) }));
+    const favourite = page.waitForResponse((response) => response.url().endsWith("/favourite"));
     await row.getByRole("button", { name: "Add to favourites" }).click();
+    await favourite;
     await expect(sidebar).toBeHidden();
   });
 
