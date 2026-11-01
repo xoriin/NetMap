@@ -31,7 +31,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "certifi>=2026.10.19" \
        "PyJWT~=2.10" \
        "starlette>=1.3.1" \
-       "dnspython~=2.7" \
+       "dnspython>=2.9.0,<3" \
        "reportlab~=4.4" \
        "apprise~=1.9" \
        "httpx>=0.27.0" \
