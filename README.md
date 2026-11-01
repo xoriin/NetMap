@@ -33,7 +33,9 @@ Everything runs in a single container. The web UI, API, database, and syslog rec
 <img src="frontend/public/readme/overview.png" width="1200" alt="NetMap Overview dashboard" />
 <img src="frontend/public/readme/topology.png" width="1200" alt="NetMap interactive topology" />
 <img src="frontend/public/readme/monitoring.png" width="1200" alt="NetMap device monitoring" />
+<img src="frontend/public/readme/endpoints.png" width="1200" alt="NetMap HTTP/HTTPS endpoint monitoring" />
 <img src="frontend/public/readme/ipam.png" width="1200" alt="NetMap IP address management" />
+<img src="frontend/public/readme/inventory.png" width="1200" alt="NetMap device inventory" />
 
 ---
 
