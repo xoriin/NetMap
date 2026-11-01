@@ -3820,9 +3820,24 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
   padding-bottom: 10px;
   margin-bottom: -1px;
 }
-.mon-device-window-header {
-  justify-content: space-between;
-  gap: 16px;
+.mon-device-window-header.nm-app-panel-header {
+  container-type: inline-size;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.mon-device-window-header .mon-panel-controls { margin-left: auto; }
+.mon-table-toolbar-meta { flex-shrink: 0; white-space: nowrap; }
+
+/* When the controls no longer fit beside the title, the search stays on the title row and the filters move below. */
+@media (min-width: 761px) {
+  @container (max-width: 1400px) {
+    .mon-device-window-header .mon-panel-controls { display: contents; }
+    .mon-device-window-header .mon-table-toolbar-meta { order: 0; flex: 1 1 calc(100% - 320px); }
+    .mon-device-window-header .mon-search-wrap { order: 1; flex: 0 0 280px; margin-left: auto; }
+    .mon-device-window-header .mon-panel-controls > :not(.mon-search-wrap),
+    .mon-device-window-header .nm-phone-filter-group > * { order: 2; }
+  }
 }
 .mon-table-toolbar-meta {
   display: flex;

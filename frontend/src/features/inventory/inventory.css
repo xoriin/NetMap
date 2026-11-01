@@ -11,12 +11,23 @@
 }
 
 .inventory-layout .inventory-panel-header.nm-app-panel-header {
+  container-type: inline-size;
   flex-wrap: wrap;
   justify-content: flex-start;
   min-height: 44px;
   padding: 6px 18px;
   border-bottom-color: var(--nm-border);
   background: var(--nm-modal-header);
+}
+
+/* When the toolbar no longer fits on one row, the search stays beside the title and the filters move below. */
+@media (min-width: 761px) {
+  @container (max-width: 1380px) {
+    .inventory-layout .inventory-panel-header .inv-panel-title { order: 0; flex: 1 1 calc(100% - 340px); }
+    .inventory-layout .inventory-panel-header .inv-search-box { order: 1; flex: 0 0 300px; min-width: 0; margin-left: auto; }
+    .inventory-layout .inventory-panel-header > :not(.inv-panel-title, .inv-search-box),
+    .inventory-layout .inventory-panel-header .nm-phone-filter-group > * { order: 2; }
+  }
 }
 
 .inventory-layout .inv-panel-title {
