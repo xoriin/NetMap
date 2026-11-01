@@ -294,6 +294,28 @@ test("SSO task panels are four equal boxes in two columns at 1920 wide", async (
   expect(boxes[2].y).toBeGreaterThan(boxes[0].y + boxes[0].height);
 });
 
+for (const width of [1920, 1600]) {
+  test(`SSO fields keep one height and line up in pairs when a label wraps at ${width} wide`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1200 });
+    await setupAdminMocks(page);
+    await page.route("**/api/v1/admin/oidc-settings", (route) => route.fulfill({ json: { ...oidcSettings, require_sso: false } }));
+    await page.goto("/admin#security");
+    await expect(page.getByRole("region", { name: "Role Mapping", exact: true })).toBeVisible();
+    const rows = await page.locator(".admin-sso-grid .tool-form-grid").evaluateAll((grids) => grids.map((grid) =>
+      Array.from(grid.querySelectorAll(":scope > label > input, :scope > label > select")).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { y: Math.round(r.y), h: Math.round(r.height) };
+      })));
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    for (const fields of rows) {
+      expect(fields).toHaveLength(2);
+      expect(fields[0].h).toBe(fields[1].h);
+      expect(fields[0].h).toBeLessThanOrEqual(42);
+      expect(Math.abs(fields[0].y - fields[1].y)).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
 test("SSO saves fields from every task panel without replacing the stored secret", async ({ page }) => {
   await setupAdminMocks(page);
   let saved: Record<string, unknown> | null = null;

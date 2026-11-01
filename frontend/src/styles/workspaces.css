@@ -3297,6 +3297,9 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   gap: 12px;
 }
 
+/* A label that wraps takes the extra height, so neighbouring fields keep their size and line up. */
+.tool-form-grid > label { grid-template-rows: 1fr auto; }
+
 .tool-result {
   border-top: 1px solid #edf2f5;
   padding-top: 12px;
