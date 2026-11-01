@@ -4,7 +4,7 @@ import { IconAlertCircle } from "@tabler/icons-react";
 import { CircleCheck, CirclePause, Clock, Layers, Send } from "lucide-react";
 import {
   api,
-  type AlertRule, type AlertRulePayload, type AlertRuleEventType, type TopologyGraph, type PortTarget, type Monitor,
+  type AlertRule, type AlertRulePayload, type AlertRuleEventType, type TopologyGraph, type PortTarget, type Monitor, type NotificationDelivery,
 } from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
 import { formatEventTime } from "../../../utils/format";
@@ -13,6 +13,7 @@ import { BarList, ColumnChart, CountUp } from "../../../components/Charts";
 import { EventList, type EventTone } from "../../../components/EventList";
 import { lastDays, dayKey, shortDateTime } from "../../../utils/history";
 import { AdminCard } from "../AdminCard";
+import { AlertDeliveryModal, deliverySummary } from "../AlertDeliveryModal";
 import { legacyChannelLabels, notificationTargetLabel, notificationProfileMethodLabel } from "../notificationProfiles";
 
 const INCIDENT_DEFAULT_EVENTS: AlertRuleEventType[] = ["device_offline", "device_unexpected_state", "service_down", "monitor_down"];
@@ -62,6 +63,8 @@ export function AlertsTab({
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [editingAlertRule, setEditingAlertRule] = useState<AlertRule | null>(null);
   const [alertForm, setAlertForm] = useState<AlertRulePayload>(newRuleForm);
+  const [deliveryFilter, setDeliveryFilter] = useState<"all" | "failed">("all");
+  const [openDeliveryId, setOpenDeliveryId] = useState<number | null>(null);
   const incidentNever = INCIDENT_NEVER_EVENTS.includes(alertForm.event_type);
   const incidentChecksInvalid = !incidentNever && alertForm.open_incident
     && (!Number.isInteger(alertForm.incident_min_failures) || alertForm.incident_min_failures < 1 || alertForm.incident_min_failures > 20);
@@ -86,6 +89,14 @@ export function AlertsTab({
   }
 
   const targetLabel = (target: string) => notificationTargetLabel(notificationProfiles, target);
+  const deliverySource = (d: NotificationDelivery) => {
+    if (d.source_label) return d.source_label;
+    const device = d.device_id ? graph.devices.find((x) => x.id === d.device_id) : undefined;
+    return device ? (device.display_name || device.hostname || device.ip_address) : "";
+  };
+  const failedDeliveries = deliveries.filter((d) => d.status === "failed").length;
+  const shownDeliveries = deliveryFilter === "failed" ? deliveries.filter((d) => d.status === "failed") : deliveries;
+  const openDelivery = deliveries.find((d) => d.id === openDeliveryId) ?? null;
 
   async function saveAlertRule() {
     setAlertRulesBusy(true);
@@ -452,36 +463,71 @@ export function AlertsTab({
       <section className="panel admin-panel nm-app-panel admin-alert-delivery-panel nm-motion-item" aria-label="Delivery History">
         <div className="admin-panel-header nm-app-panel-header">
           <h2 className="admin-section-title"><IconAlertCircle size={16} />Delivery History</h2>
+          {deliveries.length > 0 && (
+            <div className="admin-panel-actions admin-delivery-filter" role="group" aria-label="Show deliveries">
+              <button type="button" className={`nm-btn nm-btn--sm${deliveryFilter === "all" ? " nm-btn--active" : ""}`} aria-pressed={deliveryFilter === "all"} onClick={() => setDeliveryFilter("all")}>
+                All <span className="admin-task-count">{deliveries.length}</span>
+              </button>
+              <button type="button" className={`nm-btn nm-btn--sm${deliveryFilter === "failed" ? " nm-btn--active" : ""}`} aria-pressed={deliveryFilter === "failed"} onClick={() => setDeliveryFilter("failed")}>
+                Failed only <span className="admin-task-count">{failedDeliveries}</span>
+              </button>
+            </div>
+          )}
         </div>
-        <p className="tool-note">The most recent alert notification attempts and whether each provider accepted them. Kept for 30 days.</p>
+        <p className="tool-note">The most recent alert notification attempts and whether each provider accepted them. Click one to see exactly what was sent. Kept for 30 days.</p>
         {deliveries.length === 0 ? (
           <p className="tool-note">No notifications have been sent yet.</p>
+        ) : shownDeliveries.length === 0 ? (
+          <p className="tool-note">No failed notifications in the last 30 days.</p>
         ) : (
           <div className="nm-table-wrap admin-data-table-wrap">
-          <table className="nm-table admin-data-table">
+          <table className="nm-table admin-data-table admin-delivery-table">
             <thead>
               <tr>
-                <th>Sent</th><th>Rule</th><th>Target</th><th>Result</th>
+                <th>Sent</th><th>Rule</th><th>Device</th><th>Message</th><th>Sent via</th><th>Result</th><th aria-hidden="true" />
               </tr>
             </thead>
             <tbody>
-              {deliveries.map((d) => (
-                <tr key={d.id}>
-                  <td className="admin-table-nowrap">{formatEventTime(d.sent_at)}</td>
-                  <td><strong>{d.rule_name || "—"}</strong></td>
-                  <td>{targetLabel(d.target)}</td>
-                  <td>
-                    <span className={`notif-result${d.status === "sent" ? " ok" : " err"}`}>
-                      {d.status === "sent" ? "Sent" : d.detail || "Failed"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {shownDeliveries.map((d) => {
+                const summary = deliverySummary(d.message);
+                return (
+                  <tr
+                    key={d.id}
+                    className="admin-delivery-row"
+                    tabIndex={0}
+                    aria-label={`Open notification: ${d.rule_name || "alert"} via ${targetLabel(d.target)}`}
+                    onClick={() => setOpenDeliveryId(d.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenDeliveryId(d.id); } }}
+                  >
+                    <td className="admin-table-nowrap">{formatEventTime(d.sent_at)}</td>
+                    <td><strong>{d.rule_name || "—"}</strong></td>
+                    <td>{deliverySource(d) || "—"}</td>
+                    <td className="admin-delivery-summary" title={summary || undefined}>{summary || <em>Not recorded</em>}</td>
+                    <td>{targetLabel(d.target)}</td>
+                    <td>
+                      <span className={`notif-result${d.status === "sent" ? " ok" : " err"}`}>
+                        {d.status === "sent" ? "Sent" : d.detail || "Failed"}
+                      </span>
+                    </td>
+                    <td className="admin-delivery-chevron" aria-hidden="true">›</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           </div>
         )}
       </section>
+      {openDelivery && (
+        <AlertDeliveryModal
+          delivery={openDelivery}
+          related={deliveries.filter((d) => d.id !== openDelivery.id && d.rule_name === openDelivery.rule_name && d.sent_at === openDelivery.sent_at)}
+          profiles={notificationProfiles}
+          triggerName={TRIGGER_NAMES[openDelivery.event_type as AlertRuleEventType] ?? ""}
+          sourceName={deliverySource(openDelivery)}
+          onClose={() => setOpenDeliveryId(null)}
+        />
+      )}
     </div>
   );
 }

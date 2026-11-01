@@ -890,6 +890,9 @@ export type NotificationDelivery = {
   target: string;
   status: "sent" | "failed";
   detail: string;
+  message: string;
+  event_type: string;
+  source_label: string;
   sent_at: string;
 };
 
