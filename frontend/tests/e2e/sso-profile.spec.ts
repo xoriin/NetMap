@@ -469,7 +469,7 @@ test.describe("callback notices on Profile", () => {
       await setupProfile(page, { path: `/?sso_error=${code}` });
       await expect(page).toHaveURL(/\/profile$/);
       const notice = page.locator(".profile-layout > .nm-alert--error");
-      await expect(notice).toHaveText(new RegExp(message.replace(/[.?*+()]/g, "\\$&")));
+      await expect(notice).toHaveText(new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
       await notice.getByRole("button", { name: "Dismiss" }).click();
       await expect(notice).toHaveCount(0);
     });
