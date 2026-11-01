@@ -521,7 +521,8 @@ export function AlertsTab({
       {openDelivery && (
         <AlertDeliveryModal
           delivery={openDelivery}
-          related={deliveries.filter((d) => d.id !== openDelivery.id && d.rule_name === openDelivery.rule_name && d.sent_at === openDelivery.sent_at)}
+          related={deliveries.filter((d) => d.id !== openDelivery.id && d.rule_name === openDelivery.rule_name && d.sent_at === openDelivery.sent_at
+            && d.device_id === openDelivery.device_id && deliverySource(d) === deliverySource(openDelivery))}
           profiles={notificationProfiles}
           triggerName={TRIGGER_NAMES[openDelivery.event_type as AlertRuleEventType] ?? ""}
           sourceName={deliverySource(openDelivery)}

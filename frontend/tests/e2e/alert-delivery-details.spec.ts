@@ -7,6 +7,7 @@ const deliveries = [
   { id: 3, rule_name: "Core switch down", device_id: 1, target: "profile:3", status: "failed", detail: "HTTP 401: delivery failed", message, event_type: "device_offline", source_label: "core-sw-01", sent_at: sentAt },
   { id: 2, rule_name: "Core switch down", device_id: 1, target: "profile:2", status: "sent", detail: "", message, event_type: "device_offline", source_label: "core-sw-01", sent_at: sentAt },
   { id: 1, rule_name: "Core switch down", device_id: 1, target: "profile:1", status: "sent", detail: "", message, event_type: "device_offline", source_label: "core-sw-01", sent_at: sentAt },
+  { id: 5, rule_name: "Core switch down", device_id: 2, target: "profile:2", status: "sent", detail: "", message: "NetMap Alert\n\n⚠️ core-sw-02 (10.30.30.3) is now OFFLINE", event_type: "device_offline", source_label: "core-sw-02", sent_at: sentAt },
   { id: 4, rule_name: "Slow NAS", device_id: null, target: "email", status: "sent", detail: "", message: "", event_type: "", source_label: "", sent_at: new Date(Date.now() - 4 * 86_400_000).toISOString() },
 ];
 const profiles = [
@@ -35,11 +36,11 @@ const history = (page: Page) => page.getByRole("region", { name: "Delivery Histo
 test("Delivery History shows the device and what was sent, and marks older rows as not recorded", async ({ page }) => {
   await boot(page);
   const rows = history(page).locator("tbody tr");
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(5);
   await expect(rows.nth(0)).toContainText("core-sw-01");
   await expect(rows.nth(0)).toContainText("core-sw-01 (10.30.30.2) is now OFFLINE");
   await expect(rows.nth(0)).toContainText("HTTP 401: delivery failed");
-  await expect(rows.nth(3)).toContainText("Not recorded");
+  await expect(rows.nth(4)).toContainText("Not recorded");
 });
 
 test("Failed only narrows the list and All brings every row back", async ({ page }) => {
@@ -49,7 +50,7 @@ test("Failed only narrows the list and All brings every row back", async ({ page
   await expect(panel.locator("tbody tr")).toHaveCount(1);
   await expect(panel.getByRole("button", { name: /Failed only/ })).toHaveAttribute("aria-pressed", "true");
   await panel.getByRole("button", { name: /^All/ }).click();
-  await expect(panel.locator("tbody tr")).toHaveCount(4);
+  await expect(panel.locator("tbody tr")).toHaveCount(5);
 });
 
 test("clicking a row opens the notification with the exact text, the result and the other methods", async ({ page }) => {
@@ -66,13 +67,14 @@ test("clicking a row opens the notification with the exact text, the result and 
   await expect(others).toHaveCount(2);
   await expect(others.nth(0)).toContainText("On-call ntfy");
   await expect(others.nth(1)).toContainText("Ops email");
+  await expect(others.filter({ hasText: "core-sw-02" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 });
 
 test("a row opens from the keyboard, and an older notification explains that its text was not kept", async ({ page }) => {
   await boot(page);
-  const old = history(page).locator("tbody tr").nth(3);
+  const old = history(page).locator("tbody tr").nth(4);
   await old.focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Slow NAS" });
