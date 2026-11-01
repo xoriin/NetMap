@@ -20,13 +20,30 @@
   background: var(--nm-modal-header);
 }
 
-/* When the toolbar no longer fits on one row, the search stays beside the title and the filters move below. */
+/* Filters, buttons and search move as one group: beside the title when they fit, on their own row when they don't. */
+.inventory-layout .inv-toolbar-controls {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.inventory-layout .inv-toolbar-controls .inv-search-box { flex: 1 1 0; min-width: 130px; max-width: 280px; margin-left: auto; }
+.inventory-layout .inv-toolbar-controls .nm-swatch-select { flex: 0 1 auto; min-width: 72px; }
+.inventory-layout .inv-toolbar-controls .nm-swatch-trigger { width: 100%; min-width: 0; }
+@media (max-width: 760px) {
+  .inventory-layout .inv-toolbar-controls { display: contents; }
+}
 @media (min-width: 761px) {
-  @container (max-width: 1380px) {
-    .inventory-layout .inventory-panel-header .inv-panel-title { order: 0; flex: 1 1 calc(100% - 340px); }
-    .inventory-layout .inventory-panel-header .inv-search-box { order: 1; flex: 0 0 300px; min-width: 0; margin-left: auto; }
-    .inventory-layout .inventory-panel-header > :not(.inv-panel-title, .inv-search-box),
-    .inventory-layout .inventory-panel-header .nm-phone-filter-group > * { order: 2; }
+  @container (max-width: 1400px) {
+    .inventory-layout .inv-toolbar-controls { gap: 8px; }
+    .inventory-layout .inv-toolbar-controls .inv-sep { display: none; }
+  }
+  @container (max-width: 1000px) {
+    .inventory-layout .inv-toolbar-controls { flex-wrap: wrap; }
+    .inventory-layout .inv-toolbar-controls .nm-phone-filters-btn { order: -2; }
+    .inventory-layout .inv-toolbar-controls .inv-search-box { order: -1; flex-basis: 200px; margin-left: 0; }
   }
 }
 

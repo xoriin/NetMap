@@ -3829,14 +3829,16 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .mon-device-window-header .mon-panel-controls { margin-left: auto; }
 .mon-table-toolbar-meta { flex-shrink: 0; white-space: nowrap; }
 
-/* When the controls no longer fit beside the title, the search stays on the title row and the filters move below. */
+/* Filters, buttons and search move as one group: beside the title when they fit, on their own row when they don't. */
 @media (min-width: 761px) {
-  @container (max-width: 1400px) {
-    .mon-device-window-header .mon-panel-controls { display: contents; }
-    .mon-device-window-header .mon-table-toolbar-meta { order: 0; flex: 1 1 calc(100% - 320px); }
-    .mon-device-window-header .mon-search-wrap { order: 1; flex: 0 0 280px; margin-left: auto; }
-    .mon-device-window-header .mon-panel-controls > :not(.mon-search-wrap),
-    .mon-device-window-header .nm-phone-filter-group > * { order: 2; }
+  .mon-device-window-header .mon-panel-controls { flex: 1 1 auto; flex-wrap: nowrap; justify-content: flex-end; min-width: 0; }
+  .mon-device-window-header .mon-search-wrap { flex: 1 1 0; width: auto; min-width: 130px; max-width: 280px; }
+  .mon-device-window-header .mon-filter-picker { flex: 0 1 auto; min-width: 84px; }
+  .mon-device-window-header .mon-filter-picker .nm-swatch-trigger { width: 100%; min-width: 0; }
+  @container (max-width: 960px) {
+    .mon-device-window-header .mon-panel-controls { flex-wrap: wrap; justify-content: flex-start; }
+    .mon-device-window-header .nm-phone-filters-btn { order: -2; }
+    .mon-device-window-header .mon-search-wrap { order: -1; flex-basis: 200px; }
   }
 }
 .mon-table-toolbar-meta {

@@ -35,18 +35,23 @@ for (const p of pages) {
     expect(Math.abs(await centerY(header.locator(p.search)) - await centerY(header.locator(p.title)))).toBeLessThanOrEqual(4);
   });
 
-  for (const width of [1600, 1366]) {
-    test(`${p.name} Devices search stays on the title row at ${width} wide`, async ({ page }) => {
+  for (const width of [1700, 1600, 1500, 1440, 1366, 1280, 1180]) {
+    test(`${p.name} Devices search stays in line with the filter buttons at ${width} wide`, async ({ page }) => {
       await boot(page, width);
       await page.goto(p.path);
       const header = page.locator(p.header);
       const search = header.locator(p.search);
       await expect(search).toBeVisible();
-      expect(Math.abs(await centerY(search) - await centerY(header.locator(p.title)))).toBeLessThanOrEqual(4);
+      const filters = header.locator(".nm-phone-filters-btn");
+      expect(Math.abs(await centerY(search) - await centerY(filters))).toBeLessThanOrEqual(4);
       const headerBox = (await header.boundingBox())!;
-      const searchBox = (await search.boundingBox())!;
-      expect(searchBox.x + searchBox.width).toBeGreaterThan(headerBox.x + headerBox.width - 40);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const overflow = await header.evaluate((el) => {
+        const right = el.getBoundingClientRect().right;
+        return Array.from(el.querySelectorAll("button, .nm-search, .nm-swatch-select")).some((c) => c.getBoundingClientRect().right > right + 1);
+      });
+      expect(overflow).toBe(false);
+      expect((await search.boundingBox())!.width).toBeGreaterThanOrEqual(120);
+      expect(headerBox.height).toBeLessThanOrEqual(width >= 1366 ? 110 : 150);
     });
   }
 }

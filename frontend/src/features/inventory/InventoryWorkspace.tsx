@@ -758,6 +758,7 @@ export function InventoryWorkspace({
                   : graph.devices.length}
               </span>
             </span>
+            <div className="inv-toolbar-controls">
             <button
               type="button"
               className={`nm-btn nm-btn--secondary nm-phone-filters-btn${phoneFiltersOpen ? " nm-btn--active" : ""}`}
@@ -903,6 +904,7 @@ export function InventoryWorkspace({
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
               />
+            </div>
             </div>
           </>}
           header={<>
