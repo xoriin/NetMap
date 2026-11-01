@@ -209,8 +209,8 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
       )}
       {form && settings && (
         <form className="tool-form" onSubmit={(e) => void save(e)}>
-          <div className="admin-task-grid">
-            <AdminTaskPanel title="Provider Connection" icon={<KeyRound size={18} />} className="admin-task-panel--connection">
+          <div className="admin-task-grid admin-sso-grid">
+            <AdminTaskPanel title="Provider Connection" icon={<KeyRound size={18} />}>
 
           <label className="tool-form-inline-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} />
@@ -334,15 +334,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
             </span>
           </label>
             </AdminTaskPanel>
-          </div>
-          {formError && <div className="form-error">{formError}</div>}
-          <button type="submit" className="nm-btn nm-btn--primary" disabled={saving}>
-            {saving ? "Saving…" : "Save SSO settings"}
-          </button>
-        </form>
-      )}
-      {settings && (
-        <AdminTaskPanel title="Sign-In Policy" icon={<ShieldCheck size={18} />}>
+            <AdminTaskPanel title="Sign-In Policy" icon={<ShieldCheck size={18} />}>
           <label className="tool-form-inline-check">
             <input
               type="checkbox"
@@ -351,7 +343,7 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
             />
             <span className="tool-form-check-copy">
               <span>Require SSO for sign-in</span>
-              <span className="tool-note">SuperAdmins keep local sign-in as an emergency recovery path.</span>
+              <span className="tool-note">SuperAdmins keep local sign-in as an emergency recovery path. Applies as soon as you confirm.</span>
             </span>
           </label>
           {settings.require_sso && (
@@ -359,7 +351,13 @@ function SsoSettingsPanel({ accessToken }: { accessToken: string }) {
               Local password sign-in is currently disabled for non-SuperAdmin users. Disable this toggle to roll back.
             </span>
           )}
-        </AdminTaskPanel>
+            </AdminTaskPanel>
+          </div>
+          {formError && <div className="form-error">{formError}</div>}
+          <button type="submit" className="nm-btn nm-btn--primary" disabled={saving}>
+            {saving ? "Saving…" : "Save SSO settings"}
+          </button>
+        </form>
       )}
     </section>
   );
