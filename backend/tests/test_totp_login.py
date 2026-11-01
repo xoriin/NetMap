@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import json
 import time
 from datetime import timedelta
 
@@ -76,6 +79,16 @@ def test_enrolled_account_gets_a_challenge_and_no_cookies(client_and_db):
     assert body["mfa_required"] is True and body["challenge"]
     assert "access_token" not in body
     assert "set-cookie" not in response.headers
+
+
+def test_challenge_does_not_carry_an_unkeyed_password_hash_digest(client_and_db):
+    client, db = client_and_db
+    user, _secret = _make_user(db, enrol=True)
+    challenge = _login(client).json()["challenge"]
+    payload = challenge.split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    assert claims["pwf"] != hashlib.sha256(user.password_hash.encode()).hexdigest()
+    assert claims["pwf"] == auth_api._password_fingerprint(user)
 
 
 def test_correct_code_completes_sign_in_and_is_audited(client_and_db):

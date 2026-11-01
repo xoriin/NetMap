@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import logging
 from datetime import datetime, timedelta, timezone
 from hmac import compare_digest
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_super_admin, require_user_manage
 from app.core.config import settings
+from app.core.secrets import signing_secret
 from app.core.network import request_client_ip
 from app.services.auth.devices import record_sign_in_device, send_notice_later, set_device_cookie
 from app.core.security import (
@@ -89,7 +91,7 @@ _CHALLENGE_EXPIRED = "Sign-in expired. Enter your password again."
 
 
 def _password_fingerprint(user: User) -> str:
-    return hashlib.sha256(user.password_hash.encode()).hexdigest()
+    return hmac.new(signing_secret().encode(), user.password_hash.encode(), hashlib.sha256).hexdigest()
 
 
 MFA_PENDING_COOKIE = "netmap_mfa_pending"
