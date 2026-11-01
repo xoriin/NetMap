@@ -72,6 +72,24 @@ test("clicking a row opens the notification with the exact text, the result and 
   await expect(dialog).toHaveCount(0);
 });
 
+test("the popup sections are spaced apart and inset from the popup edges", async ({ page }) => {
+  await boot(page);
+  await history(page).locator("tbody tr").first().click();
+  const modal = page.locator(".alert-delivery-modal");
+  await expect(modal.locator(".mon-hero-section")).toHaveCount(3);
+  const frame = (await modal.boundingBox())!;
+  const boxes = await modal.locator(".mon-hero-section").evaluateAll((els) => els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+  }));
+  for (let i = 1; i < boxes.length; i += 1) expect(boxes[i].top - boxes[i - 1].bottom).toBeGreaterThanOrEqual(12);
+  for (const box of boxes) {
+    expect(box.left - frame.x).toBeGreaterThanOrEqual(16);
+    expect(frame.x + frame.width - box.right).toBeGreaterThanOrEqual(16);
+  }
+  expect(frame.y + frame.height - boxes[boxes.length - 1].bottom).toBeGreaterThanOrEqual(16);
+});
+
 test("a row opens from the keyboard, and an older notification explains that its text was not kept", async ({ page }) => {
   await boot(page);
   const old = history(page).locator("tbody tr").nth(4);

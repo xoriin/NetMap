@@ -47,6 +47,7 @@ export function AlertDeliveryModal({ delivery, related, profiles, triggerName, s
       size="lg"
       onCancel={onClose}
       modalClassName="alert-delivery-modal"
+      bodyClassName="modal-body alert-delivery-body"
       headerExtra={<span className={`nm-pill ${sent ? "nm-pill--online" : "nm-pill--offline"}`}>{sent ? "Sent" : "Failed"}</span>}
     >
       <section className="mon-hero-section" aria-label="What was sent">

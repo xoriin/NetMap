@@ -471,8 +471,8 @@
 .admin-layout .admin-delivery-summary { max-width: 520px; overflow: hidden; color: var(--nm-text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .admin-layout .admin-delivery-chevron { width: 28px; color: var(--nm-text-faint); text-align: right; }
 .admin-layout .admin-delivery-filter { display: inline-flex; gap: 6px; margin-left: auto; }
-.alert-delivery-modal .modal-body { display: grid; gap: var(--nm-space-3); }
-.alert-delivery-modal .mon-hero-section { margin: 0; }
+.alert-delivery-body { display: grid; gap: 14px; overflow-y: auto; }
+.alert-delivery-body > .mon-hero-section { margin: 0; }
 .alert-delivery-message {
   margin: 12px 14px 14px;
   padding: 12px 14px;
