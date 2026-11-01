@@ -276,7 +276,7 @@ test("System task panels retain all drafts after a failed save and retry togethe
   expect(saved).not.toHaveProperty("totp_required");
 });
 
-test("SSO task panels are four equal boxes in two columns at 1920 wide", async ({ page }) => {
+test("SSO task panels sit in a two-by-two grid with each row's boxes the same size at 1920 wide", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await setupAdminMocks(page);
   await page.route("**/api/v1/admin/oidc-settings", (route) => route.fulfill({ json: { ...oidcSettings, require_sso: false } }));
@@ -284,10 +284,10 @@ test("SSO task panels are four equal boxes in two columns at 1920 wide", async (
   const names = ["Provider Connection", "User Provisioning", "Role Mapping", "Sign-In Policy"];
   await expect(page.getByRole("region", { name: names[3], exact: true })).toBeVisible();
   const boxes = await Promise.all(names.map(async (name) => (await page.getByRole("region", { name, exact: true }).boundingBox())!));
-  for (const box of boxes) {
-    expect(Math.abs(box.width - boxes[0].width)).toBeLessThanOrEqual(1);
-    expect(Math.abs(box.height - boxes[0].height)).toBeLessThanOrEqual(1);
-  }
+  for (const box of boxes) expect(Math.abs(box.width - boxes[0].width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(boxes[0].height - boxes[1].height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(boxes[2].height - boxes[3].height)).toBeLessThanOrEqual(1);
+  expect(boxes[2].height).toBeLessThan(boxes[0].height - 60);
   expect(Math.abs(boxes[0].y - boxes[1].y)).toBeLessThanOrEqual(1);
   expect(Math.abs(boxes[2].y - boxes[3].y)).toBeLessThanOrEqual(1);
   expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
