@@ -11,8 +11,8 @@ export function deliveryMethodLabel(profiles: NotificationProfile[], target: str
 }
 
 /** The last non-empty line of the message: the part that says what happened. */
-export function deliverySummary(message: string): string {
-  const lines = message.split("\n").map((line) => line.trim()).filter(Boolean);
+export function deliverySummary(message: string | undefined): string {
+  const lines = (message ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
   return lines[lines.length - 1] ?? "";
 }
 
