@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -16,6 +16,10 @@ class NotificationDelivery(Base):
     target: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[str] = mapped_column(String(12), nullable=False)  # sent | failed
     detail: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # what was sent, the trigger and the device/endpoint name at the time (empty before 0093)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    source_label: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

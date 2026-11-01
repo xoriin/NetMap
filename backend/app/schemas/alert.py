@@ -139,6 +139,9 @@ class NotificationDeliveryRead(BaseModel):
     target: str
     status: str
     detail: str
+    message: str = ""
+    event_type: str = ""
+    source_label: str = ""
     sent_at: UtcDatetime
 
     model_config = {"from_attributes": True}

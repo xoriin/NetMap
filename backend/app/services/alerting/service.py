@@ -301,6 +301,8 @@ class AlertMonitorService:
                 return False
             fired.add((rule.id, key))
             channels = json.loads(rule.channels) if isinstance(rule.channels, str) else rule.channels
+            device = device_map.get(device_id)
+            source_label = (device.display_name or device.hostname or device.ip_address) if device else ""
             for channel in channels:
                 result = send_notification_target(channel, message, notif_settings, profiles)
                 logger.info("Alert '%s' fired via %s: %s", rule.name, channel, result)
@@ -310,6 +312,9 @@ class AlertMonitorService:
                     target=channel,
                     status="sent" if result == "ok" else "failed",
                     detail="" if result == "ok" else str(result)[:255],
+                    message=message,
+                    event_type=rule.event_type,
+                    source_label=(source_label or "")[:255],
                     sent_at=now,
                 ))
             rule_updates.append((rule.id, now))

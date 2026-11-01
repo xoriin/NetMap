@@ -171,6 +171,9 @@ class StandaloneMonitorService:
                     target=channel,
                     status="sent" if result == "ok" else "failed",
                     detail="" if result == "ok" else str(result)[:255],
+                    message=message,
+                    event_type=rule.event_type,
+                    source_label=(monitor.name or "")[:255],
                     sent_at=now,
                 ))
             rule_updates.append((rule.id, now))

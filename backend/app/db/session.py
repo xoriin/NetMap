@@ -198,6 +198,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0090_discovery_scan_progress", _migrate_discovery_scan_progress)
         _run_migration(conn, inspector, "0091_status_page_group_icon", _migrate_status_page_group_icon)
         _run_migration(conn, inspector, "0092_new_device_alerts", _migrate_new_device_alerts)
+        _run_migration(conn, inspector, "0093_notification_delivery_message", _migrate_notification_delivery_message)
 
 
 
@@ -2337,6 +2338,19 @@ _PASSWORD_SET_ACTIONS = (
     "auth.password_reset_self_service",
     "auth.admin_password_reset",
 )
+
+
+def _migrate_notification_delivery_message(conn, inspector) -> None:
+    """notification_deliveries.message, event_type and source_label. Older rows stay empty."""
+    if "notification_deliveries" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "notification_deliveries")
+    if "message" not in columns:
+        conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN message TEXT NOT NULL DEFAULT ''"))
+    if "event_type" not in columns:
+        conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN event_type VARCHAR(40) NOT NULL DEFAULT ''"))
+    if "source_label" not in columns:
+        conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN source_label VARCHAR(255) NOT NULL DEFAULT ''"))
 
 
 def _migrate_new_device_alerts(conn, inspector) -> None:
