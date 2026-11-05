@@ -154,6 +154,39 @@ class DiscoveryScannerTests(unittest.TestCase):
 
         self.assertIn("timed out after 190 seconds", str(exc.exception))
 
+
+    # --- /16 limit and timeout scaling (user report: /16 refused; scans time out) ---
+
+    def test_slash16_is_allowed_with_confirmation(self) -> None:
+        """Default DISCOVERY_MAX_HOSTS must cover a private /16 (65536 hosts)."""
+        target = validate_target("10.0.0.0/16", confirm_large_scan=True)
+        self.assertEqual(target.host_count, 65536)
+        self.assertEqual(target.nmap_target, "10.0.0.0/16")
+
+    def test_slash16_still_needs_confirmation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Large scan requires explicit confirmation"):
+            validate_target("10.0.0.0/16", confirm_large_scan=False)
+
+    def test_hosts_above_max_are_still_refused(self) -> None:
+        with patch("app.services.discovery.scanner.settings.discovery_max_hosts", 65536):
+            with self.assertRaisesRegex(ValueError, "maximum is 65536"):
+                validate_target("10.0.0.0/15", confirm_large_scan=True)
+
+    def test_ping_timeout_for_slash16_reaches_about_four_hours(self) -> None:
+        timeout_seconds = discovery_process_timeout_seconds(
+            DiscoveryTarget(nmap_target="10.0.0.0/16", host_count=65536),
+            "ping",
+        )
+        self.assertEqual(timeout_seconds, 14400)
+
+    def test_port_timeout_for_slash16_reaches_about_four_hours(self) -> None:
+        timeout_seconds = discovery_process_timeout_seconds(
+            DiscoveryTarget(nmap_target="10.0.0.0/16", host_count=65536),
+            "port",
+        )
+        self.assertEqual(timeout_seconds, 14400)
+
+
     def test_parse_nmap_xml_derives_vendor_from_mac_prefix_database(self) -> None:
         mac_prefixes.cache_clear()
         xml = """

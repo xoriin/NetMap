@@ -39,6 +39,11 @@ class ScanCancelled(Exception):
 # subnet with no PTR zone no longer eats the nmap process timeout (#36).
 PTR_LOOKUP_WORKERS = 16
 PTR_LOOKUP_BUDGET_SECONDS = 20.0
+# Cap for the whole nmap process (~4h). DISCOVERY_SCAN_TIMEOUT_SECONDS remains
+# the floor/base; raising it above this also raises the cap (override).
+DISCOVERY_PROCESS_TIMEOUT_CAP_SECONDS = 14400
+# Bound the post-sweep PTR budget so a /16 of unanswered names cannot hang forever.
+PTR_LOOKUP_BUDGET_CAP_SECONDS = 600.0
 
 
 @dataclass(frozen=True)
@@ -280,15 +285,25 @@ def _reverse_lookup(ip_value: str) -> str | None:
     return None if not name or name.startswith("_") else name
 
 
+def ptr_lookup_budget_seconds(pending_count: int) -> float:
+    """Scale the reverse-DNS budget with unanswered hosts; floor 20s, cap 10 min."""
+    if pending_count <= 0:
+        return 0.0
+    # ~50 ms per host on top of the small-scan floor, without letting a /16 hang.
+    return min(PTR_LOOKUP_BUDGET_CAP_SECONDS, max(PTR_LOOKUP_BUDGET_SECONDS, 10.0 + pending_count * 0.05))
+
+
 def resolve_hostnames(
     hosts: list[DiscoveryHost],
     *,
     workers: int = PTR_LOOKUP_WORKERS,
-    budget_seconds: float = PTR_LOOKUP_BUDGET_SECONDS,
+    budget_seconds: float | None = None,
 ) -> list[DiscoveryHost]:
     pending = [host for host in hosts if not host.hostname]
     if not pending:
         return hosts
+    if budget_seconds is None:
+        budget_seconds = ptr_lookup_budget_seconds(len(pending))
     executor = ThreadPoolExecutor(max_workers=min(workers, len(pending)), thread_name_prefix="discovery-ptr")
     futures = {executor.submit(_reverse_lookup, host.ip_address): host for host in pending}
     finished, _ = wait(futures, timeout=budget_seconds)
@@ -315,17 +330,32 @@ def port_scan_host_timeout_seconds(target: DiscoveryTarget) -> int:
     return min(base_timeout, 20)
 
 
+
 def discovery_process_timeout_seconds(target: DiscoveryTarget, scan_type: str) -> int:
+    """Whole-process deadline for nmap.
+
+    ``DISCOVERY_SCAN_TIMEOUT_SECONDS`` is the base (and floor). The deadline then
+    scales with host count:
+
+    * ping: ``max(base + 10, 30 + ceil(hosts / 32) * 20)``
+    * port: ``max(base + 15, 45 + ceil(hosts / 16) * 25)``
+
+    The result is capped at about 4 hours (14400s). Raising
+    ``DISCOVERY_SCAN_TIMEOUT_SECONDS`` above that also raises the cap, so the
+    env var remains a usable override.
+    """
     base_timeout = max(15, settings.discovery_scan_timeout_seconds)
+    cap = max(DISCOVERY_PROCESS_TIMEOUT_CAP_SECONDS, base_timeout)
     if target.host_count <= 1:
-        return base_timeout + 10
+        return min(cap, base_timeout + 10)
 
     if scan_type == "ping":
         parallel_groups = max(1, math.ceil(target.host_count / 32))
-        return min(900, max(base_timeout + 10, 30 + (parallel_groups * 20)))
-
-    parallel_groups = max(1, math.ceil(target.host_count / 16))
-    return min(1800, max(base_timeout + 15, 45 + (parallel_groups * 25)))
+        scaled = max(base_timeout + 10, 30 + (parallel_groups * 20))
+    else:
+        parallel_groups = max(1, math.ceil(target.host_count / 16))
+        scaled = max(base_timeout + 15, 45 + (parallel_groups * 25))
+    return min(cap, scaled)
 
 
 def parse_nmap_xml(xml_output: str) -> list[DiscoveryHost]:

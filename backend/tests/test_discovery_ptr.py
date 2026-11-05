@@ -72,3 +72,10 @@ def test_resolver_made_names_are_not_hostnames(monkeypatch) -> None:
     monkeypatch.setattr(scanner.socket, "gethostbyaddr", lambda ip: (names[ip], [], [ip]))
     hosts = [DiscoveryHost(ip_address=ip) for ip in names]
     assert [host.hostname for host in scanner.resolve_hostnames(hosts)] == [None, None, "nas.lan"]
+
+
+def test_ptr_budget_scales_with_pending_hosts_and_is_capped() -> None:
+    assert scanner.ptr_lookup_budget_seconds(0) == 0.0
+    assert scanner.ptr_lookup_budget_seconds(1) == scanner.PTR_LOOKUP_BUDGET_SECONDS
+    assert scanner.ptr_lookup_budget_seconds(256) == max(scanner.PTR_LOOKUP_BUDGET_SECONDS, 10.0 + 256 * 0.05)
+    assert scanner.ptr_lookup_budget_seconds(65536) == scanner.PTR_LOOKUP_BUDGET_CAP_SECONDS
