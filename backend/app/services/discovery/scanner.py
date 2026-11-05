@@ -199,11 +199,7 @@ def run_nmap_scan(
     try:
         completed = _run_nmap_process(command, timeout_seconds, on_progress, cancel_event)
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            "Discovery scan timed out after "
-            f"{timeout_seconds} seconds for {target.host_count} hosts. "
-            "Reduce the target size or increase DISCOVERY_SCAN_TIMEOUT_SECONDS."
-        ) from exc
+        raise RuntimeError(discovery_timeout_message(timeout_seconds, target.host_count)) from exc
     if completed.returncode not in {0, 1}:
         output = f"{completed.stdout}\n{completed.stderr}"
         if raw_networking_error(output):
@@ -329,6 +325,14 @@ def port_scan_host_timeout_seconds(target: DiscoveryTarget) -> int:
         return base_timeout
     return min(base_timeout, 20)
 
+
+def discovery_timeout_message(timeout_seconds: float, host_count: int) -> str:
+    """Clear copy for the scan dialog when nmap hits the process deadline."""
+    minutes = max(1, int(round(timeout_seconds / 60.0)))
+    return (
+        f"Scan timed out after {minutes}m for {host_count} hosts; "
+        "try a smaller range or raise DISCOVERY_SCAN_TIMEOUT_SECONDS"
+    )
 
 
 def discovery_process_timeout_seconds(target: DiscoveryTarget, scan_type: str) -> int:

@@ -152,7 +152,10 @@ class DiscoveryScannerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as exc:
             run_nmap_scan(DiscoveryTarget(nmap_target="10.30.20.0/24", host_count=256), "ping")
 
-        self.assertIn("timed out after 190 seconds", str(exc.exception))
+        message = str(exc.exception)
+        self.assertIn("timed out after", message)
+        self.assertIn("256 hosts", message)
+        self.assertIn("DISCOVERY_SCAN_TIMEOUT_SECONDS", message)
 
 
     # --- /16 limit and timeout scaling (user report: /16 refused; scans time out) ---
@@ -186,6 +189,18 @@ class DiscoveryScannerTests(unittest.TestCase):
         )
         self.assertEqual(timeout_seconds, 14400)
 
+    def test_timeout_message_names_minutes_and_host_count(self) -> None:
+        with patch("app.core.capabilities.shutil.which", return_value="/usr/bin/nmap"), patch(
+            "app.services.discovery.scanner._run_nmap_process",
+            side_effect=subprocess.TimeoutExpired(cmd=["nmap"], timeout=14400),
+        ):
+            with self.assertRaises(RuntimeError) as exc:
+                run_nmap_scan(DiscoveryTarget(nmap_target="10.0.0.0/16", host_count=65536), "ping")
+        message = str(exc.exception)
+        self.assertIn("240m", message)
+        self.assertIn("65536 hosts", message)
+        self.assertIn("DISCOVERY_SCAN_TIMEOUT_SECONDS", message)
+        self.assertTrue(message.startswith("Scan timed out after"))
 
     def test_parse_nmap_xml_derives_vendor_from_mac_prefix_database(self) -> None:
         mac_prefixes.cache_clear()
