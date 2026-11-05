@@ -93,7 +93,9 @@ class Settings(BaseSettings):
         default=256,
         alias="DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION",
     )
-    discovery_max_hosts: int = Field(default=1024, alias="DISCOVERY_MAX_HOSTS")
+    # 65536 covers a private /16; larger targets still need confirm_large_scan
+    # once they pass DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION (default 256).
+    discovery_max_hosts: int = Field(default=65536, alias="DISCOVERY_MAX_HOSTS")
     tool_rate_limit_max_calls: int = Field(default=20, alias="TOOL_RATE_LIMIT_MAX_CALLS")
     tool_rate_limit_window_seconds: int = Field(default=60, alias="TOOL_RATE_LIMIT_WINDOW_SECONDS")
     api_key_rate_limit_max_calls: int = Field(default=120, alias="API_KEY_RATE_LIMIT_MAX_CALLS")
