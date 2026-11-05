@@ -219,13 +219,26 @@ export function StatusPageLayoutEditor({
     setFocusUid(uid);
   }
 
-  function addItem(groupUid: string, source: StatusItemSource) {
-    const uid = nextUid("item");
-    setGroups((current) => current.map((group) => (
-      group.uid === groupUid ? { ...group, items: [...group.items, { uid, id: null, source, display_name: "", extras: NO_EXTRAS }] } : group
-    )));
+  function addItems(groupUid: string, picked: StatusItemSource[]) {
+    if (picked.length === 0) return;
+    const created: string[] = [];
+    setGroups((current) => {
+      const used = new Set(current.flatMap((group) => group.items.map((item) => sourceKey(item.source))));
+      return current.map((group) => {
+        if (group.uid !== groupUid) return group;
+        const additions = picked
+          .filter((source) => !used.has(sourceKey(source)))
+          .map((source) => {
+            const uid = nextUid("item");
+            created.push(uid);
+            used.add(sourceKey(source));
+            return { uid, id: null, source, display_name: "", extras: NO_EXTRAS };
+          });
+        return additions.length === 0 ? group : { ...group, items: [...group.items, ...additions] };
+      });
+    });
     setPickerGroupUid(null);
-    setFocusUid(uid);
+    if (created.length > 0) setFocusUid(created[0]);
   }
 
   function beginDrag(event: DragEvent<HTMLButtonElement>, state: DragState) {
@@ -607,7 +620,7 @@ export function StatusPageLayoutEditor({
           sources={sources}
           sourcesError={sourcesError}
           usedKeys={usedKeys}
-          onPick={(source) => addItem(pickerGroup.uid, source)}
+          onPick={(picked) => addItems(pickerGroup.uid, picked)}
           onCancel={() => setPickerGroupUid(null)}
         />
       )}

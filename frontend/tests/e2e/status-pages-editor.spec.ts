@@ -159,6 +159,18 @@ async function openEditor(page: Page, name: string) {
   await expect(page.getByRole("tab", { name: "Settings" })).toBeVisible();
 }
 
+
+async function pickSources(page: Page, names: string[]) {
+  const picker = page.getByRole("dialog", { name: "Add item" });
+  for (const name of names) {
+    await picker.getByRole("checkbox", { name: `Select ${name}`, exact: true }).check();
+  }
+  const add = picker.getByRole("button", { name: names.length <= 1 ? /^(Add|Add to .+)$/ : `Add ${names.length} items` });
+  await add.click();
+  await expect(picker).toHaveCount(0);
+}
+
+
 for (const style of ["light", "slate", "zinc"] as const) {
   test(`editor preview shares the ${style} application theme`, async ({ page }) => {
     const api = new StatusPagesApi();
@@ -239,7 +251,9 @@ test("create page, add device with alias, save, preview shows alias not hostname
   const routerRow = picker.locator("tr", { hasText: "router-core-01" }).first();
   await expect(routerRow).toContainText("Device #1");
   await expect(routerRow).toContainText("192.168.100.1");
-  await routerRow.getByRole("button", { name: "Add" }).click();
+  await picker.getByRole("checkbox", { name: "Select router-core-01", exact: true }).check();
+  await expect(picker.getByText("1 selected", { exact: true })).toBeVisible();
+  await picker.getByRole("button", { name: /^(Add|Add to .+)$/ }).click();
   await expect(picker).toHaveCount(0);
 
   const displayName = page.getByLabel("Display name for router-core-01");
@@ -267,6 +281,50 @@ test("create page, add device with alias, save, preview shows alias not hostname
   await expect.poll(() => api.previewAudiences.at(-1)).toBe("private");
 });
 
+test("add-item picker multi-selects visible sources and skips ones already on the page", async ({ page }) => {
+  const api = new StatusPagesApi();
+  api.seed(newPage(1, {
+    name: "Ops",
+    slug: "ops",
+    groups: [{
+      id: 1,
+      name: "Services",
+      collapsed_by_default: false,
+      items: [{ id: 11, source: { device: 1 }, display_name: "Edge router", extras: NO_EXTRAS }],
+    }],
+  }));
+  await openApp(page);
+  await api.install(page);
+  await openStatusPages(page);
+  await openEditor(page, "Ops");
+  await page.getByRole("tab", { name: "Layout" }).click();
+
+  await page.getByRole("button", { name: "Add item to Services" }).click();
+  const picker = page.getByRole("dialog", { name: "Add item" });
+  await expect(picker.getByRole("checkbox", { name: "router-core-01 is already on this page", exact: true })).toBeDisabled();
+  await expect(picker.getByRole("row", { name: "router-core-01 is already on this page" })).toContainText("On page");
+
+  await picker.getByLabel("Search sources").fill("switch");
+  await expect(picker.getByRole("checkbox", { name: "Select switch-access-01", exact: true })).toBeVisible();
+  await expect(picker.getByRole("checkbox", { name: "Select fw-edge-01", exact: true })).toHaveCount(0);
+  await picker.getByLabel("Search sources").fill("");
+
+  await picker.getByRole("checkbox", { name: "Select all visible" }).check();
+  // Already-on-page device stays unchecked; every other visible source is selected.
+  await expect(picker.getByRole("checkbox", { name: "router-core-01 is already on this page", exact: true })).not.toBeChecked();
+  await expect(picker.getByText("4 selected", { exact: true })).toBeVisible();
+  await picker.getByRole("button", { name: /Add \d+ items/ }).click();
+  await expect(picker).toHaveCount(0);
+
+  await expect(page.getByLabel("Display name for switch-access-01")).toBeVisible();
+  await expect(page.getByLabel("Display name for fw-edge-01")).toBeVisible();
+  await expect(page.getByLabel("Display name for Customer portal")).toBeVisible();
+  await expect(page.getByLabel("Display name for router-core-01 · HTTPS")).toBeVisible();
+  // Existing on-page device stays once and was not re-added.
+  await expect(page.getByLabel("Display name for router-core-01", { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("Display name for router-core-01", { exact: true })).toHaveValue("Edge router");
+});
+
 test("cannot save item without display name", async ({ page }) => {
   const api = new StatusPagesApi();
   api.seed(newPage(1, { name: "Ops", slug: "ops", groups: [{ id: 1, name: "Services", collapsed_by_default: false, items: [] }] }));
@@ -277,7 +335,7 @@ test("cannot save item without display name", async ({ page }) => {
   await page.getByRole("tab", { name: "Layout" }).click();
 
   await page.getByRole("button", { name: "Add item to Services" }).click();
-  await page.getByRole("dialog", { name: "Add item" }).locator("tr", { hasText: "Customer portal" }).getByRole("button", { name: "Add" }).click();
+  await pickSources(page, ["Customer portal"]);
 
   const save = page.getByRole("button", { name: "Save layout" });
   const displayName = page.getByLabel("Display name for Customer portal");
@@ -413,7 +471,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Add item to Services" }).click();
     const picker = page.getByRole("dialog", { name: "Add item" });
     await expect(picker.locator(".nm-table-wrap > table.nm-table.status-source-table")).toBeVisible();
-    const pickerTh = picker.locator(".status-source-table thead th").first();
+    const pickerTh = picker.locator(".status-source-table thead th").filter({ hasText: "Source" });
     expect(await computed(pickerTh, "backgroundColor")).toBe(await resolveToken(pickerTh, "--nm-table-header-bg"));
     expect(await computed(pickerTh, "color")).toBe(await resolveToken(pickerTh, "--nm-table-header-text", "color"));
     const pickerCell = picker.locator(".status-source-table tbody tr").first().locator("td").nth(1);

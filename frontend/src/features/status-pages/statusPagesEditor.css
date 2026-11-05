@@ -317,6 +317,66 @@
   max-height: min(52vh, 480px);
 }
 
+.status-source-select-all {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--nm-space-2);
+  min-height: 24px;
+}
+
+.status-source-select-all .status-editor-sub {
+  color: var(--nm-text-muted);
+}
+
+.status-source-col-check {
+  width: 44px;
+  text-align: center;
+}
+
+.status-source-col-status {
+  width: 1%;
+}
+
+.status-source-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 0;
+}
+
+.status-source-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--nm-accent-strong);
+  cursor: pointer;
+}
+
+.status-source-check input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.status-source-table tbody tr.is-selected > td {
+  background: var(--nm-row-selected);
+}
+
+.status-source-on-page {
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-source-selected-count {
+  margin-right: auto;
+  color: var(--nm-text-muted);
+  font-size: var(--nm-text-sm);
+  font-weight: 600;
+}
+
 .status-editor-preview-body {
   display: grid;
   gap: var(--nm-space-3);
@@ -411,5 +471,21 @@
   .status-pages-table-wrap .status-pages-table tr > td:first-child { flex-basis: 100%; font-weight: 650; }
   .status-pages-table-wrap .status-pages-table tr > td:nth-child(n + 3):nth-child(-n + 5) { color: var(--nm-text-muted); font-size: 12px; }
   .status-pages-table-wrap .status-pages-table tr > td.status-pages-actions { flex-basis: 100%; white-space: normal; }
+
+  .status-source-table-wrap .status-source-table tr > td.status-source-col-check {
+    order: -1;
+    flex: 0 0 auto;
+  }
+  .status-source-table-wrap .status-source-table tr > td:nth-child(2) {
+    flex: 1 1 auto;
+    font-weight: 650;
+  }
+  .status-source-table-wrap .status-source-table tr > td:nth-child(n + 3):nth-child(-n + 4) {
+    color: var(--nm-text-muted);
+    font-size: 12px;
+  }
+  .status-source-table-wrap .status-source-table tr > td.status-source-action {
+    flex-basis: 100%;
+  }
 }
 
