@@ -6,6 +6,7 @@ import { Activity, CalendarClock, CircleCheck, Clock, History, Radar, Repeat, Ti
 import { DashStat } from "../../../components/DashStat";
 import { ColumnChart, CountUp } from "../../../components/Charts";
 import { lastDays, shortDateTime } from "../../../utils/history";
+import { DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION, estimateScanTarget } from "../../../utils/ip";
 import {
   api,
   type DiscoverySchedule, type DiscoveryObservation, type DiscoverySchedulePayload,
@@ -34,6 +35,9 @@ export function AutomationTab({
     name: string; target: string; scan_type: DiscoveryScanType;
     interval_minutes: string; enabled: boolean; group_id: string; notif_profile_id: string;
   }>({ name: "", target: "", scan_type: "ping", interval_minutes: "1440", enabled: true, group_id: "", notif_profile_id: "" });
+  const [confirmLargeScan, setConfirmLargeScan] = useState(false);
+  const targetEstimate = estimateScanTarget(schedForm.target);
+  const requiresConfirmation = targetEstimate.hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION;
 
   const automationQuery = useApiQuery(async () => {
     const [schedules, observations, groups, profiles] = await Promise.all([
@@ -58,6 +62,7 @@ export function AutomationTab({
   async function createSchedule(event: FormEvent) {
     event.preventDefault();
     if (!schedForm.target.trim()) return;
+    if (requiresConfirmation && !confirmLargeScan) return;
     setMutationBusy(true);
     onError(null); onSuccess(null);
     try {
@@ -67,11 +72,12 @@ export function AutomationTab({
         scan_type: schedForm.scan_type,
         enabled: schedForm.enabled,
         interval_minutes: Number(schedForm.interval_minutes),
-        confirm_large_scan: false,
+        confirm_large_scan: requiresConfirmation,
         topology_group_id: schedForm.group_id ? Number(schedForm.group_id) : null,
         notification_targets: schedForm.notif_profile_id ? [`profile:${schedForm.notif_profile_id}`] : [],
       };
       await api.createDiscoverySchedule(accessToken, payload);
+      setConfirmLargeScan(false);
       setSchedForm({ name: "", target: "", scan_type: "ping", interval_minutes: "1440", enabled: true, group_id: "", notif_profile_id: "" });
       await automationQuery.reload();
       onSuccess("Schedule created.");
@@ -176,7 +182,10 @@ export function AutomationTab({
         <label>
           Target <span className="tool-note" style={{ fontWeight: "normal" }}>(IP, CIDR, or range)</span>
           <input required placeholder="192.168.1.0/24" value={schedForm.target}
-            onChange={(e) => setSchedForm((f) => ({ ...f, target: e.target.value }))} />
+            onChange={(e) => {
+              setConfirmLargeScan(false);
+              setSchedForm((f) => ({ ...f, target: e.target.value }));
+            }} />
         </label>
         <label>
           Name <span className="tool-note" style={{ fontWeight: "normal" }}>(optional)</span>
@@ -215,11 +224,27 @@ export function AutomationTab({
             {notificationProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
+        <div className="scan-target-info">
+          <span className={requiresConfirmation ? "scan-target-label warning" : "scan-target-label"}>
+            {targetEstimate.label}
+          </span>
+          <span className="scan-target-help">{targetEstimate.help}</span>
+          {requiresConfirmation && (
+            <label className="scan-confirm-check">
+              <input
+                checked={confirmLargeScan}
+                type="checkbox"
+                onChange={(event) => setConfirmLargeScan(event.target.checked)}
+              />
+              Confirm large scan
+            </label>
+          )}
+        </div>
         <label className="tool-form-inline-check">
           <input type="checkbox" checked={schedForm.enabled} onChange={(e) => setSchedForm((f) => ({ ...f, enabled: e.target.checked }))} />
           Enable immediately
         </label>
-        <button type="submit" className="nm-btn nm-btn--primary" disabled={automationBusy || !schedForm.target.trim()}>
+        <button type="submit" className="nm-btn nm-btn--primary" disabled={automationBusy || !schedForm.target.trim() || (requiresConfirmation && !confirmLargeScan)}>
           {automationBusy ? "Saving…" : "Create schedule"}
         </button>
       </form>

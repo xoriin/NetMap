@@ -10,7 +10,7 @@ import {
   type Site,
   api,
 } from "../../api/client";
-import { estimateScanTarget } from "../../utils/ip";
+import { DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION, estimateScanTarget } from "../../utils/ip";
 import { Modal } from "../../components/Modal";
 import { ScanProgress } from "../../components/ScanProgress";
 
@@ -103,7 +103,7 @@ export function DiscoveryModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const targetEstimate = estimateScanTarget(target);
-  const requiresConfirmation = targetEstimate.hostCount > 256;
+  const requiresConfirmation = targetEstimate.hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION;
   const canStartScan = !busy && target.trim().length > 0 && (!requiresConfirmation || confirmLargeScan);
   const selectedGroup = groups.find((group) => String(group.id) === selectedGroupId) ?? null;
 

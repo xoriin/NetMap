@@ -1,3 +1,5 @@
+export const DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION = 256;
+
 export function prefixToMask(prefix: number): string {
   if (prefix === 0) return "0.0.0.0";
   const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
@@ -56,7 +58,7 @@ export function estimateScanTarget(rawTarget: string) {
       return {
         hostCount,
         label: `${hostCount} IPv4 addresses`,
-        help: hostCount > 256 ? "This is larger than a /24 and requires confirmation." : "Private /24-sized scans can start directly.",
+        help: hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION ? "This is larger than a /24 and requires confirmation." : "Private /24-sized scans can start directly.",
       };
     }
   }
@@ -71,7 +73,7 @@ export function estimateScanTarget(rawTarget: string) {
       return {
         hostCount,
         label: `${hostCount} IPv4 addresses`,
-        help: hostCount > 256 ? "Large ranges require confirmation." : "Range is within the normal scan size.",
+        help: hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION ? "Large ranges require confirmation." : "Range is within the normal scan size.",
       };
     }
   }
