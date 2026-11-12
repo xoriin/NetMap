@@ -489,3 +489,36 @@
   }
 }
 
+@media (max-width: 760px) {
+  .modal:has(.status-source-picker) {
+    display: flex;
+    flex-direction: column;
+    max-height: 92dvh;
+    overflow: hidden;
+  }
+
+  .modal:has(.status-source-picker) .modal-header,
+  .modal:has(.status-source-picker) .modal-footer {
+    flex: 0 0 auto;
+  }
+
+  .modal:has(.status-source-picker) .status-source-picker {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .modal:has(.status-source-picker) .status-source-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .modal:has(.status-source-picker) .modal-footer {
+    flex-wrap: wrap;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}

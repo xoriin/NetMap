@@ -784,3 +784,37 @@ test("the group icon picker offers only icons every visitor's browser has", asyn
   await expect(picker.getByText('No icons match "Site only"')).toBeVisible();
 });
 
+test("add-item picker footer stays in view on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const api = new StatusPagesApi();
+  api.seed(newPage(1, {
+    name: "Ops",
+    slug: "ops",
+    groups: [{
+      id: 1,
+      name: "Services",
+      collapsed_by_default: false,
+      items: [{ id: 11, source: { device: 1 }, display_name: "Edge router", extras: NO_EXTRAS }],
+    }],
+  }));
+  await openApp(page, "dark");
+  await page.addInitScript(() => { if (window === window.top) localStorage.setItem("netmap.dark_style", "slate"); });
+  await api.install(page);
+  await page.goto("/monitoring#status-pages");
+  await expect(page.locator(".status-pages-window")).toBeVisible();
+  await openEditor(page, "Ops");
+  await page.getByRole("tab", { name: "Layout" }).click();
+  await page.getByRole("button", { name: "Add item to Services" }).click();
+  const picker = page.getByRole("dialog", { name: "Add item" });
+  await expect(picker).toBeVisible();
+  await picker.getByRole("checkbox", { name: "Select switch-access-01", exact: true }).check();
+  await picker.getByRole("checkbox", { name: "Select fw-edge-01", exact: true }).check();
+  const add = picker.getByRole("button", { name: "Add 2 items" });
+  await expect(add).toBeVisible();
+  const footer = picker.locator(".modal-footer");
+  await expect(footer).toBeInViewport();
+  const box = await footer.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+});
