@@ -113,6 +113,14 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
       },
     },
     {
+      selector: "node.zone.zone-cloud",
+      style: {
+        "border-style": "dashed",
+        "border-width": 2,
+        "border-opacity": 0.9,
+      },
+    },
+    {
       selector: "edge",
       style: {
         "curve-style": "bezier",

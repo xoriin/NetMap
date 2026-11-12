@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 import "./vlans.css";
-import { BarChart3, ChevronUp, ChevronDown, Layers, Maximize2, Network, Search, Server } from "lucide-react";
+import { BarChart3, ChevronUp, ChevronDown, Cloud, Layers, Maximize2, Network, Search, Server } from "lucide-react";
 import { DashStat } from "../../components/DashStat";
 import { InsightPanel } from "../../components/InsightPanel";
 import { ColumnChart, CountUp } from "../../components/Charts";
 import { resolveEntityColor } from "../../utils/entityColor";
-import { api, type TopologyGroup, type TopologyGraph } from "../../api/client";
+import { api, type TopologyGroup, type TopologyGroupKind, type TopologyGraph } from "../../api/client";
 import { blankToNull } from "../../utils/format";
 import { cidrUsableHosts, formatUsableHosts } from "../../utils/ip";
 import { Modal, ModalFooterActions } from "../../components/Modal";
@@ -18,6 +18,23 @@ import { TableSkeleton } from "../../components/Skeleton";
 const VLAN_COL_WIDTHS_KEY = "netmap.vlan_col_widths_v1";
 const VLAN_COL_COUNT = 6;
 const VLAN_MIN_COL_WIDTH = 64;
+
+const EMPTY_GROUP_FORM = {
+  name: "",
+  display_name: "",
+  vlan_id: "",
+  ip_range: "",
+  gateway: "",
+  dns_servers: "",
+  description: "",
+  kind: "network" as TopologyGroupKind,
+  provider: "",
+};
+
+function isCloudGroup(group: TopologyGroup | null | undefined): boolean {
+  return group?.kind === "cloud";
+}
+
 
 function loadVlanColWidths(): number[] | null {
   try {
@@ -52,7 +69,7 @@ export function VlanWorkspace({
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', display_name: '', vlan_id: '', ip_range: '', gateway: '', dns_servers: '', description: '' });
+  const [form, setForm] = useState(EMPTY_GROUP_FORM);
   const [vlanSearch, setVlanSearch] = useState('');
   const [colWidths, setColWidths] = useState<number[] | null>(loadVlanColWidths);
   const tableHeaderRef = useRef<HTMLDivElement | null>(null);
@@ -112,7 +129,9 @@ export function VlanWorkspace({
 	          (row.entity?.ip_range ?? '').toLowerCase().includes(q) ||
 	          (row.entity?.gateway ?? '').toLowerCase().includes(q) ||
 	          (row.entity?.dns_servers ?? '').toLowerCase().includes(q) ||
-          (row.entity?.description ?? '').toLowerCase().includes(q)
+          (row.entity?.description ?? '').toLowerCase().includes(q) ||
+          (row.entity?.provider ?? '').toLowerCase().includes(q) ||
+          (isCloudGroup(row.entity) && "cloud".includes(q))
         )
       : mergedRows;
     return [...rows].sort((a, b) => {
@@ -153,7 +172,7 @@ export function VlanWorkspace({
 
   function openCreateForm(prefillName = '') {
     setEditingId(null);
-    setForm({ name: prefillName, display_name: '', vlan_id: '', ip_range: '', gateway: '', dns_servers: '', description: '' });
+    setForm({ ...EMPTY_GROUP_FORM, name: prefillName });
     setFormError(null);
     saveGroup.clearError();
     setShowForm(true);
@@ -164,11 +183,13 @@ export function VlanWorkspace({
     setForm({
       name: group.name,
       display_name: group.display_name ?? '',
-      vlan_id: group.vlan_id ?? '',
-      ip_range: group.ip_range ?? '',
-      gateway: group.gateway ?? '',
-      dns_servers: group.dns_servers ?? '',
+      vlan_id: isCloudGroup(group) ? '' : (group.vlan_id ?? ''),
+      ip_range: isCloudGroup(group) ? '' : (group.ip_range ?? ''),
+      gateway: isCloudGroup(group) ? '' : (group.gateway ?? ''),
+      dns_servers: isCloudGroup(group) ? '' : (group.dns_servers ?? ''),
       description: group.description ?? '',
+      kind: isCloudGroup(group) ? 'cloud' : 'network',
+      provider: isCloudGroup(group) ? (group.provider ?? '') : '',
     });
     setFormError(null);
     saveGroup.clearError();
@@ -178,6 +199,14 @@ export function VlanWorkspace({
   function closeForm() {
     setShowForm(false);
     setFormError(null);
+  }
+
+  function switchKind(next: TopologyGroupKind) {
+    setForm((current) => (
+      next === "cloud"
+        ? { ...current, kind: "cloud", vlan_id: "", ip_range: "", gateway: "", dns_servers: "" }
+        : { ...current, kind: "network", provider: "" }
+    ));
   }
 
   async function handleFormSubmit(event: FormEvent) {
@@ -190,15 +219,34 @@ export function VlanWorkspace({
     }
     setFormError(null);
     const existingGroupId = effectiveEditingGroup?.id ?? null;
-    const saved = await saveGroup.run({
-      name,
-      display_name: blankToNull(form.display_name),
-      vlan_id: blankToNull(form.vlan_id),
-      ip_range: blankToNull(form.ip_range),
-      gateway: blankToNull(form.gateway),
-      dns_servers: blankToNull(form.dns_servers),
-      description: blankToNull(form.description),
-    }, existingGroupId);
+    const saved = await saveGroup.run(
+      form.kind === "cloud"
+        ? {
+            name,
+            display_name: blankToNull(form.display_name),
+            description: blankToNull(form.description),
+            kind: "cloud",
+            provider: blankToNull(form.provider.trim().slice(0, 64)),
+            vlan_id: null,
+            ip_range: null,
+            gateway: null,
+            dhcp_start: null,
+            dhcp_end: null,
+            dns_servers: null,
+          }
+        : {
+            name,
+            display_name: blankToNull(form.display_name),
+            description: blankToNull(form.description),
+            kind: "network",
+            provider: null,
+            vlan_id: blankToNull(form.vlan_id),
+            ip_range: blankToNull(form.ip_range),
+            gateway: blankToNull(form.gateway),
+            dns_servers: blankToNull(form.dns_servers),
+          },
+      existingGroupId,
+    );
     if (saved === null) return;
     await groupsQuery.reload();
     await onGraphChange();
@@ -233,24 +281,51 @@ export function VlanWorkspace({
 
   const vlanFormFields = (
     <div className="vlan-form-grid">
+      <div className="nm-field vlan-form-grid__full">
+        <span className="nm-field-label" id="vlan-group-kind-label">Type</span>
+        <div className="vlan-kind-toggle" role="group" aria-labelledby="vlan-group-kind-label">
+          {([
+            ["network", "Network"],
+            ["cloud", "Cloud"],
+          ] as const).map(([kind, label]) => (
+            <button
+              key={kind}
+              type="button"
+              className={`nm-btn nm-btn--sm${form.kind === kind ? " nm-btn--active" : " nm-btn--secondary"}`}
+              aria-pressed={form.kind === kind}
+              onClick={() => switchKind(kind)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="nm-field"><span className="nm-field-label">Name *</span>
         <input className="nm-input" required value={form.name} onChange={(event) => setForm((c) => ({ ...c, name: event.target.value }))} />
       </label>
       <label className="nm-field"><span className="nm-field-label">Display name</span>
         <input className="nm-input" value={form.display_name} onChange={(event) => setForm((c) => ({ ...c, display_name: event.target.value }))} />
       </label>
-      <label className="nm-field"><span className="nm-field-label">VLAN ID</span>
-        <input className="nm-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
-      </label>
-      <label className="nm-field"><span className="nm-field-label">Subnet (CIDR)</span>
-        <input className="nm-input vlan-input--mono" placeholder="192.168.1.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
-      </label>
-      <label className="nm-field"><span className="nm-field-label">Gateway</span>
-        <input className="nm-input vlan-input--mono" placeholder="192.168.1.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
-      </label>
-      <label className="nm-field"><span className="nm-field-label">DNS servers</span>
-        <input className="nm-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
-      </label>
+      {form.kind === "cloud" ? (
+        <label className="nm-field vlan-form-grid__full"><span className="nm-field-label">Provider</span>
+          <input className="nm-input" maxLength={64} placeholder="e.g. AWS" value={form.provider} onChange={(event) => setForm((c) => ({ ...c, provider: event.target.value }))} />
+        </label>
+      ) : (
+        <>
+          <label className="nm-field"><span className="nm-field-label">VLAN ID</span>
+            <input className="nm-input" placeholder="e.g. 10" value={form.vlan_id} onChange={(event) => setForm((c) => ({ ...c, vlan_id: event.target.value }))} />
+          </label>
+          <label className="nm-field"><span className="nm-field-label">Subnet (CIDR)</span>
+            <input className="nm-input vlan-input--mono" placeholder="192.168.1.0/24" value={form.ip_range} onChange={(event) => setForm((c) => ({ ...c, ip_range: event.target.value }))} />
+          </label>
+          <label className="nm-field"><span className="nm-field-label">Gateway</span>
+            <input className="nm-input vlan-input--mono" placeholder="192.168.1.1" value={form.gateway} onChange={(event) => setForm((c) => ({ ...c, gateway: event.target.value }))} />
+          </label>
+          <label className="nm-field"><span className="nm-field-label">DNS servers</span>
+            <input className="nm-input" placeholder="8.8.8.8, 1.1.1.1" value={form.dns_servers} onChange={(event) => setForm((c) => ({ ...c, dns_servers: event.target.value }))} />
+          </label>
+        </>
+      )}
       <label className="nm-field vlan-form-grid__full"><span className="nm-field-label">Description</span>
         <input className="nm-input" value={form.description} onChange={(event) => setForm((c) => ({ ...c, description: event.target.value }))} />
       </label>
@@ -318,7 +393,7 @@ export function VlanWorkspace({
   };
   const withVlan = groups.filter((g) => g.vlan_id).length;
   const assigned = graph.devices.filter((d) => d.topology_group && d.topology_group !== "Ungrouped").length;
-  const subnets = groups.map((g) => ({ group: g, usable: g.ip_range ? cidrUsableHosts(g.ip_range) : null })).filter((entry): entry is { group: TopologyGroup; usable: number } => entry.usable !== null);
+  const subnets = groups.filter((g) => !isCloudGroup(g)).map((g) => ({ group: g, usable: g.ip_range ? cidrUsableHosts(g.ip_range) : null })).filter((entry): entry is { group: TopologyGroup; usable: number } => entry.usable !== null);
   const usableTotal = subnets.reduce((sum, entry) => sum + entry.usable, 0);
   const largest = [...subnets].sort((a, b) => b.usable - a.usable)[0];
 
@@ -345,7 +420,7 @@ export function VlanWorkspace({
         {showForm && (
           <Modal
             title={effectiveEditingGroup ? "Edit group" : "New group"}
-            titleIcon={<Network size={18} />}
+            titleIcon={form.kind === "cloud" ? <Cloud size={18} /> : <Network size={18} />}
             onCancel={closeForm}
             bodyClassName="vlan-modal-body"
             footer={(
@@ -425,13 +500,19 @@ export function VlanWorkspace({
               {filteredSortedRows.map((row) => {
                 const deviceCount = deviceCountByGroup.get(row.name) ?? 0;
                 const usable = row.entity ? cidrUsableHosts(row.entity.ip_range) : null;
+                const nameSubtitle = isCloudGroup(row.entity)
+                  ? (row.entity!.provider || row.entity!.display_name)
+                  : row.entity?.display_name;
                 return (
-                  <div key={`${row.type}-${row.name}`} className="vlan-row">
+                  <div key={`${row.type}-${row.name}`} className="vlan-row" data-group-kind={isCloudGroup(row.entity) ? "cloud" : "network"}>
                     <span className="vlan-cell-name">
+                      {isCloudGroup(row.entity) && (
+                        <Cloud size={14} className="vlan-cloud-icon" role="img" aria-label="Cloud group" />
+                      )}
                       <span className="vlan-name-stack">
                         <span className="vlan-name-primary">{row.name}</span>
-                        {row.type === 'entity' && row.entity!.display_name && (
-                          <span className="vlan-name-sub">{row.entity!.display_name}</span>
+                        {nameSubtitle && (
+                          <span className="vlan-name-sub">{nameSubtitle}</span>
                         )}
                       </span>
                       {row.type === 'inferred' && <span className="vlan-inferred-badge">inferred</span>}

@@ -270,6 +270,19 @@ body.theme-dark .vlan-workspace .vlan-device-badge {
   font-family: 'SF Mono', 'Fira Mono', Consolas, monospace;
 }
 
+.vlan-kind-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nm-space-2);
+}
+
+.vlan-workspace .vlan-cloud-icon,
+body.theme-dark .vlan-workspace .vlan-cloud-icon {
+  flex: 0 0 auto;
+  color: var(--nm-text-muted);
+}
+
+
 @media (max-width: 760px) {
   .vlan-workspace .vlan-toolbar.nm-app-panel-header {
     align-items: stretch;

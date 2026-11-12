@@ -317,6 +317,8 @@ export type TopologyLayout = {
   updated_at: string;
 };
 
+export type TopologyGroupKind = "network" | "cloud";
+
 export type TopologyGroup = {
   id: number;
   name: string;
@@ -329,6 +331,8 @@ export type TopologyGroup = {
   dns_servers: string | null;
   description: string | null;
   color: string | null;
+  kind: TopologyGroupKind;
+  provider: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1793,7 +1797,7 @@ export const api = {
     request<void>(`/api/v1/topology/sites/${siteId}`, { method: "DELETE", token }),
   createTopologyGroup: (
     token: string,
-    payload: { name: string; display_name: string | null; vlan_id?: string | null; ip_range: string | null; gateway?: string | null; dhcp_start?: string | null; dhcp_end?: string | null; dns_servers?: string | null; description: string | null },
+    payload: { name: string; display_name: string | null; vlan_id?: string | null; ip_range: string | null; gateway?: string | null; dhcp_start?: string | null; dhcp_end?: string | null; dns_servers?: string | null; description: string | null; kind?: TopologyGroupKind; provider?: string | null },
   ) =>
     request<TopologyGroup>("/api/v1/topology/groups", {
       method: "POST",
@@ -1803,7 +1807,7 @@ export const api = {
   updateTopologyGroup: (
     token: string,
     groupId: number,
-    payload: Partial<{ name: string; display_name: string | null; vlan_id: string | null; ip_range: string | null; gateway: string | null; dhcp_start: string | null; dhcp_end: string | null; dns_servers: string | null; description: string | null; color: string | null }>,
+    payload: Partial<{ name: string; display_name: string | null; vlan_id: string | null; ip_range: string | null; gateway: string | null; dhcp_start: string | null; dhcp_end: string | null; dns_servers: string | null; description: string | null; color: string | null; kind: TopologyGroupKind; provider: string | null }>,
   ) =>
     request<TopologyGroup>(`/api/v1/topology/groups/${groupId}`, {
       method: "PATCH",

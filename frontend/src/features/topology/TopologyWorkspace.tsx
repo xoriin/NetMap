@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import "./topology.css";
 import cytoscape, { type Core, type EdgeSingular } from "cytoscape";
-import { Network } from "lucide-react";
+import { Cloud, Network } from "lucide-react";
 import {
   api,
   type Device, type Relationship, type RelationshipPayload, type DevicePayload,
@@ -152,7 +152,7 @@ export function TopologyWorkspace({
     Array<{ id: number; x: number; y: number; lines: string[]; color: string; icon: DeviceIcon; size: number; labelFontSize: number; status: string }>
   >([]);
   const [overlayGroups, setOverlayGroups] = useState<
-    Array<{ id: string; label: string; x: number; y: number; width: number; online: number }>
+    Array<{ id: string; label: string; x: number; y: number; width: number; online: number; kind: "network" | "cloud"; provider: string | null }>
   >([]);
   const [overlayLinks, setOverlayLinks] = useState<
     Array<{ id: number; x: number; y: number; label: string; speed: string | null }>
@@ -673,6 +673,16 @@ export function TopologyWorkspace({
     && groupZoneOpacityPercent === DEFAULT_GROUP_ZONE_OPACITY_PERCENT
     && edgeLabelFontSize === DEFAULT_EDGE_LABEL_FONT_SIZE;
 
+  const groupMetaByName = useMemo(() => {
+    const map = new Map<string, { kind: "network" | "cloud"; provider: string | null }>();
+    for (const group of groups) {
+      const meta = { kind: group.kind === "cloud" ? "cloud" as const : "network" as const, provider: group.provider ?? null };
+      map.set(group.name, meta);
+      if (group.display_name) map.set(group.display_name, meta);
+    }
+    return map;
+  }, [groups]);
+
   const refreshOverlayNodes = useCallback(() => {
     const cy = cyRef.current;
     if (!cy) {
@@ -727,6 +737,7 @@ export function TopologyWorkspace({
           : (liveStatusByDeviceId.get(device.id)?.status ?? device.monitor_status ?? device.status);
         return count + (liveStatus === "online" ? 1 : 0);
       }, 0);
+      const meta = groupMetaByName.get(label);
       return {
         id: zone.id(),
         label,
@@ -734,6 +745,8 @@ export function TopologyWorkspace({
         y: bounds.y1 + 10,
         width: Math.max(80, bounds.w - 24),
         online,
+        kind: meta?.kind === "cloud" ? "cloud" as const : "network" as const,
+        provider: meta?.provider ?? null,
       };
     });
     setOverlayGroups((current) => (sameOverlayRows(current, nextGroups) ? current : nextGroups));
@@ -755,7 +768,7 @@ export function TopologyWorkspace({
     const extent = cy.extent();
     const nextExtent = { x1: extent.x1, y1: extent.y1, x2: extent.x2, y2: extent.y2 };
     setMinimapExtent((current) => (current && sameOverlayRows([current], [nextExtent]) ? current : nextExtent));
-  }, [activeIconPackId, iconsRevision, filteredGraph.devices, groupDisplayPrefs, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
+  }, [activeIconPackId, iconsRevision, filteredGraph.devices, groupDisplayPrefs, groupMetaByName, livePingEnabled, liveStatusByDeviceId, nodeLabelFontSize]);
 
   useEffect(() => {
     refreshOverlayNodesRef.current = refreshOverlayNodes;
@@ -1072,17 +1085,23 @@ export function TopologyWorkspace({
     cy.batch(() => {
       cy.elements().remove();
       cy.add([
-        ...layout.groups.map((group) => ({
-          group: "nodes" as const,
-          classes: "zone",
-          data: {
-            id: group.id,
-            label: group.label,
-            zoneLabelColor: palette.liveZoneLabel,
-            zoneBgColor: palette.liveZoneFill,
-            zoneBorderColor: palette.liveZoneBorder,
-          },
-        })),
+        ...layout.groups.map((group) => {
+          const meta = groupMetaByName.get(group.label);
+          const isCloud = meta?.kind === "cloud";
+          return {
+            group: "nodes" as const,
+            classes: isCloud ? "zone zone-cloud" : "zone",
+            data: {
+              id: group.id,
+              label: group.label,
+              kind: isCloud ? "cloud" : "network",
+              provider: meta?.provider ?? null,
+              zoneLabelColor: palette.liveZoneLabel,
+              zoneBgColor: palette.liveZoneFill,
+              zoneBorderColor: palette.liveZoneBorder,
+            },
+          };
+        }),
         ...filteredGraph.devices.map((device) => {
           const liveStatus = isDeviceMonitoringPaused(device) || !livePingEnabled
             ? "paused"
@@ -1162,7 +1181,7 @@ export function TopologyWorkspace({
       cy.fit(undefined, 36);
       fitOnNextRenderRef.current = false;
     }
-  }, [activeIconPackId, iconsRevision, filteredGraph, groupDisplayPrefs, layoutRevision, liveStatusByDeviceId, theme, userId]);
+  }, [activeIconPackId, iconsRevision, filteredGraph, groupDisplayPrefs, groupMetaByName, layoutRevision, liveStatusByDeviceId, theme, userId]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -1211,14 +1230,18 @@ export function TopologyWorkspace({
     if (!cy) {
       return;
     }
-    cy.$("node.zone").style({
-      "background-opacity": groupZoneOpacityPercent === 0
-        ? 0
-        : 0.16 + (groupZoneOpacityPercent / 100) * 0.42,
-      "border-opacity": showGroupZoneBorders ? 0.72 : 0,
-      "border-width": showGroupZoneBorders ? 1 : 0,
+    cy.$("node.zone").forEach((node) => {
+      const cloud = node.hasClass("zone-cloud");
+      node.style({
+        "background-opacity": groupZoneOpacityPercent === 0
+          ? 0
+          : 0.16 + (groupZoneOpacityPercent / 100) * 0.42,
+        "border-opacity": showGroupZoneBorders ? (cloud ? 0.9 : 0.72) : 0,
+        "border-width": showGroupZoneBorders ? (cloud ? 2 : 1) : 0,
+        "border-style": cloud ? "dashed" : "solid",
+      });
     });
-  }, [groupZoneOpacityPercent, layoutRevision, showGroupZoneBorders]);
+  }, [groupMetaByName, groupZoneOpacityPercent, layoutRevision, showGroupZoneBorders]);
 
   useEffect(() => {
     if (!jumpTarget) {
@@ -1893,10 +1916,11 @@ export function TopologyWorkspace({
               <div
                 key={`group-label-${group.id}`}
                 className="topology-group-header"
+                data-group-kind={group.kind}
                 style={{ left: `${group.x}px`, top: `${group.y}px`, width: `${group.width}px` }}
               >
                 <span className="topology-group-header__identity">
-                  <Network size={14} aria-hidden="true" />
+                  {group.kind === "cloud" ? <Cloud size={14} aria-hidden="true" /> : <Network size={14} aria-hidden="true" />}
                   <span>{group.label}</span>
                 </span>
                 <span className={`topology-group-header__count${group.online === 0 ? " is-empty" : ""}`}>
