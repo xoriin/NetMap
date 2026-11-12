@@ -179,3 +179,10 @@ class ObservationSummary(BaseModel):
     days: list[ObservationDay]
     open: int
     resolved: int
+
+
+class DiscoveryConfig(BaseModel):
+    """Read-only scan-size limits for the discovery dialog."""
+    discovery_max_hosts_without_confirmation: int
+    discovery_max_hosts: int
+

@@ -28,6 +28,7 @@ from app.schemas.discovery import (
     DiscoveryScheduleRead,
     DiscoveryScheduleUpdate,
     DiscoveryStart,
+    DiscoveryConfig,
 )
 from app.services.audit.service import write_audit
 from app.services.discovery import manual as manual_scans
@@ -112,6 +113,17 @@ def scan_to_read_with_inventory(scan: DiscoveryScan, db: Session) -> DiscoverySc
         return read
     read.results = annotate_hosts_with_inventory(read.results, db)
     return read
+
+
+@router.get("/config", response_model=DiscoveryConfig)
+def discovery_config(
+    _current_user: Annotated[User, Depends(require_discovery_manage)],
+) -> DiscoveryConfig:
+    """Host-count limits for the scan dialog; same permission as starting a scan."""
+    return DiscoveryConfig(
+        discovery_max_hosts_without_confirmation=settings.discovery_max_hosts_without_confirmation,
+        discovery_max_hosts=settings.discovery_max_hosts,
+    )
 
 
 @router.post(

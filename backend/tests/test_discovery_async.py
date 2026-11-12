@@ -328,6 +328,7 @@ def test_nmap_process_still_times_out_without_cancel() -> None:
         scanner._run_nmap_process([sys.executable, "-c", "import time; time.sleep(30)"], 0.5)
 
 
+
 def test_unconfirmed_large_scan_does_not_consume_the_rate_limit(factory, submitted) -> None:
     user = _admin(factory)
     body = {"target": "10.0.0.0/23", "scan_type": "ping"}
@@ -350,3 +351,19 @@ def test_unconfirmed_large_scan_does_not_consume_the_rate_limit(factory, submitt
     assert [job.scan_id for job in submitted] == [confirmed.json()["id"]]
 
 
+
+def test_discovery_config_is_visible_only_to_users_who_can_scan(factory) -> None:
+    admin = _admin(factory)
+    with factory() as db:
+        viewer = add_user(db, "watcher", UserRole.VIEWER)
+    with real_app_client(factory, admin) as client:
+        allowed = client.get("/api/v1/discovery/config")
+    with real_app_client(factory, viewer) as client:
+        denied = client.get("/api/v1/discovery/config")
+    assert allowed.status_code == 200
+    body = allowed.json()
+    assert body == {
+        "discovery_max_hosts_without_confirmation": 256,
+        "discovery_max_hosts": 65536,
+    }
+    assert denied.status_code == 403
