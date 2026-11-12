@@ -102,8 +102,9 @@ export function DiscoveryModal({
   const [updateIpOnMacMatch, setUpdateIpOnMacMatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const targetEstimate = estimateScanTarget(target);
-  const requiresConfirmation = targetEstimate.hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION;
+  const [confirmThreshold, setConfirmThreshold] = useState(DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION);
+  const targetEstimate = estimateScanTarget(target, confirmThreshold);
+  const requiresConfirmation = targetEstimate.hostCount > confirmThreshold;
   const canStartScan = !busy && target.trim().length > 0 && (!requiresConfirmation || confirmLargeScan);
   const selectedGroup = groups.find((group) => String(group.id) === selectedGroupId) ?? null;
 
@@ -123,6 +124,9 @@ export function DiscoveryModal({
     api.topologyGroups(accessToken).then(setGroups).catch(() => {});
     api.sites(accessToken).then(setSites).catch(() => {});
     api.listSnmpProfiles(accessToken).then(setSnmpProfiles).catch(() => {});
+    api.getDiscoveryConfig(accessToken)
+      .then((config) => setConfirmThreshold(config.discovery_max_hosts_without_confirmation))
+      .catch(() => {});
   }, [accessToken]);
 
   async function createNewGroup() {

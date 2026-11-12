@@ -36,8 +36,6 @@ export function AutomationTab({
     interval_minutes: string; enabled: boolean; group_id: string; notif_profile_id: string;
   }>({ name: "", target: "", scan_type: "ping", interval_minutes: "1440", enabled: true, group_id: "", notif_profile_id: "" });
   const [confirmLargeScan, setConfirmLargeScan] = useState(false);
-  const targetEstimate = estimateScanTarget(schedForm.target);
-  const requiresConfirmation = targetEstimate.hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION;
 
   const automationQuery = useApiQuery(async () => {
     const [schedules, observations, groups, profiles] = await Promise.all([
@@ -52,6 +50,13 @@ export function AutomationTab({
     () => canManageDiscovery ? api.observationSummary(accessToken) : Promise.resolve(null),
     [accessToken, canManageDiscovery],
   );
+  const configQuery = useApiQuery(
+    () => canManageDiscovery ? api.getDiscoveryConfig(accessToken) : Promise.resolve(null),
+    [accessToken, canManageDiscovery],
+  );
+  const confirmThreshold = configQuery.data?.discovery_max_hosts_without_confirmation ?? DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION;
+  const targetEstimate = estimateScanTarget(schedForm.target, confirmThreshold);
+  const requiresConfirmation = targetEstimate.hostCount > confirmThreshold;
 
   const schedules = automationQuery.data?.schedules ?? [];
   const observations = automationQuery.data?.observations ?? [];

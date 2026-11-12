@@ -436,6 +436,11 @@ export type DiscoverySchedulePayload = {
   notification_targets?: string[];
 };
 
+export type DiscoveryConfig = {
+  discovery_max_hosts_without_confirmation: number;
+  discovery_max_hosts: number;
+};
+
 export type SnmpInterfaceResult = {
   index: number;
   name: string | null;
@@ -1906,6 +1911,8 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  getDiscoveryConfig: (token: string, signal?: AbortSignal) =>
+    request<DiscoveryConfig>("/api/v1/discovery/config", { token, signal }),
   startDiscoveryScan: (
     token: string,
     payload: {

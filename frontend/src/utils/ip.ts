@@ -45,7 +45,10 @@ export function ipv4ToNumber(parts: number[]) {
   return ((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
 }
 
-export function estimateScanTarget(rawTarget: string) {
+export function estimateScanTarget(
+  rawTarget: string,
+  confirmThreshold: number = DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION,
+) {
   const target = rawTarget.trim();
   if (!target) {
     return { hostCount: 0, label: "Enter a private target", help: "Single IP, IP range, and CIDR notation are supported." };
@@ -58,7 +61,7 @@ export function estimateScanTarget(rawTarget: string) {
       return {
         hostCount,
         label: `${hostCount} IPv4 addresses`,
-        help: hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION ? "This is larger than a /24 and requires confirmation." : "Private /24-sized scans can start directly.",
+        help: hostCount > confirmThreshold ? "This is larger than a /24 and requires confirmation." : "Private /24-sized scans can start directly.",
       };
     }
   }
@@ -73,7 +76,7 @@ export function estimateScanTarget(rawTarget: string) {
       return {
         hostCount,
         label: `${hostCount} IPv4 addresses`,
-        help: hostCount > DISCOVERY_MAX_HOSTS_WITHOUT_CONFIRMATION ? "Large ranges require confirmation." : "Range is within the normal scan size.",
+        help: hostCount > confirmThreshold ? "Large ranges require confirmation." : "Range is within the normal scan size.",
       };
     }
   }
