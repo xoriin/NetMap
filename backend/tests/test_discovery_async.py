@@ -326,3 +326,27 @@ def test_nmap_process_still_times_out_without_cancel() -> None:
 
     with pytest.raises(subprocess.TimeoutExpired):
         scanner._run_nmap_process([sys.executable, "-c", "import time; time.sleep(30)"], 0.5)
+
+
+def test_unconfirmed_large_scan_does_not_consume_the_rate_limit(factory, submitted) -> None:
+    user = _admin(factory)
+    body = {"target": "10.0.0.0/23", "scan_type": "ping"}
+    with real_app_client(factory, user) as client:
+        refused = client.post("/api/v1/discovery/scans", json=body)
+        confirmed = client.post("/api/v1/discovery/scans", json={**body, "confirm_large_scan": True})
+        # Finish the accepted scan so the next request is judged on the rate
+        # limit, not the "already running" 409.
+        with factory() as db:
+            scan = db.get(DiscoveryScan, confirmed.json()["id"])
+            scan.status = "completed"
+            db.commit()
+        second = client.post("/api/v1/discovery/scans", json={**body, "confirm_large_scan": True})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "Large scan requires explicit confirmation"
+    assert confirmed.status_code == 202, confirmed.text
+    assert confirmed.json()["status"] == "queued"
+    assert second.status_code == 429
+    assert "retry in" in second.json()["detail"]
+    assert [job.scan_id for job in submitted] == [confirmed.json()["id"]]
+
+

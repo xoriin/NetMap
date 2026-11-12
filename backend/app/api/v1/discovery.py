@@ -31,8 +31,11 @@ from app.schemas.discovery import (
 )
 from app.services.audit.service import write_audit
 from app.services.discovery import manual as manual_scans
+from ipaddress import ip_address
+
 from app.services.discovery.scanner import (
     deserialize_results,
+    ensure_private_address,
     validate_target,
 )
 from app.services.discovery.scheduled import (
@@ -66,6 +69,22 @@ def enforce_rate_limit(user_id: int) -> None:
             detail=f"Scan rate limit active; retry in {wait_seconds} seconds",
         )
     last_scan_by_user[user_id] = now
+
+
+def _validate_manual_scan_request(db: Session, payload: DiscoveryStart) -> None:
+    """Parse and validate a manual scan without creating it.
+
+    Rate limiting is applied only after this succeeds, so a refused large scan
+    (or other 400) does not consume the 60s slot.
+    """
+    validate_target(payload.target, payload.confirm_large_scan)
+    snmp_targets = list(payload.snmp_targets)
+    if not snmp_targets and payload.topology_group_id is not None:
+        group = db.get(TopologyGroup, payload.topology_group_id)
+        if group is not None and group.gateway:
+            snmp_targets = [group.gateway]
+    for target in snmp_targets:
+        ensure_private_address(ip_address(target))
 
 
 def scan_to_read(scan: DiscoveryScan) -> DiscoveryScanRead:
@@ -113,6 +132,12 @@ def start_scan(
                 status_code=status.HTTP_409_CONFLICT,
                 content={"detail": "A manual discovery scan is already running", "scan_id": active_id},
             )
+        # Permission is already enforced. Validate before rate-limiting so a
+        # refused confirmation (or other 400) does not block an immediate retry.
+        try:
+            _validate_manual_scan_request(db, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         enforce_rate_limit(current_user.id)
         try:
             job = prepare_discovery_scan(db, payload, current_user.id, queued=True)
