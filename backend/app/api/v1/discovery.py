@@ -560,7 +560,8 @@ def import_scan_results(
 
     if payload.topology_group_id is not None and "/" in scan.target:
         group = db.get(TopologyGroup, payload.topology_group_id)
-        if group is not None and not group.ip_range:
+        # Cloud groups never share one range; do not stamp the scan target on them.
+        if group is not None and not group.ip_range and group.kind != "cloud":
             group.ip_range = scan.target
 
     write_audit(

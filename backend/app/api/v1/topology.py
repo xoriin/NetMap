@@ -34,6 +34,7 @@ from app.schemas.group import (
     TopologyGroupCreate,
     TopologyGroupRead,
     TopologyGroupUpdate,
+    reject_cloud_network_fields,
     validate_group_dhcp_range,
 )
 from app.schemas.site import SiteCreate, SiteRead, SiteUpdate
@@ -304,6 +305,18 @@ def update_topology_group(
     updates = payload.model_dump(exclude_unset=True)
     previous_cidr = group.ip_range
     previous_vlan = group.vlan_id
+    try:
+        reject_cloud_network_fields(
+            kind=updates.get("kind", group.kind),
+            provider=updates.get("provider", group.provider),
+            vlan_id=updates.get("vlan_id", group.vlan_id),
+            ip_range=updates.get("ip_range", group.ip_range),
+            gateway=updates.get("gateway", group.gateway),
+            dhcp_start=updates.get("dhcp_start", group.dhcp_start),
+            dhcp_end=updates.get("dhcp_end", group.dhcp_end),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if {"ip_range", "dhcp_start", "dhcp_end"} & set(updates):
         try:
             validate_group_dhcp_range(

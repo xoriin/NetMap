@@ -236,3 +236,30 @@ def test_discovery_import_new_only_skips_existing_devices():
     assert result.updated == 0
     assert result.skipped_existing == 1
     assert db.query(Device).count() == 2
+
+
+
+def test_import_does_not_stamp_a_range_onto_a_cloud_group():
+    db = _session()
+    cloud = TopologyGroup(name="aws", kind="cloud", provider="AWS")
+    network = TopologyGroup(name="lan")
+    scan = _scan(DiscoveryHost(ip_address="192.168.1.10", hostname="host-a"))
+    db.add_all([cloud, network, scan])
+    db.commit()
+    db.refresh(scan)
+
+    import_scan_results(
+        DiscoveryImportRequest(scan_id=scan.id, topology_group_id=cloud.id, mode="new_only"),
+        SimpleNamespace(id=1),  # type: ignore[arg-type]
+        db,
+    )
+    db.refresh(cloud)
+    assert cloud.ip_range is None
+
+    import_scan_results(
+        DiscoveryImportRequest(scan_id=scan.id, topology_group_id=network.id, mode="new_only"),
+        SimpleNamespace(id=1),  # type: ignore[arg-type]
+        db,
+    )
+    db.refresh(network)
+    assert network.ip_range == "192.168.1.0/24"

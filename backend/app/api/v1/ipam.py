@@ -526,6 +526,7 @@ def vlan_suggestions(
     import ipaddress
     groups = db.scalars(
         select(TopologyGroup).where(
+            TopologyGroup.kind != "cloud",
             TopologyGroup.ip_range.isnot(None),
             TopologyGroup.ip_range != "",
         )
@@ -576,7 +577,7 @@ def import_subnets_from_vlans(
     imported = 0
     for group_id in payload.group_ids:
         group = db.get(TopologyGroup, group_id)
-        if not group or not group.ip_range:
+        if not group or group.kind == "cloud" or not group.ip_range:
             continue
         try:
             normalized = str(ipaddress.ip_network(group.ip_range.strip(), strict=False))

@@ -12,6 +12,9 @@ class TopologyGroup(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
     display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # network (default): a VLAN/subnet group. cloud: assets that do not share one range.
+    kind: Mapped[str] = mapped_column(String(16), default="network", server_default="network", nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     vlan_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ip_range: Mapped[str | None] = mapped_column(String(64), nullable=True)
     gateway: Mapped[str | None] = mapped_column(String(64), nullable=True)

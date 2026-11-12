@@ -199,6 +199,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0091_status_page_group_icon", _migrate_status_page_group_icon)
         _run_migration(conn, inspector, "0092_new_device_alerts", _migrate_new_device_alerts)
         _run_migration(conn, inspector, "0093_notification_delivery_message", _migrate_notification_delivery_message)
+        _run_migration(conn, inspector, "0094_topology_group_kind", _migrate_topology_group_kind)
 
 
 
@@ -2351,6 +2352,18 @@ def _migrate_notification_delivery_message(conn, inspector) -> None:
         conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN event_type VARCHAR(40) NOT NULL DEFAULT ''"))
     if "source_label" not in columns:
         conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN source_label VARCHAR(255) NOT NULL DEFAULT ''"))
+
+
+def _migrate_topology_group_kind(conn, inspector) -> None:
+    """topology_groups.kind ('network' default, or 'cloud') and optional provider.
+    Existing rows backfill to network via the column default."""
+    if "topology_groups" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "topology_groups")
+    if "kind" not in columns:
+        conn.execute(text("ALTER TABLE topology_groups ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'network'"))
+    if "provider" not in columns:
+        conn.execute(text("ALTER TABLE topology_groups ADD COLUMN provider VARCHAR(64)"))
 
 
 def _migrate_new_device_alerts(conn, inspector) -> None:

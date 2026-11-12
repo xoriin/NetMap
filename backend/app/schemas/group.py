@@ -1,5 +1,7 @@
 import ipaddress
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.validation import normalize_cidr
@@ -17,6 +19,8 @@ class TopologyGroupBase(BaseModel):
     dns_servers: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    kind: Literal["network", "cloud"] = "network"
+    provider: str | None = Field(default=None, max_length=64)
 
     @field_validator("name")
     @classmethod
@@ -52,7 +56,7 @@ class TopologyGroupBase(BaseModel):
             return None
         return normalize_cidr(normalized)
 
-    @field_validator("gateway", "dhcp_start", "dhcp_end", "dns_servers")
+    @field_validator("gateway", "dhcp_start", "dhcp_end", "dns_servers", "provider")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -63,6 +67,15 @@ class TopologyGroupBase(BaseModel):
     @model_validator(mode="after")
     def validate_dhcp_range(self) -> "TopologyGroupBase":
         validate_group_dhcp_range(self.ip_range, self.dhcp_start, self.dhcp_end)
+        reject_cloud_network_fields(
+            kind=self.kind,
+            provider=self.provider,
+            vlan_id=self.vlan_id,
+            ip_range=self.ip_range,
+            gateway=self.gateway,
+            dhcp_start=self.dhcp_start,
+            dhcp_end=self.dhcp_end,
+        )
         return self
 
 
@@ -81,6 +94,8 @@ class TopologyGroupUpdate(BaseModel):
     dns_servers: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    kind: Literal["network", "cloud"] | None = None
+    provider: str | None = Field(default=None, max_length=64)
 
     @field_validator("name")
     @classmethod
@@ -118,7 +133,7 @@ class TopologyGroupUpdate(BaseModel):
             return None
         return normalize_cidr(normalized)
 
-    @field_validator("gateway", "dhcp_start", "dhcp_end", "dns_servers")
+    @field_validator("gateway", "dhcp_start", "dhcp_end", "dns_servers", "provider")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -131,6 +146,30 @@ class TopologyGroupUpdate(BaseModel):
         if self.ip_range is not None or self.dhcp_start is not None or self.dhcp_end is not None:
             validate_group_dhcp_range(self.ip_range, self.dhcp_start, self.dhcp_end, allow_partial=True)
         return self
+
+
+CLOUD_NETWORK_FIELDS = ("vlan_id", "ip_range", "gateway", "dhcp_start", "dhcp_end")
+CLOUD_NETWORK_FIELDS_ERROR = "Cloud groups cannot have a VLAN, IP range, gateway or DHCP range"
+PROVIDER_NETWORK_ERROR = "Provider is only valid for cloud groups"
+
+
+def reject_cloud_network_fields(
+    *,
+    kind: str,
+    provider: str | None = None,
+    vlan_id: str | None = None,
+    ip_range: str | None = None,
+    gateway: str | None = None,
+    dhcp_start: str | None = None,
+    dhcp_end: str | None = None,
+) -> None:
+    """kind=cloud forbids VLAN/subnet/DHCP fields; provider is cloud-only."""
+    if kind == "cloud":
+        if any(value not in (None, "") for value in (vlan_id, ip_range, gateway, dhcp_start, dhcp_end)):
+            raise ValueError(CLOUD_NETWORK_FIELDS_ERROR)
+        return
+    if provider:
+        raise ValueError(PROVIDER_NETWORK_ERROR)
 
 
 def validate_group_dhcp_range(
