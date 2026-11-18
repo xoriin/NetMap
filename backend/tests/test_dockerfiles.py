@@ -17,7 +17,7 @@ def test_the_standalone_backend_image_installs_the_same_packages_as_the_aio_imag
     assert _pip_packages("backend.Dockerfile") == _pip_packages("aio.Dockerfile")
 
 
-@pytest.mark.parametrize("requirement", ["mako>=1.4.2", "pillow>=13.0.0", "certifi>=2026.10.19"])
+@pytest.mark.parametrize("requirement", ["mako>=1.4.2", "pillow>=13.0.0", "certifi>=2026.10.19", "oauthlib>=4.0.1"])
 def test_security_floors_are_enforced_in_development_and_both_images(requirement):
     # Keep independently resolved image installs aligned with the audited dev requirements.
     project = tomllib.loads((DOCKER.parent / "backend" / "pyproject.toml").read_text())

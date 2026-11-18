@@ -62,6 +62,7 @@ RUN pip install --no-cache-dir --upgrade pip \
        "defusedxml~=0.7.1" \
        "pillow>=13.0.0" \
        "certifi>=2026.10.19" \
+       "oauthlib>=4.0.1" \
        "PyJWT~=2.10" \
        "starlette>=1.3.1" \
        "dnspython>=2.9.2,<3" \
