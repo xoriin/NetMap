@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.1] - 2026-11-18
+
+### Security
+- Update dnspython to 2.9.2 in the Python environment and both Docker images, fixing excessive CPU use when parsing crafted DNS names (GHSA-45c3-73f7-pv4m) and excessive memory and CPU use from crafted WKS records in zone text (GHSA-vvf4-9x63-8xvv).
+- Require oauthlib 4.0.1 in the Python environment and both Docker images, fixing a device-flow issue where a bearer token could be obtained with only a valid client ID.
+- The short-lived cookie that carries a pending two-factor sign-in after single sign-on now holds a keyed fingerprint of the password hash instead of a plain digest. A sign-in that is waiting for its code while upgrading needs to start again.
+
+### Added
+- Status page editor can add several devices, service checks and endpoints in one step from the add-item picker, with search, select-all-visible, a selected count, and items already on the page left alone. (#58)
+- Topology groups can be marked as cloud, with an optional provider, for assets that do not share one IP range; cloud groups cannot carry a VLAN, subnet or DHCP range, and discovery import will not stamp a scan target onto them.
+- VLAN groups can be marked as Cloud with an optional provider; cloud groups show a cloud icon in the group list and a dashed outline on the topology map.
+
+### Changed
+- Discovery accepts up to a /20 (4096 hosts) with confirmation, up from 1024; `DISCOVERY_MAX_HOSTS` can raise it further. Large-scan nmap/PTR deadlines scale with the target size so wide targets are less likely to time out; timeout errors name the duration and host count.
+
+### Fixed
+- An unconfirmed large discovery scan no longer uses up the 60-second scan rate limit, so confirming and retrying immediately is accepted.
+- The discovery scan dialog can read the server's host-count confirmation threshold and maximum, so a confirmed large scan is not blocked by a stale limit in the page.
+- A scheduled discovery scan larger than 256 hosts can be created after confirming the large-scan size, matching the manual scan dialog.
+- The status page add-item picker keeps Cancel and Add on screen on phones, with the source list scrolling above them. (#58)
+- The scan dialog and discovery schedule form use the host-count limits from GET /discovery/config, and fall back to 256 if that request fails or is forbidden.
+
 ## [1.8.0] - 2026-11-01
 
 ### Security
