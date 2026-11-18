@@ -7,7 +7,7 @@ async function openAutomation(page: Page) {
   await setupTopologyMocks(page, []);
   await page.route("**/api/v1/discovery/schedules", (route) => {
     if (route.request().method() === "GET") route.fulfill({ json: [] });
-    else route.fulfill({ json: { id: 1, name: "Wide", target: "10.0.0.0/16", scan_type: "ping", enabled: true, interval_minutes: 1440, confirm_large_scan: true } });
+    else route.fulfill({ json: { id: 1, name: "Wide", target: "10.0.0.0/20", scan_type: "ping", enabled: true, interval_minutes: 1440, confirm_large_scan: true } });
   });
   await page.route("**/api/v1/discovery/observations*", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/v1/discovery/observations/summary*", (route) => route.fulfill({ json: { days: [] } }));
@@ -32,8 +32,8 @@ test("creating a schedule larger than 256 hosts requires confirmation and sends 
   });
 
   const form = page.getByRole("region", { name: "New Schedule", exact: true });
-  await form.getByPlaceholder("192.168.1.0/24").fill("10.0.0.0/16");
-  await expect(form.getByText("65536 IPv4 addresses")).toBeVisible();
+  await form.getByPlaceholder("192.168.1.0/24").fill("10.0.0.0/20");
+  await expect(form.getByText("4096 IPv4 addresses")).toBeVisible();
   const confirm = form.getByRole("checkbox", { name: "Confirm large scan" });
   await expect(confirm).toBeVisible();
   const submit = form.getByRole("button", { name: "Create schedule" });
@@ -42,7 +42,7 @@ test("creating a schedule larger than 256 hosts requires confirmation and sends 
   await expect(submit).toBeEnabled();
   await submit.click();
   await expect.poll(() => created).not.toBeNull();
-  expect(created).toMatchObject({ target: "10.0.0.0/16", confirm_large_scan: true });
+  expect(created).toMatchObject({ target: "10.0.0.0/20", confirm_large_scan: true });
 });
 
 test("uses the confirm threshold from GET /discovery/config", async ({ page }) => {
@@ -51,7 +51,7 @@ test("uses the confirm threshold from GET /discovery/config", async ({ page }) =
   await setupCoreMocks(page);
   await setupTopologyMocks(page, []);
   await page.route("**/api/v1/discovery/config", (route) =>
-    route.fulfill({ json: { discovery_max_hosts_without_confirmation: 100, discovery_max_hosts: 65536 } }),
+    route.fulfill({ json: { discovery_max_hosts_without_confirmation: 100, discovery_max_hosts: 4096 } }),
   );
   await page.route("**/api/v1/discovery/schedules", async (route) => {
     if (route.request().method() === "POST") {

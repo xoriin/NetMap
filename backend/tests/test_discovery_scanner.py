@@ -158,20 +158,24 @@ class DiscoveryScannerTests(unittest.TestCase):
         self.assertIn("DISCOVERY_SCAN_TIMEOUT_SECONDS", message)
 
 
-    # --- /16 limit and timeout scaling (user report: /16 refused; scans time out) ---
+    # --- host limit and timeout scaling ---
 
-    def test_slash16_is_allowed_with_confirmation(self) -> None:
-        """Default DISCOVERY_MAX_HOSTS must cover a private /16 (65536 hosts)."""
-        target = validate_target("10.0.0.0/16", confirm_large_scan=True)
-        self.assertEqual(target.host_count, 65536)
-        self.assertEqual(target.nmap_target, "10.0.0.0/16")
+    def test_slash20_is_allowed_with_confirmation(self) -> None:
+        target = validate_target("10.0.0.0/20", confirm_large_scan=True)
+        self.assertEqual(target.host_count, 4096)
+        self.assertEqual(target.nmap_target, "10.0.0.0/20")
 
-    def test_slash16_still_needs_confirmation(self) -> None:
+    def test_slash20_still_needs_confirmation(self) -> None:
         with self.assertRaisesRegex(ValueError, "Large scan requires explicit confirmation"):
-            validate_target("10.0.0.0/16", confirm_large_scan=False)
+            validate_target("10.0.0.0/20", confirm_large_scan=False)
 
-    def test_hosts_above_max_are_still_refused(self) -> None:
+    def test_slash16_is_refused_by_default(self) -> None:
+        with self.assertRaisesRegex(ValueError, "maximum is 4096"):
+            validate_target("10.0.0.0/16", confirm_large_scan=True)
+
+    def test_hosts_above_a_raised_max_are_still_refused(self) -> None:
         with patch("app.services.discovery.scanner.settings.discovery_max_hosts", 65536):
+            self.assertEqual(validate_target("10.0.0.0/16", confirm_large_scan=True).host_count, 65536)
             with self.assertRaisesRegex(ValueError, "maximum is 65536"):
                 validate_target("10.0.0.0/15", confirm_large_scan=True)
 

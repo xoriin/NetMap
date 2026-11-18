@@ -364,6 +364,6 @@ def test_discovery_config_is_visible_only_to_users_who_can_scan(factory) -> None
     body = allowed.json()
     assert body == {
         "discovery_max_hosts_without_confirmation": 256,
-        "discovery_max_hosts": 65536,
+        "discovery_max_hosts": 4096,
     }
     assert denied.status_code == 403

@@ -156,7 +156,7 @@ export async function setupCoreMocks(page: Page, announcement: string | null = n
     route.fulfill({ json: [] })
   );
   await page.route("**/api/v1/discovery/config", (route) =>
-    route.fulfill({ json: { discovery_max_hosts_without_confirmation: 256, discovery_max_hosts: 65536 } })
+    route.fulfill({ json: { discovery_max_hosts_without_confirmation: 256, discovery_max_hosts: 4096 } })
   );
   await page.route("**/api/v1/topology/devices/favourites", (route) =>
     route.fulfill({ json: [] })
