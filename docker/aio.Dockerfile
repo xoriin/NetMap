@@ -1,4 +1,4 @@
-FROM node:22-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
