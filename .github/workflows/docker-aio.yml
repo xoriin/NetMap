@@ -50,6 +50,7 @@ jobs:
     name: Image compatibility (${{ matrix.arch }})
     needs: tests
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +84,7 @@ jobs:
     needs: [tests, image-smoke, release-guard]
     if: ${{ !cancelled() && needs.tests.result == 'success' && needs.image-smoke.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.release-guard.result) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read
 
