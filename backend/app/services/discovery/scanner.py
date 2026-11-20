@@ -141,6 +141,15 @@ def ensure_private_address(address) -> None:
         raise ValueError("Public IP scanning is blocked by default")
 
 
+SUDO_NO_ACCOUNT_MARKER = "you do not exist in the passwd database"
+SUDO_NO_ACCOUNT_MESSAGE = (
+    "Discovery scans are unavailable: the NetMap container user has no account, so sudo refused "
+    "to run nmap. This happens when PUID/PGID is not 1000 on a read-only root filesystem. Use "
+    "PUID=1000 and PGID=1000 (chown the data directory to 1000:1000) or remove read_only."
+)
+NMAP_ERROR_DETAIL_CHARS = 300
+
+
 def ensure_scan_size(host_count: int, confirm_large_scan: bool) -> None:
     if host_count > settings.discovery_max_hosts:
         raise ValueError(f"Scan target is too large; maximum is {settings.discovery_max_hosts} addresses")
@@ -200,12 +209,22 @@ def run_nmap_scan(
         completed = _run_nmap_process(command, timeout_seconds, on_progress, cancel_event)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(discovery_timeout_message(timeout_seconds, target.host_count)) from exc
-    if completed.returncode not in {0, 1}:
+    complete_xml = "</nmaprun>" in completed.stdout
+    # nmap can exit 1 after writing complete results; only a run without them failed.
+    if completed.returncode not in {0, 1} or (completed.returncode != 0 and not complete_xml):
         output = f"{completed.stdout}\n{completed.stderr}"
+        if SUDO_NO_ACCOUNT_MARKER in completed.stderr.lower():
+            raise RuntimeError(SUDO_NO_ACCOUNT_MESSAGE)
         if raw_networking_error(output):
             raise ActiveNetworkToolUnavailable(RAW_NETWORKING_UNAVAILABLE)
-        raise RuntimeError(completed.stderr.strip() or "Nmap scan failed")
-    hosts = parse_nmap_xml(completed.stdout)
+        detail = " ".join(completed.stderr.split())[:NMAP_ERROR_DETAIL_CHARS]
+        raise RuntimeError(f"Nmap scan failed: {detail}" if detail else f"Nmap scan failed (exit code {completed.returncode})")
+    if not completed.stdout.strip():
+        raise RuntimeError("Nmap scan failed: no scan results were returned")
+    try:
+        hosts = parse_nmap_xml(completed.stdout)
+    except ElementTree.ParseError as exc:
+        raise RuntimeError("Nmap scan failed: the scan results could not be read") from exc
     if cancel_event is not None and cancel_event.is_set():
         raise ScanCancelled()
     return enrich_hosts_from_neighbor_table(resolve_hostnames(hosts))
