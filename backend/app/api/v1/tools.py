@@ -42,8 +42,9 @@ from app.services.tools.service import (
 from app.services.snmp import SnmpError, probe_snmp_v2c
 from app.models.snmp_profile import SnmpProfile
 from app.services.snmp_profiles import (
+    SnmpProfileValidationError,
     create_profile,
-    decrypt_profile_community,
+    profile_credentials,
     profile_to_dict,
     update_profile,
 )
@@ -196,7 +197,7 @@ def run_snmp_probe(
             profile = db.get(SnmpProfile, payload.profile_id)
             if profile is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SNMP profile not found")
-            community = decrypt_profile_community(profile)
+            community = profile_credentials(profile)
             port = profile.port
             timeout_seconds = profile.timeout_seconds
             retries = profile.retries
@@ -233,14 +234,25 @@ def create_snmp_profile(
     current_user: Annotated[User, Depends(require_snmp_profile_manage)],
     db: Annotated[Session, Depends(get_db)],
 ) -> SnmpProfileRead:
-    profile = create_profile(
-        db,
-        name=payload.name.strip(),
-        community=payload.community,
-        port=payload.port,
-        timeout_seconds=payload.timeout_seconds,
-        retries=payload.retries,
-    )
+    try:
+        profile = create_profile(
+            db,
+            name=payload.name.strip(),
+            community=payload.community,
+            port=payload.port,
+            timeout_seconds=payload.timeout_seconds,
+            retries=payload.retries,
+            version=payload.version,
+            username=payload.username,
+            security_level=payload.security_level,
+            auth_protocol=payload.auth_protocol,
+            auth_key=payload.auth_key,
+            priv_protocol=payload.priv_protocol,
+            priv_key=payload.priv_key,
+            context_name=payload.context_name,
+        )
+    except SnmpProfileValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     db.flush()
     write_audit(
         db,
@@ -264,7 +276,10 @@ def update_snmp_profile(
     profile = db.get(SnmpProfile, profile_id)
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SNMP profile not found")
-    update_profile(profile, **payload.model_dump(exclude_unset=True))
+    try:
+        update_profile(profile, **payload.model_dump(exclude_unset=True))
+    except SnmpProfileValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     write_audit(
         db,
         action="tools.snmp_profile_updated",

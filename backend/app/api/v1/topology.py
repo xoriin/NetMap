@@ -71,7 +71,7 @@ from app.services.rbac.permissions import has_permission
 from app.services.tools.service import ping_host
 from app.services.topology.service import device_to_dict, serialize_tags
 from app.services.snmp import OID_SYS_DESCR, OID_SYS_NAME, SnmpError, read_snmp_arp_table, SnmpClient, value_to_text
-from app.services.snmp_profiles import decrypt_profile_community
+from app.services.snmp_profiles import profile_credentials
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/topology", tags=["topology"])
@@ -1053,7 +1053,7 @@ def _snmp_arp_enrichment_preview(db: Session, source_device: Device) -> DeviceSn
     try:
         client = SnmpClient(
             source_device.ip_address,
-            decrypt_profile_community(profile),
+            profile_credentials(profile),
             port=profile.port,
             timeout_seconds=profile.timeout_seconds,
             retries=profile.retries,

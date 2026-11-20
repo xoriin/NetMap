@@ -200,6 +200,7 @@ def apply_sqlite_schema_updates() -> None:
         _run_migration(conn, inspector, "0092_new_device_alerts", _migrate_new_device_alerts)
         _run_migration(conn, inspector, "0093_notification_delivery_message", _migrate_notification_delivery_message)
         _run_migration(conn, inspector, "0094_topology_group_kind", _migrate_topology_group_kind)
+        _run_migration(conn, inspector, "0095_snmp_v3_profiles", _migrate_snmp_v3_profiles)
 
 
 
@@ -2352,6 +2353,28 @@ def _migrate_notification_delivery_message(conn, inspector) -> None:
         conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN event_type VARCHAR(40) NOT NULL DEFAULT ''"))
     if "source_label" not in columns:
         conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN source_label VARCHAR(255) NOT NULL DEFAULT ''"))
+
+
+SNMP_V3_PROFILE_COLUMNS = {
+    "username": "VARCHAR(255)",
+    "security_level": "VARCHAR(16)",
+    "auth_protocol": "VARCHAR(16)",
+    "auth_key_encrypted": "TEXT",
+    "priv_protocol": "VARCHAR(16)",
+    "priv_key_encrypted": "TEXT",
+    "context_name": "VARCHAR(255)",
+}
+
+
+def _migrate_snmp_v3_profiles(conn, inspector) -> None:
+    """snmp_profiles SNMPv3 (USM) columns, all nullable. Existing profiles keep
+    their version and community and stay v2c."""
+    if "snmp_profiles" not in _live_tables(conn):
+        return
+    columns = _live_columns(conn, "snmp_profiles")
+    for name, column_type in SNMP_V3_PROFILE_COLUMNS.items():
+        if name not in columns:
+            conn.execute(text(f"ALTER TABLE snmp_profiles ADD COLUMN {name} {column_type}"))
 
 
 def _migrate_topology_group_kind(conn, inspector) -> None:

@@ -183,6 +183,18 @@ class SnmpProbeResult(BaseModel):
     duration_ms: int
 
 
+SnmpVersion = Literal["v2c", "v3"]
+SnmpSecurityLevel = Literal["noAuthNoPriv", "authNoPriv", "authPriv"]
+SnmpAuthProtocol = Literal["MD5", "SHA", "SHA-224", "SHA-256", "SHA-384", "SHA-512"]
+SnmpPrivProtocol = Literal["DES", "AES", "AES-192", "AES-256"]
+
+
+def _blank_to_none(value: object) -> object:
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
 class SnmpProfileBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     port: int = Field(default=161, ge=1, le=65535)
@@ -191,20 +203,70 @@ class SnmpProfileBase(BaseModel):
 
 
 class SnmpProfileCreate(SnmpProfileBase):
-    community: str = Field(min_length=1, max_length=128)
+    """Cross-field rules (version vs community/username, security level vs
+    protocols and keys) are checked in services.snmp_profiles and return 422."""
+
+    version: SnmpVersion = "v2c"
+    community: str | None = Field(default=None, min_length=1, max_length=128)
+    username: str | None = Field(default=None, min_length=1, max_length=255)
+    security_level: SnmpSecurityLevel | None = None
+    auth_protocol: SnmpAuthProtocol | None = None
+    auth_key: str | None = Field(default=None, min_length=8, max_length=256)
+    priv_protocol: SnmpPrivProtocol | None = None
+    priv_key: str | None = Field(default=None, min_length=8, max_length=256)
+    context_name: str | None = Field(default=None, max_length=255)
+
+    @field_validator("community", "username", "auth_key", "priv_key", "context_name", mode="before")
+    @classmethod
+    def blank_is_unset(cls, value: object) -> object:
+        return _blank_to_none(value)
+
+    @field_validator("username")
+    @classmethod
+    def strip_username(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
 
 class SnmpProfileUpdate(BaseModel):
+    """Omitted fields keep their value. A blank community/auth_key/priv_key keeps
+    the stored secret; a blank context_name clears it."""
+
     name: str | None = Field(default=None, min_length=1, max_length=120)
+    version: SnmpVersion | None = None
     community: str | None = Field(default=None, min_length=1, max_length=128)
     port: int | None = Field(default=None, ge=1, le=65535)
     timeout_seconds: int | None = Field(default=None, ge=1, le=15)
     retries: int | None = Field(default=None, ge=0, le=3)
+    username: str | None = Field(default=None, min_length=1, max_length=255)
+    security_level: SnmpSecurityLevel | None = None
+    auth_protocol: SnmpAuthProtocol | None = None
+    auth_key: str | None = Field(default=None, min_length=8, max_length=256)
+    priv_protocol: SnmpPrivProtocol | None = None
+    priv_key: str | None = Field(default=None, min_length=8, max_length=256)
+    context_name: str | None = Field(default=None, max_length=255)
+
+    @field_validator("community", "username", "auth_key", "priv_key", "context_name", mode="before")
+    @classmethod
+    def blank_is_unset(cls, value: object) -> object:
+        return _blank_to_none(value)
+
+    @field_validator("username")
+    @classmethod
+    def strip_username(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
 
 class SnmpProfileRead(SnmpProfileBase):
     id: int
     version: str
+    username: str | None = None
+    security_level: str | None = None
+    auth_protocol: str | None = None
+    priv_protocol: str | None = None
+    context_name: str | None = None
+    has_community: bool = False
+    has_auth_key: bool = False
+    has_priv_key: bool = False
     created_at: UtcDatetime
     updated_at: UtcDatetime
 

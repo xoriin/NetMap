@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -17,22 +17,22 @@ from app.services.snmp import SnmpError
 router = APIRouter(prefix="/lldp", tags=["lldp"])
 
 
-def _get_snmp_creds(device: Device, db: Session) -> tuple[str, int]:
-    """Return (community, port) from the device's SNMP profile, or raise 422."""
+def _get_snmp_creds(device: Device, db: Session) -> tuple[Any, int]:
+    """Return (v2c community or SNMPv3 credentials, port) from the device's SNMP profile, or raise 422."""
     if device.snmp_profile_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Device has no SNMP credential profile assigned.",
         )
     from app.models.snmp_profile import SnmpProfile
-    from app.services.snmp_profiles import decrypt_profile_community
+    from app.services.snmp_profiles import profile_credentials
     profile = db.get(SnmpProfile, device.snmp_profile_id)
     if profile is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="SNMP credential profile not found.",
         )
-    return decrypt_profile_community(profile), profile.port
+    return profile_credentials(profile), profile.port
 
 
 @router.post("/scan/{device_id}", response_model=LldpScanResult)

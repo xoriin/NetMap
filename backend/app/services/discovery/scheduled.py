@@ -29,8 +29,8 @@ from app.services.discovery.scanner import (
     validate_target,
 )
 from app.services.notifications import list_notification_profiles, load_notification_settings, send_notification_target
-from app.services.snmp import SnmpError
-from app.services.snmp_profiles import decrypt_profile_community
+from app.services.snmp import SnmpError, SnmpV3Credentials
+from app.services.snmp_profiles import profile_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class DiscoveryScanJob:
     target: DiscoveryTarget
     scan_type: str
     snmp_targets: list[str]
-    snmp_community: str | None
+    snmp_community: str | SnmpV3Credentials | None  # v2c community or SNMPv3 credentials
     snmp_port: int
     snmp_timeout: int
     snmp_retries: int
@@ -106,7 +106,7 @@ def prepare_discovery_scan(
         if profile is None:
             profile_error = "SNMP profile not found"
         else:
-            snmp_community = decrypt_profile_community(profile)
+            snmp_community = profile_credentials(profile)
             snmp_port = profile.port
             snmp_timeout = profile.timeout_seconds
             snmp_retries = profile.retries
