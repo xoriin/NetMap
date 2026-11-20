@@ -980,7 +980,7 @@ export function ToolsWorkspace({
                   <option value="">Manual community</option>
                   {snmpProfiles.map((profile) => (
                     <option key={profile.id} value={String(profile.id)}>
-                      {profile.name}
+                      {profile.name} ({profile.version === "v3" ? "v3" : "v2c"})
                     </option>
                   ))}
                 </select>
