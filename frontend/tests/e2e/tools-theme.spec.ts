@@ -166,7 +166,7 @@ test("users without active-tool rights only see the passive tools, with no acces
 
 test("users with every tool right see all tools and still no access chips", async ({ page }) => {
   await setupTools(page, "light");
-  await expect(page.getByRole("tablist", { name: "Network tools" }).getByRole("tab")).toHaveCount(7);
+  await expect(page.getByRole("tablist", { name: "Network tools" }).getByRole("tab")).toHaveCount(8);
   await page.getByRole("tab", { name: "Ping Test" }).click();
   await expect(page.locator(".tool-card-header")).not.toContainText("Active");
   await expect(page.locator(".tools-guide")).not.toContainText("Active");
