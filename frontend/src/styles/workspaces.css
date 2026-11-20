@@ -2027,7 +2027,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .vlan-row--selected {
-  background: var(--nm-surface-tint);
+  background: var(--nm-row-selected);
   border-left-color: var(--nm-accent);
 }
 
@@ -2942,7 +2942,7 @@ body:not(.theme-dark) .inventory-row.active:hover {
 }
 
 .admin-users-row--editing {
-  background: rgba(29, 154, 176, 0.05);
+  background: var(--nm-row-selected);
   border-left: 3px solid var(--nm-accent);
 }
 

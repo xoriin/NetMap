@@ -504,7 +504,7 @@ export function VlanWorkspace({
                   ? (row.entity!.provider || row.entity!.display_name)
                   : row.entity?.display_name;
                 return (
-                  <div key={`${row.type}-${row.name}`} className="vlan-row" data-group-kind={isCloudGroup(row.entity) ? "cloud" : "network"}>
+                  <div key={`${row.type}-${row.name}`} className={`vlan-row${row.type === "entity" && row.entity && editingId === row.entity.id ? " vlan-row--selected" : ""}`} data-group-kind={isCloudGroup(row.entity) ? "cloud" : "network"}>
                     <span className="vlan-cell-name">
                       {isCloudGroup(row.entity) && (
                         <Cloud size={14} className="vlan-cloud-icon" role="img" aria-label="Cloud group" />

@@ -567,9 +567,11 @@
   box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
-.admin-layout .admin-users-row--editing {
+.admin-layout .admin-users-row.admin-users-row--editing,
+.admin-layout .admin-users-row.admin-users-row--editing:hover {
   border-left: 3px solid var(--nm-accent);
-  background: var(--nm-accent-soft);
+  background: var(--nm-row-selected);
+  box-shadow: inset 3px 0 0 var(--nm-accent);
 }
 
 .admin-layout .admin-user-name,

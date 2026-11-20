@@ -181,6 +181,17 @@ body.theme-dark .vlan-workspace .vlan-row:hover {
   box-shadow: inset 3px 0 0 var(--nm-row-hover-edge);
 }
 
+/* Must beat `.vlan-workspace .vlan-row` / `body.theme-dark .vlan-workspace .vlan-row`,
+   which otherwise pin the background to --nm-table-row-bg in every theme. */
+.vlan-workspace .vlan-row.vlan-row--selected,
+.vlan-workspace .vlan-row.vlan-row--selected:hover,
+body.theme-dark .vlan-workspace .vlan-row.vlan-row--selected,
+body.theme-dark .vlan-workspace .vlan-row.vlan-row--selected:hover {
+  border-left-color: var(--nm-accent);
+  background: var(--nm-row-selected);
+  box-shadow: inset 3px 0 0 var(--nm-accent);
+}
+
 .vlan-workspace .vlan-name-primary,
 body.theme-dark .vlan-workspace .vlan-name-primary {
   color: var(--nm-text);
@@ -331,6 +342,15 @@ body.theme-dark .vlan-workspace .vlan-cloud-icon {
   body.theme-dark .vlan-workspace .vlan-row:hover {
     border-color: var(--nm-border);
     box-shadow: none;
+  }
+
+  .vlan-workspace .vlan-row.vlan-row--selected,
+  .vlan-workspace .vlan-row.vlan-row--selected:hover,
+  body.theme-dark .vlan-workspace .vlan-row.vlan-row--selected,
+  body.theme-dark .vlan-workspace .vlan-row.vlan-row--selected:hover {
+    border-color: var(--nm-accent);
+    background: var(--nm-row-selected);
+    box-shadow: inset 3px 0 0 var(--nm-accent);
   }
 
   .vlan-workspace .vlan-row > .vlan-cell-name {

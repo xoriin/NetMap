@@ -506,8 +506,8 @@ body.theme-dark .notif-method-card-desc { color: var(--nm-text-muted); }
 body.theme-dark .notif-apprise-details summary { color: var(--nm-text-faint); }
 body.theme-dark .notif-apprise-details summary:hover { color: var(--nm-tab-hover-text); }
 body.theme-dark .admin-users-row--editing {
-  background: rgba(29, 154, 176, 0.08);
-  border-left-color: #4db8cc;
+  background: var(--nm-row-selected);
+  border-left-color: var(--nm-accent);
 }
 body.theme-dark .notif-method-row {
   background: var(--nm-table-row-bg);
@@ -898,8 +898,8 @@ body.theme-dark .vlan-row {
 }
 
 body.theme-dark .vlan-row--selected {
-  background: var(--nm-bg-elevated);
-  border-left-color: #1d9ab0;
+  background: var(--nm-row-selected);
+  border-left-color: var(--nm-accent);
 }
 
 body.theme-dark .vlan-name-primary { color: var(--nm-text); }

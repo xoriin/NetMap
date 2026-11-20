@@ -243,7 +243,7 @@ export function UsersTab({
               <span className="admin-users-actions-heading">Actions</span>
             </div>
             {filteredUsers.map((row) => (
-              <div className="admin-users-row" key={row.id}>
+              <div className={`admin-users-row${editingEmailId === row.id || resetPasswordForm.userId === row.id ? " admin-users-row--editing" : ""}`} key={row.id}>
                 <div className="admin-user-identity">
                   <div className="admin-user-avatar-wrap">
                     <label className={`admin-user-avatar admin-user-avatar--${row.role.toLowerCase()}`} title="Upload photo">
