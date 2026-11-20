@@ -542,6 +542,50 @@ export type SnmpEnrichmentPreview = {
   changes: SnmpEnrichmentChange[];
 };
 
+export type AppLogLevel = "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+
+export type AppLogEntry = {
+  id: number;
+  timestamp: string;
+  level: string;
+  logger: string;
+  source: string;
+  message: string;
+  exception: string | null;
+};
+
+export type AppLogQuery = {
+  level?: string;
+  levels?: string[];
+  logger?: string;
+  source?: string[];
+  since?: string;
+  until?: string;
+  q?: string;
+  since_id?: number;
+  before_id?: number;
+  limit?: number;
+  order?: "desc" | "asc";
+};
+
+export type AppLogPage = {
+  entries: AppLogEntry[];
+  order: "desc" | "asc";
+  count: number;
+  has_more: boolean;
+  next_since_id: number;
+  next_before_id: number | null;
+  oldest_id: number | null;
+  latest_id: number | null;
+  capacity: number;
+  dropped: number;
+  wrapped: boolean;
+  gap: boolean;
+  sources: string[];
+  loggers: string[];
+  levels: AppLogLevel[];
+};
+
 export type FirewallEvent = {
   id: number;
   received_at: string;
@@ -2127,6 +2171,26 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  listAppLogs: (token: string, params: AppLogQuery = {}) => {
+    const search = new URLSearchParams();
+    const append = (key: string, value: string | number | undefined | null) => {
+      if (value === undefined || value === null || value === "") return;
+      search.append(key, String(value));
+    };
+    append("level", params.level);
+    params.levels?.forEach((value) => append("levels", value));
+    append("logger", params.logger);
+    params.source?.forEach((value) => append("source", value));
+    append("since", params.since);
+    append("until", params.until);
+    append("q", params.q);
+    if (params.since_id !== undefined) append("since_id", params.since_id);
+    if (params.before_id !== undefined) append("before_id", params.before_id);
+    if (params.limit !== undefined) append("limit", params.limit);
+    append("order", params.order);
+    const query = search.toString();
+    return request<AppLogPage>(`/api/v1/tools/logs${query ? `?${query}` : ""}`, { token });
+  },
   previewSnmpArpEnrichment: (token: string, deviceId: number) =>
     request<SnmpEnrichmentPreview>(`/api/v1/topology/devices/${deviceId}/snmp/arp-enrichment`, { token }),
   applySnmpArpEnrichment: (token: string, deviceId: number, deviceIds?: number[]) =>
