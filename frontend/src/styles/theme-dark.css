@@ -619,12 +619,12 @@ body.theme-dark .device-security-panel { border-color: color-mix(in srgb, var(--
 body.theme-dark .details-inline-input {
   background: var(--nm-modal-input);
   color: var(--nm-text);
-  border-color: #1d6472;
+  border-color: var(--nm-accent);
 }
 
 body.theme-dark .details-inline-input:focus {
-  border-color: #4db8cc;
-  box-shadow: 0 0 0 2px rgba(29, 154, 176, 0.18);
+  border-color: var(--nm-focus-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nm-accent) 18%, transparent);
 }
 
 body.theme-dark .details-inline-color input[type="color"] {
@@ -740,14 +740,14 @@ body.theme-dark .status-pill.paused::before { background: var(--nm-text-faint); 
 body.theme-dark .status-pill.warning { background: rgba(217,154,34,0.1); border-color: rgba(217,154,34,0.25); color: #fbbf24; }
 
 body.theme-dark .details-live-badge--online,
-body.theme-dark .details-live-badge--healthy { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.2); color: #4ade80; }
+body.theme-dark .details-live-badge--healthy { background: var(--nm-success-soft); border-color: color-mix(in srgb, var(--nm-success) 25%, transparent); color: var(--nm-success); }
 body.theme-dark .details-live-badge--offline,
-body.theme-dark .details-live-badge--unhealthy { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.2); color: #f87171; }
-body.theme-dark .details-live-badge--warning { background: rgba(217,154,34,0.1); border-color: rgba(217,154,34,0.2); color: #fbbf24; }
+body.theme-dark .details-live-badge--unhealthy { background: var(--nm-danger-soft); border-color: color-mix(in srgb, var(--nm-danger) 25%, transparent); color: var(--nm-danger); }
+body.theme-dark .details-live-badge--warning { background: var(--nm-warning-soft); border-color: color-mix(in srgb, var(--nm-warning) 25%, transparent); color: var(--nm-warning); }
 body.theme-dark .details-live-badge--online .details-live-dot,
-body.theme-dark .details-live-badge--healthy .details-live-dot { background: #4ade80; }
+body.theme-dark .details-live-badge--healthy .details-live-dot { background: var(--nm-success); }
 body.theme-dark .details-live-badge--offline .details-live-dot,
-body.theme-dark .details-live-badge--unhealthy .details-live-dot { background: #f87171; }
+body.theme-dark .details-live-badge--unhealthy .details-live-dot { background: var(--nm-danger); }
 
 /* Audit log dark mode */
 body.theme-dark .audit-log-header { background: var(--nm-shell); color: var(--nm-text-faint); border-bottom-color: var(--nm-border); }
@@ -823,7 +823,7 @@ body.theme-dark .inventory-sort-btn.active {
 }
 
 body.theme-dark .details-heading::after {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--nm-border);
 }
 
 body.theme-dark .details-heading h3 {
