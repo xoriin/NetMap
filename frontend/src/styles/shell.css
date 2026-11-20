@@ -441,7 +441,7 @@ body.route-inventory .workspace > .dash-alert--announcement {
 
 body.route-topology .workspace > .dash-alert--announcement {
   width: auto;
-  margin: 20px var(--nm-topology-canvas-gutter, 12px) 0;
+  margin: 20px var(--nm-topology-canvas-gutter, 12px) 8px;
 }
 
 body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-layout > .inventory-bento {
