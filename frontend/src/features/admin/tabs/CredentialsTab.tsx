@@ -5,8 +5,105 @@ import { KeyRound, Layers, Lock, PieChart, Plug } from "lucide-react";
 import { DashStat } from "../../../components/DashStat";
 import { CountUp, DonutChart } from "../../../components/Charts";
 import { AdminCard } from "../AdminCard";
-import { api, type SnmpProfile } from "../../../api/client";
+import {
+  ApiError,
+  api,
+  type SnmpAuthProtocol,
+  type SnmpPrivProtocol,
+  type SnmpProfile,
+  type SnmpProfileWrite,
+  type SnmpSecurityLevel,
+  type SnmpVersion,
+} from "../../../api/client";
 import { useApiQuery } from "../../../hooks/useApiQuery";
+
+const AUTH_PROTOCOLS: SnmpAuthProtocol[] = ["MD5", "SHA", "SHA-224", "SHA-256", "SHA-384", "SHA-512"];
+const PRIV_PROTOCOLS: SnmpPrivProtocol[] = ["DES", "AES", "AES-192", "AES-256"];
+const KEEP_SECRET = "leave blank to keep";
+
+const emptyForm = {
+  name: "",
+  version: "v2c" as SnmpVersion,
+  community: "",
+  username: "",
+  security_level: "authPriv" as SnmpSecurityLevel,
+  auth_protocol: "SHA-256" as SnmpAuthProtocol,
+  auth_key: "",
+  priv_protocol: "AES" as SnmpPrivProtocol,
+  priv_key: "",
+  context_name: "",
+  port: "161",
+  timeout_seconds: "3",
+  retries: "1",
+};
+
+type ProfileForm = typeof emptyForm;
+
+function versionTag(version: string) {
+  return `v${version.replace(/^v/i, "")}`;
+}
+
+function isV3(version: string) {
+  return versionTag(version) === "v3";
+}
+
+function needsAuth(level: SnmpSecurityLevel) {
+  return level === "authNoPriv" || level === "authPriv";
+}
+
+function formErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof ApiError && typeof err.detail === "string" && err.detail.trim()) return err.detail;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
+
+function secretLengthError(label: string, value: string, required: boolean) {
+  if (!value) return required ? `${label} is required.` : null;
+  if (value.length < 8 || value.length > 256) return `${label} must be 8 to 256 characters.`;
+  return null;
+}
+
+function buildSnmpProfilePayload(form: ProfileForm, editing: SnmpProfile | null): { payload: SnmpProfileWrite } | { error: string } {
+  const name = form.name.trim();
+  if (!name) return { error: "Name is required." };
+  if (name.length > 120) return { error: "Name must be at most 120 characters." };
+  const payload: SnmpProfileWrite = {
+    name,
+    version: form.version,
+    port: Number(form.port),
+    timeout_seconds: Number(form.timeout_seconds),
+    retries: Number(form.retries),
+  };
+  if (form.version === "v2c") {
+    const community = form.community.trim();
+    const mustSet = !editing?.has_community;
+    if (!community && mustSet) return { error: "Community is required." };
+    if (community && (community.length < 1 || community.length > 128)) return { error: "Community must be 1 to 128 characters." };
+    if (community) payload.community = community;
+    return { payload };
+  }
+  const username = form.username.trim();
+  if (!username) return { error: "Username is required." };
+  if (username.length > 255) return { error: "Username must be at most 255 characters." };
+  payload.username = username;
+  payload.security_level = form.security_level;
+  const context = form.context_name.trim();
+  if (context.length > 255) return { error: "Context name must be at most 255 characters." };
+  payload.context_name = context || null;
+  if (needsAuth(form.security_level)) {
+    payload.auth_protocol = form.auth_protocol;
+    const authError = secretLengthError("Auth key", form.auth_key, !editing?.has_auth_key);
+    if (authError) return { error: authError };
+    if (form.auth_key) payload.auth_key = form.auth_key;
+  }
+  if (form.security_level === "authPriv") {
+    payload.priv_protocol = form.priv_protocol;
+    const privError = secretLengthError("Privacy key", form.priv_key, !editing?.has_priv_key);
+    if (privError) return { error: privError };
+    if (form.priv_key) payload.priv_key = form.priv_key;
+  }
+  return { payload };
+}
 
 export function CredentialsTab({
   accessToken,
@@ -17,7 +114,7 @@ export function CredentialsTab({
   onError: (message: string | null) => void;
   onSuccess: (message: string | null) => void;
 }) {
-  const [snmpProfileForm, setSnmpProfileForm] = useState({ name: "", community: "", port: "161", timeout_seconds: "3", retries: "1" });
+  const [snmpProfileForm, setSnmpProfileForm] = useState<ProfileForm>(emptyForm);
   const [editing, setEditing] = useState<SnmpProfile | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
 
@@ -25,35 +122,52 @@ export function CredentialsTab({
   const snmpProfiles = snmpQuery.data ?? [];
   const snmpProfilesBusy = mutationBusy || snmpQuery.isLoading || snmpQuery.isRefreshing;
 
+  function updateForm<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
+    setSnmpProfileForm((current) => ({ ...current, [key]: value }));
+  }
+
   function resetForm() {
     setEditing(null);
-    setSnmpProfileForm({ name: "", community: "", port: "161", timeout_seconds: "3", retries: "1" });
+    setSnmpProfileForm(emptyForm);
   }
 
   function editProfile(profile: SnmpProfile) {
     setEditing(profile);
-    setSnmpProfileForm({ name: profile.name, community: "", port: String(profile.port), timeout_seconds: String(profile.timeout_seconds), retries: String(profile.retries) });
+    setSnmpProfileForm({
+      name: profile.name,
+      version: isV3(profile.version) ? "v3" : "v2c",
+      community: "",
+      username: profile.username ?? "",
+      security_level: (profile.security_level as SnmpSecurityLevel | null) ?? "authPriv",
+      auth_protocol: (profile.auth_protocol as SnmpAuthProtocol | null) ?? "SHA-256",
+      auth_key: "",
+      priv_protocol: (profile.priv_protocol as SnmpPrivProtocol | null) ?? "AES",
+      priv_key: "",
+      context_name: profile.context_name ?? "",
+      port: String(profile.port),
+      timeout_seconds: String(profile.timeout_seconds),
+      retries: String(profile.retries),
+    });
   }
 
   async function saveSnmpProfile(event: FormEvent) {
     event.preventDefault();
+    const built = buildSnmpProfilePayload(snmpProfileForm, editing);
+    if ("error" in built) {
+      onError(built.error);
+      return;
+    }
     setMutationBusy(true);
     onError(null); onSuccess(null);
-    const fields = {
-      name: snmpProfileForm.name.trim(),
-      port: Number(snmpProfileForm.port),
-      timeout_seconds: Number(snmpProfileForm.timeout_seconds),
-      retries: Number(snmpProfileForm.retries),
-    };
     try {
       const saved = editing
-        ? await api.updateSnmpProfile(accessToken, editing.id, snmpProfileForm.community ? { ...fields, community: snmpProfileForm.community } : fields)
-        : await api.createSnmpProfile(accessToken, { ...fields, community: snmpProfileForm.community });
+        ? await api.updateSnmpProfile(accessToken, editing.id, built.payload)
+        : await api.createSnmpProfile(accessToken, built.payload);
       snmpQuery.setData((current) => [...(current ?? []).filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
       resetForm();
       onSuccess(`SNMP profile "${saved.name}" ${editing ? "updated" : "created"}.`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : `Unable to ${editing ? "update" : "create"} SNMP profile`);
+      onError(formErrorMessage(err, `Unable to ${editing ? "update" : "create"} SNMP profile`));
     } finally {
       setMutationBusy(false);
     }
@@ -68,18 +182,22 @@ export function CredentialsTab({
       if (editing?.id === profile.id) resetForm();
       onSuccess(`SNMP profile "${profile.name}" deleted.`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to delete SNMP profile");
+      onError(formErrorMessage(err, "Unable to delete SNMP profile"));
     } finally {
       setMutationBusy(false);
     }
   }
 
-  const versionTag = (version: string) => `v${version.replace(/^v/i, "")}`;
-  const v3 = snmpProfiles.filter((p) => versionTag(p.version) === "v3").length;
+  const v3 = snmpProfiles.filter((profile) => isV3(profile.version)).length;
   const v2 = snmpProfiles.length - v3;
   const portCounts = new Map<number, number>();
-  for (const p of snmpProfiles) portCounts.set(p.port, (portCounts.get(p.port) ?? 0) + 1);
+  for (const profile of snmpProfiles) portCounts.set(profile.port, (portCounts.get(profile.port) ?? 0) + 1);
   const [topPort, topPortCount] = [...portCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+  const showAuth = snmpProfileForm.version === "v3" && needsAuth(snmpProfileForm.security_level);
+  const showPriv = snmpProfileForm.version === "v3" && snmpProfileForm.security_level === "authPriv";
+  const keepCommunity = Boolean(editing?.has_community);
+  const keepAuth = Boolean(editing?.has_auth_key);
+  const keepPriv = Boolean(editing?.has_priv_key);
 
   return (
     <div className="admin-tab-content nm-motion">
@@ -150,24 +268,107 @@ export function CredentialsTab({
             <form className="tool-form admin-create-form" onSubmit={saveSnmpProfile}>
               <label>
                 Name
-                <input required maxLength={120} placeholder="Core network SNMP" value={snmpProfileForm.name} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, name: e.target.value }))} />
+                <input required maxLength={120} placeholder="Core network SNMP" value={snmpProfileForm.name} onChange={(e) => updateForm("name", e.target.value)} />
               </label>
               <label>
-                Community{editing && <span className="tool-note" style={{ fontWeight: "normal" }}> (leave blank to keep)</span>}
-                <input required={!editing} maxLength={128} type="password" value={snmpProfileForm.community} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, community: e.target.value }))} />
+                Version
+                <select value={snmpProfileForm.version} onChange={(e) => updateForm("version", e.target.value as SnmpVersion)}>
+                  <option value="v2c">SNMPv2c</option>
+                  <option value="v3">SNMPv3</option>
+                </select>
               </label>
+              {snmpProfileForm.version === "v2c" && (
+                <label>
+                  Community
+                  <input
+                    required={!keepCommunity}
+                    maxLength={128}
+                    type="password"
+                    autoComplete="off"
+                    placeholder={keepCommunity ? KEEP_SECRET : undefined}
+                    value={snmpProfileForm.community}
+                    onChange={(e) => updateForm("community", e.target.value)}
+                  />
+                </label>
+              )}
+              {snmpProfileForm.version === "v3" && (
+                <>
+                  <label>
+                    Username
+                    <input required maxLength={255} autoComplete="off" value={snmpProfileForm.username} onChange={(e) => updateForm("username", e.target.value)} />
+                  </label>
+                  <label>
+                    Security level
+                    <select value={snmpProfileForm.security_level} onChange={(e) => updateForm("security_level", e.target.value as SnmpSecurityLevel)}>
+                      <option value="noAuthNoPriv">noAuthNoPriv</option>
+                      <option value="authNoPriv">authNoPriv</option>
+                      <option value="authPriv">authPriv</option>
+                    </select>
+                  </label>
+                  {showAuth && (
+                    <>
+                      <label>
+                        Auth protocol
+                        <select value={snmpProfileForm.auth_protocol} onChange={(e) => updateForm("auth_protocol", e.target.value as SnmpAuthProtocol)}>
+                          {AUTH_PROTOCOLS.map((protocol) => <option key={protocol} value={protocol}>{protocol}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Auth key
+                        <input
+                          required={!keepAuth}
+                          minLength={keepAuth ? undefined : 8}
+                          maxLength={256}
+                          type="password"
+                          autoComplete="off"
+                          placeholder={keepAuth ? KEEP_SECRET : undefined}
+                          value={snmpProfileForm.auth_key}
+                          onChange={(e) => updateForm("auth_key", e.target.value)}
+                        />
+                      </label>
+                    </>
+                  )}
+                  {showPriv && (
+                    <>
+                      <label>
+                        Privacy protocol
+                        <select value={snmpProfileForm.priv_protocol} onChange={(e) => updateForm("priv_protocol", e.target.value as SnmpPrivProtocol)}>
+                          {PRIV_PROTOCOLS.map((protocol) => <option key={protocol} value={protocol}>{protocol}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Privacy key
+                        <input
+                          required={!keepPriv}
+                          minLength={keepPriv ? undefined : 8}
+                          maxLength={256}
+                          type="password"
+                          autoComplete="off"
+                          placeholder={keepPriv ? KEEP_SECRET : undefined}
+                          value={snmpProfileForm.priv_key}
+                          onChange={(e) => updateForm("priv_key", e.target.value)}
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    Context name
+                    <input maxLength={255} autoComplete="off" value={snmpProfileForm.context_name} onChange={(e) => updateForm("context_name", e.target.value)} />
+                  </label>
+                </>
+              )}
               <div className="tool-form-grid admin-snmp-numbers">
                 <label>
                   Port
-                  <input required min={1} max={65535} type="number" value={snmpProfileForm.port} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, port: e.target.value }))} />
+                  <input required min={1} max={65535} type="number" value={snmpProfileForm.port} onChange={(e) => updateForm("port", e.target.value)} />
                 </label>
                 <label>
                   Timeout
-                  <input required min={1} max={15} type="number" value={snmpProfileForm.timeout_seconds} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, timeout_seconds: e.target.value }))} />
+                  <input required min={1} max={15} type="number" value={snmpProfileForm.timeout_seconds} onChange={(e) => updateForm("timeout_seconds", e.target.value)} />
                 </label>
                 <label>
                   Retries
-                  <input required min={0} max={3} type="number" value={snmpProfileForm.retries} onChange={(e) => setSnmpProfileForm((c) => ({ ...c, retries: e.target.value }))} />
+                  <input required min={0} max={3} type="number" value={snmpProfileForm.retries} onChange={(e) => updateForm("retries", e.target.value)} />
                 </label>
               </div>
               <div className="admin-row-actions">

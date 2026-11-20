@@ -79,11 +79,11 @@ test("Admin SNMP profiles show version tags, separate columns and edit in the si
   await page.route("**/api/v1/tools/snmp/profiles**", async (route) => {
     if (route.request().method() === "PATCH") {
       saved.push(route.request().postDataJSON());
-      return route.fulfill({ json: { id: 1, name: "Core v3 renamed", version: "v3", port: 161, timeout_seconds: 2, retries: 1, created_at: iso(9), updated_at: iso(0) } });
+      return route.fulfill({ json: { id: 1, name: "Core v3 renamed", version: "v3", port: 161, timeout_seconds: 2, retries: 1, username: "monitor", security_level: "authPriv", auth_protocol: "SHA-256", priv_protocol: "AES", context_name: null, has_community: false, has_auth_key: true, has_priv_key: true, created_at: iso(9), updated_at: iso(0) } });
     }
     return route.fulfill({ json: [
-      { id: 1, name: "Core v3", version: "v3", port: 161, timeout_seconds: 2, retries: 1, created_at: iso(9), updated_at: iso(9) },
-      { id: 2, name: "Lab", version: "v2c", port: 1161, timeout_seconds: 5, retries: 3, created_at: iso(9), updated_at: iso(9) },
+      { id: 1, name: "Core v3", version: "v3", port: 161, timeout_seconds: 2, retries: 1, username: "monitor", security_level: "authPriv", auth_protocol: "SHA-256", priv_protocol: "AES", context_name: null, has_community: false, has_auth_key: true, has_priv_key: true, created_at: iso(9), updated_at: iso(9) },
+      { id: 2, name: "Lab", version: "v2c", port: 1161, timeout_seconds: 5, retries: 3, username: null, security_level: null, auth_protocol: null, priv_protocol: null, context_name: null, has_community: true, has_auth_key: false, has_priv_key: false, created_at: iso(9), updated_at: iso(9) },
     ] });
   });
   await page.goto("/admin#credentials");
@@ -93,10 +93,10 @@ test("Admin SNMP profiles show version tags, separate columns and edit in the si
   await expect(page.locator(".dash-stat", { hasText: "SNMPv3" }).locator(".dash-stat-value")).toHaveText("1");
   await page.getByRole("button", { name: "Edit Core v3", exact: true }).click();
   const form = page.getByRole("region", { name: "Edit Core v3", exact: true });
-  await form.getByLabel("Name").fill("Core v3 renamed");
+  await form.getByLabel("Name", { exact: true }).fill("Core v3 renamed");
   await form.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.locator(".admin-snmp-table")).toContainText("Core v3 renamed");
-  expect(saved).toEqual([{ name: "Core v3 renamed", port: 161, timeout_seconds: 2, retries: 1 }]);
+  expect(saved).toEqual([{ name: "Core v3 renamed", version: "v3", port: 161, timeout_seconds: 2, retries: 1, username: "monitor", security_level: "authPriv", auth_protocol: "SHA-256", priv_protocol: "AES", context_name: null }]);
 });
 
 test("Admin groups cap long permission lists with their own scroll and count coverage", async ({ page }) => {
