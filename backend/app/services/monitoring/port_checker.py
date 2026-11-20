@@ -172,6 +172,9 @@ def check_url(
             timeout=httpx.Timeout(timeout),
         ) as client:
             with client.stream(method, url, headers=request_headers, content=content, auth=auth) as response:
+                # Read the certificate before the body: once a connection-close response is fully
+                # read the TLS stream is released and its certificate is no longer available.
+                cert_expires_at, cert_issuer = _certificate_info(response)
                 payload = bytearray()
                 for chunk in response.iter_bytes():
                     if len(payload) + len(chunk) > MAX_RESPONSE_BYTES:
@@ -183,7 +186,6 @@ def check_url(
                         )
                     payload.extend(chunk)
                 elapsed_ms = (time.monotonic() - started) * 1000
-                cert_expires_at, cert_issuer = _certificate_info(response)
                 status_ok = _status_allowed(
                     response.status_code,
                     accepted_status_codes or f"{expected_status_min}-{expected_status_max}",
@@ -382,15 +384,46 @@ def _certificate_info(response: httpx.Response) -> tuple[datetime | None, str | 
     try:
         stream = response.extensions.get("network_stream")
         ssl_object = stream.get_extra_info("ssl_object") if stream else None
-        cert = ssl_object.getpeercert() if ssl_object else None
-        if not cert:
+        if not ssl_object:
             return None, None
+        cert = ssl_object.getpeercert()
+        if not cert:
+            # With verification off (CERT_NONE) getpeercert() returns {} even though the
+            # server presented a certificate, so read the raw certificate instead.
+            return _der_certificate_info(ssl_object.getpeercert(True))  # binary form; positional only on _ssl sockets
         expires = cert.get("notAfter")
         expires_at = datetime.fromtimestamp(ssl.cert_time_to_seconds(expires), timezone.utc) if expires else None
         issuer_parts = [f"{name}={value}" for group in cert.get("issuer", ()) for name, value in group]
         return expires_at, ", ".join(issuer_parts)[:255] or None
     except (ValueError, OSError, AttributeError):
         return None, None
+
+
+# Long attribute names match what ssl.getpeercert() reports for verified connections.
+_ISSUER_LONG_NAMES = {
+    "C": "countryName",
+    "ST": "stateOrProvinceName",
+    "L": "localityName",
+    "O": "organizationName",
+    "OU": "organizationalUnitName",
+    "CN": "commonName",
+    "DC": "domainComponent",
+    "STREET": "streetAddress",
+    "UID": "userId",
+}
+
+
+def _der_certificate_info(der: bytes | None) -> tuple[datetime | None, str | None]:
+    if not der:
+        return None, None
+    from cryptography import x509
+
+    cert = x509.load_der_x509_certificate(der)
+    issuer_parts = []
+    for attribute in cert.issuer:
+        name = attribute.rfc4514_attribute_name
+        issuer_parts.append(f"{_ISSUER_LONG_NAMES.get(name, name)}={attribute.value}")
+    return cert.not_valid_after_utc, ", ".join(issuer_parts)[:255] or None
 
 
 def _check_udp(host: str, port: int, timeout: float) -> CheckResult:
