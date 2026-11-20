@@ -611,6 +611,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
 ]
 
@@ -633,6 +634,7 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.15.0" },
     { name = "pyotp", specifier = ">=2.9.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.3" },
     { name = "reportlab", specifier = ">=4.4.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
