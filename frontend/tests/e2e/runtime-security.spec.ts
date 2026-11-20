@@ -102,11 +102,24 @@ for (const theme of ["light", "dark"]) {
         const announcement = page.locator(".dash-alert--announcement");
         await expect(alert).toBeVisible();
         await expect(announcement).toBeVisible();
+        // Banners live in App and can be visible before a lazy route stylesheet applies.
+        // Topology announcement gutters now live in shell.css so they no longer depend
+        // on topology.css arriving. Wait for fonts (wrap can change heights) and then
+        // read both banners in one frame; the poll also covers the topbar wrapping at
+        // 700px. Allow 1px for subpixel rounding. Do not wait for the route workspace
+        // itself: /security and /ipam can error in this file's catch-all API mocks
+        // without ever mounting their layout, while the banners are still on screen.
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(() => page.evaluate(() => {
+          const a = document.querySelector('[role="alert"][aria-label="Deployment security"]')!.getBoundingClientRect();
+          const b = document.querySelector(".dash-alert--announcement")!.getBoundingClientRect();
+          return {
+            xAligned: Math.abs(b.x - a.x) <= 1,
+            widthAligned: Math.abs(b.width - a.width) <= 1,
+            gapSettled: Math.abs((b.y - a.y - a.height) - 16) <= 1,
+          };
+        }), { message: path }).toEqual({ xAligned: true, widthAligned: true, gapSettled: true });
         const a = (await alert.boundingBox())!;
-        const b = (await announcement.boundingBox())!;
-        expect(a.x, path).toBeCloseTo(b.x, 0);
-        expect(a.width, path).toBeCloseTo(b.width, 0);
-        expect(b.y - a.y - a.height, path).toBeCloseTo(16, 0);
         const ancestors = await alert.evaluate(el => {
           const result = [];
           for (let node: Element | null = el; node; node = node.parentElement) {
@@ -115,7 +128,7 @@ for (const theme of ["light", "dark"]) {
           }
           return result;
         });
-        expect(a.x + a.width, `${path}: ${JSON.stringify(ancestors)}`).toBeLessThanOrEqual(width);
+        expect(a.x + a.width, `${path}: ${JSON.stringify(ancestors)}`).toBeLessThanOrEqual(width + 1);
       }
     }
   });

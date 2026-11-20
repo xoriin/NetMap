@@ -16,8 +16,6 @@ body.route-topology .workspace:has(.dash-alert--announcement) #topology.topology
 }
 
 body.route-topology .dash-alert--announcement {
-  width: auto;
-  margin: 20px var(--nm-topology-canvas-gutter, 12px) 8px;
   box-shadow: var(--nm-shadow-sm);
 }
 

@@ -439,6 +439,11 @@ body.route-inventory .workspace > .dash-alert--announcement {
   margin: var(--nm-workspace-gutter-y) var(--nm-workspace-gutter-x) 0;
 }
 
+body.route-topology .workspace > .dash-alert--announcement {
+  width: auto;
+  margin: 20px var(--nm-topology-canvas-gutter, 12px) 0;
+}
+
 body.route-inventory .workspace:has(.dash-alert--announcement) .inventory-layout > .inventory-bento {
   margin-top: var(--nm-workspace-section-gap);
 }
