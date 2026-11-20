@@ -8,6 +8,7 @@ from sqlalchemy import select
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.router import api_router
+from app.core.app_log import install_app_log
 from app.api_docs import (
     API_DESCRIPTION,
     OPENAPI_TAGS,
@@ -28,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
+    install_app_log(
+        capacity=settings.app_log_capacity,
+        level=settings.app_log_level,
+        max_message_chars=settings.app_log_max_message_chars,
+        include_access_log=settings.app_log_include_access,
+    )
     app = FastAPI(
         title="NetMap API",
         version=app_version(),

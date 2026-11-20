@@ -162,6 +162,12 @@ class Settings(BaseSettings):
     oidc_mfa_max_auth_age_seconds: int = Field(default=300, alias="OIDC_MFA_MAX_AUTH_AGE_SECONDS")
     app_url: str = Field(default="", alias="APP_URL")
     log_level: str = Field(default="info", alias="LOG_LEVEL")
+    # Tools → Logs (#47): in-memory ring of recent application log records. Bounded by
+    # entry count and per-message length; nothing is written to disk.
+    app_log_capacity: int = Field(default=5000, ge=100, le=100_000, alias="APP_LOG_CAPACITY")
+    app_log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
+    app_log_max_message_chars: int = Field(default=2000, ge=200, le=20_000, alias="APP_LOG_MAX_MESSAGE_CHARS")
+    app_log_include_access: bool = Field(default=False, alias="APP_LOG_INCLUDE_ACCESS")
     app_version: str = Field(default_factory=_read_version_file, alias="APP_VERSION")
 
     model_config = SettingsConfigDict(
