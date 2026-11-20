@@ -11,22 +11,78 @@ as_netmap() {
   fi
 }
 
-# Remap the internal netmap user to match the host's PUID/PGID if provided.
-# This lets the container write to bind-mounted volumes owned by the host user.
-# Skip it when the IDs already match (the image user is 1000:1000), so a
-# read-only root filesystem never needs to rewrite /etc/passwd or /etc/group.
+# Choose the identity the backend runs as:
+#   1. explicit PUID/PGID win;
+#   2. otherwise existing data keeps its current owner (installs from before
+#      1.8.2 ran as 100:101), so an upgrade never re-owns it and a downgrade
+#      still works;
+#   3. otherwise (a fresh install) the image user, 1000:1000.
+# Known identities run by name (netmap, or netmap-legacy for 100:101), so sudo
+# and nmap work even on a read-only root filesystem. Any other identity is
+# added by remapping netmap, which needs a writable /etc; when /etc is
+# read-only the backend still runs as that numeric ID, but without an account
+# sudo refuses it, so discovery scans are unavailable until the IDs change.
+app_user=""
+app_uid=""
+app_gid=""
 if [ "$(id -u)" = 0 ]; then
-  if [ -n "${PGID:-}" ] && [ "${PGID}" != "$(id -g netmap)" ]; then
-    groupmod -o -g "${PGID}" netmap \
-      || echo "netmap: could not change the netmap group to PGID ${PGID} (read-only root filesystem?); keeping GID $(id -g netmap)" >&2
+  default_uid="$(id -u netmap)"
+  default_gid="$(id -g netmap)"
+  want_uid="${PUID:-}"
+  want_gid="${PGID:-}"
+  reown_data=1
+  if [ -z "${want_uid}" ] && [ -z "${want_gid}" ] && [ -e /app/data/netmap.db ]; then
+    data_uid="$(stat -c %u /app/data/netmap.db)"
+    data_gid="$(stat -c %g /app/data/netmap.db)"
+    if [ "${data_uid}" != 0 ] && { [ "${data_uid}" != "${default_uid}" ] || [ "${data_gid}" != "${default_gid}" ]; }; then
+      want_uid="${data_uid}"
+      want_gid="${data_gid}"
+      reown_data=0
+      echo "netmap: existing data in /app/data is owned by ${data_uid}:${data_gid}, so NetMap keeps running as ${data_uid}:${data_gid}. New installs run as 1000:1000; to move to it, set PUID=1000 and PGID=1000, or chown -R 1000:1000 the data directory." >&2
+    fi
   fi
-  if [ -n "${PUID:-}" ] && [ "${PUID}" != "$(id -u netmap)" ]; then
-    usermod -o -u "${PUID}" netmap \
-      || echo "netmap: could not change the netmap user to PUID ${PUID} (read-only root filesystem?); keeping UID $(id -u netmap)" >&2
+  want_uid="${want_uid:-${default_uid}}"
+  want_gid="${want_gid:-${default_gid}}"
+
+  if [ "${want_uid}" = "${default_uid}" ] && [ "${want_gid}" = "${default_gid}" ]; then
+    app_user=netmap
+  elif [ "${want_uid}" = "$(id -u netmap-legacy)" ] && [ "${want_gid}" = "$(id -g netmap-legacy)" ]; then
+    app_user=netmap-legacy
+  else
+    remapped=1
+    if [ "${want_gid}" != "${default_gid}" ]; then
+      groupmod -o -g "${want_gid}" netmap 2>/dev/null || remapped=0
+    fi
+    if [ "${remapped}" = 1 ] && [ "${want_uid}" != "${default_uid}" ]; then
+      usermod -o -u "${want_uid}" netmap 2>/dev/null || remapped=0
+    fi
+    if [ "${remapped}" = 1 ]; then
+      app_user=netmap
+    else
+      echo "netmap: WARNING: cannot create an account for ${want_uid}:${want_gid} on a read-only root filesystem. NetMap runs as ${want_uid}:${want_gid}, but discovery scans (sudo nmap) are unavailable. To restore them, use PUID=1000/PGID=1000 (chown -R 1000:1000 the data directory) or remove read_only." >&2
+    fi
   fi
+  app_uid="${want_uid}"
+  app_gid="${want_gid}"
+
+  if [ "${reown_data}" = 1 ]; then
+    chown -R "${app_uid}:${app_gid}" /app/data 2>/dev/null || echo "netmap: skipping chown of /app/data (not permitted); assuming already writable" >&2
+  fi
+else
+  echo "netmap: started as $(id -u):$(id -g); PUID/PGID are ignored and /app/data must already be writable" >&2
 fi
 
-chown -R netmap:netmap /app/data 2>/dev/null || echo "netmap: skipping chown of /app/data (not permitted); assuming already writable" >&2
+# Run a command as the backend identity chosen above.
+as_app() {
+  if [ "$(id -u)" != 0 ]; then
+    "$@"
+  elif [ -n "${app_user}" ]; then
+    setpriv --reuid="${app_user}" --regid="${app_user}" --init-groups "$@"
+  else
+    setpriv --reuid="${app_uid}" --regid="${app_gid}" --clear-groups "$@"
+  fi
+}
+
 # nginx temp paths live under /tmp so the root filesystem can be read-only.
 # Root creates the parent (a fresh tmpfs has none), hands it to netmap, and the
 # netmap user creates the rest, so no DAC_OVERRIDE capability is needed.
@@ -71,10 +127,12 @@ PY
 # A restarted container can retain the old Unix socket even though no Uvicorn
 # process is listening on it. Never let nginx mistake that stale path for a
 # ready backend.
-# The socket belongs to netmap and /tmp is sticky, so netmap removes it.
-as_netmap rm -f /tmp/uvicorn.sock 2>/dev/null || rm -f /tmp/uvicorn.sock
+# The socket belongs to the backend identity and /tmp is sticky, so it removes it.
+as_app rm -f /tmp/uvicorn.sock 2>/dev/null || rm -f /tmp/uvicorn.sock
 
-as_netmap uvicorn app.main:app \
+# Uvicorn makes the socket 0666, so nginx workers (netmap) reach it whatever
+# identity the backend runs as.
+as_app uvicorn app.main:app \
   --uds /tmp/uvicorn.sock \
   --proxy-headers \
   --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}" \

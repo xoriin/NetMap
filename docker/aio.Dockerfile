@@ -41,12 +41,17 @@ RUN apt-get update \
        util-linux \
   && rm -rf /var/lib/apt/lists/* \
   && setcap cap_net_raw+ep /bin/ping \
-  && echo "netmap ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/netmap-nmap \
+  && printf '%s\n' "netmap ALL=(root) NOPASSWD: /usr/bin/nmap" "netmap-legacy ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/netmap-nmap \
   && chmod 440 /etc/sudoers.d/netmap-nmap
 
 # Fixed 1000:1000 matches the documented PUID/PGID default, so the usual setup
 # never rewrites /etc/passwd at startup and runs with a read-only root filesystem.
 RUN addgroup --system --gid 1000 netmap && adduser --system --uid 1000 --ingroup netmap netmap
+# Installs from before 1.8.2 ran as 100:101. Keep that identity as an account
+# so existing data keeps its owner, and sudo/nmap work, without re-owning it.
+RUN addgroup --system --gid 101 netmap-legacy \
+  && adduser --system --uid 100 --ingroup netmap-legacy --no-create-home netmap-legacy \
+  && test "$(id -u netmap):$(id -g netmap) $(id -u netmap-legacy):$(id -g netmap-legacy)" = "1000:1000 100:101"
 
 WORKDIR /app
 
