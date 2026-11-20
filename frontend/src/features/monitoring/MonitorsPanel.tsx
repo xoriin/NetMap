@@ -20,6 +20,23 @@ import {
   loadPageSize,
 } from "../../utils/monitoring";
 
+
+function certExpiryDisplay(monitor: Monitor) {
+  if (!monitor.last_cert_expires_at) {
+    return { text: "—", tone: null as "offline" | "warning" | "online" | null, title: undefined as string | undefined };
+  }
+  const expires = new Date(monitor.last_cert_expires_at);
+  const days = Math.round((expires.getTime() - Date.now()) / 86_400_000);
+  const issuer = monitor.last_cert_issuer ? `Issued by ${monitor.last_cert_issuer}` : "Issuer unknown";
+  const title = `${expires.toLocaleDateString()} · ${issuer}`;
+  if (days < 0) return { text: "Expired", tone: "offline" as const, title };
+  return {
+    text: `${days} d`,
+    tone: (days <= monitor.certificate_expiry_days ? "warning" : "online") as "warning" | "online",
+    title,
+  };
+}
+
 const HTTP_METHODS: HttpMethod[] = ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"];
 
 const INTERVAL_OPTIONS = [
@@ -377,7 +394,7 @@ export function MonitorsPanel({
       </div>
 
       {loading ? (
-        <TableSkeleton rows={8} columns={8} />
+        <TableSkeleton rows={8} columns={11} />
       ) : monitors.length === 0 ? (
         <p className="dash-empty">No HTTP/HTTPS endpoints yet. Add one to start tracking availability and response time.</p>
       ) : filteredMonitors.length === 0 ? (
@@ -395,6 +412,7 @@ export function MonitorsPanel({
                 <col className="monitors-col-uptime" />
                 <col className="monitors-col-uptime" />
                 <col className="monitors-col-rtt" />
+                <col className="monitors-col-cert" />
                 <col className="monitors-col-checked" />
                 <col className="monitors-col-actions" />
               </colgroup>
@@ -408,12 +426,15 @@ export function MonitorsPanel({
                   <th className="nm-table-num">Uptime 24h</th>
                   <th className="nm-table-num">Uptime 7d</th>
                   <th className="nm-table-num">Avg RTT</th>
+                  <th className="nm-table-num">Certificate</th>
                   <th>Last checked</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedMonitors.map((monitor) => (
+                {paginatedMonitors.map((monitor) => {
+                  const cert = certExpiryDisplay(monitor);
+                  return (
                   <tr
                     key={monitor.id}
                     className={selectedId === monitor.id ? "is-active" : ""}
@@ -445,6 +466,13 @@ export function MonitorsPanel({
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_24h)}</td>
                     <td className="nm-table-num">{fmtMonitorUptime(monitor.uptime_7d)}</td>
                     <td className="nm-table-num">{fmtMonitorRtt(monitor.avg_response_time_24h)}</td>
+                    <td className="nm-table-num monitors-cert-cell">
+                      {cert.tone ? (
+                        <span className={`nm-status nm-status--${cert.tone}`} title={cert.title}>{cert.text}</span>
+                      ) : (
+                        <span className="monitors-cert-empty" title="No TLS certificate seen yet">—</span>
+                      )}
+                    </td>
                     <td className="monitors-text-cell">{fmtMonitorWhen(monitor.last_checked_at)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {canWrite && (
@@ -458,7 +486,8 @@ export function MonitorsPanel({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

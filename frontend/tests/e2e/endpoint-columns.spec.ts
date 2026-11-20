@@ -22,13 +22,13 @@ for (const theme of ["light", "dark"] as const) {
       // Every data column shares the remaining width; long URLs must not absorb
       // the spare desktop space and bunch the metrics up at the right edge.
       const widths = await headers.evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
-      const dataWidths = widths.slice(2, 9);
+      const dataWidths = widths.slice(2, 10);
       expect(Math.max(...dataWidths) - Math.min(...dataWidths)).toBeLessThanOrEqual(1);
       expect(widths[0]).toBeCloseTo(90, 0);
       expect(widths[1]).toBeCloseTo(50, 0);
-      expect(widths[9]).toBeCloseTo(220, 0);
+      expect(widths[10]).toBeCloseTo(220, 0);
       await expect(headers.nth(4)).toHaveCSS("text-align", "left");
-      for (const index of [5, 6, 7]) await expect(headers.nth(index)).toHaveCSS("text-align", "center");
+      for (const index of [5, 6, 7, 8]) await expect(headers.nth(index)).toHaveCSS("text-align", "center");
       const geometry = await table.evaluate(node => {
         const head = [...node.querySelectorAll("thead th")];
         const cells = [...node.querySelectorAll("tbody tr:first-child td")];
@@ -40,8 +40,8 @@ for (const theme of ["light", "dark"] as const) {
         });
       });
       for (const column of geometry) { expect(column.cellEdgeDelta).toBeLessThanOrEqual(1); expect(column.widthDelta).toBeLessThanOrEqual(1); }
-      for (const index of [2, 4, 8]) expect(geometry[index].textEdgeDelta).toBeLessThanOrEqual(1);
-      for (const index of [5, 6, 7]) { expect(geometry[index].headerCentreDelta).toBeLessThanOrEqual(1); expect(geometry[index].valueCentreDelta).toBeLessThanOrEqual(1); }
+      for (const index of [2, 4, 9]) expect(geometry[index].textEdgeDelta).toBeLessThanOrEqual(1);
+      for (const index of [5, 6, 7, 8]) { expect(geometry[index].headerCentreDelta).toBeLessThanOrEqual(1); expect(geometry[index].valueCentreDelta).toBeLessThanOrEqual(1); }
       const heartbeat = table.locator(".heartbeat-bar--sm").first();
       await expect(heartbeat.locator(".heartbeat-beat")).toHaveCount(24);
       const beatFits = await heartbeat.evaluate(bar => {
@@ -101,4 +101,34 @@ test("the endpoint popup has the interactive heartbeat and RTT graph", async ({ 
   const box = (await page.locator(".mon-hero .nm-area-chart .nm-chart-zoom-hit").boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
   await expect(page.locator(".nm-chart-tip")).toContainText("ms");
+});
+
+test("endpoint rows show certificate expiry beside the top-5 list", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setupCoreMocks(page); await setupTopologyMocks(page); await setupMonitoringMocks(page);
+  const day = 86_400_000;
+  const iso = (msFromNow: number) => new Date(Date.now() + msFromNow).toISOString();
+  const base = {
+    enabled: true, last_status: "online", last_checked_at: new Date().toISOString(),
+    uptime_24h: 99, uptime_7d: 99, avg_response_time_24h: 40, heartbeat: Array(24).fill("online"),
+    certificate_expiry_alert: true, certificate_expiry_days: 14, last_cert_issuer: "R11",
+  };
+  await page.route("**/api/v1/monitors", route => route.fulfill({ json: [
+    { id: 1, name: "Expiring soon", url: "https://soon.example/", ...base, last_cert_expires_at: iso(7 * day) },
+    { id: 2, name: "Already expired", url: "https://old.example/", ...base, last_cert_expires_at: iso(-2 * day) },
+    { id: 3, name: "Healthy cert", url: "https://ok.example/", ...base, last_cert_expires_at: iso(90 * day) },
+    { id: 4, name: "No certificate", url: "https://plain.example/", ...base, last_cert_expires_at: null, last_cert_issuer: null },
+  ] }));
+  await page.goto("/monitoring#endpoints");
+  const table = page.locator(".monitors-table");
+  await expect(table.getByRole("columnheader", { name: "Certificate" })).toBeVisible();
+  const cell = (name: string) => table.locator("tbody tr", { hasText: name }).locator(".monitors-cert-cell");
+  await expect(cell("Expiring soon").locator(".nm-status--warning")).toHaveText("7 d");
+  await expect(cell("Already expired").locator(".nm-status--offline")).toHaveText("Expired");
+  await expect(cell("Healthy cert").locator(".nm-status--online")).toHaveText("90 d");
+  await expect(cell("No certificate").locator(".monitors-cert-empty")).toHaveText("—");
+  const list = page.getByRole("region", { name: "Certificates Expiring", exact: true });
+  await expect(list.getByText("Expiring soon")).toBeVisible();
+  await expect(list.getByText("7 d")).toBeVisible();
+  await expect(list.getByText("Expired", { exact: true })).toBeVisible();
 });
