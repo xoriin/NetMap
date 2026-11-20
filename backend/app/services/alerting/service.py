@@ -332,6 +332,13 @@ class AlertMonitorService:
             old_status = self._known.get(device_id, "unknown")
             if new_status == old_status:
                 continue
+            if old_status != "unknown":
+                changed = device_map[device_id]
+                logger.log(
+                    logging.WARNING if new_status == "offline" else logging.INFO,
+                    "Device %r is %s (was %s)",
+                    changed.display_name or changed.hostname or changed.ip_address, new_status, old_status,
+                )
 
             self._flap_times.setdefault(device_id, []).append(now)
 

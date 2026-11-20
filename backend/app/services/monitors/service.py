@@ -202,6 +202,17 @@ class StandaloneMonitorService:
                 if failures > monitor.max_retries:
                     new_status = "offline"
             monitor_states[monitor.id] = (failures, new_status)
+            if not result.open and was_status != "offline":
+                # Misses while a monitor is still up (retries); once offline, only the change is logged.
+                logger.info(
+                    "Monitor %r check failed (%d in a row): %s",
+                    monitor.name, failures, (result.error or "Check failed")[:255],
+                )
+            if new_status != was_status and new_status is not None:
+                logger.log(
+                    logging.WARNING if new_status == "offline" else logging.INFO,
+                    "Monitor %r is %s (was %s)", monitor.name, new_status, was_status or "unknown",
+                )
 
             history_rows.append({
                 "monitor_id": monitor.id,
