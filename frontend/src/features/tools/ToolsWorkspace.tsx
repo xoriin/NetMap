@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import "./tools.css";
-import { Activity, BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, Search, Trash2 } from "lucide-react";
+import { Activity, BookOpen, Bookmark, CheckCircle2, Clock3, Copy, Download, History, Network, RotateCcw, ScrollText, Search, Trash2 } from "lucide-react";
 import { IconWifi, IconServer, IconWorld, IconLayoutDashboard, IconRouter } from "@tabler/icons-react";
 import {
   api,
@@ -16,6 +16,7 @@ import { BarList, CountUp } from "../../components/Charts";
 import { timeAgo } from "../../utils/history";
 import { deviceLabel, formatMs } from "../../utils/format";
 import { prefixToMask, wildcardMask, ipClass, ipType } from "../../utils/ip";
+import { ToolsLogsPanel } from "./ToolsLogsPanel";
 
 function ToolPanelHeader({ icon, title }: { icon: ReactNode; title: string }) {
   return (
@@ -92,6 +93,15 @@ const TOOL_DEFINITIONS = [
     guide: "Queries an SNMP endpoint for system identity, uptime, interfaces and ARP information.",
     steps: ["Select a saved profile or manual community.", "Enter the target host and connection settings.", "Run the probe and inspect returned device data."],
   },
+  {
+    id: "logs",
+    label: "Logs",
+    description: "Follow the application log",
+    Icon: ScrollText,
+    passive: true,
+    guide: "Reads the rolling in-memory application log. Filter by level, source, text or time, follow new entries live, and expand a row to read a stored exception.",
+    steps: ["Choose filters if you want a narrower view.", "Leave live tail on to append new entries as they arrive.", "Expand a row to read its exception, or load older entries to page backwards."],
+  },
 ] as const;
 
 // LLDP remains implemented behind its currently hidden selector.
@@ -100,7 +110,7 @@ type ToolId = (typeof TOOL_DEFINITIONS)[number]["id"] | "lldp";
 type ToolRunStatus = "success" | "error";
 type ToolRun = {
   id: string;
-  tool: Exclude<ToolId, "lldp">;
+  tool: Exclude<ToolId, "lldp" | "logs">;
   target: string;
   summary: string;
   status: ToolRunStatus;
@@ -141,11 +151,13 @@ export function ToolsWorkspace({
   graph,
   selectedDevice,
   canRunActiveTools,
+  canViewDiagnostics,
 }: {
   accessToken: string;
   graph: TopologyGraph;
   selectedDevice: Device | null;
   canRunActiveTools: boolean;
+  canViewDiagnostics: boolean;
 }) {
   const [dnsName, setDnsName] = useState("");
   const [dnsRecordType, setDnsRecordType] = useState<DnsRecordType>("A");
@@ -199,7 +211,12 @@ export function ToolsWorkspace({
   const [savedResults, setSavedResults] = useState<SavedToolResult[]>(() => loadStoredRuns<SavedToolResult>(TOOLS_SAVED_KEY, 15));
 
   const activeTarget = selectedDevice?.ip_address ?? "";
-  const availableTools = TOOL_DEFINITIONS.filter((tool) => tool.passive || canRunActiveTools);
+  const [logsForbidden, setLogsForbidden] = useState(false);
+  const canViewLogs = canViewDiagnostics && !logsForbidden;
+  const availableTools = TOOL_DEFINITIONS.filter((tool) => {
+    if (tool.id === "logs") return canViewLogs;
+    return tool.passive || canRunActiveTools;
+  });
   const [requestedTool, setActiveTool] = useState<ToolId>("dns");
   const activeToolDefinition = availableTools.find((tool) => tool.id === requestedTool) ?? availableTools[0];
   const activeTool = activeToolDefinition.id as ToolId;
@@ -1069,6 +1086,13 @@ export function ToolsWorkspace({
             )}
           </section>}
 
+          {activeTool === "logs" && <section className="tool-card nm-app-panel">
+            <ToolPanelHeader
+              icon={<ScrollText size={18} />}
+              title="Logs"
+            />
+            <ToolsLogsPanel accessToken={accessToken} onForbidden={() => setLogsForbidden(true)} />
+          </section>}
           {activeTool === "lldp" && <section className="tool-card">
             <form onSubmit={async (e) => {
               e.preventDefault();

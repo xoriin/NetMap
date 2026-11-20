@@ -214,6 +214,7 @@ export function DashboardView({
           graph={graph}
           selectedDevice={selectedTopologyDevice}
           canRunActiveTools={canRunActiveTools}
+          canViewDiagnostics={userHasPermission(user, "diagnostics_view")}
         />
       )}
       {currentRoute === "/exports" && accessToken && canAccessExports && (
