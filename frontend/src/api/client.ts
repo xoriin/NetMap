@@ -464,6 +464,11 @@ export type SnmpProbeResult = {
   duration_ms: number;
 };
 
+export type SnmpVersion = "v2c" | "v3";
+export type SnmpSecurityLevel = "noAuthNoPriv" | "authNoPriv" | "authPriv";
+export type SnmpAuthProtocol = "MD5" | "SHA" | "SHA-224" | "SHA-256" | "SHA-384" | "SHA-512";
+export type SnmpPrivProtocol = "DES" | "AES" | "AES-192" | "AES-256";
+
 export type SnmpProfile = {
   id: number;
   name: string;
@@ -471,8 +476,32 @@ export type SnmpProfile = {
   port: number;
   timeout_seconds: number;
   retries: number;
+  username: string | null;
+  security_level: string | null;
+  auth_protocol: string | null;
+  priv_protocol: string | null;
+  context_name: string | null;
+  has_community: boolean;
+  has_auth_key: boolean;
+  has_priv_key: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type SnmpProfileWrite = {
+  name: string;
+  version: SnmpVersion;
+  port: number;
+  timeout_seconds: number;
+  retries: number;
+  community?: string;
+  username?: string | null;
+  security_level?: SnmpSecurityLevel;
+  auth_protocol?: SnmpAuthProtocol;
+  auth_key?: string;
+  priv_protocol?: SnmpPrivProtocol;
+  priv_key?: string;
+  context_name?: string | null;
 };
 
 export type LldpNeighbour = {
@@ -2076,7 +2105,7 @@ export const api = {
   listSnmpProfiles: (token: string) => request<SnmpProfile[]>("/api/v1/tools/snmp/profiles", { token }),
   createSnmpProfile: (
     token: string,
-    payload: { name: string; community: string; port: number; timeout_seconds: number; retries: number },
+    payload: SnmpProfileWrite,
   ) =>
     request<SnmpProfile>("/api/v1/tools/snmp/profiles", {
       method: "POST",
@@ -2086,7 +2115,7 @@ export const api = {
   updateSnmpProfile: (
     token: string,
     profileId: number,
-    payload: Partial<{ name: string; community: string; port: number; timeout_seconds: number; retries: number }>,
+    payload: Partial<SnmpProfileWrite>,
   ) =>
     request<SnmpProfile>(`/api/v1/tools/snmp/profiles/${profileId}`, {
       method: "PATCH",
