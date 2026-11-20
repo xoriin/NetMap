@@ -37,12 +37,25 @@ services:
       - "8080:8080"
       - "5514:1514/udp"
       - "5514:1514/tcp"
+    # Hardened defaults: read-only root filesystem and only the capabilities the
+    # container uses. /tmp holds nginx temp files and the backend socket; data
+    # lives in the /app/data volume.
+    #   CHOWN             make /app/data and the nginx temp dir belong to PUID/PGID
+    #   SETUID, SETGID    drop to the netmap user, nginx workers, and `sudo nmap`
+    #   AUDIT_WRITE       lets sudo write its audit record
+    #   NET_RAW           ping and nmap raw-socket/ARP discovery
+    #   NET_BIND_SERVICE  DHCP service-check replies on UDP 68
+    # Do not add `no-new-privileges`: it blocks sudo, so discovery scans fail.
     read_only: true
     tmpfs:
       - /tmp
     cap_drop:
       - ALL
     cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - AUDIT_WRITE
       - NET_RAW
       - NET_BIND_SERVICE
     restart: unless-stopped

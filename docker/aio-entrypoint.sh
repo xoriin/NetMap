@@ -1,18 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run a command as the netmap user. When the container itself was started as a
+# non-root user (compose `user:`), there is nothing to drop.
+as_netmap() {
+  if [ "$(id -u)" = 0 ]; then
+    setpriv --reuid=netmap --regid=netmap --init-groups "$@"
+  else
+    "$@"
+  fi
+}
+
 # Remap the internal netmap user to match the host's PUID/PGID if provided.
 # This lets the container write to bind-mounted volumes owned by the host user.
-if [ -n "${PGID:-}" ]; then
-  groupmod -o -g "${PGID}" netmap
-fi
-if [ -n "${PUID:-}" ]; then
-  usermod -o -u "${PUID}" netmap
+# Skip it when the IDs already match (the image user is 1000:1000), so a
+# read-only root filesystem never needs to rewrite /etc/passwd or /etc/group.
+if [ "$(id -u)" = 0 ]; then
+  if [ -n "${PGID:-}" ] && [ "${PGID}" != "$(id -g netmap)" ]; then
+    groupmod -o -g "${PGID}" netmap \
+      || echo "netmap: could not change the netmap group to PGID ${PGID} (read-only root filesystem?); keeping GID $(id -g netmap)" >&2
+  fi
+  if [ -n "${PUID:-}" ] && [ "${PUID}" != "$(id -u netmap)" ]; then
+    usermod -o -u "${PUID}" netmap \
+      || echo "netmap: could not change the netmap user to PUID ${PUID} (read-only root filesystem?); keeping UID $(id -u netmap)" >&2
+  fi
 fi
 
 chown -R netmap:netmap /app/data 2>/dev/null || echo "netmap: skipping chown of /app/data (not permitted); assuming already writable" >&2
-mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
+# nginx temp paths live under /tmp so the root filesystem can be read-only.
+# Root creates the parent (a fresh tmpfs has none), hands it to netmap, and the
+# netmap user creates the rest, so no DAC_OVERRIDE capability is needed.
+mkdir -p /tmp/nginx
 chown -R netmap:netmap /tmp/nginx 2>/dev/null || echo "netmap: skipping chown of /tmp/nginx (not permitted); assuming already writable" >&2
+as_netmap mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
 
 envsubst '${APP_PORT}' < /etc/netmap/aio-nginx.conf.template > /tmp/nginx.generated.conf
 
@@ -51,9 +71,10 @@ PY
 # A restarted container can retain the old Unix socket even though no Uvicorn
 # process is listening on it. Never let nginx mistake that stale path for a
 # ready backend.
-rm -f /tmp/uvicorn.sock
+# The socket belongs to netmap and /tmp is sticky, so netmap removes it.
+as_netmap rm -f /tmp/uvicorn.sock 2>/dev/null || rm -f /tmp/uvicorn.sock
 
-setpriv --reuid=netmap --regid=netmap --init-groups uvicorn app.main:app \
+as_netmap uvicorn app.main:app \
   --uds /tmp/uvicorn.sock \
   --proxy-headers \
   --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}" \
@@ -82,7 +103,8 @@ while [ ! -S /tmp/uvicorn.sock ]; do
   sleep 0.5
 done
 
-nginx -c /tmp/nginx.generated.conf -g "daemon off;" &
+# -e stderr: never open the packaged /var/log/nginx/error.log (read-only root).
+nginx -e stderr -c /tmp/nginx.generated.conf -g "daemon off;" &
 nginx_pid="$!"
 
 shutdown() {

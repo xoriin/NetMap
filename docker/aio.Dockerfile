@@ -44,7 +44,9 @@ RUN apt-get update \
   && echo "netmap ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/netmap-nmap \
   && chmod 440 /etc/sudoers.d/netmap-nmap
 
-RUN addgroup --system netmap && adduser --system --ingroup netmap netmap
+# Fixed 1000:1000 matches the documented PUID/PGID default, so the usual setup
+# never rewrites /etc/passwd at startup and runs with a read-only root filesystem.
+RUN addgroup --system --gid 1000 netmap && adduser --system --uid 1000 --ingroup netmap netmap
 
 WORKDIR /app
 
