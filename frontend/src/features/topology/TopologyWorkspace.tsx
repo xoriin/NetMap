@@ -389,6 +389,8 @@ export function TopologyWorkspace({
           showNodeIcons: dp.showNodeIcons,
           showNodeLabels: dp.showNodeLabels,
         },
+      }).catch((error: unknown) => {
+        console.warn("Topology layout autosave failed", error);
       });
     };
     if (immediate) {
