@@ -1,8 +1,8 @@
-"""Guards for the hardened all-in-one container settings.
+"""Guards for the all-in-one container settings.
 
-The shipped compose files run with a read-only root filesystem and only the
-capabilities the entrypoint, nginx and `sudo nmap` need. These checks keep the
-files consistent and keep the entrypoint compatible with them.
+The shipped compose files keep Docker's default capabilities and a writable
+root until 2.0, so upgrades need no compose edits. The image still supports a
+read-only root with minimal capabilities for anyone who opts in.
 """
 
 from pathlib import Path
@@ -13,7 +13,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 DOCKER = ROOT / "docker"
 SHIPPED_COMPOSE = ("docker-compose.yml", "docker-compose.example.yml", "docker-compose.build.yml")
-REQUIRED_CAPS = {"CHOWN", "SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW", "NET_BIND_SERVICE"}
 
 
 def _aio_services():
@@ -29,11 +28,11 @@ def _aio_services():
 
 
 @pytest.mark.parametrize("service", _aio_services())
-def test_shipped_compose_is_read_only_with_minimal_capabilities(service):
-    assert service.get("read_only") is True
-    assert "/tmp" in service.get("tmpfs", [])
-    assert service.get("cap_drop") == ["ALL"]
-    assert set(service.get("cap_add", [])) == REQUIRED_CAPS
+def test_shipped_compose_keeps_default_capabilities_and_a_writable_root(service):
+    # cap_drop: ALL without CHOWN/SETUID/SETGID stops every released image from starting.
+    assert "cap_drop" not in service
+    assert "cap_add" not in service
+    assert "read_only" not in service
     # no-new-privileges blocks `sudo nmap`, so discovery scans would fail.
     assert not any("no-new-privileges" in opt for opt in service.get("security_opt", []))
 
