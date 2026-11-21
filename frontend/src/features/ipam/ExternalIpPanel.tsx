@@ -153,13 +153,11 @@ function splitTags(tags: string | null) {
 export function ExternalIpPanel({
   accessToken,
   canWrite,
-  canManageProviders: _canManageProviders = false,
   canCreateDevice = false,
   onDeviceChange,
 }: {
   accessToken: string;
   canWrite: boolean;
-  canManageProviders?: boolean;
   canCreateDevice?: boolean;
   onDeviceChange?: (device: Device) => void;
 }) {
