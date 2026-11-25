@@ -3927,6 +3927,9 @@ body.route-monitoring .mon-view-window .nm-app-panel-header {
 .monitors-search-wrap {
   width: 240px;
 }
+@media (min-width: 761px) {
+  .monitors-table-toolbar .mon-panel-controls { flex: 1 1 auto; flex-wrap: nowrap; justify-content: flex-end; min-width: 0; }
+}
 .monitors-table-wrap {
   width: 100%;
   min-width: 0;
