@@ -17,6 +17,7 @@ from app.middleware.csrf import CsrfProtectionMiddleware
 from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.services import totp
+from app.services.auth import revoke_all_user_refresh_tokens
 from tests.oidc_helpers import memory_session_factory
 
 PASSWORD = "correct horse battery"
@@ -81,14 +82,23 @@ def test_enrolled_account_gets_a_challenge_and_no_cookies(client_and_db):
     assert "set-cookie" not in response.headers
 
 
-def test_challenge_does_not_carry_an_unkeyed_password_hash_digest(client_and_db):
+def test_challenge_carries_the_session_version_and_nothing_derived_from_the_password(client_and_db):
     client, db = client_and_db
     user, _secret = _make_user(db, enrol=True)
     challenge = _login(client).json()["challenge"]
     payload = challenge.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    assert claims["pwf"] != hashlib.sha256(user.password_hash.encode()).hexdigest()
-    assert claims["pwf"] == auth_api._password_fingerprint(user)
+    assert "pwf" not in claims
+    assert claims["sv"] == user.token_version
+    assert hashlib.sha256(user.password_hash.encode()).hexdigest() not in json.dumps(claims)
+
+
+def test_challenge_without_a_session_version_is_rejected(client_and_db):
+    client, db = client_and_db
+    user, secret = _make_user(db, enrol=True)
+    challenge = create_token(str(user.id), "mfa_challenge", timedelta(minutes=5), {})
+    response = client.post("/api/v1/auth/login/totp", json={"challenge": challenge, "code": pyotp.TOTP(secret).now()})
+    assert response.status_code == 401
 
 
 def test_correct_code_completes_sign_in_and_is_audited(client_and_db):
@@ -189,6 +199,12 @@ def test_second_step_endpoints_are_not_blocked_by_a_stale_session_cookie(path):
     assert _csrf_status(path) == 204
 
 
+def _reset_password(db, user):
+    user.password_hash = hash_password("a brand new password")
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="password_reset")
+    db.commit()
+
+
 def _setup_challenge(client, db):
     from app.models.system_setting import SystemSetting
 
@@ -264,8 +280,7 @@ def test_password_reset_invalidates_an_outstanding_setup_challenge(client_and_db
     challenge = _setup_challenge(client, db)
     setup = client.post("/api/v1/auth/login/totp/setup", json={"challenge": challenge}).json()
     user = db.query(User).filter_by(username="alice").one()
-    user.password_hash = hash_password("a brand new password")
-    db.commit()
+    _reset_password(db, user)
     for path, body in (
         ("/api/v1/auth/login/totp/setup", {"challenge": challenge}),
         ("/api/v1/auth/login/totp/setup/confirm", {"challenge": challenge, "code": pyotp.TOTP(setup["secret"]).now()}),
@@ -281,7 +296,16 @@ def test_password_reset_invalidates_an_outstanding_code_challenge(client_and_db)
     client, db = client_and_db
     user, secret = _make_user(db, enrol=True)
     challenge = _login(client).json()["challenge"]
-    user.password_hash = hash_password("a brand new password")
+    _reset_password(db, user)
+    response = client.post("/api/v1/auth/login/totp", json={"challenge": challenge, "code": pyotp.TOTP(secret).now()})
+    assert response.status_code == 401
+
+
+def test_sign_out_everywhere_invalidates_an_outstanding_code_challenge(client_and_db):
+    client, db = client_and_db
+    user, secret = _make_user(db, enrol=True)
+    challenge = _login(client).json()["challenge"]
+    revoke_all_user_refresh_tokens(db, user_id=user.id, reason="logout_all")
     db.commit()
     response = client.post("/api/v1/auth/login/totp", json={"challenge": challenge, "code": pyotp.TOTP(secret).now()})
     assert response.status_code == 401

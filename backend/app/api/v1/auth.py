@@ -1,8 +1,5 @@
-import hashlib
-import hmac
 import logging
 from datetime import datetime, timedelta, timezone
-from hmac import compare_digest
 from secrets import token_urlsafe
 from typing import Annotated
 
@@ -13,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_super_admin, require_user_manage
 from app.core.config import settings
-from app.core.secrets import signing_secret
 from app.core.network import request_client_ip
 from app.services.auth.devices import record_sign_in_device, send_notice_later, set_device_cookie
 from app.core.security import (
@@ -90,16 +86,12 @@ MFA_CHALLENGE_TTL = timedelta(minutes=5)
 _CHALLENGE_EXPIRED = "Sign-in expired. Enter your password again."
 
 
-def _password_fingerprint(user: User) -> str:
-    return hmac.new(signing_secret().encode(), user.password_hash.encode(), hashlib.sha256).hexdigest()
-
-
 MFA_PENDING_COOKIE = "netmap_mfa_pending"
 MFA_PENDING_PATH = "/api/v1/auth/login/"
 
 
 def issue_mfa_challenge(user: User, token_type: str, *, source: str | None = None) -> str:
-    claims = {"pwf": _password_fingerprint(user)}
+    claims = {"sv": int(user.token_version or 0)}
     if source:
         claims["src"] = source
     return create_token(str(user.id), token_type, MFA_CHALLENGE_TTL, claims)
@@ -131,7 +123,7 @@ def _user_from_challenge(db: Session, challenge: str, token_type: str) -> User:
     user = db.get(User, user_id) if user_id is not None else None
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
-    if not compare_digest(str(payload.get("pwf", "")), _password_fingerprint(user)):
+    if "sv" not in payload or not token_version_matches(payload, user.token_version):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
     if (user.totp_enabled_at is not None) != (token_type == "mfa_challenge"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_CHALLENGE_EXPIRED)
