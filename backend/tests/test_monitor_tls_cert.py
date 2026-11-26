@@ -54,6 +54,7 @@ def self_signed_https(tmp_path):
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption(),
     ))
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(cert_path, key_path)
     server = HTTPServer(("127.0.0.1", 0), _Handler)
     server.socket = context.wrap_socket(server.socket, server_side=True)
