@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.2] - 2026-11-26
+
+### Security
+- Pending MFA sign-in challenges are tied to the account's session version instead of a fingerprint of the password hash, so no value derived from the password is placed in the sign-in token or cookie. Changing or resetting the password, or signing out everywhere, still cancels a pending challenge. Anyone part-way through an MFA prompt during the upgrade signs in again.
+- The image can run with a read-only root filesystem (`read_only: true` with a `/tmp` tmpfs) and only the CHOWN, SETUID, SETGID, AUDIT_WRITE, NET_RAW and NET_BIND_SERVICE capabilities, and discovery scans still work. This is optional; the shipped compose files keep Docker's default capabilities. Existing data is never re-owned unless you set PUID/PGID. If a PUID/PGID can't be applied on a read-only filesystem, NetMap still starts and logs a warning; discovery scans are unavailable for that ID.
+
+### Added
+- Monitoring HTTP/HTTPS endpoint rows show certificate expiry (Expired, days remaining, or — when no certificate has been seen), matching the Certificates Expiring list. (#60)
+- SNMP profiles can use SNMPv3: username, security level (noAuthNoPriv, authNoPriv or authPriv), MD5/SHA/SHA-2 authentication, DES/AES/AES-192/AES-256 privacy and an optional context name. Keys are encrypted at rest and never shown again, and SNMPv3 profiles work for the SNMP probe, discovery ARP enrichment and LLDP scans. Existing profiles stay SNMP v2c.
+- Admin → SNMP Profiles can create and edit SNMPv3 credentials: fields appear by version and security level, a blank secret on edit keeps the stored value, and the list shows each profile's real version.
+- Rolling application log for Tools: `GET /api/v1/tools/logs` returns recent NetMap log entries (service events, monitor misses and status changes, device status changes, configuration changes) with level, source, logger, time-range and text filters plus polling and paging. Entries are kept in memory only (5000 by default, `APP_LOG_CAPACITY`), secrets are redacted before they are stored, and access needs the `diagnostics_view` permission. (#47)
+- Tools → Logs shows the rolling application log: filter by level, source, text and time, follow new entries live, page backwards, and expand a row to read a stored exception. The tab is hidden without the `diagnostics_view` permission. (#47)
+
+### Changed
+- **Upgrade note — container user:** fresh installs run as 1000:1000. Existing installs keep running as the current owner of their data (100:101 for installs from before 1.8.2) and log a notice. To move to 1000:1000, set `PUID=1000` and `PGID=1000`, or `chown -R 1000:1000` the data directory. No compose file changes are needed to upgrade.
+
+### Fixed
+- Dark mode (Slate and Zinc): the selected VLAN row and the Admin Users row being edited keep their highlight, using `--nm-row-selected` and the accent edge instead of more specific row backgrounds or hard-coded colours.
+- Device-monitoring and endpoint-detail popups use theme tokens for text, borders, inputs and status colours, so they follow light, Slate and Zinc.
+- Announcement and deployment-security banners on Topology share the shell gutter immediately, instead of waiting for the lazy topology stylesheet, which also settles the banner-gutter Playwright flake.
+- TLS certificate details now update for monitors with TLS verification turned off, and for servers that close the connection after responding.
+- Monitoring → Endpoints: "+ Add endpoint" stays on the same row as the status filter and search instead of wrapping onto a second line.
+- A failed Topology layout autosave (for example while the database is busy) no longer surfaces as an error on whichever page you moved to; the failure is logged to the browser console instead.
+- A discovery scan that nmap cannot run (for example when sudo cannot run nmap for the container user) now fails with a clear scan error instead of "ParseError: no element found".
+- The shipped compose files start the container again. They dropped every capability except NET_RAW and NET_BIND_SERVICE, so the container could not start ("mkdir /tmp/nginx/client_body: Permission denied"); they now use Docker's default capabilities. A compose file that already starts NetMap needs no changes.
+
 ## [1.8.1] - 2026-11-18
 
 ### Security
