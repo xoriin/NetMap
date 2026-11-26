@@ -12,7 +12,7 @@ test.beforeEach(async({page})=>{
 });
 
 async function edit(page:Page,label:string,value:string,select=false) {
- await field(page,label).dblclick();
+ await field(page,label).dblclick({position:{x:4,y:8}});
  const input=page.getByRole(select?'combobox':'textbox',{name:`Edit ${label}`,exact:true});
  if(select) await input.selectOption(value); else await input.fill(value);
  await page.getByRole('button',{name:'Save',exact:true}).click();
@@ -103,7 +103,7 @@ for(const theme of ['light','dark'] as const) {
   expect(patches.at(-1)).toEqual({device_id:8});
   await pickDevice(page,'Not linked');
   expect(asset.device_id).toBeNull();
-  await field(page,'Name').dblclick();
+  await field(page,'Name').dblclick({position:{x:4,y:8}});
   await page.getByRole('textbox',{name:'Edit Name',exact:true}).fill(' ');
   await page.getByRole('button',{name:'Save',exact:true}).click();
   await expect(page.getByRole('complementary',{name:'Asset overview'}).getByRole('alert')).toContainText('Enter name');
@@ -167,7 +167,7 @@ test('the Cloud sidebar shares the Devices edit hint and has no per-field edit b
  await page.goto('/inventory#cloud-assets'); await page.getByRole('button',{name:'Open Public service details'}).click();
  const sidebar=page.getByRole('complementary',{name:'Asset overview'});
  await expect(sidebar.locator('.details-edit-hint')).toHaveText('Double-click any field to edit');
- await expect(sidebar.locator('dd button')).toHaveCount(0);
+ await expect(sidebar.locator('dd button:not([aria-label^="Copy "])')).toHaveCount(0);
  await field(page,'Owner').focus();
  await page.keyboard.press('Enter');
  await expect(page.getByRole('textbox',{name:'Edit Owner'})).toBeFocused();

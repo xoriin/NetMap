@@ -42,6 +42,7 @@ import { editableField, useEditableFieldFocus } from "../../utils/editableField"
 import { sameIp } from "../../utils/ipParse";
 import { CloudAssetTypePicker } from "./CloudAssetTypePicker";
 import { InventoryDetailsPanel } from "./InventoryDetailsPanel";
+import { CopyButton } from "../../components/CopyButton";
 
 export type CloudAssetRecord =
   | { type: "address"; value: ExternalIpAddress }
@@ -65,6 +66,7 @@ type Field = {
   required?: boolean;
   device?: boolean;
   assetType?: boolean;
+  copyLabel?: string;
   save?: (value: string) => Promise<void>;
 };
 
@@ -229,7 +231,7 @@ export function CloudAssetDetails({
       })),
     ];
     fields.push(
-      { label: "IP address", value: row.ip_address, required: true, save: (value) => addressPatch({ ip_address: value }) },
+      { label: "IP address", value: row.ip_address, required: true, copyLabel: "IP address", save: (value) => addressPatch({ ip_address: value }) },
       { label: "Purpose", value: row.label || "", save: (value) => addressPatch({ label: nullable(value) }) },
       {
         label: "Address state",
@@ -253,7 +255,7 @@ export function CloudAssetDetails({
   } else {
     const row = record.value;
     fields.push(
-      { label: "Name", value: row.name, required: true, save: (value) => resourcePatch({ name: value }) },
+      { label: "Name", value: row.name, required: true, copyLabel: "name", save: (value) => resourcePatch({ name: value }) },
       {
         label: "Type",
         assetType: true,
@@ -432,6 +434,9 @@ export function CloudAssetDetails({
   function display(field: Field) {
     if (field.node) return field.node;
     if (field.device) return deviceOptions.find((option) => String(option.id) === field.value)?.label || "Not linked";
+    if (field.copyLabel && field.value) {
+      return <span className="details-copy-row"><span>{field.value}</span><CopyButton value={field.value} label={field.copyLabel} /></span>;
+    }
     return field.choices?.find((choice) => choice.value === field.value)?.label || field.value || "Not set";
   }
 
