@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Search } from "lucide-react";
 import { type Device, type Relationship, type RelationshipPayload } from "../../api/client";
 import { deviceLabel, blankToNull } from "../../utils/format";
-import { compareGroupLabels, groupRepresentativeDeviceId } from "../../utils/sort";
+import { compareGroupLabels } from "../../utils/sort";
 import { parseRelationshipVisualEndpoints, stripRelationshipMetadata, composeRelationshipNotes } from "../../utils/relationship";
 import { Modal } from "../../components/Modal";
+import { resolveLinkEndpoint } from "./linkMode";
 
 // ── EndpointPicker ────────────────────────────────────────────────────────────
 
@@ -369,26 +370,14 @@ export function RelationshipEditForm({
     if (!allEndpointValues.has(targetEndpoint)) setTargetEndpoint(`device:${relationship.target_device_id}`);
   }, [allEndpointValues, relationship.source_device_id, relationship.target_device_id, sourceEndpoint, targetEndpoint]);
 
-  function resolveEndpoint(endpoint: string): { deviceId: number; type: "device" | "group" } | null {
-    if (endpoint.startsWith("device:")) {
-      const deviceId = Number(endpoint.replace("device:", ""));
-      return devices.some((d) => d.id === deviceId) ? { deviceId, type: "device" } : null;
-    }
-    if (endpoint.startsWith("group:")) {
-      const groupName = endpoint.replace("group:", "");
-      const representativeDeviceId = groupRepresentativeDeviceId(devices, groupName);
-      return representativeDeviceId !== null ? { deviceId: representativeDeviceId, type: "group" } : null;
-    }
-    return null;
-  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
     const normalizedType = relationshipType.trim();
     if (!normalizedType) { setFormError("Link name is required"); return; }
-    const source = resolveEndpoint(sourceEndpoint);
-    const target = resolveEndpoint(targetEndpoint);
+    const source = resolveLinkEndpoint(sourceEndpoint, devices);
+    const target = resolveLinkEndpoint(targetEndpoint, devices);
     if (!source || !target) { setFormError("Select valid source and target endpoints"); return; }
     if (source.deviceId === target.deviceId) { setFormError("Source and target resolve to the same device"); return; }
     void onSubmit({
@@ -489,25 +478,12 @@ export function RelationshipForm({
     if (!allEndpointValues.has(targetEndpoint)) setTargetEndpoint(allOptions.devices[1]?.value ?? allOptions.groups[1]?.value ?? allOptions.devices[0]?.value ?? "");
   }, [allEndpointValues, allOptions, sourceEndpoint, targetEndpoint]);
 
-  function resolveEndpoint(endpoint: string): { deviceId: number; description: string; type: "device" | "group" } | null {
-    if (endpoint.startsWith("device:")) {
-      const deviceId = Number(endpoint.replace("device:", ""));
-      const device = devices.find((d) => d.id === deviceId);
-      return device ? { deviceId, description: deviceLabel(device), type: "device" } : null;
-    }
-    if (endpoint.startsWith("group:")) {
-      const groupName = endpoint.replace("group:", "");
-      const representativeDeviceId = groupRepresentativeDeviceId(devices, groupName);
-      return representativeDeviceId !== null ? { deviceId: representativeDeviceId, description: groupName, type: "group" } : null;
-    }
-    return null;
-  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
-    const source = resolveEndpoint(sourceEndpoint);
-    const target = resolveEndpoint(targetEndpoint);
+    const source = resolveLinkEndpoint(sourceEndpoint, devices);
+    const target = resolveLinkEndpoint(targetEndpoint, devices);
     if (!source || !target) { setFormError("Select valid source and target endpoints"); return; }
     if (source.deviceId === target.deviceId) { setFormError("Source and target resolve to the same device"); return; }
     onSubmit({

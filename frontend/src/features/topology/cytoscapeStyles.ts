@@ -174,6 +174,15 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
       },
     },
     {
+      selector: "edge.link-flash",
+      style: {
+        "line-color": "#d97706",
+        "target-arrow-color": "#d97706",
+        width: 4,
+        "z-index": 80,
+      },
+    },
+    {
       selector: "edge.hovered",
       style: {
         "line-color": "#1d6472",

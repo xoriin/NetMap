@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import "./topology.css";
-import cytoscape, { type Core, type EdgeSingular } from "cytoscape";
+import cytoscape, { type Core, type EdgeSingular, type EventObject } from "cytoscape";
 import { Cloud, Network } from "lucide-react";
 import {
   api,
@@ -44,6 +44,7 @@ import {
   type GroupDisplayPref,
 } from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
+import { findExistingLink, quickLinkPayload, resolveLinkEndpoint, type LinkEndpoint } from "./linkMode";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 import { useTheme } from "../../providers/ThemeProvider";
 import { topologyPalette } from "../../utils/topologyPalette";
@@ -58,6 +59,14 @@ function wheelZoomFactor(event: WheelEvent): number {
   const scale = event.deltaMode === 1 ? 0.05 : event.deltaMode === 2 ? 1 : 0.002;
   const exponent = Math.max(-1, Math.min(1, -event.deltaY * scale * (event.ctrlKey ? 10 : 1)));
   return 2 ** exponent;
+}
+
+type ScreenPoint = { x: number; y: number };
+type QuickLinkState = { relationshipId: number; sourceLabel: string; targetLabel: string; x: number; y: number };
+
+function tapScreenPoint(event: EventObject): ScreenPoint | null {
+  const original = event.originalEvent as MouseEvent | undefined;
+  return original && typeof original.clientX === "number" ? { x: original.clientX, y: original.clientY } : null;
 }
 
 export function TopologyWorkspace({
@@ -164,13 +173,21 @@ export function TopologyWorkspace({
   const [pathStartId, setPathStartId] = useState<number | null>(null);
   const [pathNodeIds, setPathNodeIds] = useState<Set<number> | null>(null);
   const pathElementIdsRef = useRef<string[]>([]);
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkSource, setLinkSource] = useState<LinkEndpoint | null>(null);
+  const [linkSpeed, setLinkSpeed] = useState<number | null>(null);
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
+  const [quickLink, setQuickLink] = useState<QuickLinkState | null>(null);
+  const linkBusyRef = useRef(false);
+  const zoneLinkTapRef = useRef<((group: string, point: ScreenPoint | null) => void) | null>(null);
+  const linkKeyRef = useRef<(event: KeyboardEvent) => void>(() => {});
   const [bulkSelectedIds, setBulkSelectedIds] = useState<number[]>([]);
   const [bulkGroupChoice, setBulkGroupChoice] = useState("");
   const [bulkSiteChoice, setBulkSiteChoice] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [minimapNodes, setMinimapNodes] = useState<MiniMapNode[]>([]);
   const [minimapExtent, setMinimapExtent] = useState<MiniMapExtent | null>(null);
-  const deviceTapRef = useRef<(deviceId: number) => void>(() => {});
+  const deviceTapRef = useRef<(deviceId: number, point: ScreenPoint | null) => void>(() => {});
   const backgroundTapRef = useRef<() => void>(() => {});
   const refreshOverlayNodesRef = useRef<() => void>(() => {});
   // Pending animation frame for an overlay refresh requested by Cytoscape
@@ -279,7 +296,69 @@ export function TopologyWorkspace({
 
   function togglePathMode() {
     if (pathMode) clearPathHighlight();
+    else if (linkMode) toggleLinkMode(false);
     setPathMode(!pathMode);
+  }
+
+  function toggleLinkMode(next = !linkMode) {
+    if (next && pathMode) {
+      clearPathHighlight();
+      setPathMode(false);
+    }
+    if (next) {
+      setSelectedDeviceId(null);
+      setSelectedRelationshipId(null);
+    }
+    setLinkMode(next);
+    setLinkSource(null);
+    setLinkMessage(null);
+    setQuickLink(null);
+  }
+
+  function nodeScreenPoint(deviceId: number): ScreenPoint {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const position = cyRef.current?.$id(`device-${deviceId}`).renderedPosition();
+    return rect && position ? { x: rect.left + position.x, y: rect.top + position.y } : { x: 0, y: 0 };
+  }
+
+  function flashRelationship(relationshipId: number) {
+    const edge = cyRef.current?.$id(`relationship-${relationshipId}`);
+    edge?.addClass("link-flash");
+    window.setTimeout(() => edge?.removeClass("link-flash"), 1400);
+  }
+
+  async function handleLinkTap(endpoint: string, point: ScreenPoint | null) {
+    if (!accessToken || linkBusyRef.current) return;
+    setQuickLink(null);
+    setLinkMessage(null);
+    const target = resolveLinkEndpoint(endpoint, liveGraph.devices);
+    if (!target) return;
+    if (!linkSource) {
+      setLinkSource(target);
+      return;
+    }
+    const source = linkSource;
+    setLinkSource(null);
+    if (source.deviceId === target.deviceId) return;
+    const existing = findExistingLink(liveGraph.relationships, source.deviceId, target.deviceId);
+    if (existing) {
+      flashRelationship(existing.id);
+      setLinkMessage(`${source.label} and ${target.label} are already linked`);
+      return;
+    }
+    linkBusyRef.current = true;
+    setTopologyError(null);
+    try {
+      const created = await api.createRelationship(accessToken, quickLinkPayload(source, target, linkSpeed));
+      setLiveGraph((current) => ({ ...current, relationships: [...current.relationships, created] }));
+      const at = point ?? nodeScreenPoint(target.deviceId);
+      setQuickLink({ relationshipId: created.id, sourceLabel: source.label, targetLabel: target.label, x: at.x, y: at.y });
+      void onGraphChange();
+    } catch (err) {
+      setTopologyError(err instanceof Error ? err.message : "Unable to save relationship");
+    } finally {
+      linkBusyRef.current = false;
+    }
   }
 
   function locateDevice(deviceId: number) {
@@ -333,7 +412,11 @@ export function TopologyWorkspace({
     }
   }
 
-  deviceTapRef.current = (deviceId: number) => {
+  deviceTapRef.current = (deviceId: number, point: ScreenPoint | null) => {
+    if (linkMode) {
+      void handleLinkTap(`device:${deviceId}`, point);
+      return;
+    }
     if (pathMode) {
       handlePathClick(deviceId);
       return;
@@ -342,7 +425,37 @@ export function TopologyWorkspace({
     setSelectedRelationshipId(null);
   };
 
+  zoneLinkTapRef.current = linkMode ? (group, point) => void handleLinkTap(`group:${group}`, point) : null;
+
+  linkKeyRef.current = (event: KeyboardEvent) => {
+    if (!canWrite || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
+    if (event.key === "l" || event.key === "L") {
+      if (linkMode || liveGraph.devices.length >= 2) {
+        event.preventDefault();
+        toggleLinkMode();
+      }
+      return;
+    }
+    if (event.key !== "Escape" || !linkMode) return;
+    if (quickLink) setQuickLink(null);
+    else if (linkSource) setLinkSource(null);
+    else toggleLinkMode(false);
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => linkKeyRef.current(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   backgroundTapRef.current = () => {
+    if (linkMode) {
+      setLinkSource(null);
+      setLinkMessage(null);
+      setQuickLink(null);
+    }
     setSelectedDeviceId(null);
     setSelectedRelationshipId(null);
     if (pathNodeIds !== null || pathStartId !== null) clearPathHighlight();
@@ -966,7 +1079,7 @@ export function TopologyWorkspace({
         style: buildCytoscapeStylesheet(edgeLabelFontSize),
       });
       cyRef.current.on("tap", "node.device", (event) => {
-        deviceTapRef.current(Number(event.target.id().replace("device-", "")));
+        deviceTapRef.current(Number(event.target.id().replace("device-", "")), tapScreenPoint(event));
       });
       cyRef.current.on("select unselect", "node.device", () => {
         const ids =
@@ -998,6 +1111,10 @@ export function TopologyWorkspace({
       });
       cyRef.current.on("tap", "node.zone", (event) => {
         const label = event.target.data("label") as string | undefined;
+        if (label && zoneLinkTapRef.current) {
+          zoneLinkTapRef.current(label, tapScreenPoint(event));
+          return;
+        }
         if (label) setGroupForDisplayRef.current(label);
       });
       cyRef.current.on("dragfree", "node.device", () => {
@@ -1883,10 +2000,12 @@ export function TopologyWorkspace({
         onAddDevice={() => setShowDeviceForm(true)}
         onScan={() => setShowScanModal(true)}
         onAddLink={() => setShowRelationshipForm(true)}
+        linkMode={linkMode}
+        onToggleLinkMode={() => toggleLinkMode()}
       />
       {topologyError && <div className="form-error">{topologyError}</div>}
       <div className={showDetailsPanel ? "topology-content details-open" : "topology-content"}>
-        <div className="graph-surface">
+        <div className={`graph-surface${linkMode ? " is-link-mode" : ""}`}>
           <TopologyCanvasControls
             devices={filteredGraph.devices}
             pathMode={pathMode}
@@ -1953,7 +2072,7 @@ export function TopologyWorkspace({
               <button
                 key={`overlay-${node.id}`}
                 type="button"
-                className={`topology-overlay-node status-${node.status}${selectedDeviceId === node.id ? " selected" : ""}${panelHoveredDeviceId === node.id ? " panel-glow" : ""}${canvasHoveredDeviceId === node.id ? " canvas-hover" : ""}${flashDeviceId === node.id ? " search-flash" : ""}${recentlyChangedIds.has(node.id) ? " status-changed" : ""}${pathNodeIds !== null ? (pathNodeIds.has(node.id) ? " path-glow" : " path-dimmed") : ""}`}
+                className={`topology-overlay-node status-${node.status}${selectedDeviceId === node.id ? " selected" : ""}${panelHoveredDeviceId === node.id ? " panel-glow" : ""}${canvasHoveredDeviceId === node.id ? " canvas-hover" : ""}${linkSource?.deviceId === node.id && selectedDeviceId !== node.id ? " selected" : ""}${flashDeviceId === node.id ? " search-flash" : ""}${recentlyChangedIds.has(node.id) ? " status-changed" : ""}${pathNodeIds !== null ? (pathNodeIds.has(node.id) ? " path-glow" : " path-dimmed") : ""}`}
                 style={{
                   left: `${node.x}px`,
                   top: `${node.y}px`,
@@ -2000,6 +2119,13 @@ export function TopologyWorkspace({
                   ? "Path highlighted — click another device to start a new path"
                   : "Path mode: click the first device"}
               <button type="button" className="nm-btn nm-btn--sm" onClick={togglePathMode}>Exit</button>
+            </div>
+          )}
+          {linkMode && (
+            <div className="topo-pathbar">
+              <span>{linkMessage ?? (linkSource ? `Now click the device to link to ${linkSource.label}` : "Link mode: click the first device")}</span>
+              <span className="topo-linkbar-hint">New links: <strong>{linkSpeed === null ? "no speed" : formatLinkSpeed(linkSpeed)}</strong></span>
+              <button type="button" className="nm-btn nm-btn--sm" onClick={() => toggleLinkMode(false)}>Exit</button>
             </div>
           )}
           {bulkSelectedIds.length >= 2 && (

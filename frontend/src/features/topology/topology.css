@@ -941,6 +941,10 @@ body.theme-dark .topo-bulkbar {
   box-shadow: var(--nm-shadow-md);
 }
 
+.topo-linkbar-hint { color: var(--nm-text-muted); }
+.topo-linkbar-hint strong { color: var(--nm-accent-strong); font-weight: 600; }
+.graph-surface.is-link-mode .graph-canvas { cursor: crosshair; }
+
 .topo-bulkbar select,
 body.theme-dark .topo-bulkbar select {
   border-color: var(--nm-border-strong);

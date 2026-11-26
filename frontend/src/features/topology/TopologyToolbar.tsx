@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, EyeOff, Eye, Layers3, Network, Route, Search } from "lucide-react";
+import { ChevronDown, EyeOff, Eye, Layers3, Link2, Network, Route, Search } from "lucide-react";
 import { IconWifi, IconWifiOff } from "@tabler/icons-react";
 import type { Device, Site } from "../../api/client";
 import type { GroupLayoutShape } from "../../utils/topology";
@@ -188,6 +188,8 @@ export function TopologyToolbar({
   onAddDevice,
   onScan,
   onAddLink,
+  linkMode,
+  onToggleLinkMode,
 }: {
   devices: Device[];
   sites: Site[];
@@ -232,6 +234,8 @@ export function TopologyToolbar({
   onAddDevice: () => void;
   onScan: () => void;
   onAddLink: () => void;
+  linkMode: boolean;
+  onToggleLinkMode: () => void;
 }) {
   const [showGroupsPanel, setShowGroupsPanel] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
@@ -455,6 +459,19 @@ export function TopologyToolbar({
               {canWrite && <button type="button" className="nm-btn nm-btn--sm nm-btn--primary" onClick={onAddDevice}>+ Device</button>}
               {canManageDiscovery && <button type="button" className="nm-btn nm-btn--sm" onClick={onScan}>Scan</button>}
               {canWrite && <button type="button" className="nm-btn nm-btn--sm" disabled={totalDeviceCount < 2} onClick={onAddLink}>+ Link</button>}
+              {canWrite && (
+                <button
+                  type="button"
+                  className={`nm-btn nm-btn--sm${linkMode ? " nm-btn--active" : ""}`}
+                  disabled={totalDeviceCount < 2}
+                  aria-pressed={linkMode}
+                  title="Click two devices to link them (L)"
+                  onClick={onToggleLinkMode}
+                >
+                  <Link2 size={14} aria-hidden="true" />
+                  Link mode
+                </button>
+              )}
             </>
           )}
         </div>
