@@ -4117,6 +4117,23 @@ body.theme-dark .modal-header button.modal-close-btn:hover {
   background: var(--nm-row-hover);
 }
 
+.details-copy-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.details-copy-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.details-copy-row > .nm-btn {
+  margin-block: -4px;
+}
+
 .details-inline-input {
   width: 100%;
   box-sizing: border-box;

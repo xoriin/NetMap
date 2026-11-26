@@ -23,7 +23,7 @@ test('Device sidebar fields start editing with Enter',async({page})=>{
 
 test('double-clicking inside an open Device field editor keeps the draft',async({page})=>{
  const hostname=await open(page);
- await hostname.dblclick();
+ await hostname.getByText('Edge router',{exact:true}).dblclick();
  const input=hostname.locator('input');
  await input.fill('Draft hostname');
  await input.dblclick();

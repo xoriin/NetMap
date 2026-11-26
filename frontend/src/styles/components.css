@@ -767,6 +767,14 @@ body.theme-dark .nm-btn.nm-btn--success:hover:not(:disabled) {
   color: var(--nm-text);
 }
 
+.nm-btn--icon-sm {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  flex: 0 0 auto;
+  border-radius: var(--nm-radius-sm);
+}
+
 .nm-btn-row {
   display: flex;
   flex-wrap: wrap;

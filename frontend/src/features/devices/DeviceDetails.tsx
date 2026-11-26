@@ -37,6 +37,7 @@ import { deviceTypeOptions } from "../../constants";
 import { deviceTypeIconMap } from "../../icons";
 import { DeviceTypeIcon } from "../../components/DeviceTypeIcon";
 import { editableField, useEditableFieldFocus } from "../../utils/editableField";
+import { CopyButton } from "../../components/CopyButton";
 
 export function DeviceDetails({
   canViewSecurity,
@@ -243,7 +244,9 @@ export function DeviceDetails({
                 if (e.key === "Escape") cancelEdit();
               }}
             />
-          ) : (device.hostname || "Not set")}
+          ) : device.hostname ? (
+            <span className="details-copy-row"><span>{device.hostname}</span><CopyButton value={device.hostname} label="hostname" /></span>
+          ) : "Not set"}
         </dd>
         <dt><span className="details-field-icon"><Network size={12} /></span>IP address</dt>
         <dd
@@ -261,7 +264,9 @@ export function DeviceDetails({
                 if (e.key === "Escape") cancelEdit();
               }}
             />
-          ) : (device.ip_address || "Not set")}
+          ) : device.ip_address ? (
+            <span className="details-copy-row"><span>{device.ip_address}</span><CopyButton value={device.ip_address} label="IP address" /></span>
+          ) : "Not set"}
         </dd>
         <dt><span className="details-field-icon"><IconFingerprint size={12} /></span>MAC address</dt>
         <dd
@@ -279,7 +284,9 @@ export function DeviceDetails({
                 if (e.key === "Escape") cancelEdit();
               }}
             />
-          ) : (device.mac_address || "Not set")}
+          ) : device.mac_address ? (
+            <span className="details-copy-row"><span>{device.mac_address}</span><CopyButton value={device.mac_address} label="MAC address" /></span>
+          ) : "Not set"}
         </dd>
         <dt><span className="details-field-icon"><IconBuildingStore size={12} /></span>Vendor</dt>
         <dd
