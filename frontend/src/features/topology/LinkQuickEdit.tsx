@@ -47,7 +47,9 @@ export function LinkQuickEdit({
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) onClose();
+      if (!ref.current || ref.current.contains(event.target as Node)) return;
+      commitTypeRef.current();
+      onClose();
     }
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
@@ -60,6 +62,8 @@ export function LinkQuickEdit({
     committedType.current = next;
     onType(next);
   }
+  const commitTypeRef = useRef(commitType);
+  commitTypeRef.current = commitType;
 
   return createPortal(
     <div

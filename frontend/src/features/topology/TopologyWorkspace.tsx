@@ -179,7 +179,8 @@ export function TopologyWorkspace({
   const [linkSpeed, setLinkSpeed] = useState<number | null>(null);
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [quickLink, setQuickLink] = useState<QuickLinkState | null>(null);
-  const linkBusyRef = useRef(false);
+  const linkPendingRef = useRef<Promise<void>>(Promise.resolve());
+  const relationshipsRef = useRef<Relationship[]>([]);
   const zoneLinkTapRef = useRef<((group: string, point: ScreenPoint | null) => void) | null>(null);
   const linkKeyRef = useRef<(event: KeyboardEvent) => void>(() => {});
   const [bulkSelectedIds, setBulkSelectedIds] = useState<number[]>([]);
@@ -204,6 +205,7 @@ export function TopologyWorkspace({
   const pendingRelationshipPatchesRef = useRef<Record<number, Partial<Relationship>>>({});
   const correlationWindowHours = 24;
   const [liveGraph, setLiveGraph] = useState<TopologyGraph>(graph);
+  relationshipsRef.current = liveGraph.relationships;
   const [cyZoom, setCyZoom] = useState(1);
 
   useEffect(() => {
@@ -371,7 +373,7 @@ export function TopologyWorkspace({
   }
 
   async function handleLinkTap(endpoint: string, point: ScreenPoint | null) {
-    if (!accessToken || linkBusyRef.current) return;
+    if (!accessToken) return;
     setQuickLink(null);
     setLinkMessage(null);
     const target = resolveLinkEndpoint(endpoint, liveGraph.devices);
@@ -383,25 +385,29 @@ export function TopologyWorkspace({
     const source = linkSource;
     setLinkSource(null);
     if (source.deviceId === target.deviceId) return;
-    const existing = findExistingLink(liveGraph.relationships, source.deviceId, target.deviceId);
-    if (existing) {
-      flashRelationship(existing.id);
-      setLinkMessage(`${source.label} and ${target.label} are already linked`);
-      return;
-    }
-    linkBusyRef.current = true;
-    setTopologyError(null);
-    try {
-      const created = await api.createRelationship(accessToken, quickLinkPayload(source, target, linkSpeed));
-      setLiveGraph((current) => ({ ...current, relationships: [...current.relationships, created] }));
-      const at = point ?? nodeScreenPoint(target.deviceId);
-      setQuickLink({ relationshipId: created.id, sourceLabel: source.label, targetLabel: target.label, x: at.x, y: at.y });
-      void onGraphChange();
-    } catch (err) {
-      setTopologyError(err instanceof Error ? err.message : "Unable to save relationship");
-    } finally {
-      linkBusyRef.current = false;
-    }
+    const token = accessToken;
+    const speed = linkSpeed;
+    const run = linkPendingRef.current.then(async () => {
+      const existing = findExistingLink(relationshipsRef.current, source.deviceId, target.deviceId);
+      if (existing) {
+        flashRelationship(existing.id);
+        setLinkMessage(`${source.label} and ${target.label} are already linked`);
+        return;
+      }
+      setTopologyError(null);
+      try {
+        const created = await api.createRelationship(token, quickLinkPayload(source, target, speed));
+        relationshipsRef.current = [...relationshipsRef.current, created];
+        setLiveGraph((current) => ({ ...current, relationships: [...current.relationships, created] }));
+        const at = point ?? nodeScreenPoint(target.deviceId);
+        setQuickLink({ relationshipId: created.id, sourceLabel: source.label, targetLabel: target.label, x: at.x, y: at.y });
+        void onGraphChange();
+      } catch (err) {
+        setTopologyError(err instanceof Error ? err.message : "Unable to save relationship");
+      }
+    });
+    linkPendingRef.current = run;
+    await run;
   }
 
   function locateDevice(deviceId: number) {
@@ -472,6 +478,7 @@ export function TopologyWorkspace({
 
   linkKeyRef.current = (event: KeyboardEvent) => {
     if (!canWrite || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (document.querySelector('[aria-modal="true"]')) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest("input, select, textarea, [contenteditable='true']")) return;
     if (event.key === "l" || event.key === "L") {

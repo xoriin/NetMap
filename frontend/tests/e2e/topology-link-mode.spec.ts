@@ -115,6 +115,21 @@ test.describe("Topology Link mode", () => {
     expect(posts[0].target_device_id).toBe(3);
   });
 
+  test("a fast tap during a slow save starts the next link", async ({ page }) => {
+    const { posts } = await openLinkMap(page);
+    await page.route("**/api/v1/topology/relationships", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      return route.fallback();
+    });
+    await linkModeButton(page).click();
+    await tapDevice(page, "router-01");
+    await tapDevice(page, "switch-01");
+    await tapDevice(page, "router-01");
+    await tapDevice(page, "server-01");
+    await expect.poll(() => posts.length, { timeout: 6000 }).toBe(2);
+    expect(posts.map((p) => [p.source_device_id, p.target_device_id])).toEqual([[1, 2], [1, 3]]);
+  });
+
   test("link mode and path mode switch each other off", async ({ page }) => {
     await openLinkMap(page);
     const path = page.getByRole("button", { name: "Path", exact: true });
@@ -233,6 +248,28 @@ test.describe("Topology Link mode", () => {
       await type.fill("  ");
       await type.press("Tab");
       await expect.poll(() => patches.map((p) => p.body)).toEqual([{ relationship_type: "uplink" }, { relationship_type: "link" }]);
+    });
+
+    test("a typed type is saved when you click the next device", async ({ page }) => {
+      const { patches } = await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByLabel("Link type").fill("uplink");
+      await tapDevice(page, "router-01");
+      await expect.poll(() => patches).toEqual([{ id: 50, body: { relationship_type: "uplink" } }]);
+      await expect(popup(page)).toHaveCount(0);
+    });
+
+    test("Esc in the edit form keeps link mode on", async ({ page }) => {
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByRole("button", { name: "More…" }).click();
+      const dialog = page.getByRole("dialog", { name: "Edit link" });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+      await expect(linkModeButton(page)).toHaveAttribute("aria-pressed", "true");
     });
 
     test("typing L in the type field does not toggle link mode", async ({ page }) => {
