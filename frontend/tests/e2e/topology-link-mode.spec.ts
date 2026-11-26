@@ -9,9 +9,11 @@ const devices = [
   mockDevice({ id: 3, hostname: "server-01", ip_address: "10.0.0.3", topology_group: "Servers" }),
 ];
 
-async function openLinkMap(page: Page, relationships: Rel[] = [], createStatus = 201) {
+async function openLinkMap(page: Page, relationships: Rel[] = [], createStatus = 201, patchStatus = 200) {
   const graph = { relationships: [...relationships] };
   const posts: Record<string, unknown>[] = [];
+  const patches: { id: number; body: Record<string, unknown> }[] = [];
+  const deletes: number[] = [];
   await setupCoreMocks(page);
   await setupTopologyMocks(page, devices, relationships);
   await page.route("**/api/v1/topology/graph", (route) => route.fulfill({ json: { devices, relationships: graph.relationships } }));
@@ -24,9 +26,23 @@ async function openLinkMap(page: Page, relationships: Rel[] = [], createStatus =
     graph.relationships.push(created);
     return route.fulfill({ status: 201, json: created });
   });
+  await page.route(/\/api\/v1\/topology\/relationships\/\d+$/, async (route) => {
+    const id = Number(route.request().url().split("/").pop());
+    if (route.request().method() === "DELETE") {
+      deletes.push(id);
+      graph.relationships = graph.relationships.filter((r) => r.id !== id);
+      return route.fulfill({ status: 204, body: "" });
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    patches.push({ id, body });
+    if (patchStatus !== 200) return route.fulfill({ status: patchStatus, json: { detail: "Speed update refused" } });
+    const current = graph.relationships.find((r) => r.id === id)!;
+    Object.assign(current, body);
+    return route.fulfill({ json: current });
+  });
   await page.goto("/topology");
   await expect(page.locator(".topology-overlay-node[title='router-01']")).toBeVisible({ timeout: 8000 });
-  return { posts, graph };
+  return { posts, graph, patches, deletes };
 }
 
 async function tapDevice(page: Page, title: string) {
@@ -141,5 +157,118 @@ test.describe("Topology Link mode", () => {
     await page.goto("/topology");
     await expect(page.locator(".topology-overlay-node[title='router-01']")).toBeVisible({ timeout: 8000 });
     await expect(linkModeButton(page)).toHaveCount(0);
+  });
+
+  test.describe("quick-edit popup", () => {
+    const popup = (page: Page) => page.locator(".topo-linkquick");
+
+    async function makeLink(page: Page, from = "router-01", to = "switch-01") {
+      await tapDevice(page, from);
+      await tapDevice(page, to);
+      await expect(popup(page)).toBeVisible();
+    }
+
+    test("the popup appears at the cursor after a link is made", async ({ page }) => {
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await expect(popup(page)).toContainText("Linked router-01 → switch-01");
+      await expect(popup(page).getByRole("button", { name: "—" })).toHaveClass(/nm-btn--active/);
+      await expect(popup(page)).toHaveAttribute("role", "dialog");
+    });
+
+    test("a speed picked in the popup saves and carries to the next link", async ({ page }) => {
+      const { posts, patches } = await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByRole("button", { name: "1G", exact: true }).click();
+      await expect.poll(() => patches.length).toBe(1);
+      expect(patches[0]).toEqual({ id: 50, body: { link_speed_mbps: 1000 } });
+      await expect(popup(page).getByRole("button", { name: "1G", exact: true })).toHaveClass(/nm-btn--active/);
+      await expect(linkBar(page)).toContainText("New links: 1 Gbps");
+      await tapDevice(page, "router-01");
+      await tapDevice(page, "server-01");
+      await expect.poll(() => posts.length).toBe(2);
+      expect(posts[1].link_speed_mbps).toBe(1000);
+    });
+
+    test("the next tap closes the popup without blocking", async ({ page }) => {
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await tapDevice(page, "router-01");
+      await expect(popup(page)).toHaveCount(0);
+      await expect(page.locator(".topology-overlay-node.selected[title='router-01']")).toHaveCount(1);
+    });
+
+    test("undo deletes the new link", async ({ page }) => {
+      const { deletes } = await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByRole("button", { name: "Undo" }).click();
+      await expect.poll(() => deletes).toEqual([50]);
+      await expect(linkBar(page)).toContainText("Link removed — click two devices to try again");
+      await expect(popup(page)).toHaveCount(0);
+    });
+
+    test("More opens the edit form for that link", async ({ page }) => {
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByRole("button", { name: "More…" }).click();
+      await expect(page.getByRole("dialog", { name: "Edit link" })).toBeVisible();
+    });
+
+    test("clearing the type saves link", async ({ page }) => {
+      const { patches } = await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      const type = popup(page).getByLabel("Link type");
+      await type.fill("");
+      await type.press("Tab");
+      await expect(type).toHaveValue("link");
+      await type.fill("uplink");
+      await type.press("Enter");
+      await expect.poll(() => patches.map((p) => p.body)).toEqual([{ relationship_type: "uplink" }]);
+      await type.fill("  ");
+      await type.press("Tab");
+      await expect.poll(() => patches.map((p) => p.body)).toEqual([{ relationship_type: "uplink" }, { relationship_type: "link" }]);
+    });
+
+    test("typing L in the type field does not toggle link mode", async ({ page }) => {
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      const type = popup(page).getByLabel("Link type");
+      await type.click();
+      await type.pressSequentially("lag");
+      await expect(linkModeButton(page)).toHaveAttribute("aria-pressed", "true");
+      await expect(type).toHaveValue("linklag");
+    });
+
+    test("a popup near the window edge stays on screen", async ({ page }) => {
+      await page.setViewportSize({ width: 900, height: 600 });
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      for (const target of ["server-01", "switch-01"]) {
+        await tapDevice(page, "router-01");
+        await tapDevice(page, target);
+        await expect(popup(page)).toBeVisible();
+        const box = (await popup(page).boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(900);
+        expect(box.y + box.height).toBeLessThanOrEqual(600);
+      }
+    });
+
+    test("a failed speed change shows the error", async ({ page }) => {
+      await openLinkMap(page, [], 201, 500);
+      await linkModeButton(page).click();
+      await makeLink(page);
+      await popup(page).getByRole("button", { name: "10G", exact: true }).click();
+      await expect(page.locator(".form-error")).toContainText("Speed update refused");
+      await expect(page.locator(".topology-link-label", { hasText: "10 Gbps" })).toHaveCount(0);
+    });
   });
 });

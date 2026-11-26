@@ -44,6 +44,7 @@ import {
   type GroupDisplayPref,
 } from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
+import { LinkQuickEdit } from "./LinkQuickEdit";
 import { findExistingLink, quickLinkPayload, resolveLinkEndpoint, type LinkEndpoint } from "./linkMode";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -315,6 +316,48 @@ export function TopologyWorkspace({
     setQuickLink(null);
   }
 
+  async function updateQuickLink(payload: Partial<RelationshipPayload>) {
+    if (!accessToken || !quickLink) return;
+    setTopologyError(null);
+    try {
+      const updated = await api.updateRelationship(accessToken, quickLink.relationshipId, payload);
+      setLiveGraph((current) => ({
+        ...current,
+        relationships: current.relationships.map((relationship) => (relationship.id === updated.id ? updated : relationship)),
+      }));
+      if ("link_speed_mbps" in payload) setLinkSpeed(payload.link_speed_mbps ?? null);
+      void onGraphChange();
+    } catch (err) {
+      setTopologyError(err instanceof Error ? err.message : "Unable to save relationship");
+    }
+  }
+
+  async function undoQuickLink() {
+    if (!accessToken || !quickLink) return;
+    const relationshipId = quickLink.relationshipId;
+    setTopologyError(null);
+    try {
+      await api.deleteRelationship(accessToken, relationshipId);
+      setLiveGraph((current) => ({
+        ...current,
+        relationships: current.relationships.filter((relationship) => relationship.id !== relationshipId),
+      }));
+      setQuickLink(null);
+      setLinkMessage("Link removed — click two devices to try again");
+      void onGraphChange();
+    } catch (err) {
+      setTopologyError(err instanceof Error ? err.message : "Unable to delete relationship");
+    }
+  }
+
+  function openQuickLinkEditor() {
+    if (!quickLink) return;
+    setSelectedRelationshipId(quickLink.relationshipId);
+    setSelectedDeviceId(null);
+    setQuickLink(null);
+    setShowRelationshipEditForm(true);
+  }
+
   function nodeScreenPoint(deviceId: number): ScreenPoint {
     const rect = containerRef.current?.getBoundingClientRect();
     const position = cyRef.current?.$id(`device-${deviceId}`).renderedPosition();
@@ -534,6 +577,8 @@ export function TopologyWorkspace({
 
   const selectedDevice = liveGraph.devices.find((device) => device.id === selectedDeviceId) ?? null;
   const selectedRelationship = liveGraph.relationships.find((relationship) => relationship.id === selectedRelationshipId) ?? null;
+  const quickRelationship = quickLink ? liveGraph.relationships.find((relationship) => relationship.id === quickLink.relationshipId) ?? null : null;
+  const closeQuickLink = useCallback(() => setQuickLink(null), []);
   const showDetailsPanel = selectedDevice !== null || selectedRelationship !== null;
 
   useEffect(() => {
@@ -2127,6 +2172,20 @@ export function TopologyWorkspace({
               <span className="topo-linkbar-hint">New links: <strong>{linkSpeed === null ? "no speed" : formatLinkSpeed(linkSpeed)}</strong></span>
               <button type="button" className="nm-btn nm-btn--sm" onClick={() => toggleLinkMode(false)}>Exit</button>
             </div>
+          )}
+          {linkMode && quickLink && quickRelationship && (
+            <LinkQuickEdit
+              key={quickLink.relationshipId}
+              relationship={quickRelationship}
+              sourceLabel={quickLink.sourceLabel}
+              targetLabel={quickLink.targetLabel}
+              point={{ x: quickLink.x, y: quickLink.y }}
+              onSpeed={(mbps) => void updateQuickLink({ link_speed_mbps: mbps })}
+              onType={(type) => void updateQuickLink({ relationship_type: type })}
+              onUndo={() => void undoQuickLink()}
+              onMore={openQuickLinkEditor}
+              onClose={closeQuickLink}
+            />
           )}
           {bulkSelectedIds.length >= 2 && (
             <div className="topo-bulkbar">
