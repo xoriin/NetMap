@@ -90,7 +90,7 @@ MFA_PENDING_COOKIE = "netmap_mfa_pending"
 MFA_PENDING_PATH = "/api/v1/auth/login/"
 
 
-def issue_mfa_challenge(user: User, token_type: str, *, source: str | None = None) -> str:
+def issue_login_challenge(user: User, token_type: str, *, source: str | None = None) -> str:
     claims = {"sv": int(user.token_version or 0)}
     if source:
         claims["src"] = source
@@ -98,7 +98,7 @@ def issue_mfa_challenge(user: User, token_type: str, *, source: str | None = Non
 
 
 def _issue_challenge(user: User, token_type: str) -> str:
-    return issue_mfa_challenge(user, token_type)
+    return issue_login_challenge(user, token_type)
 
 
 def _challenge_from(payload_challenge: str | None, request: Request) -> str:

@@ -196,7 +196,7 @@ def oidc_callback(
     if mfa_step is not None:
         # Tokens are issued only once the local code is entered, through the
         # normal /auth/login/totp (or setup) routes, never from here.
-        from app.api.v1.auth import MFA_PENDING_COOKIE, MFA_PENDING_PATH, issue_mfa_challenge, MFA_CHALLENGE_TTL
+        from app.api.v1.auth import MFA_PENDING_COOKIE, MFA_PENDING_PATH, issue_login_challenge, MFA_CHALLENGE_TTL
 
         write_audit(
             db,
@@ -211,7 +211,7 @@ def oidc_callback(
         response.delete_cookie(key=TXN_COOKIE_NAME, path=TXN_COOKIE_PATH)
         response.set_cookie(
             key=MFA_PENDING_COOKIE,
-            value=issue_mfa_challenge(user, token_type, source="oidc"),
+            value=issue_login_challenge(user, token_type, source="oidc"),
             httponly=True,
             secure=settings.auth_cookies_secure,
             samesite="strict",
