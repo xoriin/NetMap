@@ -271,4 +271,42 @@ test.describe("Topology Link mode", () => {
       await expect(page.locator(".topology-link-label", { hasText: "10 Gbps" })).toHaveCount(0);
     });
   });
+
+  for (const theme of ["light", "slate", "zinc"] as const) {
+    test(`the quick-link popup uses the overlay shell in ${theme}`, async ({ page }) => {
+      await page.addInitScript((t) => {
+        localStorage.setItem("netmap.theme", t === "light" ? "light" : "dark");
+        localStorage.setItem("netmap.dark_style", t === "zinc" ? "zinc" : "slate");
+      }, theme);
+      await openLinkMap(page);
+      await linkModeButton(page).click();
+      await tapDevice(page, "router-01");
+      await tapDevice(page, "switch-01");
+      const popup = page.locator(".topo-linkquick");
+      await expect(popup).toBeVisible();
+      const colours = await popup.evaluate((node) => {
+        const probe = document.createElement("div");
+        probe.style.background = "var(--nm-modal-header)";
+        probe.style.borderTop = "1px solid var(--nm-border-strong)";
+        document.body.appendChild(probe);
+        const expected = getComputedStyle(probe);
+        const actual = getComputedStyle(node);
+        const active = node.querySelector(".nm-btn--active")!;
+        const inactive = node.querySelector(".topo-linkquick__speeds .nm-btn:not(.nm-btn--active)")!;
+        const result = {
+          bg: actual.backgroundColor,
+          expectedBg: expected.backgroundColor,
+          border: actual.borderTopColor,
+          expectedBorder: expected.borderTopColor,
+          active: getComputedStyle(active).backgroundColor,
+          inactive: getComputedStyle(inactive).backgroundColor,
+        };
+        probe.remove();
+        return result;
+      });
+      expect(colours.bg).toBe(colours.expectedBg);
+      expect(colours.border).toBe(colours.expectedBorder);
+      expect(colours.active).not.toBe(colours.inactive);
+    });
+  }
 });
