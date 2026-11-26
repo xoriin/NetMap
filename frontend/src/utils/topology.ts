@@ -90,6 +90,16 @@ export function buildDiagramLayout(
     const row = Math.floor(index / groupColumns);
     rowHeights[row] = Math.max(rowHeights[row] ?? 0, layoutGroup.estimatedHeight);
   });
+  const savedDevicePositions = Object.entries(savedPositions)
+    .filter(([id, position]) => id.startsWith("device-") && isFiniteLayoutPosition(position))
+    .map(([, position]) => position);
+  const savedExtent = savedDevicePositions.length > 0
+    ? {
+        maxX: Math.max(...savedDevicePositions.map((p) => p.x)),
+        minY: Math.min(...savedDevicePositions.map((p) => p.y)),
+      }
+    : null;
+  let unplacedGroupIndex = 0;
   const rowOffsets: number[] = [];
   let cumulativeOffset = 0;
   rowHeights.forEach((height, row) => {
@@ -107,14 +117,20 @@ export function buildDiagramLayout(
       .map((d) => savedPositions[`device-${d.id}`])
       .filter((p): p is { x: number; y: number } => Boolean(p));
     const savedGroupCenter = savedPositions[groupId(layoutGroup.group)];
+    const besideSavedMap = savedInGroup.length === 0 && savedGroupCenter == null && savedExtent !== null;
+    const besideX = besideSavedMap
+      ? savedExtent.maxX + baseZoneGapX + baseZoneWidth / 2 + unplacedGroupIndex++ * (baseZoneWidth + baseZoneGapX)
+      : 0;
     const newAnchorX = savedInGroup.length > 0
       ? savedInGroup.reduce((s, p) => s + p.x, 0) / savedInGroup.length
-      : savedGroupCenter?.x ?? columnX;
+      : savedGroupCenter?.x ?? (besideSavedMap ? besideX : columnX);
     const newAnchorBaseY = savedInGroup.length > 0
       ? Math.max(...savedInGroup.map((p) => p.y))
       : savedGroupCenter != null
         ? savedGroupCenter.y - layoutGroup.nodeGapY
-        : rowBaseY - layoutGroup.nodeGapY;
+        : besideSavedMap && savedExtent
+          ? savedExtent.minY - layoutGroup.nodeGapY
+          : rowBaseY - layoutGroup.nodeGapY;
 
     let newOnlyRowIndex = 0;
 
