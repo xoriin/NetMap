@@ -153,6 +153,7 @@ export function TopologyToolbar({
   canManageDiscovery,
   totalDeviceCount,
   showNodeIcons,
+  showGroupZones,
   showNodeLabels,
   allGroupNames,
   visibleGroupNames,
@@ -171,6 +172,7 @@ export function TopologyToolbar({
   onExportSvg,
   onExportPdf,
   onShowNodeIconsChange,
+  onShowGroupZonesChange,
   onShowNodeLabelsChange,
   onToggleGroupVisibility,
   onShowAllGroups,
@@ -199,6 +201,7 @@ export function TopologyToolbar({
   canManageDiscovery: boolean;
   totalDeviceCount: number;
   showNodeIcons: boolean;
+  showGroupZones: boolean;
   showNodeLabels: boolean;
   allGroupNames: string[];
   visibleGroupNames: string[];
@@ -217,6 +220,7 @@ export function TopologyToolbar({
   onExportSvg: () => void;
   onExportPdf: () => void;
   onShowNodeIconsChange: (value: boolean) => void;
+  onShowGroupZonesChange: (value: boolean) => void;
   onShowNodeLabelsChange: (value: boolean) => void;
   onToggleGroupVisibility: (groupName: string) => void;
   onShowAllGroups: () => void;
@@ -299,6 +303,10 @@ export function TopologyToolbar({
           <label className="toolbar-toggle">
             <input type="checkbox" checked={showNodeLabels} onChange={(e) => onShowNodeLabelsChange(e.target.checked)} />
             Text
+          </label>
+          <label className="toolbar-toggle" title="Show the group and VLAN boxes. Untick to place devices freely.">
+            <input type="checkbox" checked={showGroupZones} onChange={(e) => onShowGroupZonesChange(e.target.checked)} />
+            Boxes
           </label>
         </div>
       </div>

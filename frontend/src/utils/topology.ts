@@ -190,6 +190,7 @@ export type TopologyDisplayPrefsLocal = {
   showGroupZoneBorders?: boolean;
   showNodeIcons?: boolean;
   showNodeLabels?: boolean;
+  showGroupZones?: boolean;
   nodeLabelFontSize?: number;
 };
 
@@ -220,6 +221,7 @@ export function readTopologyDisplayPrefs(userId: number): TopologyDisplayPrefsLo
       showGroupZoneBorders: parsed.showGroupZoneBorders,
       showNodeIcons: parsed.showNodeIcons,
       showNodeLabels: parsed.showNodeLabels,
+      showGroupZones: parsed.showGroupZones,
       nodeLabelFontSize: parsed.nodeLabelFontSize,
     };
   } catch {

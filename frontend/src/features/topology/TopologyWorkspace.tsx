@@ -152,6 +152,9 @@ export function TopologyWorkspace({
   const [showGroupZoneBorders, setShowGroupZoneBorders] = useState<boolean>(() => {
     try { return readTopologyDisplayPrefs(userId).showGroupZoneBorders ?? true; } catch { return true; }
   });
+  const [showGroupZones, setShowGroupZones] = useState<boolean>(() => {
+    try { return readTopologyDisplayPrefs(userId).showGroupZones ?? true; } catch { return true; }
+  });
   const [showNodeIcons, setShowNodeIcons] = useState<boolean>(() => {
     try { return readTopologyDisplayPrefs(userId).showNodeIcons ?? true; } catch { return true; }
   });
@@ -588,6 +591,7 @@ export function TopologyWorkspace({
     hiddenGroupNames,
     showNodeIcons,
     showNodeLabels,
+    showGroupZones,
   });
   currentDisplayPrefsRef.current = {
     groupDisplayPrefs,
@@ -598,6 +602,7 @@ export function TopologyWorkspace({
     hiddenGroupNames,
     showNodeIcons,
     showNodeLabels,
+    showGroupZones,
   };
 
   serverSaveLayoutRef.current = (positions: Record<string, { x: number; y: number }>, immediate = false) => {
@@ -619,6 +624,7 @@ export function TopologyWorkspace({
           hiddenGroupNames: [...dp.hiddenGroupNames],
           showNodeIcons: dp.showNodeIcons,
           showNodeLabels: dp.showNodeLabels,
+          showGroupZones: dp.showGroupZones,
         },
       }).catch((error: unknown) => {
         console.warn("Topology layout autosave failed", error);
@@ -677,6 +683,7 @@ export function TopologyWorkspace({
       if (dp.showGroupZoneBorders !== undefined) setShowGroupZoneBorders(dp.showGroupZoneBorders);
       if (dp.hiddenGroupNames !== undefined) setHiddenGroupNames(new Set(dp.hiddenGroupNames));
       if (dp.showNodeIcons !== undefined) setShowNodeIcons(dp.showNodeIcons);
+      setShowGroupZones(dp.showGroupZones ?? true);
       if (dp.showNodeLabels !== undefined) setShowNodeLabels(dp.showNodeLabels);
       try { localStorage.setItem(`netmap.edge-label-size.${userId}`, String(dp.edgeLabelFontSize ?? DEFAULT_EDGE_LABEL_FONT_SIZE)); } catch {}
       try { localStorage.setItem(`netmap.node-label-size.${userId}`, String(dp.nodeLabelFontSize ?? DEFAULT_NODE_LABEL_FONT_SIZE)); } catch {}
@@ -696,6 +703,7 @@ export function TopologyWorkspace({
       hiddenGroupNames: [...dp.hiddenGroupNames],
       showNodeIcons: dp.showNodeIcons,
       showNodeLabels: dp.showNodeLabels,
+      showGroupZones: dp.showGroupZones,
     };
   }
 
@@ -731,13 +739,14 @@ export function TopologyWorkspace({
       showGroupZoneBorders,
       showNodeIcons,
       showNodeLabels,
+      showGroupZones,
       nodeLabelFontSize,
     });
-  }, [groupDisplayPrefs, groupZoneOpacityPercent, nodeLabelFontSize, showGroupZoneBorders, showNodeIcons, showNodeLabels, userId]);
+  }, [groupDisplayPrefs, groupZoneOpacityPercent, nodeLabelFontSize, showGroupZoneBorders, showGroupZones, showNodeIcons, showNodeLabels, userId]);
 
   useEffect(() => {
     serverSaveLayoutRef.current(layoutPositionsRef.current);
-  }, [groupDisplayPrefs, edgeLabelFontSize, groupZoneOpacityPercent, hiddenGroupNames, nodeLabelFontSize, showGroupZoneBorders, showNodeIcons, showNodeLabels]);
+  }, [groupDisplayPrefs, edgeLabelFontSize, groupZoneOpacityPercent, hiddenGroupNames, nodeLabelFontSize, showGroupZoneBorders, showGroupZones, showNodeIcons, showNodeLabels]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1318,13 +1327,13 @@ export function TopologyWorkspace({
       ),
     });
     const validNodeIds = new Set<string>([
-      ...layout.groups.map((group) => group.id),
+      ...(showGroupZones ? layout.groups : []).map((group) => group.id),
       ...filteredGraph.devices.map((device) => `device-${device.id}`),
     ]);
     cy.batch(() => {
       cy.elements().remove();
       cy.add([
-        ...layout.groups.map((group) => {
+        ...(showGroupZones ? layout.groups : []).map((group) => {
           const meta = groupMetaByName.get(group.label);
           const isCloud = meta?.kind === "cloud";
           return {
@@ -1361,7 +1370,7 @@ export function TopologyWorkspace({
               color: nodeColor,
               iconUrl: deviceIconUrl(device.icon, nodeColor),
               icon: resolveDeviceIcon(device.icon),
-              parent: groupId(device.topology_group),
+              parent: showGroupZones ? groupId(device.topology_group) : undefined,
               nodeScale,
               hitSize,
             },
@@ -1420,7 +1429,7 @@ export function TopologyWorkspace({
       cy.fit(undefined, 36);
       fitOnNextRenderRef.current = false;
     }
-  }, [activeIconPackId, iconsRevision, filteredGraph, groupDisplayPrefs, groupMetaByName, layoutRevision, liveStatusByDeviceId, theme, userId]);
+  }, [activeIconPackId, iconsRevision, filteredGraph, groupDisplayPrefs, groupMetaByName, layoutRevision, liveStatusByDeviceId, showGroupZones, theme, userId]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -2085,6 +2094,7 @@ export function TopologyWorkspace({
         totalDeviceCount={liveGraph.devices.length}
         showNodeIcons={showNodeIcons}
         showNodeLabels={showNodeLabels}
+        showGroupZones={showGroupZones}
         allGroupNames={allGroupNames}
         visibleGroupNames={visibleGroupNames}
         groupDeviceCounts={groupDeviceCounts}
@@ -2103,6 +2113,7 @@ export function TopologyWorkspace({
         onExportSvg={() => { if (cyRef.current) exportTopologySvg(cyRef.current); }}
         onExportPdf={() => { if (cyRef.current) exportTopologyPdf(cyRef.current, edgeLabelFontSize); }}
         onShowNodeIconsChange={setShowNodeIcons}
+        onShowGroupZonesChange={setShowGroupZones}
         onShowNodeLabelsChange={setShowNodeLabels}
         onToggleGroupVisibility={toggleGroupVisibility}
         onShowAllGroups={() => setHiddenGroupNames(new Set())}

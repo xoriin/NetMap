@@ -303,6 +303,7 @@ export type TopologyDisplayPrefs = {
   showGroupZoneBorders?: boolean;
   hiddenGroupNames?: string[];
   showNodeIcons?: boolean;
+  showGroupZones?: boolean;
   showNodeLabels?: boolean;
 };
 
