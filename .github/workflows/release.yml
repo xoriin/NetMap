@@ -1,0 +1,56 @@
+# A "Release X.Y.Z" commit on test is promoted once its tests and test image pass.
+name: Release from test
+
+on:
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote release commit
+    if: startsWith(github.event.head_commit.message, 'Release ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Wait for this commit's tests and test image
+        run: |
+          for attempt in $(seq 1 30); do
+            run_id="$(gh run list --workflow docker-aio.yml --commit "$SHA" --event push --json databaseId --jq '.[0].databaseId')"
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          [ -n "$run_id" ] || { echo "No Docker AIO run found for $SHA"; exit 1; }
+          gh run watch "$run_id" --exit-status --interval 30
+
+      - name: Fast-forward main and tag the release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          scripts/promote-release.sh "$SHA" origin
+
+      - name: Start the production image and GitHub Release
+        run: |
+          version="$(git log -1 --format=%s "$SHA" | sed -E 's/^Release ([0-9]+\.[0-9]+\.[0-9]+)$/\1/')"
+          gh workflow run docker-aio.yml --ref "v$version" -f push=true
