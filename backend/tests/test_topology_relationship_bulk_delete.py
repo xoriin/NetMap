@@ -63,7 +63,7 @@ def test_bulk_delete_writes_one_audit_entry_with_count():
     db, admin, links = _db()
 
     bulk_delete_relationships(
-        payload=RelationshipBulkDeleteRequest(relationship_ids=[l.id for l in links]), current_user=admin, db=db
+        payload=RelationshipBulkDeleteRequest(relationship_ids=[link.id for link in links]), current_user=admin, db=db
     )
 
     audits = db.scalars(select(AuditLog).where(AuditLog.action == "topology.relationships_bulk_deleted")).all()
