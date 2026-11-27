@@ -174,6 +174,16 @@ export function buildCytoscapeStylesheet(edgeLabelFontSize: number): cytoscape.S
       },
     },
     {
+      selector: "edge.unlink-preview",
+      style: {
+        "line-color": "#dc2626",
+        "target-arrow-color": "#dc2626",
+        "line-style": "dashed",
+        width: 4,
+        "z-index": 80,
+      },
+    },
+    {
       selector: "edge.link-flash",
       style: {
         "line-color": "#d97706",

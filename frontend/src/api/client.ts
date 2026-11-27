@@ -1984,6 +1984,12 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  bulkDeleteRelationships: (token: string, relationshipIds: number[]) =>
+    request<{ deleted: Relationship[] }>("/api/v1/topology/relationships/bulk-delete", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ relationship_ids: relationshipIds }),
+    }),
   getDiscoveryConfig: (token: string, signal?: AbortSignal) =>
     request<DiscoveryConfig>("/api/v1/discovery/config", { token, signal }),
   startDiscoveryScan: (

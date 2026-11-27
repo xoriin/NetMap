@@ -942,6 +942,9 @@ body.theme-dark .topo-bulkbar {
 }
 
 .topo-linkbar-hint { color: var(--nm-text-muted); }
+.topo-unlink-scope { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.topo-unlink-scope .tool-form-inline-check { font-size: var(--nm-text-md, 13px); color: var(--nm-text); }
+.topo-unlink-scope b { color: var(--nm-text-muted); font-weight: 600; }
 .topo-linkbar-hint strong { color: var(--nm-accent-strong); font-weight: 600; }
 .graph-surface.is-link-mode .graph-canvas { cursor: crosshair; }
 

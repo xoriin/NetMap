@@ -302,6 +302,19 @@ class RelationshipRead(RelationshipBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RelationshipBulkDeleteRequest(BaseModel):
+    relationship_ids: list[int] = Field(min_length=1, max_length=1000)
+
+    @field_validator("relationship_ids")
+    @classmethod
+    def dedupe_ids(cls, value: list[int]) -> list[int]:
+        return list(dict.fromkeys(value))
+
+
+class RelationshipBulkDeleteResult(BaseModel):
+    deleted: list[RelationshipRead]
+
+
 class TopologyGraph(BaseModel):
     devices: list[DeviceRead]
     relationships: list[RelationshipRead]

@@ -45,6 +45,8 @@ import {
 } from "./TopologyToolbar";
 import { DetailsPanel } from "./DetailsPanel";
 import { LinkQuickEdit } from "./LinkQuickEdit";
+import { BulkUnlinkDialog } from "./BulkUnlinkDialog";
+import { linksForSelection, restorePayload, type UnlinkScope } from "./bulkUnlink";
 import { findExistingLink, quickLinkPayload, resolveLinkEndpoint, type LinkEndpoint } from "./linkMode";
 import { useDeviceTypes } from "../../hooks/useDeviceTypes";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -187,6 +189,9 @@ export function TopologyWorkspace({
   const [bulkGroupChoice, setBulkGroupChoice] = useState("");
   const [bulkSiteChoice, setBulkSiteChoice] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
+  const [removedLinks, setRemovedLinks] = useState<Relationship[] | null>(null);
   const [minimapNodes, setMinimapNodes] = useState<MiniMapNode[]>([]);
   const [minimapExtent, setMinimapExtent] = useState<MiniMapExtent | null>(null);
   const deviceTapRef = useRef<(deviceId: number, point: ScreenPoint | null) => void>(() => {});
@@ -206,6 +211,7 @@ export function TopologyWorkspace({
   const correlationWindowHours = 24;
   const [liveGraph, setLiveGraph] = useState<TopologyGraph>(graph);
   relationshipsRef.current = liveGraph.relationships;
+  const bulkTouchingCount = bulkSelectedIds.length >= 2 ? linksForSelection(liveGraph.relationships, bulkSelectedIds, "touching").length : 0;
   const [cyZoom, setCyZoom] = useState(1);
 
   useEffect(() => {
@@ -440,6 +446,64 @@ export function TopologyWorkspace({
     setBulkSiteChoice("");
   }
 
+  function previewUnlink(scope: UnlinkScope | null) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.edges(".unlink-preview").removeClass("unlink-preview");
+    if (!scope) return;
+    for (const relationship of linksForSelection(relationshipsRef.current, bulkSelectedIds, scope)) {
+      cy.getElementById(`relationship-${relationship.id}`).addClass("unlink-preview");
+    }
+  }
+
+  function openUnlink() {
+    setRemovedLinks(null);
+    setUnlinkOpen(true);
+    previewUnlink(linksForSelection(relationshipsRef.current, bulkSelectedIds, "between").length > 0 ? "between" : "touching");
+  }
+
+  function closeUnlink() {
+    previewUnlink(null);
+    setUnlinkOpen(false);
+  }
+
+  async function confirmUnlink(scope: UnlinkScope) {
+    if (!accessToken) return;
+    const ids = linksForSelection(relationshipsRef.current, bulkSelectedIds, scope).map((r) => r.id);
+    if (ids.length === 0) return;
+    setUnlinkBusy(true);
+    try {
+      const result = await api.bulkDeleteRelationships(accessToken, ids);
+      const gone = new Set(result.deleted.map((r) => r.id));
+      relationshipsRef.current = relationshipsRef.current.filter((r) => !gone.has(r.id));
+      setLiveGraph((current) => ({ ...current, relationships: current.relationships.filter((r) => !gone.has(r.id)) }));
+      if (selectedRelationshipId !== null && gone.has(selectedRelationshipId)) setSelectedRelationshipId(null);
+      previewUnlink(null);
+      setUnlinkOpen(false);
+      clearBulkSelection();
+      setRemovedLinks(result.deleted);
+      void onGraphChange();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to remove links");
+    } finally {
+      setUnlinkBusy(false);
+    }
+  }
+
+  async function undoUnlink() {
+    if (!accessToken || !removedLinks) return;
+    const toRestore = removedLinks;
+    setRemovedLinks(null);
+    const results = await Promise.allSettled(toRestore.map((r) => api.createRelationship(accessToken, restorePayload(r))));
+    const restored = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    relationshipsRef.current = [...relationshipsRef.current, ...restored];
+    setLiveGraph((current) => ({ ...current, relationships: [...current.relationships, ...restored] }));
+    if (restored.length < toRestore.length) {
+      toast.error(`Restored ${restored.length} of ${toRestore.length} links`);
+    }
+    void onGraphChange();
+  }
+
   async function applyBulkAssignment() {
     if (!accessToken || bulkSelectedIds.length < 2) return;
     const payload: { device_ids: number[]; topology_group_id?: number; site_id?: number } = {
@@ -486,6 +550,10 @@ export function TopologyWorkspace({
         event.preventDefault();
         toggleLinkMode();
       }
+      return;
+    }
+    if (event.key === "Escape" && removedLinks && !linkMode) {
+      setRemovedLinks(null);
       return;
     }
     if (event.key !== "Escape" || !linkMode) return;
@@ -2194,6 +2262,24 @@ export function TopologyWorkspace({
               onClose={closeQuickLink}
             />
           )}
+          {removedLinks && bulkSelectedIds.length < 2 && (
+            <div className="topo-pathbar" role="status">
+              <span>Removed <b>{removedLinks.length} link{removedLinks.length === 1 ? "" : "s"}</b></span>
+              <button type="button" className="nm-btn nm-btn--sm" onClick={() => void undoUnlink()}>Undo</button>
+              <button type="button" className="nm-btn nm-btn--sm nm-btn--ghost" onClick={() => setRemovedLinks(null)}>Dismiss</button>
+            </div>
+          )}
+          {unlinkOpen && (
+            <BulkUnlinkDialog
+              deviceCount={bulkSelectedIds.length}
+              betweenCount={linksForSelection(liveGraph.relationships, bulkSelectedIds, "between").length}
+              touchingCount={bulkTouchingCount}
+              busy={unlinkBusy}
+              onScopeChange={previewUnlink}
+              onConfirm={(scope) => void confirmUnlink(scope)}
+              onCancel={closeUnlink}
+            />
+          )}
           {bulkSelectedIds.length >= 2 && (
             <div className="topo-bulkbar">
               <strong>{bulkSelectedIds.length} devices selected</strong>
@@ -2220,6 +2306,17 @@ export function TopologyWorkspace({
                     {bulkBusy ? "Applying…" : "Apply"}
                   </button>
                 </>
+              )}
+              {canWrite && (
+                <button
+                  type="button"
+                  className="nm-btn nm-btn--sm nm-btn--danger"
+                  disabled={bulkTouchingCount === 0}
+                  title={bulkTouchingCount === 0 ? "No links on these devices" : undefined}
+                  onClick={openUnlink}
+                >
+                  Remove links…
+                </button>
               )}
               <button type="button" className="nm-btn nm-btn--sm nm-btn--secondary" onClick={clearBulkSelection}>
                 Clear

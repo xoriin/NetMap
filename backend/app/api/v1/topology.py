@@ -52,6 +52,8 @@ from app.schemas.topology import (
     DeviceSnmpEnrichmentPreview,
     DeviceSecurityEventSummary,
     DeviceUpdate,
+    RelationshipBulkDeleteRequest,
+    RelationshipBulkDeleteResult,
     RelationshipCreate,
     RelationshipRead,
     RelationshipUpdate,
@@ -1290,6 +1292,31 @@ def update_relationship(
     db.commit()
     db.refresh(relationship)
     return relationship
+
+
+@router.post("/relationships/bulk-delete", response_model=RelationshipBulkDeleteResult)
+def bulk_delete_relationships(
+    payload: RelationshipBulkDeleteRequest,
+    current_user: Annotated[User, Depends(require_topology_write)],
+    db: Annotated[Session, Depends(get_db)],
+) -> RelationshipBulkDeleteResult:
+    relationships = db.scalars(
+        select(DeviceRelationship).where(DeviceRelationship.id.in_(payload.relationship_ids)).order_by(DeviceRelationship.id)
+    ).all()
+    if not relationships:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching links found")
+    deleted = [RelationshipRead.model_validate(relationship) for relationship in relationships]
+    write_audit(
+        db,
+        action="topology.relationships_bulk_deleted",
+        actor_user_id=current_user.id,
+        target=f"count:{len(relationships)}",
+        detail=" ".join(f"relationship:{relationship.id}" for relationship in relationships)[:2000],
+    )
+    for relationship in relationships:
+        db.delete(relationship)
+    db.commit()
+    return RelationshipBulkDeleteResult(deleted=deleted)
 
 
 @router.delete("/relationships/{relationship_id}", status_code=status.HTTP_204_NO_CONTENT)
