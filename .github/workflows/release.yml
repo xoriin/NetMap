@@ -1,4 +1,6 @@
 # A "Release X.Y.Z" commit on test is promoted once its tests and test image pass.
+# Pushes use the RELEASE_DEPLOY_KEY deploy key, which the "Protect main" ruleset lets through;
+# because they are not made with the Actions token, the tag push starts the production build itself.
 name: Release from test
 
 on:
@@ -8,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: release
@@ -19,16 +22,22 @@ jobs:
     if: startsWith(github.event.head_commit.message, 'Release ')
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    permissions:
-      contents: write
-      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       SHA: ${{ github.sha }}
+      HAS_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY != '' }}
     steps:
+      - name: Require the release deploy key
+        if: env.HAS_DEPLOY_KEY != 'true'
+        run: |
+          echo "::error::RELEASE_DEPLOY_KEY secret is not set; promote by hand with scripts/promote-release.sh"
+          exit 1
+
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          persist-credentials: true
 
       - uses: actions/setup-python@v6
         with:
@@ -45,12 +54,4 @@ jobs:
           gh run watch "$run_id" --exit-status --interval 30
 
       - name: Fast-forward main and tag the release
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          scripts/promote-release.sh "$SHA" origin
-
-      - name: Start the production image and GitHub Release
-        run: |
-          version="$(git log -1 --format=%s "$SHA" | sed -E 's/^Release ([0-9]+\.[0-9]+\.[0-9]+)$/\1/')"
-          gh workflow run docker-aio.yml --ref "v$version" -f push=true
+        run: scripts/promote-release.sh "$SHA" origin
