@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.3] - 2026-11-27
+
+### Added
+- Topology → Link mode: click two devices to link them, keep clicking to add more, and adjust speed or type from a small popup at the cursor (L to toggle, Esc to exit). The last speed you pick is used for the next link, already-linked pairs are not duplicated, and Undo removes a link made by mistake.
+- Topology: **Remove links…** on the box-select bulk bar removes the links between the selected devices, or every link touching them, in one step. The confirm shows the count for each choice and highlights the links on the map, and a **Removed N links** bar offers Undo. New endpoint `POST /api/v1/topology/relationships/bulk-delete` (up to 1000 IDs, `topology_write`, one audit entry).
+- Topology: a **Boxes** toggle beside Icons and Text hides the group and VLAN boxes so devices can be placed freely. Devices keep their positions and group membership, and the choice is saved with your layout.
+- Device details (Inventory and Topology) and cloud asset details: a copy button beside the hostname, IP address and MAC address (and a cloud asset's IP address or name) copies the value and briefly shows a check. It also works on plain-HTTP installs, where the browser clipboard API is unavailable.
+
+### Fixed
+- Topology: a device added to a group that has no saved position yet (for example the first cloud asset in a new cloud group) is placed just beside your arranged map instead of at a default spot far away that forced you to zoom right out.
+
 ## [1.8.2] - 2026-11-26
 
 ### Security
